@@ -40,6 +40,16 @@ Four grandparents (two per side). Onboarding will be assisted by family ("we wil
 
 Founder ask, verbatim intent: individual profiles should carry birthdays, school, work, age, phone numbers, email; "contact information is helpful in a family," plus birthday reminders. Product translation became epic E9 (People and the family directory) with principle-preserving constraints: per-field per-yard visibility, age never displayed, dates surfaced via digest and a quiet feed banner rather than push. Anniversaries included; remembrance dates and genealogy deliberately deferred.
 
+## Ratification (2026-07-20, batched Phase 1 sign-off)
+
+The founder ratified the PR-FAQ, the 8 product principles, the v1 story cut (34 stories after S-805 joined), ADR-002 (Django stack), ADR-003 (token links), and the threat model in one batched review. Before ratifying he asked three clarifying questions about the deliberate exclusions, recorded here with the answers because they are the kind of questions users will ask too:
+
+- **What is E2EE?** End-to-end encryption: content encrypted on the sender's device and readable only on recipients' devices, never by the server. Excluded from v1 because the elder surfaces depend on the server reading content (rendering the token-link feed, building the email digest, mapping email replies to comments). Backyard's threat model is platform-elimination, not secrecy from the family member hosting the box; the admin's power is disclosed instead of encrypted away.
+- **Is chat excluded because it would be hard to use?** No, it is a scope decision, not a difficulty one. Group texts already do family messaging well and are entrenched; Backyard replaces their broadcast misuse (async catch-up), not messaging itself. Shipping chat would compete with iMessage, drag in presence and read-receipt pressure, and risk cannibalizing the feed the product exists for.
+- **Is the calendar exclusion about birthdays?** No. Birthdays and anniversaries are in (people-dates in the directory, surfaced through the digest and a quiet banner, S-903). The exclusion is a calendar *product* (events, RSVPs, scheduling), which the family-organizer app wave already covers and which is a different job.
+
+All three exclusions stand as ratified; each is reversible later as a spec story if real family usage argues for it.
+
 ## Rollout amendment
 
 Rollout is **per yard**, not toward one clan layer: seed household first, then one high-energy pod on whichever side shows pull, opening each yard when its pods post weekly. The PATH-TO-100 Phase 6 items are interpreted per-yard.

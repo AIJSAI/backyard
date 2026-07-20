@@ -1,6 +1,6 @@
 # ADR-002: The stack
 
-Status: proposed (Phase 1; goes to accepted with the founder's batched Phase 1 sign-off)
+Status: accepted (founder sign-off, 2026-07-20)
 Date: 2026-07-20
 Owner: the founder (solo maintainer)
 
