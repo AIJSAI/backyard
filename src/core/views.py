@@ -17,8 +17,9 @@ from django.core.exceptions import ValidationError
 from django.db import connection, transaction
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
+from django.utils.text import slugify
 
-from .models import SetupToken
+from .models import Member, Pod, PodMembership, SetupToken, Yard
 
 if TYPE_CHECKING:
     from django.contrib.auth.models import User as UserModel
@@ -47,14 +48,36 @@ def _validate_username(username: str) -> str | None:
     return None
 
 
-def _try_create_admin(username: str, password: str, secret: str) -> UserModel | None:
-    """Create the first admin atomically, or return None if the secret is wrong.
+def _unique_yard_slug(name: str) -> str:
+    """A URL-safe, unique slug for the first yard. Falls back to a generic base if
+    the name slugifies to nothing (all punctuation), and disambiguates collisions."""
+    base = slugify(name) or "yard"
+    slug = base
+    n = 2
+    while Yard.objects.filter(slug=slug).exists():
+        slug = f"{base}-{n}"
+        n += 1
+    return slug
+
+
+def _try_create_admin(
+    username: str,
+    password: str,
+    secret: str,
+    *,
+    display_name: str,
+    yard_name: str,
+    pod_name: str,
+) -> UserModel | None:
+    """Create the first admin, first yard, and first pod atomically (S-801), or
+    return None if the secret is wrong.
 
     The whole thing runs in one transaction with the token row locked, and the
     "no admin yet" gate is re-checked under that lock. Two concurrent POSTs that
     both passed the early check cannot both create an admin: the second one blocks
     on the lock, then sees the admin already exists and raises _SetupClosed. This
-    makes TM-8's "disabled the moment an admin exists" atomic, not best-effort.
+    makes TM-8's "disabled the moment an admin exists" atomic, not best-effort, and
+    it means the yard, pod, and admin-membership either all land or none do.
     """
     with transaction.atomic():
         locked = SetupToken.objects.select_for_update().order_by("id").first()
@@ -63,6 +86,13 @@ def _try_create_admin(username: str, password: str, secret: str) -> UserModel | 
         if locked is None or not check_password(secret, locked.token_hash):
             return None
         admin = User.objects.create_superuser(username=username, password=password)
+        yard = Yard.objects.create(name=yard_name, slug=_unique_yard_slug(yard_name))
+        pod = Pod.objects.create(name=pod_name)
+        pod.yards.set([yard])
+        member = Member.objects.create(
+            display_name=display_name, user=admin, role=Member.INSTANCE_ADMIN
+        )
+        PodMembership.objects.create(member=member, pod=pod)
         SetupToken.objects.all().delete()
         return admin
 
@@ -88,10 +118,19 @@ def setup(request: HttpRequest) -> HttpResponse:
         secret = request.POST.get("setup_secret", "")
         username = request.POST.get("username", "").strip()
         password = request.POST.get("password", "")
+        display_name = request.POST.get("display_name", "").strip()
+        yard_name = request.POST.get("yard_name", "").strip()
+        pod_name = request.POST.get("pod_name", "").strip()
 
         username_error = _validate_username(username)
         if username_error:
             errors.append(username_error)
+        if not display_name:
+            errors.append("Tell us the name your family will see for you.")
+        if not yard_name:
+            errors.append("Name this side of the family (its yard).")
+        if not pod_name:
+            errors.append("Name your household (its pod).")
         # Pass the prospective user so password-equals-username is rejected for the
         # most privileged account on the instance.
         try:
@@ -101,7 +140,14 @@ def setup(request: HttpRequest) -> HttpResponse:
 
         if not errors:
             try:
-                admin = _try_create_admin(username, password, secret)
+                admin = _try_create_admin(
+                    username,
+                    password,
+                    secret,
+                    display_name=display_name,
+                    yard_name=yard_name,
+                    pod_name=pod_name,
+                )
             except _SetupClosed as exc:
                 raise Http404("Setup is complete.") from exc
             if admin is None:

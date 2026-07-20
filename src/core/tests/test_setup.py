@@ -13,10 +13,25 @@ from django.contrib.auth.hashers import make_password
 from django.test import Client
 from django.urls import reverse
 
-from core.models import SetupToken
+from core.models import Member, Pod, PodMembership, SetupToken, Yard
 
 User = get_user_model()
 SECRET = "correct-horse-battery-staple-42"
+
+
+def _valid_data(**overrides: str) -> dict[str, str]:
+    """A complete valid setup POST: the wizard now also names the first yard and
+    pod (S-801), so every test starts from a full payload and overrides one field."""
+    data = {
+        "setup_secret": SECRET,
+        "username": "james",
+        "password": "a-Strong-passphrase-9",
+        "display_name": "James",
+        "yard_name": "Mom's side",
+        "pod_name": "Our house",
+    }
+    data.update(overrides)
+    return data
 
 
 @pytest.fixture
@@ -31,10 +46,7 @@ def test_home_redirects_to_setup_when_no_admin(db: None) -> None:
 
 
 def test_setup_creates_admin_with_correct_secret(token: SetupToken) -> None:
-    resp = Client().post(
-        reverse("setup"),
-        {"setup_secret": SECRET, "username": "james", "password": "a-Strong-passphrase-9"},
-    )
+    resp = Client().post(reverse("setup"), _valid_data())
     assert resp.status_code == 302
     assert resp.headers["Location"] == reverse("home")
     admin = User.objects.get(username="james")
@@ -43,21 +55,46 @@ def test_setup_creates_admin_with_correct_secret(token: SetupToken) -> None:
     assert not SetupToken.objects.exists()
 
 
+def test_setup_creates_first_yard_pod_and_admin_membership(token: SetupToken) -> None:
+    """S-801: the wizard creates the admin, the first yard, and the first pod, and
+    makes the admin an instance-admin member of that pod, all in one atomic act."""
+    Client().post(reverse("setup"), _valid_data())
+
+    yard = Yard.objects.get()
+    assert yard.name == "Mom's side"
+    assert yard.slug  # a real slug was generated
+    pod = Pod.objects.get()
+    assert pod.name == "Our house"
+    assert list(pod.yards.all()) == [yard]  # the pod belongs to the first yard
+    member = Member.objects.get()
+    assert member.display_name == "James"
+    assert member.role == Member.INSTANCE_ADMIN
+    assert member.user is not None and member.user.username == "james"
+    assert PodMembership.objects.filter(member=member, pod=pod).exists()
+
+
+def test_setup_rejects_missing_yard_or_pod_name(token: SetupToken) -> None:
+    """Missing yard or pod name fails the wizard, and nothing is created: the
+    admin, yard, and pod either all land or none do (atomic)."""
+    resp = Client().post(reverse("setup"), _valid_data(yard_name=""))
+    assert resp.status_code == 200
+    assert not User.objects.filter(is_superuser=True).exists()
+    assert Yard.objects.count() == 0 and Pod.objects.count() == 0 and Member.objects.count() == 0
+
+    resp = Client().post(reverse("setup"), _valid_data(pod_name=""))
+    assert resp.status_code == 200
+    assert Member.objects.count() == 0
+
+
 def test_setup_rejects_wrong_secret(token: SetupToken) -> None:
-    resp = Client().post(
-        reverse("setup"),
-        {"setup_secret": "wrong", "username": "james", "password": "a-Strong-passphrase-9"},
-    )
+    resp = Client().post(reverse("setup"), _valid_data(setup_secret="wrong"))
     assert resp.status_code == 200
     assert not User.objects.filter(is_superuser=True).exists()
     assert SetupToken.objects.exists()
 
 
 def test_setup_rejects_weak_password(token: SetupToken) -> None:
-    resp = Client().post(
-        reverse("setup"),
-        {"setup_secret": SECRET, "username": "james", "password": "123"},
-    )
+    resp = Client().post(reverse("setup"), _valid_data(password="123"))
     assert resp.status_code == 200
     assert not User.objects.filter(is_superuser=True).exists()
 
@@ -72,27 +109,20 @@ def test_setup_gate_closes_under_lock(token: SetupToken) -> None:
     # An admin appears after the early check but before the atomic create; the POST,
     # carrying a valid secret, must still 404 rather than create a second admin.
     User.objects.create_superuser(username="racer", password="a-Strong-passphrase-9")
-    resp = Client().post(
-        reverse("setup"),
-        {"setup_secret": SECRET, "username": "second", "password": "a-Strong-passphrase-9"},
-    )
+    resp = Client().post(reverse("setup"), _valid_data(username="second"))
     assert resp.status_code == 404
     assert User.objects.filter(is_superuser=True).count() == 1
 
 
 def test_setup_rejects_bad_username(token: SetupToken) -> None:
-    resp = Client().post(
-        reverse("setup"),
-        {"setup_secret": SECRET, "username": "no spaces!", "password": "a-Strong-passphrase-9"},
-    )
+    resp = Client().post(reverse("setup"), _valid_data(username="no spaces!"))
     assert resp.status_code == 200
     assert not User.objects.filter(is_superuser=True).exists()
 
 
 def test_setup_rejects_password_equal_to_username(token: SetupToken) -> None:
     resp = Client().post(
-        reverse("setup"),
-        {"setup_secret": SECRET, "username": "solitude-92", "password": "solitude-92"},
+        reverse("setup"), _valid_data(username="solitude-92", password="solitude-92")
     )
     assert resp.status_code == 200
     assert not User.objects.filter(is_superuser=True).exists()
@@ -101,10 +131,7 @@ def test_setup_rejects_password_equal_to_username(token: SetupToken) -> None:
 def test_setup_enforces_csrf(token: SetupToken) -> None:
     # With CSRF enforcement on and no token supplied, the POST is rejected (403),
     # proving the wizard is CSRF-protected.
-    resp = Client(enforce_csrf_checks=True).post(
-        reverse("setup"),
-        {"setup_secret": SECRET, "username": "james", "password": "a-Strong-passphrase-9"},
-    )
+    resp = Client(enforce_csrf_checks=True).post(reverse("setup"), _valid_data())
     assert resp.status_code == 403
     assert not User.objects.filter(is_superuser=True).exists()
 
