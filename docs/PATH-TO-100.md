@@ -29,7 +29,7 @@ The single canonical checklist for Backyard v1.0. Rules:
 - [ ] Assumption map with kill criteria
 - [ ] Story map; stories.yaml populated with the v1 cut + acceptance criteria
 - [ ] Content judge panel workflow encoded (slop / substance / audience / voice lenses)
-- [ ] Domains registered: backyard.family, backyard.social
+- [x] Domain registered: backyard.family (single-domain decision, ADR-001 amended) evidence: https://rdap.org/domain/backyard.family
 
 ## Phase 1: Architecture and scaffold
 

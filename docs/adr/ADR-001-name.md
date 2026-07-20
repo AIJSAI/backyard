@@ -28,5 +28,5 @@ Eleven candidates died on FATAL same-space collisions, several on active family 
 
 ## Consequences
 
-- Register `backyard.family` and `backyard.social` (owner action, before build-in-public posts start).
-- Project home: `backyard.social` (docs, demo). Each family that deploys Backyard uses its own domain; the maintainer's family instance stays on infrastructure he controls.
+- Domain: `backyard.family` registered 2026-07-20 (Cloudflare Registrar). Amended from the original two-domain plan: `.social` ($70/yr) was defensive-only, and this ADR already accepts that a generic word cannot own its namespace. Revisit only if brand sprawl becomes a measured problem at launch.
+- Project home: `backyard.family` (docs, demo). The maintainer's private family instance lives on an unadvertised, auth-gated subdomain. Each family that deploys Backyard uses its own domain.
