@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 license = "AGPL-3.0-or-later"
 dependencies = [
   "django>=5.2,<5.3",           # 5.2 LTS, extended support to 2028-04 (ADR-002)
+  "django-allauth[mfa]>=65.14,<66",
   "gunicorn>=23,<24",
   "psycopg[binary]>=3.2,<4",
   "whitenoise>=6.12,<7",
@@ -45,7 +46,7 @@ explicit_package_bases = true
 django_settings_module = "config.settings"
 
 [[tool.mypy.overrides]]
-module = ["whitenoise.*", "gunicorn.*"]
+module = ["whitenoise.*", "gunicorn.*", "allauth.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
