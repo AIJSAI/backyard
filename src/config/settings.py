@@ -47,12 +47,29 @@ if DEBUG and BASE_URL.lower().startswith("https://"):
         "settings and tracebacks. See docs/security/threat-model.md TS-DJ-10."
     )
 
+# The symmetric guard (security review MEDIUM-3): the whole HTTPS posture (secure cookies,
+# HSTS, SSL redirect, the WebAuthn secure-origin check) keys off BASE_URL's scheme. An operator
+# who fronts a real domain with TLS but forgets BACKYARD_BASE_URL (it defaults to http localhost)
+# would silently get all of that OFF. So a non-local http base URL in production is a hard-fail.
+# The local plain-HTTP repro (http://localhost) is exempt: it is the documented clean-machine path.
+_is_local = any(host in BASE_URL.lower() for host in ("localhost", "127.0.0.1"))
+if not DEBUG and not BASE_URL.lower().startswith("https://") and not _is_local:
+    raise RuntimeError(
+        "BACKYARD_BASE_URL is a non-local http URL. In production it must be https, or secure "
+        "cookies, HSTS, and the SSL redirect stay off. Set BACKYARD_BASE_URL to your https URL. "
+        "See docs/security/threat-model.md TS-DJ-10 / TS-EDGE-1."
+    )
+
 INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.humanize",  # required by allauth's default MFA templates
+    "allauth",
+    "allauth.account",
+    "allauth.mfa",  # TOTP + WebAuthn passkeys (ADR-002 S-101)
     "core",
 ]
 
@@ -65,6 +82,12 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "allauth.account.middleware.AccountMiddleware",  # required by allauth
+]
+
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -113,6 +136,53 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
+
+# --- Authentication (django-allauth, S-101) ---------------------------------
+# Rate limits and lockouts ride the Django cache framework. The default is
+# per-process LocMemCache, which on three gunicorn workers means a limit that is
+# 3x looser and resets on every restart, and TS-EDGE-IP's per-account backoff
+# would be inconsistent across workers (threat model TS-DJ-13). Use a Postgres
+# DatabaseCache: shared across workers, survives restarts, and adds no container.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "backyard_cache",
+    }
+}
+
+# allauth cannot reliably determine the client IP behind a proxy, and since its
+# 65.14.2 security release it distrusts X-Forwarded-For by default (threat model
+# TS-EDGE-IP). Exactly one proxy sits in front: the bundled Caddy, which
+# overwrites client-sent forwarded headers and is the only peer that can reach
+# web (the TS-CO-4 network split). A CDN or second proxy must revisit this.
+ACCOUNT_ADAPTER = "core.adapters.AccountAdapter"  # signup is invite-only (S-101)
+ACCOUNT_LOGIN_METHODS = {"username", "email"}
+ACCOUNT_EMAIL_VERIFICATION = "optional"  # invite-token members may have no email
+ACCOUNT_PREVENT_ENUMERATION = True  # login/reset never reveal whether an account exists
+ACCOUNT_RATE_LIMITS = {
+    # Per-IP AND per-account backoff on the credential endpoints (T-CRED-1, T-EDGE-2).
+    # The `/key` scope is the per-account half and is load-bearing: allauth defaults a
+    # scopeless rate to per-IP, so an attacker who knows a username could brute-force
+    # from rotating IPs with no account lockout (security review HIGH-1). Every
+    # credential limit here carries an explicit `/ip` and, where an account or target
+    # exists, a `/key` component.
+    "login_failed": "5/5m/ip,10/1h/ip,5/15m/key",
+    "login": "30/5m/ip",
+    "signup": "20/1h/ip",
+    "reset_password": "20/1h/ip,5/1h/key",
+}
+ALLAUTH_TRUSTED_PROXY_COUNT = 1
+
+# Passkey-primary login with password fallback (ADR-002). WebAuthn passkeys are
+# the preferred method; a password remains a fallback. Passkey SIGNUP stays off:
+# it forces email verification, which invite-token signup (email optional) cannot
+# meet, so the invite flow is a custom view (S-101) that enrolls WebAuthn after.
+MFA_SUPPORTED_TYPES = ["webauthn", "totp", "recovery_codes"]
+MFA_PASSKEY_LOGIN_ENABLED = True
+MFA_PASSKEY_SIGNUP_ENABLED = False
+# Local HTTP repro only: fido2 <= 1.1.3 rejects localhost as a secure origin.
+# Never true in production (keyed off the same HTTPS signal as the cookie flags).
+MFA_WEBAUTHN_ALLOW_INSECURE_ORIGIN = not BASE_URL.lower().startswith("https://")
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"

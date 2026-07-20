@@ -79,8 +79,12 @@ services:
     networks: [edge]
 
 # The TS-CO-4 split: the internet-facing edge never shares a network with the
-# database, so a compromised Caddy cannot address Postgres, and (when the worker
-# lands on its own worker-db network) nothing but Caddy can address web.
+# database, so a compromised Caddy cannot address Postgres. web sits on both
+# networks because it must reach the database, so postgres CAN still address web
+# on web-db (a post-compromise XFF-spoof vector, security review LOW-5); that is
+# bounded because an owned Postgres already holds the session table and hashes.
+# Fully isolating web behind Caddy needs per-network listen binding Docker does
+# not offer for a single port; revisit if it becomes worth a second proxy hop.
 networks:
   edge:
   web-db:

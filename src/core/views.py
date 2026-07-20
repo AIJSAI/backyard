@@ -110,7 +110,9 @@ def setup(request: HttpRequest) -> HttpResponse:
                     "console at startup."
                 )
             else:
-                login(request, admin)
+                # Two auth backends exist now (ModelBackend + allauth's), so login
+                # must name which one authenticated this user.
+                login(request, admin, backend="django.contrib.auth.backends.ModelBackend")
                 return redirect("home")
     return render(request, "core/setup.html", {"errors": errors})
 
