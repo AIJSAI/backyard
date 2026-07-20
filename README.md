@@ -15,7 +15,7 @@ Backyard is for both problems: an async feed for your household, and ambient awa
 ## What v1 will be
 
 - A calm feed of links, photos, and short updates. Chronological. It ends.
-- **Pods**: private spaces per household or branch, plus the shared **backyard** everyone opens onto.
+- **Pods and yards**: every household is a pod; each branch of the family is a yard with its own shared **backyard**. A household can belong to more than one yard, and nothing forces the sides together.
 - An elder path that requires no account and no app store: tap a link, you are in. Reply by email if that is your thing.
 - Installable PWA (iPhone and Android, no gatekeepers), with an email digest in and out.
 - One-command self-host deploy. Your server, your family's data.

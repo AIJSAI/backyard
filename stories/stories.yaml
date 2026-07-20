@@ -26,8 +26,8 @@ epics:
         status: spec
 
   - id: E2
-    title: Pods and privacy layers
-    intent: Nested private spaces per household or branch, plus the shared backyard layer. Per-post audience override.
+    title: Pods, yards, and privacy layers
+    intent: Households are pods; each side of a family is a yard with its own shared backyard. A pod can belong to multiple yards. Per-post audience override; no forced all-family surface.
     stories: []
 
   - id: E3

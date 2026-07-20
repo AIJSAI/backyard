@@ -21,7 +21,7 @@ The single canonical checklist for Backyard v1.0. Rules:
 - [x] Research brief with verified findings evidence: docs/research/2026-07-19-research-brief.md
 - [x] License decided and recorded evidence: docs/adr/ADR-000-license.md
 - [x] Name decided and recorded evidence: docs/adr/ADR-001-name.md
-- [ ] Founder knowledge capture (family graph, sharing habits, who-must-not-see-what)
+- [x] Founder knowledge capture (family graph, sharing habits, sensitivities) evidence: docs/research/2026-07-20-founder-knowledge-capture.md
 - [ ] Proxy voice-of-customer sweep (incumbent app-store reviews, r/selfhosted threads, zusam/HumHub issue trackers)
 - [ ] PR-FAQ (working backwards)
 - [ ] Product principles finalized (draft: docs/principles.md)
