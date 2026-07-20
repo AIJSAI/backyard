@@ -1,0 +1,61 @@
+# Backyard story tracker: the canonical spec.
+#
+# Statuses: spec -> built -> tested -> passing
+#   "passing" REQUIRES an evidence field (URL or repo path to the test receipt).
+# CI: scripts/check_stories.py validates structure and gates on every push/PR.
+# Populated from the Phase 0 story map; epics are seeded ahead of the PRD.
+
+meta:
+  version: 0
+  updated: "2026-07-19"
+  note: Epics seeded pre-PRD. Stories land with the Phase 0 story map.
+
+epics:
+  - id: E1
+    title: Identity and onboarding
+    intent: Invite-link first. Token-link elder path with no account and no app store step.
+    stories:
+      - id: S-000
+        epic: E1
+        persona: founder-poster
+        story: As the founding poster, I can share a link at 1am so my family sees it whenever they choose, and nobody gets woken up.
+        acceptance:
+          - Posting a URL renders a preview card in the household pod feed
+          - No push notification is sent by default
+          - Members see the post on next visit, in chronological order
+        status: spec
+
+  - id: E2
+    title: Pods and privacy layers
+    intent: Nested private spaces per household or branch, plus the shared backyard layer. Per-post audience override.
+    stories: []
+
+  - id: E3
+    title: Feed, posts, and links
+    intent: Calm chronological feed of links, photos, and short updates. The feed ends.
+    stories: []
+
+  - id: E4
+    title: Photos and media
+    intent: Media sharing without rebuilding photo infrastructure; integration posture toward Immich-class backends.
+    stories: []
+
+  - id: E5
+    title: Email digest, in and out
+    intent: Digest email for lurkers; reply-by-email posting for the least app-inclined members.
+    stories: []
+
+  - id: E6
+    title: Elder surfaces
+    intent: Token links, large-text web view, ambient display client. Reciprocity built in.
+    stories: []
+
+  - id: E7
+    title: Admin, membership, and data export
+    intent: Pod owner roles, invites, removal, minors policy, first-class full export.
+    stories: []
+
+  - id: E8
+    title: Deploy and operations
+    intent: One-command self-host, migrations that never break the archive, backups, upgrade guide.
+    stories: []
