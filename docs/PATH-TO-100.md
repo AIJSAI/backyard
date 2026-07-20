@@ -38,7 +38,7 @@ The single canonical checklist for Backyard v1.0. Rules:
 - [ ] CI: lint + typecheck + tests + build, from the first code commit
 - [ ] Branch protection and review gates armed
 - [ ] `docker compose up` brings up a hello-world instance on a clean machine
-- [ ] Secrets hygiene verified: zero secrets in history (public repo from day 1)
+- [x] Secrets hygiene verified: zero secrets in history, gitleaks full-history scan + continuous CI job with non-vacuous selftest evidence: docs/receipts/2026-07-20-secrets-scan.md
 
 ## Phase 2: Build waves
 
