@@ -55,11 +55,11 @@ def test_get_shows_form_for_live_invite(invite_to_pod: tuple[Pod, str]) -> None:
     assert response.status_code == 200
 
 
-@pytest.mark.parametrize("bad", ["totally-unknown-token", ""])
-def test_unknown_invite_404s(bad: str) -> None:
-    # An unknown token 404s on both GET and POST: no invite-existence oracle.
-    if bad:  # empty string is not a routable token; skip the reverse for it
-        assert Client().get(reverse("join", args=[bad])).status_code == 404
+def test_unknown_invite_404s_on_both_get_and_post() -> None:
+    # An unknown token 404s on GET and POST: no invite-existence oracle.
+    url = reverse("join", args=["totally-unknown-token"])
+    assert Client().get(url).status_code == 404
+    assert _post("totally-unknown-token").status_code == 404
 
 
 def test_expired_revoked_exhausted_all_404_identically() -> None:
@@ -76,12 +76,37 @@ def test_expired_revoked_exhausted_all_404_identically() -> None:
 
     statuses = set()
     bodies = set()
-    for raw in (expired_raw, revoked_raw, exhausted_raw):
+    # Include an entirely unknown token: property 2's literal claim is that an
+    # unusable invite is byte-identical to an *unknown route*, not just to each other.
+    for raw in (expired_raw, revoked_raw, exhausted_raw, "never-existed-token"):
         r = Client().get(reverse("join", args=[raw]))
         statuses.add(r.status_code)
         bodies.add(r.content)
     assert statuses == {404}
-    assert len(bodies) == 1  # byte-identical 404 across all three unusable states
+    assert len(bodies) == 1  # byte-identical 404 across all unusable states and the unknown one
+
+
+def test_overlong_name_is_rejected_not_500(invite_to_pod: tuple[Pod, str]) -> None:
+    """Security review M1: an over-long display_name/username must be a form error,
+    not an uncaught DataError 500, and must not consume the invite."""
+    _, raw = invite_to_pod
+    assert _post(raw, display_name="x" * 101).status_code == 200
+    assert _post(raw, username="u" * 151).status_code == 200
+    assert Member.objects.count() == 0
+    assert Invite.objects.get().use_count == 0
+
+
+def test_authenticated_member_does_not_burn_the_invite(invite_to_pod: tuple[Pod, str]) -> None:
+    """An already-signed-in member re-hitting a join link is redirected home, not
+    minted a second account or charged an invite use."""
+    _, raw = invite_to_pod
+    client = Client()
+    data = {"display_name": "New Cousin", "username": "newcousin", "password": "aX9!mnpq2ffz"}
+    assert client.post(reverse("join", args=[raw]), data).status_code == 302  # logs the member in
+    used = Invite.objects.get().use_count
+    # The same, now-authenticated client hits the link again: redirected home, no burn.
+    assert client.get(reverse("join", args=[raw])).status_code == 302
+    assert Invite.objects.get().use_count == used
 
 
 def test_used_invite_cannot_be_reused(invite_to_pod: tuple[Pod, str]) -> None:

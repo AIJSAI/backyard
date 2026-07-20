@@ -42,8 +42,15 @@ def _validate(display_name: str, username: str, password: str) -> list[str]:
     errors: list[str] = []
     if not display_name:
         errors.append("Tell us the name your family will see.")
+    elif len(display_name) > 100:
+        # Guard length before the DB: the model field caps at 100 and an over-long
+        # value would otherwise raise DataError (not IntegrityError) into a 500,
+        # like the sibling setup view already guards (security review M1).
+        errors.append("That name is too long (max 100 characters).")
     if not username:
         errors.append("Pick a username to sign in with.")
+    elif len(username) > 150:
+        errors.append("That username is too long (max 150 characters).")
     else:
         try:
             _username_validator(username)
@@ -64,6 +71,10 @@ def _create_account(token: str, display_name: str, username: str, password: str)
 
 
 def join(request: HttpRequest, token: str) -> HttpResponse:
+    # An already-signed-in member does not burn an invite by re-hitting the link.
+    if request.user.is_authenticated:
+        return redirect("home")
+
     # Property 2: a non-redeemable invite is a 404, identical to an unknown route.
     try:
         invites.peek_invite(token)
