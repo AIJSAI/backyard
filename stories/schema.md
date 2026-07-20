@@ -15,5 +15,6 @@ Story fields (all required):
 | `acceptance` | Non-empty list of testable criteria. These become the e2e spec. |
 | `status` | `spec` -> `built` -> `tested` -> `passing`. |
 | `evidence` | Required when status is `passing`: URL or repo path to the test receipt. |
+| `v1` | Optional boolean: marks the v1 walking-skeleton cut (see docs/story-map.md). Absent means not yet triaged. |
 
 Discipline: stories are written before code (acceptance criteria are the spec). Status flips to `passing` only with evidence; CI (`scripts/check_stories.py`) enforces structure, status values, and the evidence rule, and self-tests its own guards against known-bad fixtures so the gate can never rot into a vacuous green.

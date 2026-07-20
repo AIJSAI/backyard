@@ -22,13 +22,13 @@ The single canonical checklist for Backyard v1.0. Rules:
 - [x] License decided and recorded evidence: docs/adr/ADR-000-license.md
 - [x] Name decided and recorded evidence: docs/adr/ADR-001-name.md
 - [x] Founder knowledge capture (family graph, sharing habits, sensitivities) evidence: docs/research/2026-07-20-founder-knowledge-capture.md
-- [ ] Proxy voice-of-customer sweep (incumbent app-store reviews, r/selfhosted threads, zusam/HumHub issue trackers)
-- [ ] PR-FAQ (working backwards)
-- [ ] Product principles finalized (draft: docs/principles.md)
-- [ ] North Star metric + input tree, privacy-first instrumentation plan
-- [ ] Assumption map with kill criteria
-- [ ] Story map; stories.yaml populated with the v1 cut + acceptance criteria
-- [ ] Content judge panel workflow encoded (slop / substance / audience / voice lenses)
+- [x] Proxy voice-of-customer sweep (six channels, verbatim quotes, honest coverage gaps) evidence: docs/research/2026-07-20-voc-sweep.md
+- [x] PR-FAQ (working backwards; two judge-panel passes, all blockers resolved) evidence: docs/PR-FAQ.md
+- [x] Product principles v1 (two judge-panel passes, all blockers resolved; founder sign-off batched in ratification) evidence: docs/principles.md
+- [x] North Star metric + input tree, privacy-first instrumentation plan evidence: docs/metrics.md
+- [x] Assumption map with kill criteria evidence: docs/assumptions.md
+- [x] Story map; stories.yaml populated with the v1 cut + acceptance criteria evidence: docs/story-map.md
+- [x] Content judge panel workflow encoded (slop / substance / audience / voice lenses) evidence: .claude/workflows/judge-content.js
 - [x] Domain registered: backyard.family (single-domain decision, ADR-001 amended) evidence: https://rdap.org/domain/backyard.family
 
 ## Phase 1: Architecture and scaffold

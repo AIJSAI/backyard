@@ -2,60 +2,362 @@
 #
 # Statuses: spec -> built -> tested -> passing
 #   "passing" REQUIRES an evidence field (URL or repo path to the test receipt).
+# Optional field v1: true|false marks the v1 walking-skeleton cut (see docs/story-map.md).
 # CI: scripts/check_stories.py validates structure and gates on every push/PR.
-# Populated from the Phase 0 story map; epics are seeded ahead of the PRD.
 
 meta:
-  version: 0
-  updated: "2026-07-19"
-  note: Epics seeded pre-PRD. Stories land with the Phase 0 story map.
+  version: 1
+  updated: "2026-07-20"
+  note: "v1 cut populated from the Phase 0 story map. Backbone: Get in / Share / Catch up / Respond / Run the family / Keep it alive."
 
 epics:
   - id: E1
     title: Identity and onboarding
-    intent: Invite-link first. Token-link elder path with no account and no app store step.
+    intent: "Invite-link first. Token-link elder path with no account and no app store step."
     stories:
       - id: S-000
         epic: E1
         persona: founder-poster
-        story: As the founding poster, I can share a link at 1am so my family sees it whenever they choose, and nobody gets woken up.
+        story: "As the founding poster, I can share a link at 1am so my family sees it whenever they choose, and nobody gets woken up."
         acceptance:
-          - Posting a URL renders a preview card in the household pod feed
-          - No push notification is sent by default
-          - Members see the post on next visit, in chronological order
+          - "Posting a URL renders a preview card in the household pod feed"
+          - "No push notification is sent by default"
+          - "Members see the post on next visit, in chronological order"
         status: spec
+        v1: true
+      - id: S-101
+        epic: E1
+        persona: family-member
+        story: "As a family member, I can go from tapping an invite link to standing in my pod's feed in under two minutes on my phone."
+        acceptance:
+          - "Invite link opens signup with pod and yard already assigned; no community-setup screens"
+          - "Account needs only a name plus one auth method (passkey preferred, password fallback); email optional"
+          - "Completing signup lands directly in the pod feed"
+          - "Flow verified on iOS Safari and Android Chrome"
+        status: spec
+        v1: true
+      - id: S-102
+        epic: E1
+        persona: elder
+        story: "As a low-tech elder, I can open my personal token link and see my family's feed with no login, no password, and nothing to install."
+        acceptance:
+          - "Long-lived tokenized URL opens the large-text feed view without credentials"
+          - "Token is scoped to the member, revocable by an admin, with configurable expiry"
+          - "Zero account or app-store steps anywhere on the path"
+        status: spec
+        v1: true
+      - id: S-103
+        epic: E1
+        persona: family-member
+        story: "As a member, I can install Backyard to my home screen so it feels like an app without an app store."
+        acceptance:
+          - "Passes PWA installability checks on iOS Safari and Android Chrome"
+          - "Standalone display with correct icon and name"
+        status: spec
+        v1: true
+      - id: S-104
+        epic: E1
+        persona: tech-helper
+        story: "As the family tech-helper, I can generate an elder's token link, preset their pod, and hand it over in person or by text."
+        acceptance:
+          - "Admin UI generates and displays the token link with a printable QR option"
+          - "Elder's pod and yard membership are preset before first open"
+          - "Regenerating invalidates the previous token"
+        status: spec
+        v1: true
 
   - id: E2
     title: Pods, yards, and privacy layers
-    intent: Households are pods; each side of a family is a yard with its own shared backyard. A pod can belong to multiple yards. Per-post audience override; no forced all-family surface.
-    stories: []
+    intent: "Households are pods; each side of a family is a yard with its own shared backyard. A pod can belong to multiple yards. Per-post audience override; no forced all-family surface."
+    stories:
+      - id: S-201
+        epic: E2
+        persona: yard-admin
+        story: "As an admin, when I invite a household, its pod exists automatically so nobody ever configures structure by hand."
+        acceptance:
+          - "Household invite creates the pod with a name in one flow"
+          - "Invitees land already inside their pod and yard"
+          - "No invitee ever sees a create-a-community screen"
+        status: spec
+        v1: true
+      - id: S-202
+        epic: E2
+        persona: family-member
+        story: "As a member of one yard, I can never see or infer the existence of posts, members, or media in a yard I do not belong to."
+        acceptance:
+          - "Cross-yard requests return 404, not 403, so nothing leaks existence"
+          - "Isolation enforced server-side with automated tests covering feed, members, media, and search"
+          - "A pod in both yards sees both; its members' single account switches context cleanly"
+        status: spec
+        v1: true
+      - id: S-203
+        epic: E2
+        persona: founder-poster
+        story: "As the bridging household, our pod belongs to both yards and every post picks its audience: our pod, one yard, or both."
+        acceptance:
+          - "A pod can be a member of multiple yards"
+          - "Composer shows an audience picker defaulting to the pod, remembering last choice"
+          - "Visibility matches the selection exactly, verified by isolation tests"
+        status: spec
+        v1: true
+      - id: S-204
+        epic: E2
+        persona: teen
+        story: "As a cousin, I can have a pod that is just us, so posting somewhere never means posting to grandma's whole yard."
+        acceptance:
+          - "Members can create an ad-hoc pod within a yard and invite existing members"
+          - "Pod owner can set a one-sentence house rule shown at the top"
+          - "Ad-hoc pod posts never appear in the yard backyard feed"
+        status: spec
+        v1: true
+      - id: S-205
+        epic: E2
+        persona: family-member
+        story: "As a member, I can mute a pod or leave it without an announcement, because quiet exits keep families calm."
+        acceptance:
+          - "Mute silently hides a pod from my feed; nobody is notified"
+          - "Leaving a pod produces no broadcast to remaining members"
+        status: spec
+        v1: true
 
   - id: E3
     title: Feed, posts, and links
-    intent: Calm chronological feed of links, photos, and short updates. The feed ends.
-    stories: []
+    intent: "Calm chronological feed of links, photos, and short updates. The feed ends."
+    stories:
+      - id: S-301
+        epic: E3
+        persona: founder-poster
+        story: "As a poster, pasting a URL gives my family a rich preview card, not a bare link."
+        acceptance:
+          - "Card shows title, image, and description when the target provides them, with graceful fallback"
+          - "Tracking parameters (utm and friends) are stripped from stored URLs"
+        status: spec
+        v1: true
+      - id: S-302
+        epic: E3
+        persona: family-member
+        story: "As a member, I can post a short text update, edit it briefly, and delete it anytime."
+        acceptance:
+          - "Text post inserts chronologically"
+          - "Edit window of at least 15 minutes; delete available always"
+        status: spec
+        v1: true
+      - id: S-303
+        epic: E3
+        persona: lurker
+        story: "As a lurker, I open the feed, catch up newest-first, hit an explicit end, and leave feeling done."
+        acceptance:
+          - "Feed is strictly chronological per audience with a visible you-are-caught-up end state"
+          - "An unread boundary marks where I left off last visit"
+          - "No infinite recycling, resurfacing, or suggested content of any kind"
+        status: spec
+        v1: true
+      - id: S-304
+        epic: E3
+        persona: teen
+        story: "As a teen, nothing I post ever grows a public number, so posting is safe from scorekeeping."
+        acceptance:
+          - "Reactions display as who reacted, never as tallies or leaderboards"
+          - "No like counts, view counts, read receipts, or online indicators anywhere in the UI"
+        status: spec
+        v1: true
+      - id: S-305
+        epic: E3
+        persona: family-member
+        story: "As a member, Backyard never pushes anything at me unless I explicitly opted in, and even then only for replies to me."
+        acceptance:
+          - "Default notification state is zero push for every event type"
+          - "The only opt-in available is replies-to-my-posts; there is no all-activity firehose option"
+        status: spec
+        v1: true
 
   - id: E4
     title: Photos and media
-    intent: Media sharing without rebuilding photo infrastructure; integration posture toward Immich-class backends.
-    stories: []
+    intent: "Media sharing without rebuilding photo infrastructure; integration posture toward Immich-class backends stays post-v1."
+    stories:
+      - id: S-401
+        epic: E4
+        persona: family-member
+        story: "As a member, I can post one or many photos from my phone and they just work."
+        acceptance:
+          - "Multi-photo posts upload with client-side resize for reasonable bandwidth"
+          - "GPS EXIF data is stripped by default before storage"
+          - "EXIF orientation is respected; vertical phone photos display upright everywhere, including email"
+          - "Optional alt text per photo"
+        status: spec
+        v1: true
+      - id: S-402
+        epic: E4
+        persona: family-member
+        story: "As a member, I can share a short video clip of the kids without hitting mystery failures."
+        acceptance:
+          - "Clips up to a documented size and duration cap upload and play in-feed"
+          - "Post-to-visible latency is minutes at most on target hardware, never deferred to idle hours"
+          - "Anything over the cap is rejected upfront with a clear message, never a silent failure"
+        status: spec
+        v1: true
+      - id: S-403
+        epic: E4
+        persona: yard-admin
+        story: "As a family, our photos are not one guessable URL away from public."
+        acceptance:
+          - "Media URLs are unguessable and access-checked against pod/yard membership"
+          - "Direct fetch without a valid session or token returns 404"
+          - "Digest and token surfaces use signed, expiring media URLs"
+        status: spec
+        v1: true
 
   - id: E5
     title: Email digest, in and out
-    intent: Digest email for lurkers; reply-by-email posting for the least app-inclined members.
-    stories: []
+    intent: "Digest email for lurkers and elders; reply-by-email posting closes the reciprocity loop with zero new habits."
+    stories:
+      - id: S-501
+        epic: E5
+        persona: elder
+        story: "As an elder or lurker, I get a clean weekly email of what my family posted, and it is 100% family content."
+        acceptance:
+          - "Per-member digest opt-in/out with per-yard sections, large readable text, inline images"
+          - "Per-member cadence choice: daily, weekly, or monthly"
+          - "Digest contains zero promotional content, forever, verified by a test that fails on non-family content blocks"
+          - "Links open the token or web view without a login wall for entitled members"
+          - "Multipart delivery with a plain-text fallback for old mail clients"
+          - "Unsubscribe requires a confirm step and never severs a member silently; the admin can see per-member delivery status and failures"
+        status: spec
+        v1: true
+      - id: S-502
+        epic: E5
+        persona: elder
+        story: "As an elder, replying to the digest email posts my reply under the right post, so answering family requires nothing new."
+        acceptance:
+          - "Per-member, per-post reply addresses map inbound mail to the correct thread"
+          - "Plain-text reply becomes a comment attributed to the member"
+          - "Failures bounce with a gentle, human explanation"
+        status: spec
+        v1: true
+      - id: S-503
+        epic: E5
+        persona: family-member
+        story: "As a member, I can email photos straight to my pod when the app is not handy."
+        acceptance:
+          - "Per-member pod address turns attachments into a photo post"
+          - "Sender verified by address plus token; strangers bounce"
+        status: spec
+        v1: false
 
   - id: E6
     title: Elder surfaces
-    intent: Token links, large-text web view, ambient display client. Reciprocity built in.
-    stories: []
+    intent: "Token links, a large-text view, one-tap responses. Reciprocity built in; the frame display follows post-v1."
+    stories:
+      - id: S-601
+        epic: E6
+        persona: elder
+        story: "As an elder on my token link, the feed is one big readable column I cannot get lost in."
+        acceptance:
+          - "Single-column layout, large type with a bigger-text toggle, giant tap targets"
+          - "Meets WCAG 2.1 AA for contrast and touch target size"
+          - "No navigation dead ends; every screen has one obvious way back to the feed"
+        status: spec
+        v1: true
+      - id: S-602
+        epic: E6
+        persona: elder
+        story: "As an elder, I can respond to any post with one tap and my family actually sees it was me."
+        acceptance:
+          - "Token surface offers one-tap reactions attributed to the elder by name"
+          - "Reactions from the token surface count in reciprocity metrics"
+        status: spec
+        v1: true
+      - id: S-603
+        epic: E6
+        persona: household
+        story: "As a household, we can point an old tablet or photo frame at a display URL that quietly rotates the family's recent photos."
+        acceptance:
+          - "Signed display URL rotates recent media for its assigned pods/yards with zero interaction"
+          - "Display heartbeat counts as an elder touch when assigned to an elder"
+        status: spec
+        v1: false
 
   - id: E7
     title: Admin, membership, and data export
-    intent: Pod owner roles, invites, removal, minors policy, first-class full export.
-    stories: []
+    intent: "Pod owner roles, invites, removal, supervised kids' accounts, first-class full export."
+    stories:
+      - id: S-701
+        epic: E7
+        persona: yard-admin
+        story: "As the family admin, a small, documented set of roles covers everything, and nothing depends on me being technical."
+        acceptance:
+          - "Roles limited to instance admin, yard admin, pod owner, member, supervised member"
+          - "Permission matrix documented in docs and enforced server-side with tests"
+        status: spec
+        v1: true
+      - id: S-702
+        epic: E7
+        persona: yard-admin
+        story: "As an admin, I can remove a member cleanly, with an explicit, humane decision about their content."
+        acceptance:
+          - "Removal revokes sessions and token links immediately"
+          - "Admin explicitly chooses: keep content attributed, anonymize, or delete"
+        status: spec
+        v1: true
+      - id: S-703
+        epic: E7
+        persona: parent
+        story: "As a parent, I can create a supervised account for my kid that I control."
+        acceptance:
+          - "Supervised accounts need no email; credentials are parent-managed"
+          - "Supervised members are visibly flagged to admins"
+        status: spec
+        v1: true
+      - id: S-704
+        epic: E7
+        persona: family-member
+        story: "As any member, I can take my whole history with me; as the admin, I can take the whole instance."
+        acceptance:
+          - "Member export produces a zip of their posts, comments, and media with a documented JSON format"
+          - "Instance export covers everything; a documented restore path exists and is exercised"
+          - "Export is available from v0.1 onward, never gated"
+        status: spec
+        v1: true
+      - id: S-705
+        epic: E7
+        persona: instance-admin
+        story: "As the instance admin, I can see the weekly connection health of each yard without surveilling anyone."
+        acceptance:
+          - "Weekly WCM plus the four input metrics from docs/metrics.md, as aggregates per pod and yard"
+          - "The only per-person datum is the KPI yes/no weekly presence, and the measured family is told about it in the docs"
+          - "No time-on-site, session counts, or per-person activity feeds exist anywhere"
+        status: spec
+        v1: true
 
   - id: E8
     title: Deploy and operations
-    intent: One-command self-host, migrations that never break the archive, backups, upgrade guide.
-    stories: []
+    intent: "One-command self-host, migrations that never break the archive, backups, upgrade guide."
+    stories:
+      - id: S-801
+        epic: E8
+        persona: self-hoster
+        story: "As the family's tech person, I can go from a fresh VM to a working Backyard in fifteen minutes with one compose file."
+        acceptance:
+          - "docker compose up with documented defaults yields a working instance"
+          - "First-run wizard creates the admin, the first yard, and the first pod with no config-file editing"
+          - "Clean-machine run documented with timings as the release evidence"
+        status: spec
+        v1: true
+      - id: S-802
+        epic: E8
+        persona: self-hoster
+        story: "As the family's tech person, backing up and restoring the whole instance is one documented command each, and I have proof it works."
+        acceptance:
+          - "Single backup command captures database and media"
+          - "Restore drill documented and exercised before each release"
+        status: spec
+        v1: true
+      - id: S-803
+        epic: E8
+        persona: self-hoster
+        story: "As the family's tech person, upgrades never eat the archive."
+        acceptance:
+          - "Migrations run automatically on upgrade with a pre-flight backup prompt"
+          - "An archive-compatibility test upgrades a seeded old-version database in CI from v0.1 onward"
+        status: spec
+        v1: true

@@ -1,11 +1,12 @@
-# Product principles (draft v0)
+# Product principles
 
-Status: DRAFT. Finalized during Phase 0 after the PR-FAQ. Each principle is falsifiable and traces to a research finding (R1-R6 in the [research brief](research/2026-07-19-research-brief.md)).
+Status: v1 draft, written in Phase 0, awaiting founder sign-off. Each principle is concrete enough to be violated, and traces to a research finding (R1-R6 in the [research brief](research/2026-07-19-research-brief.md)), to the [founder capture](research/2026-07-20-founder-knowledge-capture.md), or is labeled a conviction. When a future feature fights one of these, the feature loses or this file changes first, in that order.
 
 1. **Calm over engagement.** The feed is chronological and it ends. No infinite scroll, no streaks, no counts, no read receipts. (R1, R5)
 2. **Nothing is amplified.** No ranking, no recommendations, no "people you may know." What your family posts is what you see. (R1)
-3. **Rooms, not referees.** The software ships no speech rules. Pods scope context; pod owners set house norms in one human sentence; everyone gets quiet exits (mute, leave). Families govern themselves. (R5)
-4. **Reciprocity is designed in.** Consume-only endpoints broke families in field studies. Every surface, including the elder path, can post back with one tap or one email reply. (R2)
-5. **Never assume a smartphone.** Token links with no account and no app store. Email in and out. An ambient display surface. Roughly 22% of US adults 65+ own no smartphone; they are about 5% of our users and the hardest 5%, and serving them well is the moat. (R3)
-6. **Leaving takes your data with you.** Export is first-class from v0. No future maintainer, including us, can hold a family's history hostage.
-7. **Boring to operate.** One command up. Migrations never break a family's archive; backward compatibility is a promise, not a hope. The category's only OSS incumbent lacks exactly this. Stability is our identity.
+3. **Separate is a feature.** Yards keep branches of a family apart because real families have real boundaries. Pods scope every post. The software never forces togetherness that does not exist at the dinner table. (Founder capture, 2026-07-20)
+4. **Rooms, not referees.** No speech rules ship in the software. Pod owners write house norms in one human sentence; everyone gets quiet exits (mute, leave); admins get the boring powers (remove, delete, export). Families govern themselves. (Conviction: no research finding covers governance; the bet is that families arriving from group texts already govern themselves.)
+5. **Reciprocity is designed in.** A consume-only elder screen broke the social contract in a 21-week field deployment; the redesign that let her post back succeeded in the next one. Every surface, including the elder path, can post back with one tap or one email reply. (R2)
+6. **Never assume a smartphone.** Token links with no account and no app store. Email in and out. An ambient display surface. Roughly 22% of US adults 65+ own no smartphone; in the founding family that is four grandparents out of roughly sixty people, the hardest few to serve, and no self-hosted project treats them as the primary user ([landscape](research/2026-07-19-github-oss-landscape.md)). (R3)
+7. **Leaving takes your data with you.** Export is first-class from v0. No future maintainer, including us, can hold a family's history hostage. (The OSS graveyard's top killer is single-maintainer abandonment; export is the family's insurance against ours.)
+8. **Boring to operate.** One command up. Migrations never break a family's archive; backward compatibility is a promise, not a hope. Nobody in this category makes that promise today ([landscape](research/2026-07-19-github-oss-landscape.md)). We win by keeping it.
