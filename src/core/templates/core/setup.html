@@ -24,6 +24,15 @@
     <label for="password">Admin password</label>
     <input type="password" id="password" name="password" autocomplete="new-password" required>
 
-    <button type="submit">Create admin</button>
+    <label for="display_name">Your name (what your family sees)</label>
+    <input type="text" id="display_name" name="display_name" autocomplete="name" required>
+
+    <label for="yard_name">This side of the family (its yard)</label>
+    <input type="text" id="yard_name" name="yard_name" placeholder="e.g. Mom's side" required>
+
+    <label for="pod_name">Your household (its pod)</label>
+    <input type="text" id="pod_name" name="pod_name" placeholder="e.g. Our house" required>
+
+    <button type="submit">Create your Backyard</button>
   </form>
 {% endblock %}
