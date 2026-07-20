@@ -36,7 +36,7 @@ The single canonical checklist for Backyard v1.0. Rules:
 - [ ] Threat model (token links, pod isolation, media privacy, minors)
 - [ ] ADR-002: stack decision, grounded in current library docs, not defaults
 - [ ] CI: lint + typecheck + tests + build, from the first code commit
-- [ ] Branch protection and review gates armed
+- [x] Branch protection and review gates armed (required checks gates+secrets, enforce-admins, conversation resolution; merged through its own protection) evidence: docs/receipts/2026-07-20-branch-protection.md
 - [ ] `docker compose up` brings up a hello-world instance on a clean machine
 - [x] Secrets hygiene verified: zero secrets in history, gitleaks full-history scan + continuous CI job with non-vacuous selftest evidence: docs/receipts/2026-07-20-secrets-scan.md
 
