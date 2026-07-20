@@ -1,0 +1,58 @@
+[project]
+name = "backyard"
+version = "0.1.0.dev0"
+description = "A private, self-hosted social network for your extended family"
+readme = "README.md"
+requires-python = ">=3.13"
+license = "AGPL-3.0-or-later"
+dependencies = [
+  "django>=5.2,<5.3",           # 5.2 LTS, extended support to 2028-04 (ADR-002)
+  "gunicorn>=23,<24",
+  "psycopg[binary]>=3.2,<4",
+  "whitenoise>=6.12,<7",
+]
+
+[dependency-groups]
+dev = [
+  "django-stubs[compatible-mypy]>=5.2,<6",
+  "mypy>=1.15,<2",
+  "pytest>=8.4,<9",
+  "pytest-django>=4.11,<5",
+  "ruff>=0.14,<1",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src"]
+
+[tool.ruff.lint]
+# Explain WHY, not WHAT (house rule): keep the set small and load-bearing.
+select = ["E", "F", "I", "UP", "B", "DJ", "S"]
+# S101 assert-in-tests is fine; DJ handled per-file below.
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101", "S105", "S106", "S107"]  # asserts and test-only credentials
+"src/config/settings.py" = ["S105"]  # placeholder-secret detection is done in code, not by ruff
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+plugins = ["mypy_django_plugin.main"]
+mypy_path = "src"
+explicit_package_bases = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings"
+
+[[tool.mypy.overrides]]
+module = ["whitenoise.*", "gunicorn.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+pythonpath = ["src"]
+testpaths = ["src"]
+python_files = ["test_*.py", "tests.py"]
+
+[tool.uv]
+package = false

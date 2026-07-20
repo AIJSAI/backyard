@@ -1,0 +1,17 @@
+# Extends the default gitleaks ruleset (never replaces it). The only additions are
+# allowlists for unit-test fixtures: fake passwords and a fake setup secret that exist
+# so the first-run wizard tests can run. They are not real credentials.
+#
+# This does NOT weaken the gate: the CI `secrets` job's selftest plants a real-shaped
+# AWS key in a throwaway repo (which this config does not cover) and fails the build if
+# gitleaks misses it, so the scan is still proven non-vacuous on every run.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Unit-test fixtures in core tests are synthetic, not real secrets"
+paths = ['''src/core/tests/.*''']
+
+[[allowlists]]
+description = "False positive: the literal phrase 'SHA-256-digest' in a design doc is not a key"
+regexes = ['''SHA-256-digest''']

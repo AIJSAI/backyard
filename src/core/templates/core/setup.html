@@ -1,0 +1,29 @@
+{% extends "core/base.html" %}
+{% block title %}Set up Backyard{% endblock %}
+{% block body %}
+  <h1>Set up your Backyard</h1>
+  <p class="muted">
+    This creates the first admin. Paste the one-time setup secret that was printed
+    to the server console when the instance started.
+  </p>
+
+  {% if errors %}
+    <div class="errors">
+      {% for error in errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  <form method="post" action="{% url 'setup' %}">
+    {% csrf_token %}
+    <label for="setup_secret">Setup secret</label>
+    <input type="password" id="setup_secret" name="setup_secret" autocomplete="off" required>
+
+    <label for="username">Admin username</label>
+    <input type="text" id="username" name="username" autocomplete="username" required>
+
+    <label for="password">Admin password</label>
+    <input type="password" id="password" name="password" autocomplete="new-password" required>
+
+    <button type="submit">Create admin</button>
+  </form>
+{% endblock %}
