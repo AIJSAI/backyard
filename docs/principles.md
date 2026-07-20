@@ -1,6 +1,6 @@
 # Product principles
 
-Status: v1 draft, written in Phase 0, awaiting founder sign-off. Each principle is concrete enough to be violated, and traces to a research finding (R1-R6 in the [research brief](research/2026-07-19-research-brief.md)), to the [founder capture](research/2026-07-20-founder-knowledge-capture.md), or is labeled a conviction. When a future feature fights one of these, the feature loses or this file changes first, in that order.
+Status: v1, ratified by the founder 2026-07-20 (batched Phase 1 sign-off, together with the PR-FAQ and the v1 story cut). Each principle is concrete enough to be violated, and traces to a research finding (R1-R6 in the [research brief](research/2026-07-19-research-brief.md)), to the [founder capture](research/2026-07-20-founder-knowledge-capture.md), or is labeled a conviction. When a future feature fights one of these, the feature loses or this file changes first, in that order.
 
 1. **Calm over engagement.** The feed is chronological and it ends. No infinite scroll, no streaks, no counts, no read receipts. (R1, R5)
 2. **Nothing is amplified.** No ranking, no recommendations, no "people you may know." What your family posts is what you see. (R1)

@@ -1,6 +1,6 @@
 # ADR-003: Token links that can be forwarded
 
-Status: proposed (Phase 1; goes to accepted with the founder's batched Phase 1 sign-off)
+Status: accepted (founder sign-off, 2026-07-20)
 Date: 2026-07-20
 Owner: the founder (solo maintainer)
 Informs: [threat model](../security/threat-model.md) (T-TOKEN-1 through T-TOKEN-8), stories S-102, S-104, S-202, S-403, S-501, S-502, S-601, S-602, S-701, S-702
