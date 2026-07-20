@@ -8,7 +8,7 @@
 meta:
   version: 1
   updated: "2026-07-20"
-  note: "v1 cut populated from the Phase 0 story map. Backbone: Get in / Share / Catch up / Respond / Run the family / Keep it alive."
+  note: "v1 cut from the Phase 0 story map, hardened by the Phase 1 threat model (docs/security/threat-model.md): 18 stories carry a security block; 3 stories added (deceased-member state S-706, handover/shutdown runbook S-804, break-glass admin recovery S-805)."
 
 epics:
   - id: E1
@@ -36,6 +36,15 @@ epics:
           - "Flow verified on iOS Safari and Android Chrome"
         status: spec
         v1: true
+        security:
+          threat_refs:
+            - TM-1
+            - T-INVITE-1
+            - T-CRED-1
+            - T-YARD-G1
+          hardening: |
+            Joining from an invite requires an explicit confirm action (POST); loading the invite URL never consumes or grants membership. Password-fallback accounts reject top-common passwords at set time and enforce a sane minimum length; login and recovery endpoints are per-account and per-IP rate limited with backoff, and authentication errors are uniform (no member-enumeration signal).
+          source: docs/security/threat-model.md
       - id: S-102
         epic: E1
         persona: elder
@@ -46,6 +55,18 @@ epics:
           - "Zero account or app-store steps anywhere on the path"
         status: spec
         v1: true
+        security:
+          threat_refs:
+            - TM-5
+            - TM-10
+            - T-TOKEN-1
+            - T-TOKEN-3
+            - T-TOKEN-4
+            - T-TOKEN-G2
+            - T-EDGE-1
+          hardening: |
+            The token default is no-expiry (months of use with no re-auth is the requirement; record the default in ADR-003). The token grants read, one-tap react, and email-mediated comment only: no profile edit, no directory contact fields, no member-list browsing, no export, no invite. First open exchanges the URL for an httpOnly session cookie and redirects to a clean URL; Referrer-Policy is no-referrer on every token surface. Tokens are >=128-bit CSPRNG, stored only as a hash, and appear in logs only as a short hash prefix. Token, digest-link, and signed-media routes carry X-Robots-Tag noindex and a robots.txt disallow. Token links cannot be issued to supervised members.
+          source: docs/security/threat-model.md
       - id: S-103
         epic: E1
         persona: family-member
@@ -66,6 +87,15 @@ epics:
         status: spec
         v1: true
 
+        security:
+          threat_refs:
+            - TM-1
+            - TM-10
+            - T-TOKEN-G1
+            - T-YARD-8
+          hardening: |
+            The provisioning UI shows the exact pod and yard the token will grant before generation. Regenerating invalidates the prior token and ends with the re-hand-over artifacts in hand: a fresh link ready to send and a fresh printable QR in the same flow. The UI names the surface as the elder path and cannot issue a token to a supervised member.
+          source: docs/security/threat-model.md
   - id: E2
     title: Pods, yards, and privacy layers
     intent: "Households are pods; each side of a family is a yard with its own shared backyard. A pod can belong to multiple yards. Per-post audience override; no forced all-family surface."
@@ -80,6 +110,15 @@ epics:
           - "No invitee ever sees a create-a-community screen"
         status: spec
         v1: true
+        security:
+          threat_refs:
+            - TM-1
+            - T-INVITE-1
+            - T-YARD-G1
+            - T-AUTH-G3
+          hardening: |
+            Household invites expire by default (days, not never) and carry a use cap sized to the household; they are revocable. The admin can list all outstanding invites and see, per invite, exactly who joined from it and when.
+          source: docs/security/threat-model.md
       - id: S-202
         epic: E2
         persona: family-member
@@ -90,6 +129,18 @@ epics:
           - "A pod in both yards sees both; its members' single account switches context cleanly"
         status: spec
         v1: true
+        security:
+          threat_refs:
+            - TM-1
+            - TM-2
+            - TM-9
+            - T-YARD-2
+            - T-YARD-4
+            - T-YARD-7
+            - T-MEDIA-1
+          hardening: |
+            Every object read (posts, comments, media and all derivatives, profiles, directory entries, reactions) routes through one central authorization guard evaluating shared pod/yard membership at request time against current membership, deny-by-default to a 404. 'Does not exist' and 'exists but not yours' return byte-identical status, body, and headers. The automated isolation test matrix covers single-object fetches of every type, search and mention-autocomplete, reactor and commenter lists, admin endpoints (member lists, digest delivery status, token provisioning), media derivative types (original, thumbnail, rendition, transcode, poster frame), and digest rendering including the upcoming-dates section. A read handler that does not pass through the guard fails the build.
+          source: docs/security/threat-model.md
       - id: S-203
         epic: E2
         persona: founder-poster
@@ -100,6 +151,14 @@ epics:
           - "Visibility matches the selection exactly, verified by isolation tests"
         status: spec
         v1: true
+        security:
+          threat_refs:
+            - TM-3
+            - T-YARD-1
+            - T-MINOR-5
+          hardening: |
+            The composer defaults to the narrowest scope (the poster's own pod) on every new post; the last choice may be offered but is never the committed default, and media posts always default to pod. Any send broader than the poster's pod, or spanning more than one yard, requires an explicit confirmation naming the audience and its member count. Every rendered post shows its own audience.
+          source: docs/security/threat-model.md
       - id: S-204
         epic: E2
         persona: teen
@@ -142,6 +201,15 @@ epics:
           - "Edit window of at least 15 minutes; delete available always"
         status: spec
         v1: true
+        security:
+          threat_refs:
+            - TM-2
+            - TM-9
+            - T-MEDIA-6
+            - T-MEDIA-1
+          hardening: |
+            Delete purges the original and all derivatives in the same job and invalidates outstanding signed URLs at the serving layer (deletion beats expiry via a per-request liveness check). Delete-time copy states plainly in one sentence that copies in already-sent email digests cannot be recalled. Media responses on interactive surfaces carry no-store or short cache headers.
+          source: docs/security/threat-model.md
       - id: S-303
         epic: E3
         persona: lurker
@@ -186,6 +254,13 @@ epics:
           - "Optional alt text per photo"
         status: spec
         v1: true
+        security:
+          threat_refs:
+            - TM-9
+            - T-MEDIA-3
+          hardening: |
+            Metadata stripping happens server-side at ingest for every path media can enter, regardless of any client-side processing, and covers the whole location and identity class (GPS, embedded EXIF thumbnails, XMP/IPTC owner and serial fields), keeping only orientation and capture timestamp. The strip runs before any derived asset is generated. Uploads are re-encoded at ingest and served with an exact Content-Type, X-Content-Type-Options: nosniff, and Content-Disposition.
+          source: docs/security/threat-model.md
       - id: S-402
         epic: E4
         persona: family-member
@@ -196,6 +271,13 @@ epics:
           - "Anything over the cap is rejected upfront with a clear message, never a silent failure"
         status: spec
         v1: true
+        security:
+          threat_refs:
+            - TM-9
+            - T-MEDIA-3
+          hardening: |
+            Video metadata stripping at ingest covers container metadata (QuickTime and MP4 location atoms such as com.apple.quicktime.location.ISO6709), mirroring S-401's photo rule, and runs before any transcode or poster frame is generated. An ingest test corpus of real iPhone and Android video with known location is asserted clean post-ingest.
+          source: docs/security/threat-model.md
       - id: S-403
         epic: E4
         persona: yard-admin
@@ -207,6 +289,17 @@ epics:
         status: spec
         v1: true
 
+        security:
+          threat_refs:
+            - TM-9
+            - TM-5
+            - TM-1
+            - T-MEDIA-1
+            - T-MEDIA-2
+            - T-TOKEN-6
+          hardening: |
+            Every media fetch, original or derived, passes a server-side pod/yard membership check against the requesting session or token; unguessable ids are defense-in-depth, never the access control. No static-served derivative directory exists; derivative ids are independently unguessable, not derivable from the source id. Signed media URL TTLs are tiered by surface: interactive feed and token surfaces short (hours), digest-embedded URLs matched to the digest-token lifetime; all carry the member's token-generation id so revocation kills them instantly regardless of TTL. Direct fetch without a valid session or token returns 404.
+          source: docs/security/threat-model.md
   - id: E5
     title: Email digest, in and out
     intent: "Digest email for lurkers and elders; reply-by-email posting closes the reciprocity loop with zero new habits."
@@ -224,6 +317,18 @@ epics:
           - "Unsubscribe requires a confirm step and never severs a member silently; the admin can see per-member delivery status and failures"
         status: spec
         v1: true
+        security:
+          threat_refs:
+            - TM-1
+            - TM-2
+            - TM-5
+            - T-YARD-9
+            - T-EMAIL-3
+            - T-EMAIL-6
+            - T-MINOR-5
+          hardening: |
+            The digest is built per recipient through the same audience-resolution code path as the web feed, evaluated against live state at send time, so deleted posts, narrowed audiences, and removed members never ship. Multi-yard members receive separate per-yard emails; no single email fuses two yards. Digest deep links carry per-member, per-digest, read-only, expiring tokens, never the master token. A content-free confirmation must be acknowledged before any digest with family content is sent to a new address. Removal, leave, and death immediately drop the member from recipient lists and cancel queued sends. Isolation tests (S-202) cover digest rendering including the upcoming-dates section and every signed media URL.
+          source: docs/security/threat-model.md
       - id: S-502
         epic: E5
         persona: elder
@@ -234,6 +339,16 @@ epics:
           - "Failures bounce with a gentle, human explanation"
         status: spec
         v1: true
+        security:
+          threat_refs:
+            - TM-4
+            - T-EMAIL-1
+            - T-EMAIL-2
+            - T-EMAIL-G1
+            - T-TOKEN-8
+          hardening: |
+            Reply addresses are >=128-bit-entropy, per-member, per-post bearer capabilities, revoked on any membership change. Attribution comes from the reply address alone; the From: header is only a secondary consistency check that quarantines on mismatch and never attributes. Bounce responses are byte-identical for 'no such thread' and 'not your thread'. Comments created via email carry a visible 'via email' badge. Each per-post reply block in the digest states in plain large text where a reply goes, and a confirmation receipt after posting offers one-tap removal.
+          source: docs/security/threat-model.md
       - id: S-503
         epic: E5
         persona: family-member
@@ -290,6 +405,16 @@ epics:
           - "Permission matrix documented in docs and enforced server-side with tests"
         status: spec
         v1: true
+        security:
+          threat_refs:
+            - TM-1
+            - TM-10
+            - T-YARD-2
+            - T-AUTH-G2
+            - T-MINOR-4
+          hardening: |
+            The central authorization guard is the mandatory path for every read, write, and grant, including batch and email paths. The permission matrix documents the full credential and channel inventory that removal must clear, names the managing parent as exclusive controller of a supervised account's credentials and conversion (with a notifying instance-admin break-glass), and requires the instance admin to initiate recovery, token minting, or removal for any member whose yard set exceeds the acting admin's scope.
+          source: docs/security/threat-model.md
       - id: S-702
         epic: E7
         persona: yard-admin
@@ -299,6 +424,18 @@ epics:
           - "Admin explicitly chooses: keep content attributed, anonymize, or delete"
         status: spec
         v1: true
+        security:
+          threat_refs:
+            - TM-1
+            - T-REMOVE-1
+            - T-REMOVE-2
+            - T-YARD-7
+            - T-MINOR-1
+            - T-AUTH-G3
+            - T-EMAIL-2
+          hardening: |
+            Removal is one atomic server-side revocation over an explicit channel inventory, each with an automated test: revoke all sessions; disable all credentials including passkeys; revoke elder and display tokens; cancel the digest subscription and any queued sends; deactivate every inbound reply and pod address; void all invites reaching the member's pods and yards; stop issuing signed URLs for them. A revocation-completeness test asserts old token, old session, old digest link, old media URL, and reply address each 404 or bounce on the next request. The same revocation runs on voluntary leave and pod-leaves-yard. Removal enumerates supervised accounts and elder-helper roles the member manages, forces credential rotation, and reassigns custody before it completes.
+          source: docs/security/threat-model.md
       - id: S-703
         epic: E7
         persona: parent
@@ -308,6 +445,15 @@ epics:
           - "Supervised members are visibly flagged to admins"
         status: spec
         v1: true
+        security:
+          threat_refs:
+            - TM-10
+            - T-MINOR-2
+            - T-MINOR-3
+            - T-MINOR-4
+          hardening: |
+            Supervised status is visible to everyone in a shared pod roster, not admins only. Supervised surfaces carry no 'private' framing and tell the member plainly that the managing parent can see everything on the account. Supervised accounts cannot attach an email or new auth method and are excluded from self-service credential recovery; recovery flows only through the managing parent. Supervised members cannot be issued token links. Adding a supervised member to a pod, or a supervised member creating one, generates a quiet non-push notice to the managing parent.
+          source: docs/security/threat-model.md
       - id: S-704
         epic: E7
         persona: family-member
@@ -329,6 +475,23 @@ epics:
         status: spec
         v1: true
 
+      - id: S-706
+        epic: E7
+        persona: yard-admin
+        story: As the family admin, I can mark a member as passed away, a humane action distinct from removal, so their credentials stop without erasing them.
+        acceptance:
+          - marking a member deceased runs the full revocation inventory (token, sessions, digest, reply addresses) immediately
+          - the digest stops
+          - the profile is frozen out of birthday and anniversary surfaces
+          - content and attribution are preserved with remembrance framing, and the content-disposition choice (keep attributed or memorialize) is made explicitly
+          - the admin runbook names the action
+        status: spec
+        v1: false
+        security:
+          threat_refs:
+            - TM-1
+            - TM-6
+          source: docs/security/threat-model.md
   - id: E9
     title: People and the family directory
     intent: "Profiles as the family's source of truth: who everyone is, how to reach them, and the dates that matter. Per-field, per-yard visibility controlled by the member; surfaced through calm channels (digest and feed banner), never push."
@@ -363,6 +526,13 @@ epics:
           - "Anniversaries work the same way as birthdays"
         status: spec
         v1: true
+        security:
+          threat_refs:
+            - TM-3
+            - T-MINOR-6
+          hardening: |
+            Birthday and anniversary visibility is per-field like contact data (S-902), not auto-broadcast to the whole yard; supervised and minor profiles default their dates to pod-only. Year and age are never shown. Digest upcoming-dates sections honor each date's visibility scope.
+          source: docs/security/threat-model.md
       - id: S-904
         epic: E9
         persona: family-member
@@ -394,6 +564,17 @@ epics:
           - "Clean-machine run documented with timings as the release evidence"
         status: spec
         v1: true
+        security:
+          threat_refs:
+            - TM-7
+            - TM-8
+            - T-BOOT-1
+            - T-COMPOSE-1
+            - T-EDGE-1
+            - T-ADMIN-1
+          hardening: |
+            The first-run wizard is gated by a one-time setup secret printed only to the server console, and is hard-disabled whenever an instance admin exists, including after restores and upgrades (the enabling condition is 'zero admins exist', never a config flag). There are zero default credentials; all internal secrets are generated randomly at first boot and the app hard-fails on an empty or placeholder secret. The shipped compose publishes only the reverse proxy port, with DB, cache, and queue on an internal network. The bundled auto-TLS proxy makes HTTPS the zero-config default, and the app refuses to mint token links for a non-HTTPS base URL in production. Instance-admin and yard-admin accounts require a passkey or TOTP, enforced in the wizard. The wizard generates a backup passphrase and a printable recovery and succession sheet.
+          source: docs/security/threat-model.md
       - id: S-802
         epic: E8
         persona: self-hoster
@@ -403,6 +584,17 @@ epics:
           - "Restore drill documented and exercised before each release"
         status: spec
         v1: true
+        security:
+          threat_refs:
+            - TM-1
+            - TM-7
+            - T-BACKUP-1
+            - T-MEDIA-5
+            - T-OP-G3
+            - T-OP-G5
+          hardening: |
+            The one backup command encrypts by default with a wizard-established passphrase or keyfile and a printable recovery sheet; plaintext output requires an explicit --no-encrypt flag with a loud warning. The restore drill exercises the encrypted path before each release. Restore ends with a forced security-replay: rotate the token-signing material (with one-click re-issue as recovery) and surface a checklist of removals and revocations that postdate the backup, so restore never resurrects revoked access. The documented flow ends with copying the encrypted file off the server, and backup filenames and manifests carry no secrets.
+          source: docs/security/threat-model.md
       - id: S-803
         epic: E8
         persona: self-hoster
@@ -412,3 +604,36 @@ epics:
           - "An archive-compatibility test upgrades a seeded old-version database in CI from v0.1 onward"
         status: spec
         v1: true
+      - id: S-804
+        epic: E8
+        persona: self-hoster
+        story: As the family tech person, I have documented handover, shutdown, and domain-lapse procedures.
+        acceptance:
+          - a one-command decommission revokes all tokens, sessions, and inbound addresses and delivers a final instance export to at least two named members before destroying volumes and provider snapshots
+          - a handover runbook rotates every secret, regenerates all tokens, and transfers registrar and host accounts
+          - the wizard's recovery sheet is a succession sheet naming a second admin, registrar and VPS accounts, and the backup passphrase location
+          - deploy docs treat the domain as a family asset (auto-renew, multi-year, registrar lock) and the health email reports domain days-remaining
+        status: spec
+        v1: false
+        security:
+          threat_refs:
+            - TM-7
+            - T-OP-G1
+            - T-OP-G4
+          source: docs/security/threat-model.md
+      - id: S-805
+        epic: E8
+        persona: self-hoster
+        story: As the family tech person, if I lose my admin second factor I can recover admin access only through server shell.
+        acceptance:
+          - break-glass admin recovery is a one-time console command that prints a short-lived reset URL (the same trust anchor as the first-run setup secret), never a web flow
+          - no email or web 'recover admin' path exists
+          - deploy docs recommend configuring a second instance admin
+        status: spec
+        v1: true
+        security:
+          threat_refs:
+            - T-AUTH-G1
+            - TM-7
+            - TM-8
+          source: docs/security/threat-model.md
