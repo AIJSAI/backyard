@@ -33,7 +33,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/leaktest" && cd "$RUNNER_TEMP/leaktest"
           git init -q
           git config user.email ci@local && git config user.name ci
-          printf 'aws_access_key_id = AKIA''IOSFODNN7EXAMPLE\n' > creds.txt
+          # Not the AWS docs example key: that one is in gitleaks' built-in
+          # allowlist, and the first CI run proved the gate vacuous with it.
+          printf 'aws_access_key_id = AKIA''Q3EGRIJKZVYWXHNM\n' > creds.txt
           git add creds.txt && git commit -qm plant
           if gitleaks git --no-banner --redact . >/dev/null 2>&1; then
             echo "VACUOUS GATE: gitleaks did not catch the planted secret" >&2
