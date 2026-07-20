@@ -17,11 +17,17 @@ services:
     logging: *default-logging
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-backyard}
+      # The bootstrap superuser: initdb, healthchecks, and pg_dump backups only.
+      # The application never connects as it (ADR-004 role split, TS-PG-1).
       POSTGRES_USER: ${POSTGRES_USER:-backyard}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env, see .env.example}
+      POSTGRES_MIGRATOR_PASSWORD: ${POSTGRES_MIGRATOR_PASSWORD:?set POSTGRES_MIGRATOR_PASSWORD in .env, see .env.example}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?set POSTGRES_APP_PASSWORD in .env, see .env.example}
     volumes:
       # Postgres 18 places data in a versioned subdirectory; mount the parent, not /data.
       - pgdata:/var/lib/postgresql
+      # First-boot role split (ADR-004): backyard_migrator (DDL) / backyard_app (DML).
+      - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-backyard} -d ${POSTGRES_DB:-backyard}"]
       interval: 3s
@@ -38,8 +44,13 @@ services:
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
       BACKYARD_BASE_URL: ${BACKYARD_BASE_URL:-http://localhost:8000}
       POSTGRES_DB: ${POSTGRES_DB:-backyard}
-      POSTGRES_USER: ${POSTGRES_USER:-backyard}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env, see .env.example}
+      # Runtime connects as the unprivileged app role (ADR-004, TS-PG-1). The migrator
+      # credentials are used for the migrate step only; the entrypoint drops them from
+      # the environment before gunicorn starts, so a compromised web process holds only
+      # backyard_app. The bootstrap superuser's password never reaches this container.
+      POSTGRES_USER: backyard_app
+      POSTGRES_PASSWORD: ${POSTGRES_APP_PASSWORD:?set POSTGRES_APP_PASSWORD in .env, see .env.example}
+      POSTGRES_MIGRATOR_PASSWORD: ${POSTGRES_MIGRATOR_PASSWORD:?set POSTGRES_MIGRATOR_PASSWORD in .env, see .env.example}
       POSTGRES_HOST: postgres
     volumes:
       - appdata:/data

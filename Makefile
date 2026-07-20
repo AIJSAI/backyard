@@ -4,8 +4,12 @@
 up:
 	@test -f .env || { \
 	  umask 077; \
-	  printf 'POSTGRES_PASSWORD=%s\n' "$$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')" > .env; \
-	  echo "Generated .env (mode 0600) with a random POSTGRES_PASSWORD."; \
+	  { \
+	    printf 'POSTGRES_PASSWORD=%s\n' "$$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"; \
+	    printf 'POSTGRES_MIGRATOR_PASSWORD=%s\n' "$$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"; \
+	    printf 'POSTGRES_APP_PASSWORD=%s\n' "$$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"; \
+	  } > .env; \
+	  echo "Generated .env (mode 0600) with random passwords for the three database roles."; \
 	}
 	docker compose up --build -d
 	@echo ""

@@ -64,6 +64,42 @@ jobs:
         run: uv run python manage.py check --deploy --fail-level WARNING
       - name: Docker build
         run: docker build -t backyard:ci .
+      - name: Compose live probe (ADR-004 role split, first-run boot)
+        # Boots the real compose stack and proves the role split live, both ways, so the
+        # gate is not vacuous (TS-PG-1): the app role cannot DDL, the migrator can, and the
+        # full first-run path (migrate as migrator, gunicorn as app, healthz through Caddy)
+        # works end to end. Passwords are throwaway CI values, not secrets.
+        env:
+          POSTGRES_PASSWORD: ci-not-a-secret
+          POSTGRES_MIGRATOR_PASSWORD: ci-migrator-not-a-secret
+          POSTGRES_APP_PASSWORD: ci-app-not-a-secret
+        run: |
+          set -eu
+          docker compose up -d --build
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:8000/healthz >/dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8000/healthz
+          echo "--- app role is unprivileged ---"
+          docker compose exec -T postgres psql -U backyard_app -d backyard -tAc \
+            "SELECT current_setting('is_superuser')" | grep -qx off
+          if docker compose exec -T postgres psql -U backyard_app -d backyard \
+               -c 'CREATE TABLE probe_should_fail (x int)'; then
+            echo "VACUOUS GATE: backyard_app can run DDL"; exit 1
+          fi
+          echo "--- migrator can DDL (probe is non-vacuous) ---"
+          docker compose exec -T postgres psql -U backyard_migrator -d backyard \
+            -c 'CREATE TABLE probe_migrator_ok (x int); DROP TABLE probe_migrator_ok;'
+          echo "--- migrator creds are gone from the running server's env ---"
+          # exec'd processes get the container's configured env, so probe PID 1 (gunicorn,
+          # exec'd after the entrypoint's unset): its environ must not hold the migrator
+          # password, so an RCE in the web process cannot read DDL credentials.
+          if docker compose exec -T web sh -c \
+               'tr "\0" "\n" < /proc/1/environ | grep -q "^POSTGRES_MIGRATOR_PASSWORD="'; then
+            echo "LEAK: migrator password still in the gunicorn process env"; exit 1
+          fi
+          docker compose down -v
 
   secrets:
     runs-on: ubuntu-latest
