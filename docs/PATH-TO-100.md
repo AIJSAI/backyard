@@ -33,11 +33,11 @@ The single canonical checklist for Backyard v1.0. Rules:
 
 ## Phase 1: Architecture and scaffold
 
-- [ ] Threat model (token links, pod isolation, media privacy, minors)
-- [ ] ADR-002: stack decision, grounded in current library docs, not defaults
-- [ ] CI: lint + typecheck + tests + build, from the first code commit
+- [x] Threat model (token links, pod isolation, media privacy, minors); token-link forwarding trade-off recorded as ADR-003; judge-panel passed evidence: docs/security/threat-model.md
+- [x] ADR-002: stack decision, grounded in current library docs, not defaults; full dossier committed; judge-panel passed evidence: docs/adr/ADR-002-stack.md
+- [x] CI: lint + typecheck + tests + build, from the first code commit (ruff + mypy + pytest + docker build in the `code` job) evidence: .github/workflows/ci.yml
 - [x] Branch protection and review gates armed (required checks gates+secrets, enforce-admins, conversation resolution; merged through its own protection) evidence: docs/receipts/2026-07-20-branch-protection.md
-- [ ] `docker compose up` brings up a hello-world instance on a clean machine
+- [x] `docker compose up` brings up a hello-world instance on a clean machine (first-admin flow reached; TM-8 gates verified live) evidence: docs/receipts/2026-07-20-compose-first-admin.md
 - [x] Secrets hygiene verified: zero secrets in history, gitleaks full-history scan + continuous CI job with non-vacuous selftest evidence: docs/receipts/2026-07-20-secrets-scan.md
 
 ## Phase 2: Build waves

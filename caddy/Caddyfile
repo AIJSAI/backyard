@@ -1,0 +1,25 @@
+# Local and clean-machine repro: plain HTTP on :8000, proxying to the web container.
+# The database and app containers publish no ports; only this proxy is exposed (TM-8).
+#
+# For a real deployment, replace the :8000 block with your domain and Caddy fetches a
+# TLS certificate automatically:
+#
+#   backyard.example.com {
+#       reverse_proxy web:8000
+#       header Referrer-Policy no-referrer
+#       header X-Content-Type-Options nosniff
+#   }
+
+{
+	admin off
+	auto_https off
+}
+
+:8000 {
+	reverse_proxy web:8000
+	header {
+		Referrer-Policy no-referrer
+		X-Content-Type-Options nosniff
+		-Server
+	}
+}

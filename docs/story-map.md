@@ -14,7 +14,9 @@ Status: Phase 0 artifact, 2026-07-20. The backbone is user activities; the v1 li
 
 ## The v1 line
 
-v1 includes exactly the stories flagged `v1: true` in stories.yaml: 33 stories that make the seven activities work end to end for the founding household and the first yards. Four stories are built into the map but flagged post-v1 (`v1: false`): the ambient frame display (S-603), email-photo-to-pod posting (S-503), vCard directory export (S-904), and new-member intro cards (S-905). All are strong candidates for v1.1; none is required to pass the alpha KPI.
+v1 includes exactly the stories flagged `v1: true` in stories.yaml: 34 stories that make the seven activities work end to end for the founding household and the first yards. The count moved from 33 to 34 in Phase 1: the [threat model](security/threat-model.md) added break-glass admin recovery (S-805) as a v1 story, since mandatory admin two-factor ships in v1 and a lockout needs a recovery path from the first line of auth code. Five stories are built into the map but flagged post-v1 (`v1: false`): the ambient frame display (S-603), email-photo-to-pod posting (S-503), vCard directory export (S-904), new-member intro cards (S-905), and two lifecycle stories the threat model surfaced (deceased-member state S-706, handover/shutdown runbook S-804). None is required to pass the alpha KPI.
+
+Eighteen stories also carry a `security:` block: threat-model acceptance criteria bound to specific threats, layered on top of the original product acceptance rather than replacing it. Those are the criteria the Phase 3 story loop tests.
 
 ## Explicit non-goals (not in the map at all)
 

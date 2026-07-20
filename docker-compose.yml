@@ -1,0 +1,57 @@
+name: backyard
+
+services:
+  postgres:
+    # Pinned by digest (T-UPGRADE-1): tag + digest, never a floating tag alone.
+    image: postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-backyard}
+      POSTGRES_USER: ${POSTGRES_USER:-backyard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env, see .env.example}
+    volumes:
+      # Postgres 18 places data in a versioned subdirectory; mount the parent, not /data.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-backyard} -d ${POSTGRES_DB:-backyard}"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    # No published port: the database is never internet-facing (threat model TM-8).
+
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-0}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      BACKYARD_BASE_URL: ${BACKYARD_BASE_URL:-http://localhost:8000}
+      POSTGRES_DB: ${POSTGRES_DB:-backyard}
+      POSTGRES_USER: ${POSTGRES_USER:-backyard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env, see .env.example}
+      POSTGRES_HOST: postgres
+    volumes:
+      - appdata:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # No published port: only the proxy is exposed (threat model TM-8). The app
+    # generates and persists its own DJANGO_SECRET_KEY at first boot into appdata.
+
+  caddy:
+    image: caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      # Bound to loopback: this compose is the local repro, and its Caddy block is plain
+      # HTTP. A real deployment publishes 0.0.0.0 with the HTTPS Caddyfile block (TM-8).
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+
+volumes:
+  pgdata:
+  appdata:
+  caddydata:

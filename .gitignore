@@ -1,8 +1,13 @@
 .DS_Store
 .env
 .env.*
+!.env.example
 node_modules/
 dist/
 __pycache__/
 *.pyc
 .venv/
+staticfiles/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
