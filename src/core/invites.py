@@ -71,6 +71,11 @@ def redeem_invite(raw_token: str, *, display_name: str, user_id: int | None) -> 
     re-checked under that lock, so the one-use race resolves to exactly one
     member. Loading an invite URL never calls this; only the explicit join POST
     does (S-101: no membership by URL side effect).
+
+    Caller contract (security review L-4): a user_id already linked to a Member,
+    or one that does not exist, raises IntegrityError, not InviteInvalid. The
+    S-101 signup view maps both to the same generic failure the redemption 404s
+    with, so the byte-identical-404 guarantee holds on that edge too.
     """
     with transaction.atomic():
         try:

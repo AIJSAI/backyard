@@ -11,7 +11,7 @@ from __future__ import annotations
 import threading
 
 import pytest
-from django.db import connection
+from django.db import connection, transaction
 from django.utils import timezone
 
 from core.invites import InviteInvalid, mint_invite, redeem_invite
@@ -74,10 +74,66 @@ def test_exhausted_invite_stops_at_cap(pod: Pod) -> None:
 
 
 @pytest.mark.django_db(transaction=True)
-def test_one_use_invite_survives_a_real_race() -> None:
-    """TS-DJ-5 property 1, raced for real: two threads on separate connections
-    redeem the same one-use invite; the row lock serializes them and exactly one
-    member is minted."""
+def test_redeem_deterministically_blocks_on_the_row_lock() -> None:
+    """TS-DJ-5 property 1, proved not raced: a holder thread takes the invite's
+    row lock and keeps it; redeem_invite provably cannot finish while the lock is
+    held, and once the holder commits the invite as exhausted, the unblocked
+    redeemer re-reads that committed state and raises InviteInvalid. No member is
+    minted. This is deterministic (barriers, not sleeps), so it distinguishes
+    "the lock serialized them" from "they happened not to overlap"."""
+    yard = Yard.objects.create(name="Maternal", slug="maternal")
+    pod = Pod.objects.create(name="Household")
+    pod.yards.set([yard])
+    invite, raw = mint_invite(pod, None, max_uses=1)
+
+    holder_locked = threading.Event()
+    holder_release = threading.Event()
+    redeem_done = threading.Event()
+    results: list[str] = []
+
+    def holder() -> None:
+        with transaction.atomic():
+            Invite.objects.select_for_update().get(pk=invite.pk)
+            holder_locked.set()
+            holder_release.wait(timeout=5)
+            # Commit the invite as exhausted, so the unblocked redeemer sees it.
+            Invite.objects.filter(pk=invite.pk).update(use_count=1)
+        connection.close()
+
+    def redeemer() -> None:
+        try:
+            redeem_invite(raw, display_name="Racer", user_id=None)
+            results.append("ok")
+        except InviteInvalid:
+            results.append("invalid")
+        finally:
+            connection.close()
+            redeem_done.set()
+
+    holder_thread = threading.Thread(target=holder)
+    holder_thread.start()
+    assert holder_locked.wait(timeout=5)
+
+    redeemer_thread = threading.Thread(target=redeemer)
+    redeemer_thread.start()
+    # The redeemer must block on the lock: it does not finish while the holder holds it.
+    assert not redeem_done.wait(timeout=0.5)
+
+    holder_release.set()  # holder commits use_count=1 and releases the lock
+    redeemer_thread.join(timeout=5)
+    holder_thread.join(timeout=5)
+
+    assert results == ["invalid"]  # the unblocked redeemer saw the exhausted invite
+    assert Member.objects.count() == 0
+    invite.refresh_from_db()
+    assert invite.use_count == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_two_racing_redeems_mint_exactly_one() -> None:
+    """Complementary stochastic check: two real threads redeem the same one-use
+    invite. Whatever the interleaving, exactly one member is minted (the
+    deterministic test above proves WHY: the row lock)."""
     yard = Yard.objects.create(name="Maternal", slug="maternal")
     pod = Pod.objects.create(name="Household")
     pod.yards.set([yard])
@@ -103,7 +159,6 @@ def test_one_use_invite_survives_a_real_race() -> None:
     for t in threads:
         t.join()
 
-    assert sorted(results) == ["invalid", "ok"]
+    assert results.count("ok") == 1
     assert Member.objects.count() == 1
-    invite = Invite.objects.get()
-    assert invite.use_count == 1
+    assert Invite.objects.get().use_count == 1

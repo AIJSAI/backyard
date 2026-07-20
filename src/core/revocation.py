@@ -3,10 +3,13 @@
 Every bearer capability the system mints is revoked here, in one atomic act, never
 by a checklist an admin walks by hand (threat model TM-1, ADR-003). The registry
 today holds the credential classes that exist: server-side sessions and invites.
-Every future class (elder master tokens, per-digest tokens, signed media URLs,
-reply-by-email addresses) registers here before it ships; a capability type that
-does not appear in _REVOCATION_STEPS is the bug the revocation-completeness test
-exists to catch.
+Every future class registers here before it ships; a capability type that does not
+appear in _REVOCATION_STEPS is the bug the revocation-completeness test exists to
+catch. Known future classes and how each will die: elder master tokens, per-digest
+tokens, and signed media URLs by the generation check (they carry the generation);
+reply-by-email addresses by voiding their rows; password login by deactivating the
+Member's User (S-702). Each lands with its own step and its own completeness
+assertion in the same commit.
 
 The revocation anchor is Member.token_generation (ADR-003 rule 3): derived
 credentials carry the generation they were minted under and are checked against
@@ -26,7 +29,7 @@ from django.contrib.sessions.models import Session
 from django.db import models, transaction
 from django.utils import timezone
 
-from .models import Invite, Member
+from .models import Invite, Member, Yard
 
 
 def _revoke_sessions(member: Member) -> int:
@@ -50,12 +53,30 @@ def _revoke_sessions(member: Member) -> int:
 
 
 def _void_invites(member: Member) -> int:
-    """Void invites the member created AND live invites reaching any pod the
-    member belongs to (T-AUTH-G3: a removed ex must not re-enter through the
-    original household invite someone else created)."""
+    """Void every live invite the removed member could re-enter through: ones they
+    created, and ones reaching any pod in any yard they belong to.
+
+    Scope is pods AND yards, per the threat model's authoritative text (TM-1 at
+    T-AUTH-G3: "removal lists all live invites scoped to the removed member's pods
+    and yards"). Pods-only would leave a same-yard-different-pod invite live, and
+    an ex who was in a family group chat could paste it back in and re-enter the
+    yard. The blast radius is honest: removing a member voids outstanding invites
+    to other households in their yards too, so those re-issue. At family scale that
+    is cheap, and re-issuing an invite is one click; a surviving re-entry path is
+    not. The yard arm subsumes the member's own pods, so pod membership needs no
+    separate clause.
+
+    Ordering contract (security review H-1): this reads the member's live
+    PodMembership rows, so revoke_member_credentials MUST run while they still
+    exist. The S-702 removal flow revokes first, then tears down memberships and
+    makes its content decision; the assertion that it does lands with S-702.
+    """
     now = timezone.now()
+    member_yard_ids = Yard.objects.filter(pods__memberships__member=member).values_list(
+        "id", flat=True
+    )
     reachable = Invite.objects.filter(
-        models.Q(created_by=member) | models.Q(pod__memberships__member=member),
+        models.Q(created_by=member) | models.Q(pod__yards__in=member_yard_ids),
         revoked_at__isnull=True,
     )
     return reachable.update(revoked_at=now)
@@ -83,6 +104,11 @@ def revoke_member_credentials(member: Member) -> None:
     Fired by removal, voluntary leave, pod-leaves-yard, deceased marking, and
     any regeneration; those lifecycle flows land in their stories (S-702, S-706)
     and all call this, never their own partial subset.
+
+    Ordering contract (security review H-1): call this BEFORE tearing down the
+    member's PodMembership rows. _void_invites resolves the yard scope from live
+    memberships, so revoking after teardown would silently miss the reachable
+    invites and reopen T-AUTH-G3. S-702 revokes first, then removes memberships.
     """
     with transaction.atomic():
         locked = Member.objects.select_for_update().get(pk=member.pk)

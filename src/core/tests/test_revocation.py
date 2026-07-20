@@ -85,8 +85,27 @@ def test_revocation_voids_created_and_reachable_invites(household: dict[str, obj
     unrelated_invite.refresh_from_db()
     assert own_invite.revoked_at is not None
     assert household_invite.revoked_at is not None
-    # An invite to a pod the member never belonged to is untouched.
+    # An invite to a pod in a yard the member never belonged to is untouched.
     assert unrelated_invite.revoked_at is None
+
+
+def test_revocation_voids_same_yard_different_pod_invite(household: dict[str, object]) -> None:
+    """The yard-scope arm (M-1): an invite to a DIFFERENT pod in the member's yard
+    must also be voided, or the ex re-enters the yard through a sibling pod's invite
+    pasted into a group chat (T-AUTH-G3, threat-model line 206 "pods and yards")."""
+    member = household["member"]
+    yard = household["yard"]
+    assert isinstance(member, Member)
+    assert isinstance(yard, Yard)
+
+    sibling_pod = Pod.objects.create(name="Cousins")  # same yard, member is NOT in it
+    sibling_pod.yards.set([yard])
+    sibling_invite, _ = mint_invite(sibling_pod, None)
+
+    revocation.revoke_member_credentials(member)
+
+    sibling_invite.refresh_from_db()
+    assert sibling_invite.revoked_at is not None
 
 
 def test_revocation_is_atomic_no_half_revoked_state(
@@ -109,15 +128,23 @@ def test_revocation_is_atomic_no_half_revoked_state(
     def boom(_: Member) -> int:
         raise RuntimeError("crash mid-revocation")
 
-    monkeypatch.setattr(revocation, "_REVOCATION_STEPS", (revocation._revoke_sessions, boom))
+    # The crash comes AFTER both real steps run (session delete + invite void), so
+    # every assertion below is load-bearing: each proves a genuine write was rolled
+    # back, not that a step never executed (TS-DJ-2: "raises after the first
+    # credential class, asserts zero were revoked").
+    monkeypatch.setattr(
+        revocation,
+        "_REVOCATION_STEPS",
+        (revocation._revoke_sessions, revocation._void_invites, boom),
+    )
     with pytest.raises(RuntimeError):
         revocation.revoke_member_credentials(member)
 
-    assert Session.objects.filter(session_key=key).exists()
+    assert Session.objects.filter(session_key=key).exists()  # session delete rolled back
     invite.refresh_from_db()
-    assert invite.revoked_at is None
+    assert invite.revoked_at is None  # invite void rolled back
     member.refresh_from_db()
-    assert member.token_generation == generation_before
+    assert member.token_generation == generation_before  # generation bump never reached
 
 
 def test_registry_is_the_only_shape(household: dict[str, object]) -> None:
