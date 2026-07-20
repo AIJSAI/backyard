@@ -64,6 +64,27 @@ def mint_invite(
     return invite, raw
 
 
+def peek_invite(raw_token: str) -> Invite:
+    """Return the invite if it is currently redeemable, else raise InviteInvalid.
+
+    Read-only, no lock, no consume: for the join page's GET, which shows the form
+    only for a live invite and 404s otherwise. The authoritative atomic consume is
+    redeem_invite; a peek that passes here can still lose the race at redeem time,
+    which the view handles by 404ing there too. Raises the same indistinguishable
+    InviteInvalid as redeem, so the GET is not a sharper oracle than the POST.
+    """
+    try:
+        invite = Invite.objects.get(token_digest=_digest(raw_token))
+    except Invite.DoesNotExist:
+        raise InviteInvalid from None
+    now = timezone.now()
+    if invite.revoked_at is not None or invite.expires_at <= now:
+        raise InviteInvalid
+    if invite.use_count >= invite.max_uses:
+        raise InviteInvalid
+    return invite
+
+
 def redeem_invite(raw_token: str, *, display_name: str, user_id: int | None) -> Member:
     """Mint a member from an invite, atomically, or raise InviteInvalid.
 

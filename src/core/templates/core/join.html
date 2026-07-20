@@ -1,0 +1,29 @@
+{% extends "core/base.html" %}
+{% block title %}Join your family on Backyard{% endblock %}
+{% block body %}
+  <h1>Join your family</h1>
+  <p class="muted">
+    You were invited. Pick the name your family will see and a way to sign back in.
+    You can add a passkey once you are in.
+  </p>
+
+  {% if errors %}
+    <div class="errors">
+      {% for error in errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <label for="display_name">Your name</label>
+    <input type="text" id="display_name" name="display_name" autocomplete="name" required>
+
+    <label for="username">Username</label>
+    <input type="text" id="username" name="username" autocomplete="username" required>
+
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" autocomplete="new-password" required>
+
+    <button type="submit">Join</button>
+  </form>
+{% endblock %}
