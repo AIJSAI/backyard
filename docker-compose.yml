@@ -33,7 +33,9 @@ services:
       interval: 3s
       timeout: 3s
       retries: 30
-    # No published port: the database is never internet-facing (threat model TM-8).
+    networks: [web-db]
+    # No published port, and no shared network with the edge: only web (and later
+    # the worker, on its own db network) can address the database (TM-8, TS-CO-4).
 
   web:
     build: .
@@ -57,6 +59,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks: [edge, web-db]
     # No published port: only the proxy is exposed (threat model TM-8). The app
     # generates and persists its own DJANGO_SECRET_KEY at first boot into appdata.
 
@@ -73,6 +76,14 @@ services:
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddydata:/data
+    networks: [edge]
+
+# The TS-CO-4 split: the internet-facing edge never shares a network with the
+# database, so a compromised Caddy cannot address Postgres, and (when the worker
+# lands on its own worker-db network) nothing but Caddy can address web.
+networks:
+  edge:
+  web-db:
 
 volumes:
   pgdata:
