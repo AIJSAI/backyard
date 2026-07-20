@@ -83,11 +83,15 @@ class Member(models.Model):
         (SUPERVISED, "Supervised member"),
     ]
 
+    # PROTECT, not SET_NULL: deleting the auth User looks like offboarding but revokes
+    # nothing (the Member keeps their pods and token_generation). Removal must go through
+    # the S-702 revocation path, which detaches this link explicitly after revoking;
+    # PROTECT makes the shortcut impossible (security review MEDIUM-1, TM-1).
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         null=True,
         blank=True,
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         related_name="member",
     )
     display_name = models.CharField(max_length=100)

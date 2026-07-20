@@ -130,10 +130,10 @@ def test_bridging_member_sees_both_sides_members(two_yards: dict[str, object]) -
     assert paternal_member.id not in maternal_visible
 
 
-def test_relation_traversal_stays_in_yard(two_yards: dict[str, object]) -> None:
-    """The ADR-004 hazard: walking a relation from an in-yard anchor must not reach
-    another yard. A maternal member walking pod -> yard -> pods must never surface a
-    paternal-only pod."""
+def test_relation_traversal_from_own_single_yard_pod(two_yards: dict[str, object]) -> None:
+    """Membership-anchored traversal from a single-yard pod stays in-yard. This is
+    the SAFE anchor; the dangerous anchors (a visible bridge member, a bridge pod in
+    the viewer's own yard) are covered by the scoped-traversal tests below."""
     maternal_member = two_yards["maternal_member"]
     paternal_pod = two_yards["paternal_pod"]
     assert isinstance(maternal_member, Member)
@@ -143,9 +143,56 @@ def test_relation_traversal_stays_in_yard(two_yards: dict[str, object]) -> None:
     for pod in scoping.visible_pods(maternal_member):
         for yard in pod.yards.all():
             reachable_pods.update(yard.pods.values_list("id", flat=True))
-    # The maternal member's own pod is single-yard, so traversal reaches only
-    # maternal pods, never the paternal-only pod.
     assert paternal_pod.id not in reachable_pods
+
+
+def test_raw_traversal_of_visible_bridge_member_leaks_and_is_therefore_banned(
+    two_yards: dict[str, object],
+) -> None:
+    """The HIGH-1 canary: the maternal member legitimately sees the bridge member,
+    and RAW traversal of that member's relations (member.pods -> pod.yards) reaches
+    the paternal yard, because Django related managers never filter. This test pins
+    the hazard so it cannot be forgotten: views must use the visible_*_of accessors,
+    never raw relations of non-self objects. If this test ever fails, base-manager
+    behavior changed and the scoping rule should be re-derived, not deleted."""
+    maternal_member = two_yards["maternal_member"]
+    bridge_member = two_yards["bridge_member"]
+    paternal = two_yards["paternal"]
+    assert isinstance(maternal_member, Member)
+    assert isinstance(bridge_member, Member)
+    assert isinstance(paternal, Yard)
+
+    assert scoping.require_visible_member(maternal_member, bridge_member.id)
+    raw_reachable_yards = {y.id for p in bridge_member.pods.all() for y in p.yards.all()}
+    assert paternal.id in raw_reachable_yards  # the leak raw traversal WOULD cause
+
+    # The scoped accessors close it: the same walk through them stays maternal-only.
+    scoped_yards = set(
+        scoping.visible_yards_of(maternal_member, bridge_member).values_list("id", flat=True)
+    )
+    assert paternal.id not in scoped_yards
+    for pod in scoping.visible_pods_of(maternal_member, bridge_member):
+        scoped_pod_yards = set(
+            scoping.visible_yards_of_pod(maternal_member, pod).values_list("id", flat=True)
+        )
+        assert paternal.id not in scoped_pod_yards
+
+
+def test_bridge_pod_in_own_yard_never_renders_far_yard(two_yards: dict[str, object]) -> None:
+    """The second HIGH-1 anchor: the bridge pod is legitimately in the maternal
+    yard, but rendering its yard list must not reveal the paternal yard."""
+    maternal_member = two_yards["maternal_member"]
+    maternal = two_yards["maternal"]
+    paternal = two_yards["paternal"]
+    assert isinstance(maternal_member, Member)
+    assert isinstance(maternal, Yard)
+    assert isinstance(paternal, Yard)
+
+    for pod in maternal.pods.all():  # every pod in the viewer's own yard, bridge included
+        scoped = set(
+            scoping.visible_yards_of_pod(maternal_member, pod).values_list("id", flat=True)
+        )
+        assert paternal.id not in scoped
 
 
 # --- Exhaustive ground-truth property tests -------------------------------------
@@ -164,6 +211,7 @@ class Topology:
     members: dict[str, Member]
     ground_yards: dict[str, set[int]]  # member name -> the yard ids they belong to
     ground_pods: dict[str, set[int]]  # member name -> the pod ids they belong to
+    pod_yards: dict[int, set[int]]  # pod id -> its yard ids (independent ground truth)
     yards: dict[str, Yard]
 
 
@@ -215,6 +263,7 @@ def rich() -> Topology:
         members=members,
         ground_yards=ground_yards,
         ground_pods=ground_pods,
+        pod_yards=yard_ids_of,
         yards={"A": a, "B": b, "C": c},
     )
 
@@ -266,3 +315,70 @@ def test_distinct_collapses_multi_pod_visibility(rich: Topology) -> None:
     assert ids.count(target.id) == 1
     # Would raise MultipleObjectsReturned (a 500, not a 404) if .distinct() were dropped.
     assert scoping.require_visible_member(viewer, target.id).id == target.id
+
+
+def test_scoped_traversal_accessors_stay_in_viewer_yards(rich: Topology) -> None:
+    """The HIGH-1 property, exhaustively: for every viewer and every member they can
+    see, the scoped accessors return exactly the ground-truth intersection with the
+    viewer's yards, so one relation hop from any visible object never leaves them.
+    Bridge members and bridge pods are the cases that bite: ab, bc, and abc are
+    visible from yards their other pods reach, and the far side must never render."""
+    for viewer_name, viewer in rich.members.items():
+        viewer_yards = rich.ground_yards[viewer_name]
+        for target_name, target in rich.members.items():
+            if not (viewer_yards & rich.ground_yards[target_name]):
+                continue  # not visible; require_visible_member 404s (covered above)
+
+            expected_yards = rich.ground_yards[target_name] & viewer_yards
+            actual_yards = set(
+                scoping.visible_yards_of(viewer, target).values_list("id", flat=True)
+            )
+            assert actual_yards == expected_yards, (
+                f"{viewer_name} -> {target_name}: visible_yards_of leaked or dropped"
+            )
+
+            expected_pods = {
+                pod_id
+                for pod_id in rich.ground_pods[target_name]
+                if rich.pod_yards[pod_id] & viewer_yards
+            }
+            actual_pods = set(scoping.visible_pods_of(viewer, target).values_list("id", flat=True))
+            assert actual_pods == expected_pods, (
+                f"{viewer_name} -> {target_name}: visible_pods_of leaked or dropped"
+            )
+
+            for pod in scoping.visible_pods_of(viewer, target):
+                expected_pod_yards = rich.pod_yards[pod.id] & viewer_yards
+                actual_pod_yards = set(
+                    scoping.visible_yards_of_pod(viewer, pod).values_list("id", flat=True)
+                )
+                assert actual_pod_yards == expected_pod_yards, (
+                    f"{viewer_name} -> pod {pod.name}: visible_yards_of_pod leaked or dropped"
+                )
+
+
+def test_zero_pod_member_is_invisible_including_to_themselves(rich: Topology) -> None:
+    """Deny-by-default pinned: a member in no pod (not yet placed, or removed from
+    every pod) has no yards, sees nobody, is seen by nobody, and cannot resolve
+    themselves. If a later wave decides self-visibility should not require a pod,
+    this test is the deliberate decision point, not an accident."""
+    orphan = Member.objects.create(display_name="orphan")
+    assert scoping.member_yard_ids(orphan) == set()
+    assert list(scoping.visible_members(orphan)) == []
+    with pytest.raises(Http404):
+        scoping.require_visible_member(orphan, orphan.id)
+    for other in rich.members.values():
+        assert orphan.id not in set(scoping.visible_members(other).values_list("id", flat=True))
+
+
+def test_malformed_id_404s_like_everything_else(rich: Topology) -> None:
+    """S-202 parity for garbage ids: a non-integer pk must raise the same bare 404
+    as not-exists and not-yours, never a distinguishable 500."""
+    viewer = rich.members["a1"]
+    for bad_id in ("not-an-int", "9; DROP TABLE", ""):
+        with pytest.raises(Http404):
+            scoping.require_visible_member(viewer, bad_id)  # type: ignore[arg-type]
+        with pytest.raises(Http404):
+            scoping.require_visible_pod(viewer, bad_id)  # type: ignore[arg-type]
+        with pytest.raises(Http404):
+            scoping.require_visible_yard(viewer, bad_id)  # type: ignore[arg-type]
