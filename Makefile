@@ -17,7 +17,7 @@ up:
 	@echo "Then open http://localhost:8000/setup/"
 
 setup-secret:
-	@docker compose logs web 2>/dev/null | awk '/paste this one-time secret/{getline; gsub(/^ +/,""); print}' | tail -1
+	@docker compose logs --no-log-prefix web 2>/dev/null | awk '/paste this one-time secret/{getline; gsub(/^ +/,""); print}' | tail -1
 
 down:
 	docker compose down
