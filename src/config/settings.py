@@ -38,6 +38,15 @@ ALLOWED_HOSTS = [h for h in _hosts.split(",") if h]
 # production (threat model TM-8 / T-EDGE-1); enforced once the token service lands.
 BASE_URL = os.environ.get("BACKYARD_BASE_URL", "http://localhost:8000").rstrip("/")
 
+# DEBUG serves tracebacks with settings to anyone; it must never be on for a real deployment.
+# Extend the refuse-to-boot posture to it (threat model TS-DJ-10): a public HTTPS base URL with
+# DEBUG on is a misconfiguration we hard-fail rather than serve.
+if DEBUG and BASE_URL.lower().startswith("https://"):
+    raise RuntimeError(
+        "DJANGO_DEBUG is on while BASE_URL is https. DEBUG must be off in production; it leaks "
+        "settings and tracebacks. See docs/security/threat-model.md TS-DJ-10."
+    )
+
 INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -77,6 +86,9 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 # Postgres only (ADR-002). Values come from the environment; the compose file wires them.
+# ATOMIC_REQUESTS wraps each request in a transaction so a multi-step write that crashes
+# partway leaves no half-applied state; the TM-1 revocation handler depends on removal being
+# one atomic act (threat model TS-DJ-2). Jobs and management commands still wrap explicitly.
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -85,8 +97,15 @@ DATABASES = {
         "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""),
         "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
         "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        "ATOMIC_REQUESTS": True,
     }
 }
+
+# Server-side, individually revocable sessions are a hard requirement: removal and token
+# regeneration must be able to kill a live session on its next request (threat model TS-DJ-1,
+# T-SESS-1, S-702). The database backend is Django's default, but it is pinned here so a later
+# switch to signed-cookie sessions (which cannot be revoked) is a deliberate, visible change.
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -126,6 +145,10 @@ if _HTTPS:
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    # The threat model treats the instance domain as a multi-year family asset (T-OP-G4), so
+    # committing to HTTPS-only in browsers is consistent and strengthens elder-token protection.
+    # The operator still submits the domain to the preload list; this only emits the directive.
+    SECURE_HSTS_PRELOAD = True
     # Safe only because the bundled Caddy sets X-Forwarded-Proto on every hop and the
     # web container publishes no host port, so a client cannot reach Django directly to
     # spoof it. A future compose that exposes web's port must revisit this (TM-8).

@@ -1,10 +1,20 @@
 name: backyard
 
+# Bounded, rotating logs on every service: the default json-file driver never rotates, so on a
+# small VPS unbounded logs are a disk-fill vector and permanent plaintext retention (threat model
+# TS-CO-1). Applied to all services below via the anchor.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
     # Pinned by digest (T-UPGRADE-1): tag + digest, never a floating tag alone.
     image: postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
     restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-backyard}
       POSTGRES_USER: ${POSTGRES_USER:-backyard}
@@ -22,6 +32,7 @@ services:
   web:
     build: .
     restart: unless-stopped
+    logging: *default-logging
     environment:
       DJANGO_DEBUG: ${DJANGO_DEBUG:-0}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
@@ -41,6 +52,7 @@ services:
   caddy:
     image: caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       - web
     ports:
