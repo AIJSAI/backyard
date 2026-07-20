@@ -18,6 +18,7 @@ Backyard is for both problems: an async feed for your household, and ambient awa
 - **Pods and yards**: every household is a pod; each branch of the family is a yard with its own shared **backyard**. A household can belong to more than one yard, and nothing forces the sides together.
 - An elder path that requires no account and no app store: tap a link and you're in. Reply by email if that's your thing. (Yes, a link that just works is a link that can be forwarded. That trade-off gets its own decision record before code.)
 - Installable PWA (iPhone and Android, no gatekeepers), with an email digest in and out.
+- Profiles that double as the family directory: the names the kids actually use, birthdays surfaced calmly, contact info you control the visibility of.
 - A self-host deploy on your own server, with one command as the acceptance bar. Bring your own SMTP; email in and out is the hard part, and the docs will be honest about it.
 
 ## What it will never be

@@ -10,14 +10,19 @@ Status: Phase 0 artifact, 2026-07-20. The backbone is user activities; the v1 li
 4. **Respond.** Reactions and comments; elders respond by one tap or email reply. Reciprocity is the product working.
 5. **Run the family.** Invites create structure automatically; roles, removal, supervised kids' accounts, full export.
 6. **Keep it alive.** One-command deploy, backups, migrations that never eat an archive.
+7. **Know the family.** Profiles that double as the family directory: kinship names, birthdays and anniversaries surfaced calmly, contact info with member-controlled visibility. (Added 2026-07-20 by founder ask; see the founder capture addendum.)
 
 ## The v1 line
 
-v1 includes exactly the stories flagged `v1: true` in stories.yaml: 26 stories that make the six activities work end to end for the founding household and the first yards. Two stories are built into the map but flagged post-v1 (`v1: false`): the ambient frame display (S-603) and email-photo-to-pod posting (S-503). Both are strong candidates for v1.1; neither is required to pass the alpha KPI because the token link and digest already cover the elder path both ways.
+v1 includes exactly the stories flagged `v1: true` in stories.yaml: 33 stories that make the seven activities work end to end for the founding household and the first yards. Four stories are built into the map but flagged post-v1 (`v1: false`): the ambient frame display (S-603), email-photo-to-pod posting (S-503), vCard directory export (S-904), and new-member intro cards (S-905). All are strong candidates for v1.1; none is required to pass the alpha KPI.
 
 ## Explicit non-goals (not in the map at all)
 
-Chat and DMs (group texts already exist; we replace their *broadcast* misuse, not messaging) · events and calendars (the organizer wave has that covered) · native app-store apps · federation/ActivityPub · end-to-end encryption (see PR-FAQ; the v1 threat model is platform-elimination, and E2EE would break the elder surfaces) · any AI feature · anything with a count on it.
+Chat and DMs (group texts already exist; we replace their *broadcast* misuse, not messaging) · events and calendars (the organizer wave has that covered; birthdays and anniversaries are people-dates in the directory, not a calendar product) · full genealogy trees (bonsai and family-book exist) · medical or emergency-info vaults · native app-store apps · federation/ActivityPub · end-to-end encryption (see PR-FAQ; the v1 threat model is platform-elimination, and E2EE would break the elder surfaces) · any AI feature · anything with a count on it.
+
+## Candidates on deck (not yet stories)
+
+Kinship-name display everywhere it disambiguates (partially covered by S-901) · remembrance dates for relatives who have passed (valuable, sensitive; design deliberately, later) · Tinybeans/FamilyAlbum importers (the VoC sweep found trapped users looking for the exit).
 
 ## How stories flow
 

@@ -36,6 +36,10 @@ Four grandparents (two per side). Onboarding will be assisted by family ("we wil
 | A-ADOPTION | Founder expects "everyone will try it and participate." Recorded as founder optimism, not evidence. KPI gate and kill criteria unchanged. | KPI-gated |
 | A-SEED-ALLY | Second reliable poster in the seed household not yet identified; the KPI needs 4 of 6. | Identify in alpha |
 
+## Addendum (2026-07-20, later the same day): profiles and the directory
+
+Founder ask, verbatim intent: individual profiles should carry birthdays, school, work, age, phone numbers, email; "contact information is helpful in a family," plus birthday reminders. Product translation became epic E9 (People and the family directory) with principle-preserving constraints: per-field per-yard visibility, age never displayed, dates surfaced via digest and a quiet feed banner rather than push. Anniversaries included; remembrance dates and genealogy deliberately deferred.
+
 ## Rollout amendment
 
 Rollout is **per yard**, not toward one clan layer: seed household first, then one high-energy pod on whichever side shows pull, opening each yard when its pods post weekly. The PATH-TO-100 Phase 6 items are interpreted per-yard.

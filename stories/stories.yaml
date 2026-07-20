@@ -329,6 +329,57 @@ epics:
         status: spec
         v1: true
 
+  - id: E9
+    title: People and the family directory
+    intent: "Profiles as the family's source of truth: who everyone is, how to reach them, and the dates that matter. Per-field, per-yard visibility controlled by the member; surfaced through calm channels (digest and feed banner), never push."
+    stories:
+      - id: S-901
+        epic: E9
+        persona: family-member
+        story: "As a member, my profile says who I am in family terms: name, photo, the name the kids actually call me, my birthday, and optional school or work lines I control."
+        acceptance:
+          - "Kinship display name (Nana, Uncle Jim) is shown alongside the legal name in feed, comments, and directory"
+          - "Birthday stores month and day required, year optional; age is never displayed"
+          - "Owners edit their own profiles; supervised and elder profiles are manageable by the parent or designated helper"
+        status: spec
+        v1: true
+      - id: S-902
+        epic: E9
+        persona: family-member
+        story: "As a member, I can look up a relative's phone, email, or address in one place instead of texting three people to ask."
+        acceptance:
+          - "Contact fields (phone, email, address) are optional, with per-field visibility scoped to pods or yards the member belongs to"
+          - "Directory is searchable within my yards and never leaks across a yard boundary (same 404 rule as posts)"
+          - "Every member can see and change exactly who sees each of their fields"
+        status: spec
+        v1: true
+      - id: S-903
+        epic: E9
+        persona: lurker
+        story: "As a member, I find out about upcoming birthdays and anniversaries without being pinged."
+        acceptance:
+          - "The digest includes an upcoming-dates section for the next 7 days in my yards"
+          - "The feed shows a quiet banner on the day itself; no push notification exists for dates"
+          - "Anniversaries work the same way as birthdays"
+        status: spec
+        v1: true
+      - id: S-904
+        epic: E9
+        persona: family-member
+        story: "As a member, I can export the directory to vCard so the family's numbers in my phone stop being five years stale."
+        acceptance:
+          - "Per-member and whole-visible-directory vCard downloads honoring field visibility"
+        status: spec
+        v1: false
+      - id: S-905
+        epic: E9
+        persona: family-member
+        story: "As a new member, a quiet intro card in my pod tells the family who just arrived, without a fanfare."
+        acceptance:
+          - "Joining generates a pod-scoped profile card post; no notification, no yard-wide broadcast"
+        status: spec
+        v1: false
+
   - id: E8
     title: Deploy and operations
     intent: "One-command self-host, migrations that never break the archive, backups, upgrade guide."
