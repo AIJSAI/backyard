@@ -51,6 +51,17 @@ jobs:
         run: uv run mypy src
       - name: Tests
         run: uv run pytest
+      - name: Deploy check (production-like posture, fail on any warning)
+        # Catches a regression in deployment security posture (threat model TS-DJ-10): secure
+        # cookies, HSTS, SSL redirect, DEBUG off. Run against a production-like env so the
+        # HTTPS-keyed hardening engages; the key here is long enough to pass W009 and is not a
+        # real secret.
+        env:
+          DJANGO_DEBUG: "0"
+          BACKYARD_BASE_URL: https://ci.example.com
+          DJANGO_ALLOWED_HOSTS: ci.example.com
+          DJANGO_SECRET_KEY: ci-deploy-check-not-a-secret-0123456789abcdef0123456789abcdef
+        run: uv run python manage.py check --deploy --fail-level WARNING
       - name: Docker build
         run: docker build -t backyard:ci .
 
