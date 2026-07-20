@@ -99,6 +99,17 @@ jobs:
                'tr "\0" "\n" < /proc/1/environ | grep -q "^POSTGRES_MIGRATOR_PASSWORD="'; then
             echo "LEAK: migrator password still in the gunicorn process env"; exit 1
           fi
+          echo "--- edge cannot even resolve the database (TS-CO-4 network split) ---"
+          # Compose DNS resolves a service name only for containers sharing a network,
+          # so caddy (edge only) cannot resolve postgres (web-db only): NXDOMAIN.
+          if docker compose exec -T caddy nslookup postgres >/dev/null 2>&1; then
+            echo "LEAK: caddy can resolve postgres across the network split"; exit 1
+          fi
+          docker compose exec -T web sh -c \
+            'python -c "import socket; socket.create_connection((\"postgres\",5432),3)"' \
+            || { echo "web cannot reach postgres (split too aggressive)"; exit 1; }
+          echo "--- pre-flight backup ran before migrate (TS-CO-2) ---"
+          docker compose exec -T web sh -c 'ls /data/backups/preflight-*.dump' | grep -q preflight
           docker compose down -v
 
   secrets:
