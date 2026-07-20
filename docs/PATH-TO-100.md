@@ -42,7 +42,14 @@ The single canonical checklist for Backyard v1.0. Rules:
 
 ## Phase 2: Build waves
 
-- [ ] Wave plan with slices (pods+auth, feed+links, media, digest, PWA+push, elder path)
+- [x] Wave plan with slices (pods+auth, feed+links, media, digest, PWA + elder path; push moved post-v1 by ADR-002, slice label amended) evidence: docs/wave-plan.md
+- [x] Stack-specific threat pass (Django, Postgres, Caddy, compose, parsers) appended to the threat model (section 7; 46 findings, adversarially verified, security-reviewer passed) evidence: docs/security/threat-model.md
+- [x] ADR-004: Postgres RLS belt-and-suspenders decision on the record (defer-with-triggers; role split + same-yard schema built wave 1) evidence: docs/adr/ADR-004-rls.md
+- [ ] Wave 1 (pods+auth) closed: full gate + live repro receipt
+- [ ] Wave 2 (feed+links) closed: full gate + live repro receipt
+- [ ] Wave 3 (media) closed: full gate + live repro receipt; ffmpeg latency and pillow-heif gates measured
+- [ ] Wave 4 (digest in/out) closed: full gate + live repro receipt; Anymail delivery-status matrix measured
+- [ ] Wave 5 (PWA + elder path) closed: full gate + live repro receipt; RAM footprint measured; full revocation drill
 - [ ] Every wave closes on the full verification gate plus a live repro, never subset tests
 
 ## Phase 3: Story loop
