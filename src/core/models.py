@@ -146,6 +146,56 @@ class PodMembership(models.Model):
         return f"{self.member} in {self.pod}"
 
 
+class Invite(models.Model):
+    """A household or member invite: a bearer credential held to the TM-5 bar.
+
+    The raw token is at least 128 bits from a CSPRNG, shown once at creation, and
+    stored only as a SHA-256 digest (lookups are by digest, so no per-row password
+    hashing is needed; the token itself is high-entropy and unguessable). Invites
+    expire by default, carry a use cap sized to a household, are revocable, and
+    every join from one is recorded so an admin can see exactly who an invite
+    minted (S-201, T-INVITE-1, T-YARD-G1). Loading an invite URL never consumes
+    it; joining is an explicit POST (S-101).
+
+    Revocation runs through the TM-1 registry (core/revocation.py): revoking a
+    member voids the invites they created, and removal voids every invite that
+    reaches the member's pods.
+    """
+
+    pod = models.ForeignKey(Pod, on_delete=models.CASCADE, related_name="invites")
+    token_digest = models.CharField(max_length=64, unique=True)
+    created_by = models.ForeignKey(
+        Member, null=True, blank=True, on_delete=models.SET_NULL, related_name="invites_created"
+    )
+    expires_at = models.DateTimeField()
+    max_uses = models.PositiveSmallIntegerField(default=8)
+    use_count = models.PositiveSmallIntegerField(default=0)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Invite to {self.pod} ({self.use_count}/{self.max_uses})"
+
+
+class InviteRedemption(models.Model):
+    """Who joined from which invite, when: the join-visibility record S-201's
+    hardening requires ("the admin can see, per invite, exactly who joined from it
+    and when")."""
+
+    invite = models.ForeignKey(Invite, on_delete=models.CASCADE, related_name="redemptions")
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="invite_redemptions")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.member} joined via invite {self.invite_id}"
+
+
 class SetupToken(models.Model):
     """One-time secret gating the first-run wizard (threat model TM-8).
 
