@@ -17,7 +17,16 @@ fi
 DJANGO_SECRET_KEY="$(cat "$SECRET_FILE")"
 export DJANGO_SECRET_KEY
 
-python manage.py migrate --noinput
+# Migrations run as backyard_migrator, the only role with DDL (ADR-004, TS-PG-1).
+# The env prefix scopes the migrator credentials to this one command; the unset after
+# it removes them from the process environment entirely, so the gunicorn process that
+# exec's below (and anything that compromises it) holds only the backyard_app role.
+POSTGRES_USER=backyard_migrator \
+  POSTGRES_PASSWORD="${POSTGRES_MIGRATOR_PASSWORD:?POSTGRES_MIGRATOR_PASSWORD not set}" \
+  python manage.py migrate --noinput
+unset POSTGRES_MIGRATOR_PASSWORD
+
+# Everything from here runs as the unprivileged app role from the container env.
 python manage.py collectstatic --noinput
 python manage.py ensure_setup
 
