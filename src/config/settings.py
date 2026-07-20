@@ -47,6 +47,19 @@ if DEBUG and BASE_URL.lower().startswith("https://"):
         "settings and tracebacks. See docs/security/threat-model.md TS-DJ-10."
     )
 
+# The symmetric guard (security review MEDIUM-3): the whole HTTPS posture (secure cookies,
+# HSTS, SSL redirect, the WebAuthn secure-origin check) keys off BASE_URL's scheme. An operator
+# who fronts a real domain with TLS but forgets BACKYARD_BASE_URL (it defaults to http localhost)
+# would silently get all of that OFF. So a non-local http base URL in production is a hard-fail.
+# The local plain-HTTP repro (http://localhost) is exempt: it is the documented clean-machine path.
+_is_local = any(host in BASE_URL.lower() for host in ("localhost", "127.0.0.1"))
+if not DEBUG and not BASE_URL.lower().startswith("https://") and not _is_local:
+    raise RuntimeError(
+        "BACKYARD_BASE_URL is a non-local http URL. In production it must be https, or secure "
+        "cookies, HSTS, and the SSL redirect stay off. Set BACKYARD_BASE_URL to your https URL. "
+        "See docs/security/threat-model.md TS-DJ-10 / TS-EDGE-1."
+    )
+
 INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -147,11 +160,16 @@ ACCOUNT_LOGIN_METHODS = {"username", "email"}
 ACCOUNT_EMAIL_VERIFICATION = "optional"  # invite-token members may have no email
 ACCOUNT_PREVENT_ENUMERATION = True  # login/reset never reveal whether an account exists
 ACCOUNT_RATE_LIMITS = {
-    # Per-IP and per-account backoff on the credential endpoints (T-CRED-1, T-EDGE-2).
-    "login_failed": "5/5m,10/1h",
-    "login": "30/5m",
-    "signup": "20/1h",
-    "reset_password": "5/1h",
+    # Per-IP AND per-account backoff on the credential endpoints (T-CRED-1, T-EDGE-2).
+    # The `/key` scope is the per-account half and is load-bearing: allauth defaults a
+    # scopeless rate to per-IP, so an attacker who knows a username could brute-force
+    # from rotating IPs with no account lockout (security review HIGH-1). Every
+    # credential limit here carries an explicit `/ip` and, where an account or target
+    # exists, a `/key` component.
+    "login_failed": "5/5m/ip,10/1h/ip,5/15m/key",
+    "login": "30/5m/ip",
+    "signup": "20/1h/ip",
+    "reset_password": "20/1h/ip,5/1h/key",
 }
 ALLAUTH_TRUSTED_PROXY_COUNT = 1
 

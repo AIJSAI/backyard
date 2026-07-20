@@ -58,10 +58,31 @@ def test_rate_limit_substrate_is_shared_not_per_process() -> None:
         assert cur.fetchone()[0] >= 1
 
 
-def test_credential_endpoints_are_rate_limited() -> None:
-    limits = settings.ACCOUNT_RATE_LIMITS
-    assert limits and limits.get("login_failed"), "per-account login backoff must be set"
+def test_login_has_per_account_lockout_not_just_per_ip() -> None:
+    """HIGH-1 regression: login_failed must carry a per-account (/key) component, not
+    only /ip. A scopeless or ip-only rate lets an attacker who knows a username
+    brute-force from rotating IPs with no account lockout (T-CRED-1)."""
+    login_failed = settings.ACCOUNT_RATE_LIMITS["login_failed"]
+    components = [c.strip() for c in login_failed.split(",")]
+    assert any(c.endswith("/key") for c in components), (
+        f"login_failed has no /key (per-account) scope: {login_failed}"
+    )
+    assert any(c.endswith("/ip") for c in components), "login_failed must also cap per IP"
+    # reset_password likewise caps per target email, not just per IP (MEDIUM-2).
+    reset = settings.ACCOUNT_RATE_LIMITS["reset_password"]
+    assert any(c.strip().endswith("/key") for c in reset.split(","))
     assert settings.ALLAUTH_TRUSTED_PROXY_COUNT == 1  # exactly one proxy: the bundled Caddy
+
+
+def test_rate_limits_parse_and_key_scope_is_effective() -> None:
+    """Guard against a rate string that looks right but allauth parses to ip-only:
+    parse the config through allauth itself and assert a key-scoped rule survives."""
+    from allauth.core.internal.ratelimit import parse_rates
+
+    rates = parse_rates(settings.ACCOUNT_RATE_LIMITS["login_failed"])
+    assert any(getattr(r, "per", None) == "key" for r in rates), (
+        "allauth parsed login_failed to no per=key rule (the HIGH-1 fail-open)"
+    )
 
 
 def test_enumeration_is_prevented() -> None:
