@@ -90,7 +90,6 @@ def test_removal_voids_reachable_invite_because_it_revokes_before_teardown(
 
 def test_removal_of_accountless_member_is_clean(yard_with_ex: dict[str, object]) -> None:
     """A token-only or supervised member (no User) removes without error."""
-    yard = yard_with_ex["yard"]
     ex_pod = yard_with_ex["ex_pod"]
     assert isinstance(ex_pod, Pod)
 
