@@ -113,8 +113,10 @@ jobs:
           echo "--- the app role can read AND write the rate-limit cache (TS-DJ-13) ---"
           # As the real backyard_app runtime role, not a superuser: proves the ADR-004
           # default-privilege grant reaches backyard_cache, so allauth's shared rate
-          # limit actually works in production (security review MEDIUM-4).
-          docker compose exec -T web python -c "from django.core.cache import cache; cache.set('ci-probe','ok',30); assert cache.get('ci-probe')=='ok'; print('app-role cache write OK')"
+          # limit actually works in production (security review MEDIUM-4). A fresh exec
+          # gets the container env (backyard_app creds) but not the runtime-generated
+          # DJANGO_SECRET_KEY, which lives only in PID 1; source it from the persisted file.
+          docker compose exec -T web sh -c 'DJANGO_SECRET_KEY="$(cat /data/secret_key)" python manage.py shell -c "from django.core.cache import cache; cache.set(\"ci-probe\", \"ok\", 30); assert cache.get(\"ci-probe\") == \"ok\"; print(\"app-role cache write OK\")"'
           docker compose down -v
 
   secrets:
