@@ -3,8 +3,9 @@
 # One command for a clean machine: generate .env if missing, then bring the stack up.
 up:
 	@test -f .env || { \
+	  umask 077; \
 	  printf 'POSTGRES_PASSWORD=%s\n' "$$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')" > .env; \
-	  echo "Generated .env with a random POSTGRES_PASSWORD."; \
+	  echo "Generated .env (mode 0600) with a random POSTGRES_PASSWORD."; \
 	}
 	docker compose up --build -d
 	@echo ""

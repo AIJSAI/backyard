@@ -21,9 +21,12 @@ python manage.py migrate --noinput
 python manage.py collectstatic --noinput
 python manage.py ensure_setup
 
+# No --access-logfile: gunicorn's access log records the full request line, which would write
+# elder token URLs verbatim into the container logs the moment the token surface lands (threat
+# model TS-EDGE-LOG / TM-5). Caddy is the edge and does access logging under its redaction rule;
+# gunicorn keeps only the error log.
 exec gunicorn config.wsgi:application \
   --chdir /app \
   --bind 0.0.0.0:8000 \
   --workers 3 \
-  --access-logfile - \
   --error-logfile -
