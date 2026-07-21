@@ -36,12 +36,13 @@
         <span class="when">{{ item.post.created_at|date:"M j, g:i a" }}</span>
         {% if item.post.edited_at %}<span class="edited">(edited)</span>{% endif %}
         <p>{{ item.post.body }}</p>
-        {% if item.is_own %}
-          <span class="actions">
+        <span class="actions">
+          <a href="{% url 'post_detail' item.post.id %}">Open thread</a>
+          {% if item.is_own %}
             {% if item.is_editable %}<a href="{% url 'edit_post' item.post.id %}">Edit</a>{% endif %}
             <a href="{% url 'delete_post' item.post.id %}">Delete</a>
-          </span>
-        {% endif %}
+          {% endif %}
+        </span>
       </li>
     {% empty %}
       <li class="empty">Nothing here yet. Be the first to post.</li>

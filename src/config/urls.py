@@ -19,6 +19,11 @@ urlpatterns = [
     # author-only and resolve the post through the guard first.
     path("posts/<int:post_id>/edit/", feed_views.edit_post, name="edit_post"),
     path("posts/<int:post_id>/delete/", feed_views.delete_post, name="delete_post"),
+    # A post and its replies. Comments inherit the post's audience through the guard;
+    # add is any visible-post member, delete is author-only.
+    path("posts/<int:post_id>/", feed_views.post_detail, name="post_detail"),
+    path("posts/<int:post_id>/comment/", feed_views.add_comment, name="add_comment"),
+    path("comments/<int:comment_id>/delete/", feed_views.delete_comment, name="delete_comment"),
     path("join/<str:token>/", join, name="join"),
     # Instance-admin member management (S-701 enforced, S-703 supervised, S-702 removal).
     path("members/", admin_views.members, name="members"),

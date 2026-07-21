@@ -1,0 +1,40 @@
+{% extends "core/base.html" %}
+{% block title %}A post and its replies{% endblock %}
+{% block body %}
+  <p><a href="{% url 'feed' %}">Back to the feed</a></p>
+
+  <div class="post">
+    <span class="author">{{ post.author.display_name }}</span>
+    <span class="when">{{ post.created_at|date:"M j, g:i a" }}</span>
+    {% if post.edited_at %}<span class="edited">(edited)</span>{% endif %}
+    <p>{{ post.body }}</p>
+  </div>
+
+  <h2>Replies</h2>
+  <ul class="comments">
+    {% for comment in comments %}
+      <li>
+        <span class="author">{{ comment.author.display_name }}</span>
+        <span class="when">{{ comment.created_at|date:"M j, g:i a" }}</span>
+        <p>{{ comment.body }}</p>
+        {% if comment.author_id == member.id %}
+          <form method="post" action="{% url 'delete_comment' comment.id %}" class="inline">
+            {% csrf_token %}
+            <button type="submit">Delete</button>
+          </form>
+        {% endif %}
+      </li>
+    {% empty %}
+      <li class="empty">No replies yet.</li>
+    {% endfor %}
+  </ul>
+
+  {% if errors %}
+    <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
+  {% endif %}
+  <form method="post" action="{% url 'add_comment' post.id %}" class="composer">
+    {% csrf_token %}
+    <textarea name="body" rows="2" placeholder="Write a reply" required></textarea>
+    <button type="submit">Reply</button>
+  </form>
+{% endblock %}
