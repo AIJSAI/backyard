@@ -13,21 +13,53 @@ password, so the new password invalidates it).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from django.contrib.auth.tokens import default_token_generator
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.core.exceptions import ValidationError
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
+from django.utils.crypto import constant_time_compare
 from django.utils.encoding import force_str
-from django.utils.http import urlsafe_base64_decode
+from django.utils.http import base36_to_int, urlsafe_base64_decode
 
 if TYPE_CHECKING:
     from django.contrib.auth.models import User as UserModel
 
 User = get_user_model()
+
+
+class BreakGlassTokenGenerator(PasswordResetTokenGenerator):
+    """Django's reset token, but with a much shorter lifetime than the global
+    PASSWORD_RESET_TIMEOUT (security review MEDIUM-1). A console-minted admin reset
+    URL is meant to be opened within minutes, not the 3-day default, and it must
+    not couple to allauth's member password-reset link lifetime. The one-time
+    binding is inherited unchanged (the parent folds the password hash and
+    last_login into the token, so the reset itself and any later login kill it);
+    only the timeout differs, so this overrides check_token's final age check.
+    """
+
+    timeout = 30 * 60  # 30 minutes
+
+    def check_token(self, user: Any, token: str | None) -> bool:
+        if not (user and token):
+            return False
+        try:
+            ts_b36, _ = token.split("-")
+            ts = base36_to_int(ts_b36)
+        except ValueError:
+            return False
+        for secret in [self.secret, *self.secret_fallbacks]:
+            if constant_time_compare(self._make_token_with_timestamp(user, ts, secret), token):
+                break
+        else:
+            return False
+        return (self._num_seconds(self._now()) - ts) <= self.timeout
+
+
+break_glass_tokens = BreakGlassTokenGenerator()
 
 
 def _resolve_admin(uidb64: str, token: str) -> UserModel | None:
@@ -38,7 +70,7 @@ def _resolve_admin(uidb64: str, token: str) -> UserModel | None:
         user = User.objects.get(pk=uid, is_superuser=True)
     except (TypeError, ValueError, OverflowError, User.DoesNotExist):
         return None
-    if not default_token_generator.check_token(user, token):
+    if not break_glass_tokens.check_token(user, token):
         return None
     return user
 

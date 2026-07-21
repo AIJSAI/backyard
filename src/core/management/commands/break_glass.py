@@ -17,10 +17,11 @@ from __future__ import annotations
 from typing import Any
 
 from django.contrib.auth import get_user_model
-from django.contrib.auth.tokens import default_token_generator
 from django.core.management.base import BaseCommand, CommandError
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
+
+from core.breakglass import break_glass_tokens
 
 User = get_user_model()
 
@@ -42,7 +43,7 @@ class Command(BaseCommand):
             ) from exc
 
         uid = urlsafe_base64_encode(force_bytes(user.pk))
-        token = default_token_generator.make_token(user)
+        token = break_glass_tokens.make_token(user)
         path = f"/break-glass/{uid}/{token}/"
 
         self.stdout.write(
@@ -53,8 +54,9 @@ class Command(BaseCommand):
                     "Open this once, soon (it expires), on the instance:",
                     f"    {path}",
                     "",
-                    "It stops working the moment the password is reset. If you have no second "
-                    "admin, add one after recovering (deploy docs).",
+                    "It stops working the moment the password is reset. It resets the password "
+                    "only, not your second factor: sign in with a recovery code (or re-enroll) "
+                    "after. If you have no second admin, add one after recovering (deploy docs).",
                     "",
                 ]
             )
