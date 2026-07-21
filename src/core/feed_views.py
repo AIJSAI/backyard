@@ -249,8 +249,12 @@ def _render_post_detail(
     comments = (
         scoping.visible_comments(member).filter(post=post).select_related("author")[:_MAX_THREAD]
     )
-    # Reactions show WHO reacted, grouped by kind, never a count (S-304).
-    reactions = scoping.visible_reactions(member).filter(post=post).select_related("member")
+    # Reactions show WHO reacted, grouped by kind, never a count (S-304). Capped for
+    # symmetry with the comment path so a pathologically large yard cannot inflate the
+    # render (security review LOW-1); one-per-member keeps this well under the cap.
+    reactions = (
+        scoping.visible_reactions(member).filter(post=post).select_related("member")[:_MAX_THREAD]
+    )
     by_kind: dict[str, list[str]] = {}
     my_reaction: str | None = None
     for reaction in reactions:
