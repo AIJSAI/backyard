@@ -72,23 +72,35 @@ def profile_edit(request: HttpRequest) -> HttpResponse:
     if request.method != "POST":
         return render(request, "core/profile_edit.html", _edit_context(member, []))
 
-    month = _int_or_none(request.POST.get("birthday_month"))
-    day = _int_or_none(request.POST.get("birthday_day"))
-    year = _int_or_none(request.POST.get("birthday_year"))
     errors: list[str] = []
-    if bool(month) != bool(day):
-        errors.append("A birthday needs both a month and a day.")
-    if month is not None and not 1 <= month <= 12:
-        errors.append("That is not a real month.")
-    if day is not None and not 1 <= day <= 31:
-        errors.append("That is not a real day.")
+    dates: dict[str, int | None] = {}
+    for kind in ("birthday", "anniversary"):
+        month = _int_or_none(request.POST.get(f"{kind}_month"))
+        day = _int_or_none(request.POST.get(f"{kind}_day"))
+        year = _int_or_none(request.POST.get(f"{kind}_year"))
+        if bool(month) != bool(day):
+            errors.append(f"A {kind} needs both a month and a day.")
+        if month is not None and not 1 <= month <= 12:
+            errors.append("That is not a real month.")
+        if day is not None and not 1 <= day <= 31:
+            errors.append("That is not a real day.")
+        # Range-check the year too (security review of #33 LOW-1): an out-of-range
+        # value would blow past the smallint column as a 500 instead of a message.
+        if year is not None and not 1 <= year <= 9999:
+            errors.append("That is not a real year.")
+        dates[f"{kind}_month"], dates[f"{kind}_day"], dates[f"{kind}_year"] = month, day, year
     if errors:
         return render(request, "core/profile_edit.html", _edit_context(member, errors))
 
     member.kinship_name = request.POST.get("kinship_name", "").strip()[:50]
-    member.birthday_month = month
-    member.birthday_day = day
-    member.birthday_year = year
+    member.birthday_month = dates["birthday_month"]
+    member.birthday_day = dates["birthday_day"]
+    member.birthday_year = dates["birthday_year"]
+    member.birthday_visibility = _visibility(request.POST.get("birthday_visibility"))
+    member.anniversary_month = dates["anniversary_month"]
+    member.anniversary_day = dates["anniversary_day"]
+    member.anniversary_year = dates["anniversary_year"]
+    member.anniversary_visibility = _visibility(request.POST.get("anniversary_visibility"))
     member.phone = request.POST.get("phone", "").strip()[:40]
     member.phone_visibility = _visibility(request.POST.get("phone_visibility"))
     member.contact_email = request.POST.get("contact_email", "").strip()[:254]
@@ -101,6 +113,11 @@ def profile_edit(request: HttpRequest) -> HttpResponse:
             "birthday_month",
             "birthday_day",
             "birthday_year",
+            "birthday_visibility",
+            "anniversary_month",
+            "anniversary_day",
+            "anniversary_year",
+            "anniversary_visibility",
             "phone",
             "phone_visibility",
             "contact_email",

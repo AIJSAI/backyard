@@ -16,7 +16,7 @@ from dataclasses import dataclass
 import pytest
 from django.http import Http404
 
-from core import scoping
+from core import profiles, scoping
 from core.models import Member, Pod, PodMembership, Yard
 
 pytestmark = pytest.mark.django_db
@@ -382,3 +382,27 @@ def test_malformed_id_404s_like_everything_else(rich: Topology) -> None:
             scoping.require_visible_pod(viewer, bad_id)  # type: ignore[arg-type]
         with pytest.raises(Http404):
             scoping.require_visible_yard(viewer, bad_id)  # type: ignore[arg-type]
+
+
+def test_family_dates_never_cross_a_yard(two_yards: dict[str, object]) -> None:
+    """S-903 joins the matrix: even at its WIDEST visibility (YARD), a date never
+    reaches a viewer across the yard boundary. The bridge member, who shares the
+    paternal yard, is the non-vacuous positive control."""
+    import datetime
+
+    paternal_member = two_yards["paternal_member"]
+    maternal_member = two_yards["maternal_member"]
+    bridge_member = two_yards["bridge_member"]
+    assert isinstance(paternal_member, Member)
+    assert isinstance(maternal_member, Member)
+    assert isinstance(bridge_member, Member)
+    paternal_member.birthday_month = 7
+    paternal_member.birthday_day = 4
+    paternal_member.birthday_visibility = Member.YARD
+    paternal_member.save()
+
+    start = datetime.date(2026, 1, 1)
+    maternal_view = profiles.upcoming_dates(maternal_member, start=start, days=366)
+    bridge_view = profiles.upcoming_dates(bridge_member, start=start, days=366)
+    assert paternal_member.id not in {d.member_id for d in maternal_view}
+    assert paternal_member.id in {d.member_id for d in bridge_view}  # positive control
