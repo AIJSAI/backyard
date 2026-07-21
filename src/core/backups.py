@@ -13,6 +13,12 @@ open it, verify it, and encrypt or ship it with their own tools. Nothing here
 holds a key; at-rest encryption is the operator's storage layer (documented in
 the runbook), kept out of the app so the app never holds long-lived key
 material (the T-EMAIL-5 spirit: the fewer secrets the app custodies, the better).
+
+TRUST BOUNDARY (#47 review MEDIUM): a restore archive is executed against the
+database as the migrator (DDL) role, so restoring one is equivalent to handing
+its author a shell on the box. Only ever restore an archive you produced and
+kept custody of; never a third-party archive. The manifest is a shape check,
+not authentication, so it does not make an untrusted archive safe.
 """
 
 from __future__ import annotations
@@ -20,6 +26,7 @@ from __future__ import annotations
 import datetime
 import json
 import os
+import shutil
 import subprocess
 import tarfile
 import tempfile
@@ -149,11 +156,37 @@ def restore_backup(source: IO[bytes], *, force: bool) -> None:
         if result.returncode != 0 and "error:" in result.stderr.lower():
             raise BackupError(f"pg_restore failed: {result.stderr.strip()[:300]}")
 
-        media_root = Path(settings.MEDIA_ROOT)
+        _restore_media(Path(workdir) / MEDIA_TAR_NAME, Path(workdir))
+
+
+def _restore_media(media_tar_path: Path, workdir: Path) -> None:
+    """Replace the media tree from the backup's media.tar.gz.
+
+    Extraction is bounded to a throwaway staging dir inside `workdir`, and only
+    the archive's own `media/` subtree is promoted into MEDIA_ROOT (#47 review
+    HIGH). Extracting straight into MEDIA_ROOT.parent (/data) would let a member
+    literally named `secret_key` land at /data/secret_key and silently overwrite
+    the Django SECRET_KEY: filter="data" blocks ../ traversal but not a legal
+    sibling child of the destination, and /data holds the master key next door.
+    """
+    media_root = Path(settings.MEDIA_ROOT)
+    staging = workdir / "media_staging"
+    staging.mkdir()
+    with tarfile.open(media_tar_path, "r:gz") as media_tar:
+        for member in media_tar.getmembers():
+            top = Path(member.name).parts[0] if member.name else ""
+            if top != "media":
+                raise BackupError(f"unexpected member in media archive: {member.name!r}")
+        media_tar.extractall(path=staging, filter="data")  # destination is the throwaway staging
+    restored = staging / "media"
+    if not restored.exists():
+        # An empty media tree is legal (a new instance has no photos yet).
         media_root.mkdir(parents=True, exist_ok=True)
-        with tarfile.open(Path(workdir) / MEDIA_TAR_NAME, "r:gz") as media_tar:
-            extract_root = media_root.parent
-            media_tar.extractall(path=extract_root, filter="data")
+        return
+    if media_root.exists():
+        shutil.rmtree(media_root)
+    media_root.parent.mkdir(parents=True, exist_ok=True)
+    restored.replace(media_root)  # only the media/ subtree lands in place
 
 
 def _has_members() -> bool:
@@ -175,7 +208,10 @@ def _verify_manifest(archive: tarfile.TarFile) -> None:
         raise BackupError("archive has no backup manifest; not a Backyard backup") from exc
     if member is None:
         raise BackupError("archive manifest is unreadable")
-    manifest = json.loads(member.read())
+    try:
+        manifest = json.loads(member.read())
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise BackupError("archive manifest is not valid JSON") from exc
     if manifest.get("format") != BACKUP_FORMAT:
         raise BackupError(f"unexpected backup format: {manifest.get('format')!r}")
 

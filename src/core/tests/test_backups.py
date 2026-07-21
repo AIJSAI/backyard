@@ -150,3 +150,73 @@ def _a_valid_archive() -> io.BytesIO:
             archive.addfile(member, io.BytesIO(payload))
     buffer.seek(0)
     return buffer
+
+
+def test_restore_rejects_a_media_tar_that_escapes_the_media_subtree(
+    fake_pg: None, settings: Any, tmp_path: Path
+) -> None:
+    """#47 review HIGH: a crafted archive whose media tar carries a sibling
+    member (e.g. `secret_key`) must be REJECTED, never written next to
+    MEDIA_ROOT where /data/secret_key (the Django key) lives."""
+    media_root = tmp_path / "data" / "media"
+    settings.MEDIA_ROOT = str(media_root)
+    sentinel = tmp_path / "data" / "secret_key"
+    sentinel.parent.mkdir(parents=True)
+    sentinel.write_text("REAL-KEY")
+
+    # Build an archive whose media.tar.gz sneaks a `secret_key` sibling in.
+    poisoned = io.BytesIO()
+    inner = io.BytesIO()
+    with tarfile.open(fileobj=inner, mode="w:gz") as media_tar:
+        for name, data in (("media/photo.jpg", b"ok"), ("secret_key", b"ATTACKER-KEY")):
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            media_tar.addfile(info, io.BytesIO(data))
+    media_bytes = inner.getvalue()
+    with tarfile.open(fileobj=poisoned, mode="w") as archive:
+        manifest = json.dumps({"format": backups.BACKUP_FORMAT, "members": []}).encode()
+        for name, payload in (
+            ("backup-manifest.json", manifest),
+            ("database.dump", b"PGDMP-stub"),
+            ("media.tar.gz", media_bytes),
+        ):
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            archive.addfile(info, io.BytesIO(payload))
+    poisoned.seek(0)
+
+    with pytest.raises(backups.BackupError, match="unexpected member in media archive"):
+        backups.restore_backup(poisoned, force=True)
+    assert sentinel.read_text() == "REAL-KEY"  # the Django key was NEVER overwritten
+
+
+def test_restore_promotes_only_the_media_subtree(
+    fake_pg: None, settings: Any, tmp_path: Path
+) -> None:
+    """A well-formed media tar restores under MEDIA_ROOT, and nothing lands in
+    MEDIA_ROOT.parent."""
+    media_root = tmp_path / "data" / "media"
+    settings.MEDIA_ROOT = str(media_root)
+    archive = io.BytesIO()
+    inner = io.BytesIO()
+    with tarfile.open(fileobj=inner, mode="w:gz") as media_tar:
+        info = tarfile.TarInfo("media/2026/photo.jpg")
+        data = b"a photo"
+        info.size = len(data)
+        media_tar.addfile(info, io.BytesIO(data))
+    with tarfile.open(fileobj=archive, mode="w") as outer:
+        manifest = json.dumps({"format": backups.BACKUP_FORMAT}).encode()
+        for name, payload in (
+            ("backup-manifest.json", manifest),
+            ("database.dump", b"PGDMP"),
+            ("media.tar.gz", inner.getvalue()),
+        ):
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            outer.addfile(info, io.BytesIO(payload))
+    archive.seek(0)
+
+    backups.restore_backup(archive, force=True)
+    assert (media_root / "2026" / "photo.jpg").read_bytes() == b"a photo"
+    # Nothing leaked into /data (MEDIA_ROOT.parent) beyond the media tree itself.
+    assert sorted(p.name for p in media_root.parent.iterdir()) == ["media"]

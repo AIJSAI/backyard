@@ -17,6 +17,19 @@ tools. The app holds no encryption key; at-rest encryption is your storage
 layer's job (`age`, `gpg`, or an encrypted volume), kept out of the app so the
 app never custodies long-lived key material.
 
+## Trust and safety
+
+A restore archive is executed against the database as the migrator (DDL) role,
+so restoring one is equivalent to handing its author a shell on the box. Only
+ever restore an archive you produced and kept custody of; never a third-party or
+untrusted archive. The manifest is a shape check, not a signature, so it does
+not make an untrusted archive safe. Restore also clean-restores the database
+before it replaces the media tree, so a mid-restore failure can leave the
+database restored and the media stale; re-run the restore from the same archive
+to converge. Backups and the pre-flight dumps all live unencrypted on the same
+`/data` volume, so read access to `/data` yields the full database and media in
+the clear: encrypt archives the moment they leave the box.
+
 ## Back up
 
 Run in the migrator's environment (the compose stack already has
