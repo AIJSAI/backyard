@@ -17,7 +17,13 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 
 from . import permissions, scoping, supervised
-from .models import DigestDelivery, DigestSubscription, InboundQuarantine, Member
+from .models import (
+    DigestDelivery,
+    DigestSubscription,
+    InboundQuarantine,
+    Member,
+    YardWeekMetrics,
+)
 from .removal import remove_member
 
 
@@ -115,6 +121,19 @@ def quarantine(request: HttpRequest) -> HttpResponse:
         return redirect("member_quarantine")
     rows = InboundQuarantine.objects.select_related("member")[:100]
     return render(request, "core/members_quarantine.html", {"actor": actor, "rows": rows})
+
+
+@login_required
+def metrics(request: HttpRequest) -> HttpResponse:
+    """Weekly connection health (S-705). Instance admin only, per the story:
+    aggregates span every yard, so no yard scoping can apply. What renders is
+    counts — the only per-person datum anywhere is the yes/no presence, and it
+    is not shown here."""
+    actor = _acting_member(request)
+    if not permissions.is_instance_admin(actor):
+        raise PermissionDenied
+    rows = YardWeekMetrics.objects.select_related("yard").order_by("-week_start", "yard__name")[:52]
+    return render(request, "core/members_metrics.html", {"actor": actor, "rows": rows})
 
 
 @login_required
