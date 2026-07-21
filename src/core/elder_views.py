@@ -40,7 +40,13 @@ def enter(request: HttpRequest, token: str) -> HttpResponse:
         elder_token = elder_tokens.resolve(token)
     except elder_tokens.ElderTokenInvalid as exc:
         raise Http404 from exc
-    request.session.cycle_key()  # a fresh key at every exchange (fixation)
+    # flush(), not cycle_key() (#42 review HIGH): cycle_key rotates the key but
+    # PRESERVES session data, so opening the link in a browser with a live login
+    # would carry that _auth_user_id through and hand the elder surface a fully
+    # authenticated session — the ceiling defeated on exactly the shared family
+    # tablet this path targets. flush() starts a clean empty session (no carried
+    # login, no stale elder state) and rotates the key, closing fixation too.
+    request.session.flush()
     request.session[_SESSION_MEMBER] = elder_token.member_id
     request.session[_SESSION_GENERATION] = elder_token.member.token_generation
     return redirect("elder_feed")

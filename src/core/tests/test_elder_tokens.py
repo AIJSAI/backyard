@@ -26,12 +26,27 @@ from core import elder_tokens, metrics, revocation
 from core.models import ElderToken, Member, Pod, PodMembership, Post, Reaction, Yard
 
 pytestmark = pytest.mark.django_db
+_TEST_PW = "a-Strong-passphrase-9"
 
 
 def _member_in(pod: Pod, name: str, **kwargs: object) -> Member:
     member = Member.objects.create(display_name=name, **kwargs)
     PodMembership.objects.create(member=member, pod=pod)
     return member
+
+
+def _member_with_login(pod: Pod, name: str) -> Member:
+    from django.contrib.auth import get_user_model
+
+    user = get_user_model().objects.create_user(username=name.lower(), password=_TEST_PW)
+    member = Member.objects.create(display_name=name, user=user)
+    PodMembership.objects.create(member=member, pod=pod)
+    return member
+
+
+def _login(client: Client, member: Member) -> None:
+    assert member.user is not None
+    client.force_login(member.user, backend="django.contrib.auth.backends.ModelBackend")
 
 
 @dataclass
@@ -165,6 +180,33 @@ def test_the_surface_never_crosses_a_yard(world: World) -> None:
     body = _entered(world).get(reverse("elder_feed")).content.decode()
     assert "MATERNAL-BODY" in body  # positive control
     assert "PATERNAL-BODY" not in body and "Far cousin" not in body
+
+
+def test_entering_the_link_drops_a_co_located_login(world: World) -> None:
+    """#42 review HIGH: opening the elder link in a browser that already holds a
+    real login must NOT carry that login through the exchange, or the ceiling is
+    defeated on exactly the shared family tablet this path targets."""
+    mom = _member_with_login(world.m_pod, "Mom")
+    client = Client()
+    _login(client, mom)
+    assert client.get(reverse("feed")).status_code == 200  # logged in as Mom
+    client.get(reverse("elder_enter", args=[world.raw]))  # then opens Nana's link
+    # The exchange flushed the login: the authenticated surfaces are gone.
+    assert client.get(reverse("feed")).status_code == 302
+    assert client.get(reverse("export_data")).status_code == 302
+    assert "_auth_user_id" not in client.session
+    assert client.get(reverse("elder_feed")).status_code == 200  # only the elder surface
+
+
+def test_login_clears_lingering_elder_keys(world: World) -> None:
+    """#42 review HIGH, reverse direction: a real login after an elder session
+    leaves no elder capability keys in the authenticated session."""
+    mom = _member_with_login(world.m_pod, "Mom")
+    client = _entered(world)  # an elder session first
+    assert "elder_member_id" in client.session
+    _login(client, mom)
+    assert "elder_member_id" not in client.session
+    assert "elder_generation" not in client.session
 
 
 # --- one-tap named reactions (S-602) ---
