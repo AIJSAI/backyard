@@ -256,6 +256,19 @@ def test_add_comment_get_is_404(world: World) -> None:
     assert _client_for(world.author).get(reverse("add_comment", args=[post.id])).status_code == 404
 
 
+def test_delete_comment_get_is_404(world: World) -> None:
+    """POST-only, and the method check precedes the author check (security review
+    LOW-2), so any GET is a uniform 404 rather than a 403 for a non-author."""
+    post = _post(world.author, world.m_pod, [world.maternal])
+    reply = _comment(world.author, post)
+    assert (
+        _client_for(world.author).get(reverse("delete_comment", args=[reply.id])).status_code == 404
+    )
+    assert (
+        _client_for(world.m_mate).get(reverse("delete_comment", args=[reply.id])).status_code == 404
+    )  # non-author GET is 404, not 403
+
+
 # --- exhaustive: visible_comments matches the audience rule over a bridge ---
 
 

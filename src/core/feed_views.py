@@ -27,6 +27,10 @@ from .models import Member, Post
 _MAX_BODY = 5000
 # A reply is shorter still.
 _MAX_COMMENT = 2000
+# Cap the rendered thread so a pathological number of replies cannot inflate every
+# co-viewer's page (security review LOW-1). A real family thread never approaches
+# this; if one ever did, the newest replies within the cap still render.
+_MAX_THREAD = 500
 
 
 @dataclass
@@ -229,7 +233,9 @@ def post_detail(request: HttpRequest, post_id: int) -> HttpResponse:
 def _render_post_detail(
     request: HttpRequest, member: Member, post: Post, errors: list[str] | None = None
 ) -> HttpResponse:
-    comments = scoping.visible_comments(member).filter(post=post).select_related("author")
+    comments = (
+        scoping.visible_comments(member).filter(post=post).select_related("author")[:_MAX_THREAD]
+    )
     return render(
         request,
         "core/post_detail.html",
@@ -266,11 +272,11 @@ def delete_comment(request: HttpRequest, comment_id: int) -> HttpResponse:
     guard, so a comment the member cannot see is a 404 and one they can see but did
     not write is a 403."""
     member = _acting_member(request)
+    if request.method != "POST":
+        raise Http404  # POST-only; a GET never reaches the guard, so GET is a uniform 404
     comment = scoping.require_visible_comment(member, comment_id)
     if comment.author_id != member.id:
         raise PermissionDenied
-    if request.method != "POST":
-        raise Http404
     post_id = comment.post_id
     commenting.delete_comment(actor=member, comment=comment)
     return redirect("post_detail", post_id=post_id)
