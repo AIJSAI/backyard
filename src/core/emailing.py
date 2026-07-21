@@ -33,10 +33,15 @@ def absolute_url(path: str) -> str:
     """An absolute URL for an outbound email link, minted from BASE_URL only.
 
     `path` must be site-absolute (start with "/"), which keeps a crafted relative
-    or protocol-relative value from escaping the configured origin.
+    or protocol-relative value from escaping the configured origin. Control
+    characters and whitespace are refused outright (security review of #34 LOW):
+    a minted URL may one day sit in a header position (List-Unsubscribe), and this
+    module's contract is that nothing user-shaped reaches one un-vetted.
     """
     if not path.startswith("/") or path.startswith("//"):
         raise ValueError("email links are minted from site-absolute paths only")
+    if any(ch.isspace() or unicodedata.category(ch) == "Cc" for ch in path):
+        raise ValueError("email link paths carry no whitespace or control characters")
     return f"{settings.BASE_URL}{path}"
 
 
@@ -59,10 +64,16 @@ def send_family_email(
     """Send one email to one recipient through the configured backend.
 
     The subject is control-stripped and single-line; the plain-text body gets the
-    standing footer appended. An HTML alternative is attached as-is: it comes only
-    from the template engine, whose autoescaping is the injection control there,
-    and its templates carry the footer themselves.
+    standing footer appended, and an HTML alternative is refused unless it already
+    carries the footer (security review of #34 MEDIUM: mail clients render the
+    HTML part instead of the text part, so template discipline alone would let the
+    anti-phish property silently rot). One recipient per send: a comma-smuggled
+    second address dies here rather than at the SMTP transport.
     """
+    if "," in to:
+        raise ValueError("one recipient per send; a digest is never a group email")
+    if html is not None and STANDING_FOOTER not in html:
+        raise ValueError("an HTML alternative must carry the standing footer (T-EMAIL-G3)")
     message = EmailMultiAlternatives(
         subject=strip_control(subject),
         body=f"{text.rstrip()}\n\n--\n{STANDING_FOOTER}\n",

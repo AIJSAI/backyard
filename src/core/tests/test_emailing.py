@@ -13,7 +13,7 @@ import pytest
 from django.core import mail
 from django.core.mail import EmailMultiAlternatives
 
-from config.email_guard import validate_email_transport
+from config.email_guard import env_flag, validate_email_transport
 from core import emailing
 
 _SMTP = "django.core.mail.backends.smtp.EmailBackend"
@@ -61,7 +61,7 @@ def test_send_family_email_uses_fixed_sender_and_footer() -> None:
         to="nana@example.com",
         subject="This week in the backyard",
         text="A quiet week.",
-        html="<p>A quiet week.</p>",
+        html=f"<p>A quiet week.</p><footer>{emailing.STANDING_FOOTER}</footer>",
     )
     sent = mail.outbox[-1]
     assert isinstance(sent, EmailMultiAlternatives)
@@ -71,7 +71,56 @@ def test_send_family_email_uses_fixed_sender_and_footer() -> None:
     assert sent.alternatives and sent.alternatives[0][1] == "text/html"
 
 
+@pytest.mark.parametrize("bad", ["/x\r\ny/", "/ x/", "/x y/", "/x y/", "/x\x00y/"])
+def test_absolute_url_rejects_control_and_whitespace(bad: str) -> None:
+    """Security review of #34 LOW: a minted URL may one day sit in a header
+    position, so nothing whitespace- or control-shaped gets into one."""
+    with pytest.raises(ValueError):
+        emailing.absolute_url(bad)
+
+
+def test_html_without_the_footer_is_refused() -> None:
+    """Security review of #34 MEDIUM: clients render the HTML part instead of the
+    text part, so the footer must be enforced there too, at the seam."""
+    with pytest.raises(ValueError, match="standing footer"):
+        emailing.send_family_email(
+            to="one@example.com", subject="s", text="t", html="<p>no footer here</p>"
+        )
+    emailing.send_family_email(
+        to="one@example.com",
+        subject="s",
+        text="t",
+        html=f"<p>fine</p><footer>{emailing.STANDING_FOOTER}</footer>",
+    )  # carrying the footer passes
+
+
+def test_a_comma_smuggled_second_recipient_is_refused() -> None:
+    with pytest.raises(ValueError, match="one recipient"):
+        emailing.send_family_email(
+            to="victim@example.com, attacker@example.com", subject="s", text="t"
+        )
+
+
 # --- boot guard (TS-PP-9): exercised directly, so the rule is never vacuous ---
+
+
+def test_boot_guard_refuses_an_unknown_backend() -> None:
+    """Security review of #34 LOW: exemption-by-default would let a future Anymail
+    backend arrive outside the guard; unknown strings refuse to boot instead."""
+    with pytest.raises(RuntimeError, match="Unknown EMAIL_BACKEND"):
+        validate_email_transport(
+            backend="anymail.backends.postmark.EmailBackend",
+            host="",
+            use_tls=False,
+            use_ssl=False,
+            default_from="a@b.c",
+        )
+
+
+def test_env_flag_reads_common_truthy_spellings() -> None:
+    """Security review of #34 LOW: EMAIL_USE_TLS=true must mean ON."""
+    assert all(env_flag(v) for v in ("1", "true", "True", "YES", "on", " true "))
+    assert not any(env_flag(v) for v in ("0", "false", "off", "", "no"))
 
 
 def test_boot_guard_exempts_non_network_backends() -> None:

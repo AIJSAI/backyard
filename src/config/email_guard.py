@@ -9,6 +9,30 @@ directly; settings.py calls it once at import.
 
 from __future__ import annotations
 
+_SMTP_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+# The transports this guard knows how to judge. An unknown backend string refuses
+# to boot rather than sailing through unvalidated (security review of #34 LOW:
+# exemption-by-default would let a future Anymail backend arrive silently outside
+# the guard; when Anymail lands, it is added HERE with its own validation, which
+# is exactly the loud arrival ADR-002 intends).
+_KNOWN_BACKENDS = frozenset(
+    {
+        _SMTP_BACKEND,
+        "django.core.mail.backends.console.EmailBackend",
+        "django.core.mail.backends.locmem.EmailBackend",
+        "django.core.mail.backends.filebased.EmailBackend",
+        "django.core.mail.backends.dummy.EmailBackend",
+    }
+)
+
+
+def env_flag(value: str) -> bool:
+    """A tolerant boolean env parse: '1', 'true', 'yes', 'on' (any case) are on.
+    Strict '== \"1\"' parsing read the common EMAIL_USE_TLS=true as OFF (security
+    review of #34 LOW); the guard kept that fail-closed, but the operator deserves
+    the setting to mean what it says."""
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
 
 def validate_email_transport(
     *,
@@ -18,13 +42,20 @@ def validate_email_transport(
     use_ssl: bool,
     default_from: str,
 ) -> None:
-    """Refuse a real SMTP transport that is unencrypted or under-configured.
+    """Refuse an unknown transport, and a real SMTP one that is unencrypted or
+    under-configured.
 
-    Non-network backends (console, locmem, file) are exempt: they never move a
+    Non-network backends (console, locmem, file, dummy) pass: they never move a
     capability byte off the host, and console is the compose default until the
     founder picks a provider (ADR-002 keeps Anymail one settings change away).
     """
-    if backend != "django.core.mail.backends.smtp.EmailBackend":
+    if backend not in _KNOWN_BACKENDS:
+        raise RuntimeError(
+            f"Unknown EMAIL_BACKEND {backend!r}. Add it to config/email_guard.py "
+            "deliberately, with its own transport validation, before booting with "
+            "it. See docs/security/threat-model.md TS-PP-9."
+        )
+    if backend != _SMTP_BACKEND:
         return
     problems: list[str] = []
     if not host:
