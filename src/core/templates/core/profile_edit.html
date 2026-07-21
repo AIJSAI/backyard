@@ -17,6 +17,23 @@
       <input type="number" name="birthday_month" value="{{ member.birthday_month|default_if_none:'' }}" min="1" max="12" placeholder="Month">
       <input type="number" name="birthday_day" value="{{ member.birthday_day|default_if_none:'' }}" min="1" max="31" placeholder="Day">
       <input type="number" name="birthday_year" value="{{ member.birthday_year|default_if_none:'' }}" placeholder="Year (optional)">
+      <select name="birthday_visibility" aria-label="Who can see my birthday">
+        {% for value, label in visibility_choices %}
+          <option value="{{ value }}"{% if value == member.birthday_visibility %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </fieldset>
+
+    <fieldset>
+      <legend>Anniversary (year optional; never shown)</legend>
+      <input type="number" name="anniversary_month" value="{{ member.anniversary_month|default_if_none:'' }}" min="1" max="12" placeholder="Month">
+      <input type="number" name="anniversary_day" value="{{ member.anniversary_day|default_if_none:'' }}" min="1" max="31" placeholder="Day">
+      <input type="number" name="anniversary_year" value="{{ member.anniversary_year|default_if_none:'' }}" placeholder="Year (optional)">
+      <select name="anniversary_visibility" aria-label="Who can see my anniversary">
+        {% for value, label in visibility_choices %}
+          <option value="{{ value }}"{% if value == member.anniversary_visibility %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
     </fieldset>
 
     <label for="phone">Phone</label>

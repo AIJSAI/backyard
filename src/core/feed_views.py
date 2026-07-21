@@ -21,7 +21,17 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
-from . import commenting, link_preview, media, notifications, pods, posting, reacting, scoping
+from . import (
+    commenting,
+    link_preview,
+    media,
+    notifications,
+    pods,
+    posting,
+    profiles,
+    reacting,
+    scoping,
+)
 from .models import MediaAsset, Member, Pod, Post, Reaction
 
 # Per-file upload ceiling at the application layer (the Caddy body cap is the edge
@@ -122,6 +132,10 @@ def _render_feed(
             "pods": scoping.visible_pods(member),
             "yards": scoping.visible_yards(member),
             "first_seen_id": first_seen_id,
+            # The quiet on-the-day banner (S-903): a feed element only, resolved
+            # through the one date resolver, so it honors per-field visibility.
+            # No push notification for dates exists anywhere (S-305).
+            "todays_dates": profiles.upcoming_dates(member, start=timezone.localdate(), days=1),
             "errors": errors or [],
         },
     )

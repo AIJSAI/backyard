@@ -4,6 +4,14 @@
   <h1>Your backyard</h1>
   <p><a href="{% url 'pod_list' %}">Your pods</a> · <a href="{% url 'directory' %}">Family directory</a></p>
 
+  {% if todays_dates %}
+    <div class="date-banner">
+      {% for d in todays_dates %}
+        <p>Today is {{ d.display_name }}{% if d.kinship_name %} ({{ d.kinship_name }}){% endif %}&rsquo;s {{ d.kind }}.</p>
+      {% endfor %}
+    </div>
+  {% endif %}
+
   {% if errors %}
     <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
   {% endif %}

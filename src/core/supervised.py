@@ -33,6 +33,10 @@ def create_supervised_member(*, parent: Member, display_name: str, pod: Pod) -> 
             is_supervised=True,
             managing_parent=parent,
             user=None,  # no independent login; the parent manages access
+            # A child's dates stay inside the household by default (S-903,
+            # T-MINOR-6); the ordinary-member YARD default is too wide here.
+            birthday_visibility=Member.POD,
+            anniversary_visibility=Member.POD,
         )
         PodMembership.objects.create(member=child, pod=pod)
         return child
