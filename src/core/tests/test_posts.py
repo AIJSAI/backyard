@@ -124,11 +124,19 @@ class FeedWorld:
 
 @pytest.fixture
 def rich_feed(scene: Scene) -> FeedWorld:
+    # A member in TWO separate single-yard pods, spanning both yards (security
+    # review MEDIUM #2: exercise the multi-pod reach that the single bridge pod
+    # does not). They belong to both yards, like the bridge, but via two pods.
+    double = Member.objects.create(display_name="Double cousin")
+    PodMembership.objects.create(member=double, pod=scene.m_pod)
+    PodMembership.objects.create(member=double, pod=scene.p_pod)
+
     members = {
         "bridger": scene.bridger,
         "m_cousin": scene.m_cousin,
         "m_cousin2": scene.m_cousin2,
         "p_cousin": scene.p_cousin,
+        "double": double,
     }
     posts = [
         _post(scene.m_cousin, scene.m_pod, []),  # pod-only maternal
@@ -137,6 +145,13 @@ def rich_feed(scene: Scene) -> FeedWorld:
         _post(scene.bridger, scene.bridge, [scene.paternal]),
         _post(scene.bridger, scene.bridge, [scene.maternal, scene.paternal]),
         _post(scene.m_cousin, scene.m_pod, [scene.maternal], deleted=True),
+        # A pod-only post in the MULTI-YARD bridge pod (S-204 bridge-leak shape):
+        # must reach only bridge members, not a yard-mate outside the bridge pod.
+        _post(scene.bridger, scene.bridge, []),
+        # A yard-scoped post authored in a pod whose members are not all in that
+        # yard (the shared-join false-positive vector): a maternal-pod post scoped
+        # to paternal reaches paternal members, not the maternal-pod members.
+        _post(scene.m_cousin, scene.m_pod, [scene.paternal]),
     ]
     return FeedWorld(
         members=members,

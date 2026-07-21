@@ -161,6 +161,15 @@ class Post(models.Model):
     digest, and search all consume; there is no second implementation to drift.
     Delete is a soft delete here so the feed and digest both stop showing it
     through the same query; a hard purge of media derivatives lands with media.
+
+    AUDIENCE-INTEGRITY INVARIANT (security review of PR #21, MEDIUM #4): the model
+    itself does not constrain audience_yards or pod to the author's scope, and the
+    read query faithfully honors whatever is set. So the composer that writes a
+    Post MUST enforce, in its service and with tests, that every audience_yards
+    entry is in the author's yards (scoping.member_yard_ids) and pod is one of the
+    author's pods (scoping.member_pod_ids). Without that, an author could publish
+    into a yard they do not belong to. This is a hard requirement for the composer
+    increment (S-203), not an option.
     """
 
     author = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="posts")
