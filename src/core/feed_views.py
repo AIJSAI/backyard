@@ -17,6 +17,11 @@ from django.shortcuts import redirect, render
 from . import posting, scoping
 from .models import Member
 
+# A family text post, not an essay. Bounds the stored size of a single post so a
+# crafted request cannot park megabytes of text behind the composer (the wider
+# ceiling is Django's DATA_UPLOAD_MAX_MEMORY_SIZE; this is the friendly limit).
+_MAX_BODY = 5000
+
 
 def _acting_member(request: HttpRequest) -> Member:
     if not request.user.is_authenticated or request.user.pk is None:
@@ -55,12 +60,17 @@ def compose(request: HttpRequest) -> HttpResponse:
     body = request.POST.get("body", "").strip()
     # The composer defaults to the poster's own pod; the pod must be theirs.
     pod = scoping.require_visible_pod(member, _int(request.POST.get("pod_id", "")))
-    yard_ids = [_int(v) for v in request.POST.getlist("audience_yards")]
+    # The optional audience field is parsed leniently: a stray non-integer value is
+    # skipped rather than failing the whole post, and a well-formed but foreign yard
+    # id is dropped by the visible_yards filter below, so neither can widen the reach.
+    yard_ids = _int_ids(request.POST.getlist("audience_yards"))
     audience_yards = list(scoping.visible_yards(member).filter(id__in=yard_ids)) if yard_ids else []
 
     errors: list[str] = []
     if not body:
         errors.append("Write something to post.")
+    elif len(body) > _MAX_BODY:
+        errors.append(f"That post is a little long. Keep it under {_MAX_BODY} characters.")
 
     # TM-3: any audience broader than the poster's own pod (a yard send, or more
     # than one yard) must be explicitly confirmed with its name and member count.
@@ -100,7 +110,23 @@ def compose(request: HttpRequest) -> HttpResponse:
 
 
 def _int(value: str) -> int:
+    """Parse a required, single, trusted id (the pod). A missing or malformed value
+    is a byte-identical 404, never a distinguishable 500 (S-202 parity)."""
     try:
         return int(value)
     except (TypeError, ValueError):
         raise Http404 from None
+
+
+def _int_ids(values: list[str]) -> list[int]:
+    """Parse the optional multi-value audience field, skipping any value that is not
+    an integer. Unlike a required id, one stray checkbox value should be ignored, not
+    fatal; a foreign but well-formed id is still dropped later by the visible_yards
+    filter, so this never widens the audience past the author's own yards."""
+    out: list[int] = []
+    for value in values:
+        try:
+            out.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    return out

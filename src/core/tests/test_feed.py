@@ -14,6 +14,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 
+from core import feed_views
 from core.models import Member, Pod, PodMembership, Post, Yard
 
 pytestmark = pytest.mark.django_db
@@ -196,3 +197,33 @@ def test_compose_get_is_404(world: dict[str, object]) -> None:
     author = world["author"]
     assert isinstance(author, Member)
     assert _client_for(author).get(reverse("compose")).status_code == 404
+
+
+def test_compose_rejects_an_overlong_body(world: dict[str, object]) -> None:
+    """Hardening (security review LOW): a body past the friendly cap is refused as a
+    normal composer error, not stored."""
+    author = world["author"]
+    m_pod = world["m_pod"]
+    assert isinstance(author, Member)
+    assert isinstance(m_pod, Pod)
+    response = _client_for(author).post(
+        reverse("compose"), {"body": "x" * (feed_views._MAX_BODY + 1), "pod_id": m_pod.id}
+    )
+    assert response.status_code == 200  # re-rendered with the error, not a redirect
+    assert Post.objects.count() == 0
+
+
+def test_compose_ignores_a_garbage_audience_value(world: dict[str, object]) -> None:
+    """Hardening (security review LOW): a stray non-integer audience value is skipped,
+    not fatal; the post still lands (pod-only here), never a 404."""
+    author = world["author"]
+    m_pod = world["m_pod"]
+    assert isinstance(author, Member)
+    assert isinstance(m_pod, Pod)
+    response = _client_for(author).post(
+        reverse("compose"),
+        {"body": "tolerant", "pod_id": m_pod.id, "audience_yards": ["not-an-int"]},
+    )
+    assert response.status_code == 302  # the garbage value fell away, post created
+    post = Post.objects.get(body="tolerant")
+    assert list(post.audience_yards.all()) == []
