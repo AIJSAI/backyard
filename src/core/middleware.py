@@ -14,7 +14,7 @@ from collections.abc import Callable
 
 from django.http import HttpRequest, HttpResponse
 
-_TOKEN_PREFIXES = ("/d/",)
+_TOKEN_PREFIXES = ("/d/", "/t/", "/e/")
 
 
 class TokenSurfaceHeadersMiddleware:

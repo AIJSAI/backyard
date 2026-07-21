@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Your family</title>
+  <style>
+    /* S-601: one big readable column. WCAG 2.1 AA: #1a1a1a on #ffffff is 16.7:1
+       contrast; every tap target is at least 48x48 CSS pixels. */
+    body { font-family: Georgia, serif; background: #ffffff; color: #1a1a1a;
+           margin: 0; font-size: {% if big_text %}26px{% else %}21px{% endif %};
+           line-height: 1.6; }
+    main { max-width: 640px; margin: 0 auto; padding: 16px; }
+    .post { border-top: 2px solid #dddddd; padding: 20px 0; }
+    .byline { color: #444444; margin: 0 0 8px; }
+    button { font-size: 1em; font-family: inherit; min-height: 48px; min-width: 48px;
+             padding: 10px 22px; border: 2px solid #1a1a1a; background: #ffffff;
+             color: #1a1a1a; border-radius: 10px; cursor: pointer; }
+    button.on { background: #1a1a1a; color: #ffffff; }
+    .top { display: flex; justify-content: space-between; align-items: center;
+           padding: 12px 0; border-bottom: 3px solid #1a1a1a; }
+    a.back { color: #1a1a1a; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <strong>Hello, {{ member.kinship_name|default:member.display_name }}</strong>
+    <form method="post" action="{% url 'elder_text_size' %}">{% csrf_token %}
+      <button type="submit">{% if big_text %}Regular text{% else %}Bigger text{% endif %}</button>
+    </form>
+  </div>
+
+  {% for post in posts %}
+    <article class="post">
+      <p class="byline">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %} &middot; {{ post.created_at|date }}</p>
+      <p>{{ post.body }}</p>
+      <form method="post" action="{% url 'elder_react' post.id %}">{% csrf_token %}
+        <button type="submit" {% if post.id in my_reactions %}class="on"{% endif %}>
+          {% if post.id in my_reactions %}&#10084; You love this{% else %}&#9825; Send love{% endif %}
+        </button>
+      </form>
+      {% for reaction in post.reactions.all %}
+        <span>&#10084; {{ reaction.member.display_name }}</span>
+      {% endfor %}
+    </article>
+  {% empty %}
+    <p class="post">Nothing new right now. Your family's posts will appear here.</p>
+  {% endfor %}
+  <p><a class="back" href="{% url 'elder_feed' %}">Back to the top of your family's page</a></p>
+</main>
+</body>
+</html>
