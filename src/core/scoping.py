@@ -29,7 +29,7 @@ from django.db import models
 from django.db.models import Q
 from django.http import Http404
 
-from .models import Comment, Member, Pod, Post, Reaction, Yard
+from .models import Comment, MediaAsset, Member, Pod, Post, Reaction, Yard
 
 
 def member_yard_ids(member: Member) -> set[int]:
@@ -100,6 +100,16 @@ def visible_reactions(member: Member) -> models.QuerySet[Reaction]:
     visible_posts, so the reactor list (S-202: reactor lists are in the matrix) never
     reveals who reacted on a post in a yard the member is not in."""
     return Reaction.objects.filter(post__in=visible_posts(member)).distinct()
+
+
+def visible_media(member: Member) -> models.QuerySet[MediaAsset]:
+    """Every media asset a member may see: the non-deleted media on posts they can
+    see. Media inherits its post's audience through the same one query (S-403,
+    T-MEDIA-1), so every byte, original or thumbnail, is access-checked against the
+    post and never reaches a member in a yard the post is not addressed to."""
+    return MediaAsset.objects.filter(
+        post__in=visible_posts(member), deleted_at__isnull=True
+    ).distinct()
 
 
 def visible_pods_of(viewer: Member, target: Member) -> models.QuerySet[Pod]:

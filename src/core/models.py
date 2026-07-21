@@ -11,8 +11,17 @@ threat-model.md TM-1, TM-2).
 
 from __future__ import annotations
 
+import secrets
+
 from django.conf import settings
 from django.db import models
+
+
+def _media_token() -> str:
+    """An unguessable URL handle for a media asset or one of its derivatives. Each
+    derivative gets its own, so a thumbnail id is never derivable from its source
+    (TM-9). token_urlsafe(32) yields ~43 URL-safe characters, over 256 bits."""
+    return secrets.token_urlsafe(32)
 
 
 class Yard(models.Model):
@@ -296,6 +305,37 @@ class LinkPreview(models.Model):
 
     def __str__(self) -> str:
         return f"Preview for post {self.post_id}: {self.url}"
+
+
+class MediaAsset(models.Model):
+    """A photo attached to a post (S-401). Re-encoded and metadata-stripped at ingest
+    (TM-9), stored off any web-served path, and served only through the access-checked
+    media view that inherits the post's audience (S-403, T-MEDIA-1).
+
+    The full image and its thumbnail each carry an independently unguessable token,
+    the only handle a URL ever uses; a thumbnail token is not derivable from the
+    source (TM-9). content_type is pinned from the decoded format at ingest, never
+    the client's claim (TS-PP-4). Soft delete stops the serving path (the view checks
+    it) the same way a deleted post does; the hard purge of the files themselves lands
+    with the media delete-propagation job in a later wave-3 increment (T-MEDIA-6).
+    """
+
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="media")
+    token = models.CharField(max_length=43, unique=True, default=_media_token)
+    thumbnail_token = models.CharField(max_length=43, unique=True, default=_media_token)
+    image = models.ImageField(upload_to="media/full/")
+    thumbnail = models.ImageField(upload_to="media/thumb/")
+    content_type = models.CharField(max_length=32)
+    alt_text = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [models.Index(fields=["post", "created_at"])]
+
+    def __str__(self) -> str:
+        return f"Media {self.token[:8]} on post {self.post_id}"
 
 
 class Reaction(models.Model):

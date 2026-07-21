@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 
@@ -23,3 +25,10 @@ def _non_manifest_static_storage(settings: pytest.FixtureRequest) -> None:
             "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
         },
     }
+
+
+@pytest.fixture(autouse=True)
+def _media_root_tmp(settings: pytest.FixtureRequest, tmp_path: Path) -> None:
+    """Point MEDIA_ROOT at a per-test temp directory so uploaded-media tests never
+    write into the repo or the /data volume, and each test starts clean."""
+    settings.MEDIA_ROOT = str(tmp_path / "media")  # type: ignore[attr-defined]

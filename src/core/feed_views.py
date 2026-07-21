@@ -14,13 +14,20 @@ from dataclasses import dataclass
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
+from django.db.models import Prefetch
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
-from . import commenting, link_preview, notifications, pods, posting, reacting, scoping
-from .models import Member, Pod, Post, Reaction
+from . import commenting, link_preview, media, notifications, pods, posting, reacting, scoping
+from .models import MediaAsset, Member, Pod, Post, Reaction
+
+# Per-file upload ceiling at the application layer (the Caddy body cap is the edge
+# control, TS-CA-4); a larger file is skipped rather than buffered and decoded.
+_MAX_PHOTO_BYTES = 15 * 1024 * 1024
+_MAX_PHOTOS = 20
 
 # A family text post, not an essay. Bounds the stored size of a single post so a
 # crafted request cannot park megabytes of text behind the composer (the wider
@@ -84,7 +91,14 @@ def _render_feed(
     feed_posts = (
         scoping.visible_posts(member)
         .exclude(pod_id__in=pods.muted_pod_ids(member))
-        .select_related("author", "pod", "link_preview")[:100]
+        .select_related("author", "pod", "link_preview")
+        .prefetch_related(
+            Prefetch(
+                "media",
+                queryset=MediaAsset.objects.filter(deleted_at__isnull=True),
+                to_attr="live_media",
+            )
+        )[:100]
     )
     items = [
         FeedItem(
@@ -169,6 +183,7 @@ def compose(request: HttpRequest) -> HttpResponse:
         # the fetcher's per-hop timeout); it moves to the worker in wave 3, where the
         # SSRF-sensitive fetch belongs on its own network segment (TS-CO-4).
         link_preview.attach_to_post(post)
+        _attach_photos(post, request.FILES.getlist("photos"))
         return redirect("feed")
 
     # Re-render the feed with the error (rare; the composer requires a body client-side).
@@ -216,6 +231,23 @@ def delete_post(request: HttpRequest, post_id: int) -> HttpResponse:
         posting.delete_post(actor=member, post=post)
         return redirect("feed")
     return render(request, "core/delete_confirm.html", {"post": post})
+
+
+def _attach_photos(post: Post, files: list[UploadedFile]) -> None:
+    """Re-encode and attach uploaded photos to a just-created post (S-401). Each file
+    is size-bounded and passed through the ingest gate (media.ingest_photo), which
+    strips metadata and rejects anything that does not decode to an allowed image. A
+    file too large or one that will not decode is dropped, not fatal to the post."""
+    for uploaded in files[:_MAX_PHOTOS]:
+        if uploaded.size is not None and uploaded.size > _MAX_PHOTO_BYTES:
+            continue  # fast path when the size is known
+        raw = uploaded.read()
+        if len(raw) > _MAX_PHOTO_BYTES:
+            continue  # backstop for an unknown size (security review LOW-2)
+        try:
+            media.ingest_photo(post=post, raw=raw)
+        except media.MediaRejected:
+            continue
 
 
 def _int(value: str) -> int:
@@ -285,6 +317,7 @@ def _render_post_detail(
             "reactor_groups": reactor_groups,
             "my_reaction": my_reaction,
             "reaction_kinds": Reaction.KIND_CHOICES,
+            "media_list": post.media.filter(deleted_at__isnull=True),
         },
     )
 
