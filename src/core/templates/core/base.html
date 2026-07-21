@@ -5,6 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>{% block title %}Backyard{% endblock %}</title>
+  {% if user.is_authenticated %}
+    {# The PWA install surface is for logged-in members only. The /d/ digest
+       token surface shares this base template but mints no session, so its
+       recipients (intermittent, often non-member email-link visitors) never
+       get a root-scope worker planted on them — the Safari eviction rule
+       ADR-002 applies to every token surface, not only the elder one. #}
+    <link rel="manifest" href="{% url 'manifest' %}">
+    <meta name="theme-color" content="#2f5d3a">
+    <link rel="apple-touch-icon" href="{% url 'icon_192' %}">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Backyard">
+  {% endif %}
   <style>
     :root { color-scheme: light dark; }
     body {
@@ -22,5 +34,18 @@
 </head>
 <body>
   {% block body %}{% endblock %}
+  {% if user.is_authenticated %}
+    <script>
+      // Register the minimal service worker so member pages are installable
+      // (S-103). Only logged-in members reach this: the token surfaces (/d/
+      // digest, /t/ + /e/ elder) never register a worker, so an intermittent
+      // visitor is never left with an evicted worker (the Safari rule, ADR-002).
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('{% url "service_worker" %}');
+        });
+      }
+    </script>
+  {% endif %}
 </body>
 </html>
