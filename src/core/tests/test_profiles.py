@@ -193,6 +193,18 @@ def test_profile_edit_defaults_an_unknown_visibility_to_hidden(world: World) -> 
     assert world.author.phone_visibility == Member.HIDDEN  # fail closed to no one
 
 
+def test_profile_edit_rejects_an_impossible_year(world: World) -> None:
+    """Security review of #33 LOW-1: an out-of-range year must be a validation
+    message, never a smallint DataError 500."""
+    response = _client_for(world.author).post(
+        reverse("profile_edit"),
+        {"birthday_month": "3", "birthday_day": "5", "birthday_year": "99999"},
+    )
+    assert response.status_code == 200  # re-rendered with the error, not a 500
+    world.author.refresh_from_db()
+    assert world.author.birthday_year is None  # nothing saved
+
+
 # --- family dates carry per-field visibility (S-903) ---
 
 
@@ -292,6 +304,13 @@ def test_upcoming_dates_window_crosses_new_year(world: World) -> None:
     found = profiles.upcoming_dates(world.yard_mate, start=datetime.date(2026, 12, 29), days=7)
     assert [d.member_id for d in found] == [author.id]
     assert found[0].on == datetime.date(2027, 1, 2)
+
+
+def test_upcoming_dates_caps_its_window(world: World) -> None:
+    """Security review of #33 LOW-2: the resolver owns its own bound; past a year
+    every (month, day) recurs, so a larger ask is a caller bug."""
+    with pytest.raises(ValueError):
+        profiles.upcoming_dates(world.author, start=datetime.date(2026, 1, 1), days=367)
 
 
 def test_feed_banner_shows_only_todays_dates(world: World) -> None:

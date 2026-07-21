@@ -84,6 +84,10 @@ def profile_edit(request: HttpRequest) -> HttpResponse:
             errors.append("That is not a real month.")
         if day is not None and not 1 <= day <= 31:
             errors.append("That is not a real day.")
+        # Range-check the year too (security review of #33 LOW-1): an out-of-range
+        # value would blow past the smallint column as a 500 instead of a message.
+        if year is not None and not 1 <= year <= 9999:
+            errors.append("That is not a real year.")
         dates[f"{kind}_month"], dates[f"{kind}_day"], dates[f"{kind}_year"] = month, day, year
     if errors:
         return render(request, "core/profile_edit.html", _edit_context(member, errors))

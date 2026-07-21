@@ -156,7 +156,13 @@ def upcoming_dates(viewer: Member, *, start: datetime.date, days: int) -> list[U
     This is the single date resolver: the feed banner asks for one day, the digest
     section for seven. Occurrences come from the real calendar, so a February 29
     date appears only in leap years and a window crossing New Year still works.
+
+    The window is capped at a year (security review of #33 LOW-2): past 366 days
+    every (month, day) recurs, so a larger ask is a caller bug, and the one
+    enforcement point should own its own DoS bound.
     """
+    if not 0 <= days <= 366:
+        raise ValueError("upcoming_dates windows are at most a year")
     window: dict[tuple[int, int], datetime.date] = {}
     for offset in range(days):
         day = start + datetime.timedelta(days=offset)
