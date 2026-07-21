@@ -1,13 +1,14 @@
-"""WCAG 2.1 AA checks on the elder view (wave-5 exit, S-601).
+"""WCAG contrast and structure checks on the elder view (wave-5 exit, S-601).
 
 The elder surface is the product's core bet for its least-technical users, so
-its accessibility is a gate, not an aspiration. A full audit needs a browser
-(Playwright + axe is the ADR-002 E2E path); these are the structural checks that
-hold in the unit suite: the body text meets AA contrast at the rendered size,
-the interactive controls declare AA-sized tap targets, and the page has the
-single-column, one-way-back shape S-601 requires. The contrast ratio is computed
-from the actual rendered colors, so a future theme change that dropped below AA
-fails here.
+its accessibility is a gate, not an aspiration. These are the three criteria the
+unit suite can compute: body-text contrast meets AA (1.4.3) at the rendered
+size, interactive controls declare tap targets past the WCAG 2.2 AA 24px minimum
+(2.5.8), and the page has the single-column, one-way-back shape S-601 requires.
+The contrast ratio is computed from the actual rendered colors, so a future theme
+change that dropped below AA fails here. Full AA (keyboard operability, focus
+visibility, labels, the rest) needs the browser audit (Playwright + axe, the
+ADR-002 E2E path), which stays post-close.
 """
 
 from __future__ import annotations
