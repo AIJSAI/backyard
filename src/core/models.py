@@ -570,6 +570,10 @@ class DigestToken(models.Model):
     token_digest = models.CharField(max_length=64, unique=True)
     minted_generation = models.PositiveIntegerField()
     expires_at = models.DateTimeField()
+    # The pixel-free digest-open proxy (S-705, docs/metrics.md): stamped once on
+    # the first successful resolve. Never a tracker: no per-open log exists,
+    # only this one timestamp feeding weekly aggregate counts.
+    first_used_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -664,6 +668,78 @@ class InboundQuarantine(models.Model):
 
     def __str__(self) -> str:
         return f"Quarantined inbound mail ({self.reason})"
+
+
+class YardWeekMetrics(models.Model):
+    """One yard's weekly connection health (S-705): aggregates ONLY.
+
+    Counts, never content and never per-person activity: the rollup stores how
+    many, not who did what (the sole per-person datum lives on
+    MemberWeekPresence as a yes/no, disclosed to the family in the docs). The
+    anti-surveillance test pins these field sets exactly, so a
+    surveillance-shaped column cannot arrive silently (docs/metrics.md
+    anti-metrics: no time-on-site, no sessions, no streaks, ever).
+    """
+
+    yard = models.ForeignKey(Yard, on_delete=models.CASCADE, related_name="week_metrics")
+    week_start = models.DateField()
+    member_count = models.PositiveIntegerField()
+    wcm = models.PositiveIntegerField()  # Weekly Connected Members
+    posting_breadth = models.PositiveIntegerField()  # distinct pods that posted
+    posts_in_week = models.PositiveIntegerField()
+    posts_responded = models.PositiveIntegerField()  # reciprocity numerator
+    catch_up_members = models.PositiveIntegerField()  # members with a feed visit
+    digest_opens = models.PositiveIntegerField()  # first-use proxy, undercounted
+    email_replies = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["yard", "week_start"], name="yard_metrics_once_per_week"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.yard} week {self.week_start}: WCM {self.wcm}/{self.member_count}"
+
+
+class PodWeekMetrics(models.Model):
+    """One pod's weekly posting count (S-705). A count, nothing else."""
+
+    pod = models.ForeignKey(Pod, on_delete=models.CASCADE, related_name="week_metrics")
+    week_start = models.DateField()
+    post_count = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["pod", "week_start"], name="pod_metrics_once_per_week")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.pod} week {self.week_start}: {self.post_count} posts"
+
+
+class MemberWeekPresence(models.Model):
+    """THE one per-person datum (S-705, verbatim): a yes/no weekly presence.
+
+    The measured family is told about it in the docs. No timestamps of touches,
+    no counts per person, no activity types — present or not, per week.
+    """
+
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="week_presence")
+    week_start = models.DateField()
+    present = models.BooleanField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["member", "week_start"], name="presence_once_per_week")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.member} week {self.week_start}: {'present' if self.present else 'quiet'}"
 
 
 class SetupToken(models.Model):

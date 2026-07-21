@@ -82,6 +82,11 @@ def resolve(raw_token: str) -> DigestToken:
         raise DigestLinkInvalid  # revoked resolves exactly like never-existed
     if token.expires_at <= timezone.now():
         raise DigestLinkExpired
+    if token.first_used_at is None:
+        # The one-time open proxy (S-705): a single stamp, never an open log.
+        DigestToken.objects.filter(pk=token.pk, first_used_at__isnull=True).update(
+            first_used_at=timezone.now()
+        )
     return token
 
 

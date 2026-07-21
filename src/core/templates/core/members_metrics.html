@@ -1,0 +1,26 @@
+{% extends "core/base.html" %}
+{% block title %}Connection health{% endblock %}
+{% block body %}
+  <h1>Connection health</h1>
+  <p><a href="{% url 'members' %}">Back to members</a></p>
+  <p class="muted">Weekly aggregates per yard (docs/metrics.md). Counts only; the one
+  per-person datum is a yes/no weekly presence, disclosed to the family in the docs
+  and not shown here.</p>
+  <table class="metrics">
+    <tr><th>Week</th><th>Yard</th><th>Connected</th><th>Posting breadth</th><th>Responded</th><th>Catch-up</th><th>Digest opens</th><th>Email replies</th></tr>
+    {% for row in rows %}
+      <tr>
+        <td>{{ row.week_start }}</td>
+        <td>{{ row.yard.name }}</td>
+        <td>{{ row.wcm }} of {{ row.member_count }}</td>
+        <td>{{ row.posting_breadth }}</td>
+        <td>{{ row.posts_responded }} of {{ row.posts_in_week }}</td>
+        <td>{{ row.catch_up_members }}</td>
+        <td>{{ row.digest_opens }}</td>
+        <td>{{ row.email_replies }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="8" class="empty">No weeks rolled up yet.</td></tr>
+    {% endfor %}
+  </table>
+{% endblock %}
