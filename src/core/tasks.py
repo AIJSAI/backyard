@@ -50,3 +50,18 @@ def clear_sessions_task(timestamp: int) -> None:
     """Purge expired db-session rows (threat model TS-DJ-1): db sessions never
     self-purge, so removed-member rows would otherwise accumulate."""
     call_command("clearsessions")
+
+
+# The first enqueued (non-periodic) task: a video upload defers one of these with its
+# asset id. It carries only the id and re-resolves the asset live at run time (TS-DJ-11
+# shape); a deleted or already-processed asset no-ops. It runs on the `transcode` queue,
+# and the worker runs at concurrency 1 (docker-compose), so the expensive RE-ENCODE never
+# runs in parallel (TS-PP-2). (The upfront probe and metadata strip run web-synchronously
+# on upload and are bounded per call by the timeout, rlimits, and the web mem/pids limits,
+# not by this concurrency-1.) The hardened ffmpeg lives in core/transcoding.
+@app.task(name="transcode_video", queue="transcode")
+def transcode_video(asset_id: int) -> None:
+    """Transcode one pending video asset to its served rendition + poster (S-402)."""
+    from . import transcoding
+
+    transcoding.transcode_asset(asset_id)

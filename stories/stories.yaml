@@ -273,7 +273,7 @@ epics:
           - "Clips up to a documented size and duration cap upload and play in-feed"
           - "Post-to-visible latency is minutes at most on target hardware, never deferred to idle hours"
           - "Anything over the cap is rejected upfront with a clear message, never a silent failure"
-        status: spec
+        status: built  # wave 3: hardened ffmpeg ingest+transcode on the worker, metadata strip, access-checked serving, upfront rejection — built and unit-tested against real ffmpeg. tested-flip waits on the ADR-002 transcode-latency measurement on target hardware (the wave-3 close gate).
         v1: true
         security:
           threat_refs:

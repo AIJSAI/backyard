@@ -37,6 +37,15 @@ def test_the_tasks_are_registered_with_cron_schedules() -> None:
     assert {"send_due_digests", "rollup_metrics", "clear_sessions"} <= scheduled
 
 
+def test_transcode_task_is_registered_but_not_periodic() -> None:
+    # The first enqueued (non-periodic) task: registered so a video upload can defer it,
+    # but not on the periodic registry — it fires per upload, not on a cron (S-402).
+    names = {t.name for t in app.tasks.values()}
+    assert "transcode_video" in names
+    scheduled = {pt.task.name for pt in app.periodic_registry.periodic_tasks.values()}
+    assert "transcode_video" not in scheduled
+
+
 def test_send_task_carries_no_audience_and_re_resolves_live() -> None:
     """TS-DJ-11: the task signature is a bare timestamp — no member, no post, no
     audience — so it CANNOT trust a payload; it re-resolves through the guard."""

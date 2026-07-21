@@ -23,6 +23,9 @@
     <label for="photos">Add photos (optional)</label>
     <input id="photos" type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
 
+    <label for="videos">Add short video clips (optional)</label>
+    <input id="videos" type="file" name="videos" accept="video/mp4,video/quicktime" multiple>
+
     <label for="pod_id">Post to</label>
     <select id="pod_id" name="pod_id" required>
       {% for pod in pods %}<option value="{{ pod.id }}">{{ pod.name }}</option>{% endfor %}
@@ -51,7 +54,19 @@
         {% if item.post.live_media %}
           <div class="photos">
             {% for m in item.post.live_media %}
-              <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.thumbnail_token %}" alt="{{ m.alt_text }}" loading="lazy"></a>
+              {% if m.media_kind == 'video' %}
+                {% if m.transcode_status == 'done' %}
+                  <video class="clip" controls preload="metadata" poster="{% url 'serve_media' m.thumbnail_token %}">
+                    <source src="{% url 'serve_media' m.token %}" type="video/mp4">
+                  </video>
+                {% elif m.transcode_status == 'failed' %}
+                  <p class="clip-status">This clip couldn't be processed.</p>
+                {% else %}
+                  <p class="clip-status">Processing this clip… it'll appear here shortly.</p>
+                {% endif %}
+              {% else %}
+                <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.thumbnail_token %}" alt="{{ m.alt_text }}" loading="lazy"></a>
+              {% endif %}
             {% endfor %}
           </div>
         {% endif %}

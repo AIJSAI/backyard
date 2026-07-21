@@ -11,9 +11,14 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Version-matched pg_dump for the pre-flight migration backup (TS-CO-2, TS-PG-6):
-# Debian's default client refuses servers newer than its own major, so install
-# client 18 from PGDG, key-verified. Kept in one layer with its own cleanup.
+# Two persistent runtime binaries:
+#   - postgresql-client-18: version-matched pg_dump for the pre-flight migration backup
+#     (TS-CO-2, TS-PG-6); Debian's default client refuses servers newer than its own
+#     major, so install client 18 from PGDG, key-verified.
+#   - ffmpeg: the video transcode surface on the worker (ADR-002, S-402). It runs only
+#     on hostile bytes behind the core/transcoding hardening (TS-PP-1/2); on the target
+#     Intel box QSV hardware encode is enabled via BACKYARD_FFMPEG_VCODEC + /dev/dri.
+# Kept in one layer; only curl/gnupg are purged, ffmpeg and the pg client persist.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
     && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
@@ -22,7 +27,7 @@ RUN apt-get update \
     && echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
        > /etc/apt/sources.list.d/pgdg.list \
     && apt-get update \
-    && apt-get install -y --no-install-recommends postgresql-client-18 \
+    && apt-get install -y --no-install-recommends postgresql-client-18 ffmpeg \
     && apt-get purge -y curl gnupg \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*

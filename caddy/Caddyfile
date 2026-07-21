@@ -6,6 +6,7 @@
 #
 #   backyard.example.com {
 #       reverse_proxy web:8000
+#       request_body { max_size 512MB }
 #       header Referrer-Policy no-referrer
 #       header X-Content-Type-Options nosniff
 #   }
@@ -21,6 +22,13 @@
 
 :8000 {
 	reverse_proxy web:8000
+	# Hard edge ceiling on the request body (TS-CA-4): rejects an oversized or
+	# many-file POST with a 413 before the multipart parser writes temp files or the
+	# app buffers it, above the largest legitimate post (4 clips at 100MB + photos).
+	# The per-file app-layer caps (media) are the fine control beneath this.
+	request_body {
+		max_size 512MB
+	}
 	header {
 		Referrer-Policy no-referrer
 		X-Content-Type-Options nosniff

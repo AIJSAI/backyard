@@ -71,12 +71,15 @@ boxes wait only on founder inputs, not on code:
    delivery-and-bounce matrix for that provider, run the live mailbox
    round-trip, and wave 4's stories flip to `tested`. Recommended: Postmark, for
    clean bounce webhooks at family scale.
-2. **Target hardware for the video gate** (closes wave 3, with S-402). The one
-   remaining wave-3 story is S-402 (video); its acceptance is transcode latency
-   measured on the real N100-class box, not the dev machine. The Procrastinate
-   worker container already exists as the transcode home. Everything else in
-   wave 3 (photos, access-checked serving, export, the backup/restore drill) is
-   built and drilled.
+2. **Target hardware for the video gate** (closes wave 3). S-402 (video) is now
+   *built*: hardened ffmpeg ingest and transcode on the worker (TS-PP-1/2), the
+   container location-atom strip, access-checked serving of the rendition and
+   poster, and upfront rejection are all in and unit-tested against real ffmpeg.
+   What remains is only the measurement: its acceptance is transcode latency on
+   the real N100-class box, not the dev machine (the committed encoder is software
+   libx264; `BACKYARD_FFMPEG_VCODEC=h264_qsv` moves it onto the box's Quick Sync).
+   Everything else in wave 3 (photos, access-checked serving, export, the
+   backup/restore drill) is built and drilled.
 3. **The batched policy defaults** — RATIFIED in
    [ADR-005](adr/ADR-005-batched-defaults.md) (2026-07-21). The wave-boundary
    knobs are now decided on the record, each unchanged from its proposed value:

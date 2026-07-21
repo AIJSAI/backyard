@@ -325,23 +325,50 @@ class LinkPreview(models.Model):
 
 
 class MediaAsset(models.Model):
-    """A photo attached to a post (S-401). Re-encoded and metadata-stripped at ingest
-    (TM-9), stored off any web-served path, and served only through the access-checked
-    media view that inherits the post's audience (S-403, T-MEDIA-1).
+    """A photo or a short video attached to a post (S-401, S-402). Re-encoded and
+    metadata-stripped at ingest (TM-9), stored off any web-served path, and served
+    only through the access-checked media view that inherits the post's audience
+    (S-403, T-MEDIA-1).
 
-    The full image and its thumbnail each carry an independently unguessable token,
-    the only handle a URL ever uses; a thumbnail token is not derivable from the
-    source (TM-9). content_type is pinned from the decoded format at ingest, never
-    the client's claim (TS-PP-4). Soft delete stops the serving path (the view checks
-    it) the same way a deleted post does; the hard purge of the files themselves lands
-    with the media delete-propagation job in a later wave-3 increment (T-MEDIA-6).
+    Two independently unguessable tokens are the only handles a URL ever uses, and a
+    derivative token is never derivable from the source (TM-9). Their meaning is by
+    kind: for a PHOTO, `token` serves the full image and `thumbnail_token` the
+    thumbnail; for a VIDEO, `token` serves the transcoded H.264 rendition and
+    `thumbnail_token` the poster frame. content_type is pinned from the produced
+    format at ingest, never the client's claim (TS-PP-4). Soft delete stops the
+    serving path (the view checks it); the hard purge of the files themselves is
+    T-MEDIA-6, covering every derivative including the retained source.
+
+    A video is born PENDING: ingest stores a metadata-stripped `source` (never served)
+    and the worker transcodes it to `video` + a poster in `thumbnail`, flipping
+    transcode_status to DONE (or FAILED on a clip the hardened ffmpeg refuses). The
+    feed renders the state so a member never hits a mystery failure (S-402).
     """
 
+    PHOTO = "photo"
+    VIDEO = "video"
+    MEDIA_KIND_CHOICES = [(PHOTO, "Photo"), (VIDEO, "Video")]
+
+    # A photo has nothing to transcode, so it is born DONE; only a video walks
+    # PENDING -> DONE|FAILED. The template reads this to render the clip's state.
+    PENDING = "pending"
+    DONE = "done"
+    FAILED = "failed"
+    TRANSCODE_STATUS_CHOICES = [(PENDING, "Pending"), (DONE, "Done"), (FAILED, "Failed")]
+
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="media")
+    media_kind = models.CharField(max_length=5, choices=MEDIA_KIND_CHOICES, default=PHOTO)
     token = models.CharField(max_length=43, unique=True, default=_media_token)
     thumbnail_token = models.CharField(max_length=43, unique=True, default=_media_token)
-    image = models.ImageField(upload_to="media/full/")
-    thumbnail = models.ImageField(upload_to="media/thumb/")
+    image = models.ImageField(upload_to="media/full/", blank=True)
+    thumbnail = models.ImageField(upload_to="media/thumb/", blank=True)
+    # Video only: the metadata-stripped original (retained for re-transcode and member
+    # export, T-MEDIA-6; never served) and the transcoded, re-encoded H.264 rendition.
+    source = models.FileField(upload_to="media/source/", blank=True)
+    video = models.FileField(upload_to="media/video/", blank=True)
+    transcode_status = models.CharField(
+        max_length=7, choices=TRANSCODE_STATUS_CHOICES, default=DONE
+    )
     content_type = models.CharField(max_length=32)
     alt_text = models.CharField(max_length=500, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -352,7 +379,7 @@ class MediaAsset(models.Model):
         indexes = [models.Index(fields=["post", "created_at"])]
 
     def __str__(self) -> str:
-        return f"Media {self.token[:8]} on post {self.post_id}"
+        return f"{self.get_media_kind_display()} {self.token[:8]} on post {self.post_id}"
 
 
 class Reaction(models.Model):

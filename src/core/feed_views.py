@@ -31,6 +31,7 @@ from . import (
     profiles,
     reacting,
     scoping,
+    transcoding,
 )
 from .models import MediaAsset, Member, Pod, Post, Reaction
 
@@ -38,6 +39,10 @@ from .models import MediaAsset, Member, Pod, Post, Reaction
 # control, TS-CA-4); a larger file is skipped rather than buffered and decoded.
 _MAX_PHOTO_BYTES = 15 * 1024 * 1024
 _MAX_PHOTOS = 20
+# A handful of clips per post; each is size-, format-, and duration-capped by media
+# (transcoding.MAX_VIDEO_*). Unlike a photo, a rejected video fails the whole compose
+# with a clear message rather than being silently dropped (S-402).
+_MAX_VIDEOS = 4
 
 # A family text post, not an essay. Bounds the stored size of a single post so a
 # crafted request cannot park megabytes of text behind the composer (the wider
@@ -173,6 +178,13 @@ def compose(request: HttpRequest) -> HttpResponse:
     elif len(body) > _MAX_BODY:
         errors.append(f"That post is a little long. Keep it under {_MAX_BODY} characters.")
 
+    # Videos are validated (size, format, duration) BEFORE the post is created, so an
+    # over-cap or unplayable clip rejects the whole compose with a clear message and
+    # never lands as a post with a silently-missing video (S-402). Photos, by contrast,
+    # are best-effort and attached after creation.
+    video_raws, video_errors = _validate_videos(request.FILES.getlist("videos"))
+    errors.extend(video_errors)
+
     # TM-3: any audience broader than the poster's own pod (a yard send, or more
     # than one yard) must be explicitly confirmed with its name and member count.
     widening = bool(audience_yards)
@@ -198,6 +210,7 @@ def compose(request: HttpRequest) -> HttpResponse:
         # SSRF-sensitive fetch belongs on its own network segment (TS-CO-4).
         link_preview.attach_to_post(post)
         _attach_photos(post, request.FILES.getlist("photos"))
+        _attach_videos(post, video_raws)
         return redirect("feed")
 
     # Re-render the feed with the error (rare; the composer requires a body client-side).
@@ -263,6 +276,43 @@ def _attach_photos(post: Post, files: list[UploadedFile]) -> None:
             media.ingest_photo(post=post, raw=raw)
         except media.MediaRejected:
             continue
+
+
+def _validate_videos(files: list[UploadedFile]) -> tuple[list[bytes], list[str]]:
+    """Read and fully validate uploaded videos (size, ISOBMFF magic, duration) BEFORE any
+    post is created, so a bad clip rejects the compose upfront with a member-facing
+    message rather than silently (S-402). Returns the validated raw bytes and any errors;
+    the caller aborts creation if there are errors."""
+    raws: list[bytes] = []
+    errors: list[str] = []
+    cap = transcoding.MAX_VIDEO_BYTES
+    for uploaded in files[:_MAX_VIDEOS]:
+        # Reject on the declared size BEFORE reading the file into memory (security
+        # review HIGH-1): an oversized clip must not be buffered into the web process
+        # (mem_limit'd) only to be rejected after. validate_video re-checks len(raw) as
+        # a backstop for an unknown declared size.
+        if uploaded.size is not None and uploaded.size > cap:
+            errors.append(f"That clip is too large. Keep it under {cap // (1024 * 1024)} MB.")
+            continue
+        raw = uploaded.read()
+        try:
+            media.validate_video(raw)
+        except media.MediaRejected as exc:
+            errors.append(str(exc))
+            continue
+        raws.append(raw)
+    return raws, errors
+
+
+def _attach_videos(post: Post, raws: list[bytes]) -> None:
+    """Store each validated video as a PENDING asset and enqueue its transcode (S-402).
+    The bytes are already validated, so ingest here only strips and stores; the worker
+    (concurrency 1, TS-PP-2) produces the served rendition and poster."""
+    from .tasks import transcode_video
+
+    for raw in raws:
+        asset = media.ingest_video(post=post, raw=raw)
+        transcode_video.defer(asset_id=asset.id)
 
 
 def _int(value: str) -> int:
