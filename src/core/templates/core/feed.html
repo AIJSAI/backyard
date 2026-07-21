@@ -1,0 +1,42 @@
+{% extends "core/base.html" %}
+{% block title %}Your backyard{% endblock %}
+{% block body %}
+  <h1>Your backyard</h1>
+
+  {% if errors %}
+    <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
+  {% endif %}
+
+  <form method="post" action="{% url 'compose' %}" class="composer">
+    {% csrf_token %}
+    <textarea name="body" rows="3" placeholder="Share something with your family" required></textarea>
+
+    <label for="pod_id">Post to</label>
+    <select id="pod_id" name="pod_id" required>
+      {% for pod in pods %}<option value="{{ pod.id }}">{{ pod.name }}</option>{% endfor %}
+    </select>
+
+    <fieldset>
+      <legend>Also share with a whole side of the family (optional)</legend>
+      {% for yard in yards %}
+        <label><input type="checkbox" name="audience_yards" value="{{ yard.id }}"> {{ yard.name }}</label>
+      {% endfor %}
+    </fieldset>
+
+    <button type="submit">Post</button>
+  </form>
+
+  <ul class="feed">
+    {% for post in posts %}
+      <li>
+        <span class="author">{{ post.author.display_name }}</span>
+        <span class="when">{{ post.created_at|date:"M j, g:i a" }}</span>
+        <p>{{ post.body }}</p>
+      </li>
+    {% empty %}
+      <li class="empty">Nothing here yet. Be the first to post.</li>
+    {% endfor %}
+  </ul>
+
+  <p class="caught-up">You are all caught up.</p>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "core/base.html" %}
+{% block title %}Confirm who sees this{% endblock %}
+{% block body %}
+  <h1>Share with {{ audience_names }}?</h1>
+  <p class="muted">
+    This post goes to everyone in {{ audience_names }}, about {{ member_count }}
+    {% if member_count == 1 %}person{% else %}people{% endif %}, not only your pod.
+  </p>
+
+  <blockquote>{{ body }}</blockquote>
+
+  <form method="post" action="{% url 'compose' %}">
+    {% csrf_token %}
+    <input type="hidden" name="body" value="{{ body }}">
+    <input type="hidden" name="pod_id" value="{{ pod.id }}">
+    {% for yard in audience_yards %}
+      <input type="hidden" name="audience_yards" value="{{ yard.id }}">
+    {% endfor %}
+    <input type="hidden" name="confirm_wide" value="yes">
+    <button type="submit">Yes, share with {{ audience_names }}</button>
+  </form>
+
+  <p><a href="{% url 'feed' %}">Cancel</a></p>
+{% endblock %}

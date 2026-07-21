@@ -201,6 +201,9 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Where login_required sends an anonymous visitor: the allauth login page (the
 # member-management surface is the first login-gated view).
 LOGIN_URL = "account_login"
+# After login a member lands on their feed, not allauth's default /accounts/profile/
+# (which does not exist here). The feed is the member's home surface (S-101).
+LOGIN_REDIRECT_URL = "feed"
 
 # Security headers. Secure cookies and HSTS switch on when the instance is served over
 # HTTPS, keyed off BASE_URL rather than DEBUG, so the local HTTP clean-machine repro still
