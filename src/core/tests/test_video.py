@@ -260,6 +260,33 @@ def test_transcode_marks_failed_on_a_clip_ffmpeg_refuses(world: World) -> None:
     assert not asset.video.name
 
 
+def test_transcode_skips_writing_if_deleted_mid_transcode(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # LOW-1: a delete landing while the worker transcodes must not leave orphan files.
+    # Simulate the race — transcode "succeeds" but the row is soft-deleted before we save.
+    asset = MediaAsset(
+        post=world.post,
+        media_kind=MediaAsset.VIDEO,
+        content_type="video/mp4",
+        transcode_status=MediaAsset.PENDING,
+    )
+    asset.source.save(f"{asset.token}.mp4", ContentFile(_FTYP_ONLY), save=False)
+    asset.save()
+
+    def _delete_during(src: str, video_dst: str, poster_dst: str) -> None:
+        Path(video_dst).write_bytes(_FTYP_ONLY)
+        Path(poster_dst).write_bytes(b"\xff\xd8\xff\xd9")
+        MediaAsset.objects.filter(pk=asset.pk).update(deleted_at=timezone.now())
+
+    monkeypatch.setattr(transcoding, "transcode", _delete_during)
+    transcoding.transcode_asset(asset.id)
+
+    asset.refresh_from_db()
+    assert asset.transcode_status == MediaAsset.PENDING  # not flipped to DONE
+    assert not asset.video.name  # no rendition file moved into storage — no orphan
+
+
 def test_transcode_asset_noops_on_deleted_asset(world: World) -> None:
     # Re-resolves live (TS-DJ-11 shape): a soft-deleted asset's job does nothing, no raise.
     asset = _done_video_asset(world.post)

@@ -31,6 +31,7 @@ from . import (
     profiles,
     reacting,
     scoping,
+    transcoding,
 )
 from .models import MediaAsset, Member, Pod, Post, Reaction
 
@@ -284,7 +285,15 @@ def _validate_videos(files: list[UploadedFile]) -> tuple[list[bytes], list[str]]
     the caller aborts creation if there are errors."""
     raws: list[bytes] = []
     errors: list[str] = []
+    cap = transcoding.MAX_VIDEO_BYTES
     for uploaded in files[:_MAX_VIDEOS]:
+        # Reject on the declared size BEFORE reading the file into memory (security
+        # review HIGH-1): an oversized clip must not be buffered into the web process
+        # (mem_limit'd) only to be rejected after. validate_video re-checks len(raw) as
+        # a backstop for an unknown declared size.
+        if uploaded.size is not None and uploaded.size > cap:
+            errors.append(f"That clip is too large. Keep it under {cap // (1024 * 1024)} MB.")
+            continue
         raw = uploaded.read()
         try:
             media.validate_video(raw)

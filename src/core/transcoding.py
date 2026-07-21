@@ -58,7 +58,11 @@ _OUTPUT_WIDTH = 1280
 # output size, and address space per process as defense in depth beneath the container
 # mem_limit (TS-CO-6). Generous enough that a real 60s clip transcodes on software.
 _TRANSCODE_TIMEOUT_S = 300
-_PROBE_TIMEOUT_S = 30
+# The probe and the stream-copy strip run web-synchronously on upload, so their timeout is
+# tighter: a valid short clip probes/remuxes in well under a second, and a shorter cap
+# shrinks the window a crafted slow-to-demux upload can tie up a gunicorn worker for
+# (security review MEDIUM-1). _MAX_VIDEOS caps how many run per request.
+_PROBE_TIMEOUT_S = 20
 _RLIMIT_CPU_S = 600
 _RLIMIT_FSIZE = 600 * 1024 * 1024
 _RLIMIT_AS = 2048 * 1024 * 1024
@@ -247,6 +251,11 @@ def transcode_asset(asset_id: int) -> None:
             asset.transcode_status = MediaAsset.FAILED
             asset.save(update_fields=["transcode_status"])
             logger.warning("transcode failed for media asset %s: %s", asset_id, exc)
+            return
+        # A post-delete may have landed while we transcoded (seconds). Re-check before
+        # writing the rendition/poster so we do not leave orphan files for a post whose
+        # purge already ran and saw these fields empty (T-MEDIA-6 race, review LOW-1).
+        if not MediaAsset.objects.filter(pk=asset_id, deleted_at__isnull=True).exists():
             return
         with open(video_dst, "rb") as rendition:
             asset.video.save(f"{asset.token}.mp4", File(rendition), save=False)
