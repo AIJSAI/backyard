@@ -1,0 +1,15 @@
+{% extends "core/base.html" %}
+{% block title %}Confirm your digest address{% endblock %}
+{% block body %}
+  {% if done %}
+    <h1>You are all set</h1>
+    <p>This address is confirmed. The next family digest will arrive on its regular schedule.</p>
+  {% else %}
+    <h1>Is this your address?</h1>
+    <p>A Backyard family instance wants to send its digest to this email address.</p>
+    <form method="post">
+      {% csrf_token %}
+      <button type="submit">Yes, send my family's digest here</button>
+    </form>
+  {% endif %}
+{% endblock %}

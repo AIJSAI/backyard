@@ -155,9 +155,43 @@ def test_registry_is_the_only_shape(household: dict[str, object]) -> None:
     assert revocation._REVOCATION_STEPS == (
         revocation._revoke_sessions,
         revocation._void_invites,
+        revocation._cancel_digest_subscription,  # wave 4: the digest joins the registry
     )
     member = household["member"]
     assert isinstance(member, Member)
     revocation.revoke_member_credentials(member)  # runs the full registry cleanly
     voided = Invite.objects.filter(revoked_at__isnull=False).count()
     assert voided == 0  # no invites existed; the act still completes atomically
+
+
+def test_revocation_cancels_the_digest_subscription(household: dict[str, object]) -> None:
+    """The digest joins the registry (wave 4): after revocation the member is due
+    no digest ever again, and both emailed capabilities (confirm, unsubscribe)
+    resolve like tokens that never existed."""
+    import datetime
+
+    from django.utils import timezone
+
+    from core import digesting
+    from core.models import DigestSubscription
+
+    member = household["member"]
+    assert isinstance(member, Member)
+    digesting.subscribe(member, address="ex@example.com", cadence="weekly")
+    DigestSubscription.objects.filter(member=member).update(
+        confirmed_at=timezone.now(),
+        unsubscribe_token_digest=digesting._digest("raw-unsub"),
+        confirm_token_digest=digesting._digest("raw-confirm"),
+    )
+
+    revocation.revoke_member_credentials(member)
+
+    subscription = DigestSubscription.objects.get(member=member)
+    assert subscription.enabled is False
+    later = timezone.now() + datetime.timedelta(days=60)
+    assert digesting.due_recipients(later) == []  # never due again
+    for peek in (digesting.peek_confirmation, digesting.peek_unsubscribe):
+        with pytest.raises(digesting.DigestTokenInvalid):
+            peek("raw-confirm")
+        with pytest.raises(digesting.DigestTokenInvalid):
+            peek("raw-unsub")

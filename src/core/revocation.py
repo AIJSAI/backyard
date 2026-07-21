@@ -29,7 +29,7 @@ from django.contrib.sessions.models import Session
 from django.db import models, transaction
 from django.utils import timezone
 
-from .models import Invite, Member, Yard
+from .models import DigestSubscription, Invite, Member, Yard
 
 
 def _revoke_sessions(member: Member) -> int:
@@ -82,6 +82,21 @@ def _void_invites(member: Member) -> int:
     return reachable.update(revoked_at=now)
 
 
+def _cancel_digest_subscription(member: Member) -> int:
+    """Drop the member from digest recipients and void both emailed capabilities.
+
+    Disabling stops every future send (due-recipient resolution filters on
+    enabled + live membership); clearing the digests kills the confirm and
+    unsubscribe links already sitting in a mailbox, so a removed member holds no
+    live digest capability of any kind (TM-1). A send already queued dies at the
+    send path's own liveness re-check inside its transaction (TS-DJ-11 shape) —
+    this step makes that re-check find nothing.
+    """
+    return DigestSubscription.objects.filter(member=member).update(
+        enabled=False, confirm_token_digest="", unsubscribe_token_digest=""
+    )
+
+
 def _bump_generation(member: Member) -> None:
     """Invalidate every generation-checked credential class at once (ADR-003)."""
     Member.objects.filter(pk=member.pk).update(token_generation=models.F("token_generation") + 1)
@@ -93,6 +108,7 @@ def _bump_generation(member: Member) -> None:
 _REVOCATION_STEPS = (
     _revoke_sessions,
     _void_invites,
+    _cancel_digest_subscription,
 )
 
 

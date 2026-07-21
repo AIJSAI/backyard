@@ -454,6 +454,101 @@ class InviteRedemption(models.Model):
         return f"{self.member} joined via invite {self.invite_id}"
 
 
+class DigestSubscription(models.Model):
+    """A member's digest enrollment (S-501): where, how often, and whether at all.
+
+    The confirm-before-first-content rule (T-EMAIL-6) lives in `confirmed_at`: no
+    digest carrying family content is ever sent while it is null, which kills the
+    typo'd-enrollment path (a stranger's mailbox gets one content-free confirmation
+    and nothing else, ever). The confirm and unsubscribe tokens are bearer
+    capabilities held to the Invite bar: >=128-bit CSPRNG raw values shown once,
+    SHA-256 digests at rest, voided by the TM-1 revocation registry. Disabling a
+    subscription flips `enabled` only; it never touches PodMembership (unsubscribe
+    is about email, membership severing is S-702's job, and nothing here does both).
+    """
+
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+    CADENCE_CHOICES = [(DAILY, "Daily"), (WEEKLY, "Weekly"), (MONTHLY, "Monthly")]
+
+    member = models.OneToOneField(
+        Member, on_delete=models.CASCADE, related_name="digest_subscription"
+    )
+    address = models.EmailField()
+    cadence = models.CharField(max_length=8, choices=CADENCE_CHOICES, default=WEEKLY)
+    enabled = models.BooleanField(default=True)
+    # T-EMAIL-6: family content flows only after the address holder acknowledged
+    # a content-free confirmation. Reset whenever the address changes.
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    confirm_token_digest = models.CharField(max_length=64, blank=True)
+    unsubscribe_token_digest = models.CharField(max_length=64, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        state = "confirmed" if self.confirmed_at else "unconfirmed"
+        return f"Digest for {self.member} ({self.cadence}, {state})"
+
+
+class DigestIssue(models.Model):
+    """One digest actually assembled for one (member, yard) over one window.
+
+    Per-yard on purpose: a multi-yard member gets separate per-yard emails, and no
+    single issue ever fuses two yards (S-501 hardening, T-YARD-9). Rows are created
+    by the send path at send time; their existence is what the cadence clock reads.
+    """
+
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="digest_issues")
+    yard = models.ForeignKey(Yard, on_delete=models.CASCADE, related_name="digest_issues")
+    window_start = models.DateTimeField()
+    window_end = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["member", "yard", "window_start"],
+                name="digest_issue_once_per_member_yard_window",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"Digest issue for {self.member} / {self.yard} at {self.window_end}"
+
+
+class DigestDelivery(models.Model):
+    """What the transport said about one issue: transport-level truth ONLY.
+
+    Until the ADR-002 delivery-and-bounce matrix is measured for a chosen provider
+    (the wave-4 gate), these statuses claim nothing the transport did not say:
+    handed to the relay, rejected at submission, or a DSN held for the admin.
+    Bounces only ever update this panel; nothing auto-suppresses a subscription
+    (T-EMAIL-6: a forged DSN must not silently sever an elder).
+    """
+
+    HANDED_TO_RELAY = "handed_to_relay"
+    REJECTED = "rejected"
+    DSN_QUARANTINED = "dsn_quarantined"
+    STATUS_CHOICES = [
+        (HANDED_TO_RELAY, "Handed to relay"),
+        (REJECTED, "Rejected at submission"),
+        (DSN_QUARANTINED, "Bounce held for review"),
+    ]
+
+    issue = models.ForeignKey(DigestIssue, on_delete=models.CASCADE, related_name="deliveries")
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES)
+    detail = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Delivery of issue {self.issue_id}: {self.status}"
+
+
 class SetupToken(models.Model):
     """One-time secret gating the first-run wizard (threat model TM-8).
 

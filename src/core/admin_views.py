@@ -9,13 +9,15 @@ the instance admin.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 
 from . import permissions, scoping, supervised
-from .models import Member
+from .models import DigestDelivery, DigestSubscription, Member
 from .removal import remove_member
 
 
@@ -53,6 +55,50 @@ def members(request: HttpRequest) -> HttpResponse:
         "core/members.html",
         {"actor": actor, "members": visible, "manageable_ids": manageable_ids},
     )
+
+
+@dataclass
+class DigestRow:
+    """One member's digest state plus their newest delivery records, as typed
+    values for the template (the FeedItem pattern)."""
+
+    subscription: DigestSubscription
+    deliveries: list[DigestDelivery]
+
+
+@login_required
+def digests(request: HttpRequest) -> HttpResponse:
+    """Per-member digest delivery status and failures (S-501). Admins only, and
+    scoped exactly like the roster: a yard admin sees only their own yards'
+    members, so a cross-yard subscription is simply absent (S-202). Statuses are
+    transport-level truth only until the ADR-002 delivery matrix is measured;
+    bounces only ever surface here, nothing auto-suppresses (T-EMAIL-6)."""
+    actor = _acting_member(request)
+    if not permissions.is_admin(actor):
+        raise PermissionDenied
+    visible_ids = set(scoping.visible_members(actor).values_list("id", flat=True))
+    # Deliveries are yard-scoped too, not just member-scoped (security review of
+    # #35 MEDIUM-1): a bridge member has issues in both yards, and a yard-A admin
+    # must never see the yard-B ones' existence, timing, or failure detail.
+    actor_yard_ids = scoping.member_yard_ids(actor)
+    subscriptions = (
+        DigestSubscription.objects.filter(member_id__in=visible_ids)
+        .select_related("member")
+        .order_by("member__display_name")
+    )
+    rows = [
+        DigestRow(
+            subscription=subscription,
+            deliveries=list(
+                DigestDelivery.objects.filter(
+                    issue__member_id=subscription.member_id,
+                    issue__yard_id__in=actor_yard_ids,
+                ).order_by("-created_at")[:5]
+            ),
+        )
+        for subscription in subscriptions
+    ]
+    return render(request, "core/members_digests.html", {"actor": actor, "rows": rows})
 
 
 @login_required
