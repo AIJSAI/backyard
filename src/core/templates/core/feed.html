@@ -8,9 +8,12 @@
     <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
   {% endif %}
 
-  <form method="post" action="{% url 'compose' %}" class="composer">
+  <form method="post" action="{% url 'compose' %}" class="composer" enctype="multipart/form-data">
     {% csrf_token %}
     <textarea name="body" rows="3" placeholder="Share something with your family" required></textarea>
+
+    <label for="photos">Add photos (optional)</label>
+    <input id="photos" type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
 
     <label for="pod_id">Post to</label>
     <select id="pod_id" name="pod_id" required>
@@ -37,6 +40,13 @@
         <span class="when">{{ item.post.created_at|date:"M j, g:i a" }}</span>
         {% if item.post.edited_at %}<span class="edited">(edited)</span>{% endif %}
         <p>{{ item.post.body }}</p>
+        {% if item.post.live_media %}
+          <div class="photos">
+            {% for m in item.post.live_media %}
+              <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.thumbnail_token %}" alt="{{ m.alt_text }}" loading="lazy"></a>
+            {% endfor %}
+          </div>
+        {% endif %}
         {% if item.post.link_preview %}
           <a class="preview" href="{{ item.post.link_preview.url }}" target="_blank" rel="noopener noreferrer nofollow">
             {% if item.post.link_preview.title %}<span class="preview-title">{{ item.post.link_preview.title }}</span>{% endif %}

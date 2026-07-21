@@ -9,6 +9,7 @@ dependencies = [
   "django>=5.2,<5.3",           # 5.2 LTS, extended support to 2028-04 (ADR-002)
   "django-allauth[mfa]>=65.14,<66",
   "gunicorn>=23,<24",
+  "pillow>=11,<12",             # photo ingest: re-encode + metadata strip (S-401, TM-9)
   "psycopg[binary]>=3.2,<4",
   "whitenoise>=6.12,<7",
 ]

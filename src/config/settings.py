@@ -196,6 +196,15 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 
+# Uploaded media lives on the persistent data volume, NOT under a web-served path:
+# there is no MEDIA_URL route and Caddy/WhiteNoise never serve MEDIA_ROOT. Every byte
+# is served only through the access-checked media view, which re-checks the audience of
+# the owning post (S-403, TM-9, T-MEDIA-1). Tests point this at a temp dir (conftest).
+MEDIA_ROOT = os.environ.get("MEDIA_ROOT", "/data/media")
+# Belt for TS-CA-4 at the application layer (the Caddy body cap is the edge control):
+# bound the number of files in one upload. Per-file size is checked in the upload view.
+DATA_UPLOAD_MAX_NUMBER_FILES = 20
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Where login_required sends an anonymous visitor: the allauth login page (the

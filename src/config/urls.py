@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django.urls import include, path
 
-from core import admin_views, feed_views, pod_views, profile_views, views
+from core import admin_views, feed_views, media_views, pod_views, profile_views, views
 from core.breakglass import break_glass
 from core.join import join
 
@@ -39,6 +39,9 @@ urlpatterns = [
     path("directory/", profile_views.directory, name="directory"),
     path("directory/<int:member_id>/", profile_views.member_profile, name="member_profile"),
     path("settings/profile/", profile_views.profile_edit, name="profile_edit"),
+    # The one access-checked path for every media byte (S-403, TM-9). The token is the
+    # only URL handle; the view re-checks the owning post's audience.
+    path("media/<str:token>/", media_views.serve_media, name="serve_media"),
     path("join/<str:token>/", join, name="join"),
     # Instance-admin member management (S-701 enforced, S-703 supervised, S-702 removal).
     path("members/", admin_views.members, name="members"),
