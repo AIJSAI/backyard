@@ -42,11 +42,38 @@ BANNED: list[tuple[str, re.Pattern[str], str]] = [
         "    with connection.cursor() as c:",
     ),
     (
-        "direct model import (data access outside the guard)",
-        re.compile(r"from \.models import (?!DigestIssue\b)"),
-        "from .models import Post",
+        "related-manager traversal (the scoping.py HIGH-1 leak class)",
+        re.compile(
+            r"\.(pods|yards|members|memberships|pod_memberships|posts"
+            r"|comments|reactions|media_assets|digest_issues|tokens)\b"
+        ),
+        "    count = post.media_assets.count()",
     ),
 ]
+
+# The models import is parsed, not pattern-matched: the natural drift is
+# appending ", Post" to the existing import line, which a first-name-anchored
+# regex waves through (#37 review LOW-3). Only the issue row itself may enter.
+_ALLOWED_MODEL_IMPORTS = {"DigestIssue"}
+
+
+def _import_violations(source: str) -> list[str]:
+    violations: list[str] = []
+    for lineno, line in enumerate(source.splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped.startswith("from .models import "):
+            continue
+        names = {
+            name.strip().split(" as ")[0]
+            for name in stripped.removeprefix("from .models import ").strip("()").split(",")
+            if name.strip()
+        }
+        rogue = names - _ALLOWED_MODEL_IMPORTS
+        if rogue:
+            violations.append(
+                f"src/core/digest.py:{lineno}: model import outside the guard: {sorted(rogue)}"
+            )
+    return violations
 
 
 def main() -> int:
@@ -58,7 +85,10 @@ def main() -> int:
             return 2
 
     source = DIGEST.read_text()
-    failures: list[str] = []
+    failures: list[str] = _import_violations(source)
+    if not _import_violations("from .models import DigestIssue, Post"):
+        print("SELFTEST FAILED: the import parser misses a multi-name drift")
+        return 2
     for lineno, line in enumerate(source.splitlines(), start=1):
         for name, pattern, _fixture in BANNED:
             if pattern.search(line):

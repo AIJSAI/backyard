@@ -277,3 +277,40 @@ def test_digest_confinement_guard_is_green_and_non_vacuous(tmp_path: Path) -> No
     )
     assert tripped.returncode == 1
     assert "CONFINEMENT VIOLATION" in tripped.stdout
+
+
+def test_plain_text_part_is_not_entity_escaped(world: World) -> None:
+    """Security review of #37 MEDIUM-1: text/plain is never HTML-interpreted, so
+    Ann O'Hara and Tom & Jerry must arrive as written, while the HTML part keeps
+    autoescape on."""
+    _post(
+        world.maternal_cousin,
+        world.m_pod,
+        'Tom & Jerry\'s "party" <3',
+        yards=[world.maternal],
+    )
+    built = _build(world, world.maternal_cousin, world.maternal)
+    for entity in ("&amp;", "&#x27;", "&quot;"):
+        assert entity not in built.text
+    assert 'Tom & Jerry\'s "party" <3' in built.text
+    assert "&amp;" in built.html  # the HTML part stays escaped
+
+
+def test_confinement_guard_catches_traversal_and_multi_name_import(tmp_path: Path) -> None:
+    """Security review of #37 MEDIUM-2 + LOW-3: the guard trips on the repo's own
+    HIGH-1 leak class (raw related-manager walks) and on the natural drift of
+    appending a model to the existing import line."""
+    for poison_line in (
+        "count = post.media_assets.count()\n",
+        "walked = issue.member.pods.all()\n",
+        "from .models import DigestIssue, Post\n",
+    ):
+        poisoned = tmp_path / "digest.py"
+        poisoned.write_text(poison_line)
+        tripped = subprocess.run(  # noqa: S603  # fixed args: our own checker script
+            [sys.executable, str(_CHECKER), str(poisoned)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert tripped.returncode == 1, poison_line

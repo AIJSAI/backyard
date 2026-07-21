@@ -1,4 +1,4 @@
-{{ header.yard_name }}: your family digest
+{% autoescape off %}{{ header.yard_name }}: your family digest
 {{ header.window_text }}
 
 {% for block in post_blocks %}{{ block.author_line }} on {{ block.date_text }}:
@@ -14,3 +14,4 @@ Open this post: {{ block.url }}
 {% endif %}See everything in your backyard: {{ footer.digest_url }}
 
 Too many emails? Pause them here (you stay in the family): {{ footer.unsubscribe_url }}
+{% endautoescape %}

@@ -130,7 +130,7 @@ def build_digest(issue: DigestIssue, *, digest_token: str, unsubscribe_token: st
                 if post.author.kinship_name
                 else post.author.display_name
             ),
-            date_text=post.created_at.strftime("%B %-d"),
+            date_text=timezone.localtime(post.created_at).strftime("%B %-d"),
             body=post.body,
             url=emailing.absolute_url(f"/d/{digest_token}/posts/{post.id}/"),
             photo_count=scoping.visible_media(member).filter(post=post).count(),
@@ -155,9 +155,9 @@ def build_digest(issue: DigestIssue, *, digest_token: str, unsubscribe_token: st
         )
     )
 
-    window_text = (
-        f"{issue.window_start.strftime('%B %-d')} to {issue.window_end.strftime('%B %-d')}"
-    )
+    window_start = timezone.localtime(issue.window_start).strftime("%B %-d")
+    window_end = timezone.localtime(issue.window_end).strftime("%B %-d")
+    window_text = f"{window_start} to {window_end}"
     blocks: tuple[DigestBlock, ...] = (
         HeaderBlock(yard_name=yard.name, window_text=window_text),
         *post_blocks,
@@ -177,7 +177,9 @@ def build_digest(issue: DigestIssue, *, digest_token: str, unsubscribe_token: st
         "footer": blocks[-1],
     }
     return DigestEmail(
-        subject=f"{yard.name}: your family digest",
+        # Belt (#37 review LOW-4): DigestEmail is header-safe as a VALUE, not
+        # only when the send seam happens to strip it.
+        subject=emailing.strip_control(f"{yard.name}: your family digest"),
         text=render_to_string("core/email/digest.txt", context),
         html=render_to_string("core/email/digest.html", context),
         blocks=blocks,
