@@ -23,7 +23,7 @@ epics:
           - "Posting a URL renders a preview card in the household pod feed"
           - "No push notification is sent by default"
           - "Members see the post on next visit, in chronological order"
-        status: spec
+        status: tested
         v1: true
       - id: S-101
         epic: E1
@@ -149,7 +149,7 @@ epics:
           - "A pod can be a member of multiple yards"
           - "Composer shows an audience picker defaulting to the pod, remembering last choice"
           - "Visibility matches the selection exactly, verified by isolation tests"
-        status: spec
+        status: tested
         v1: true
         security:
           threat_refs:
@@ -167,7 +167,7 @@ epics:
           - "Members can create an ad-hoc pod within a yard and invite existing members"
           - "Pod owner can set a one-sentence house rule shown at the top"
           - "Ad-hoc pod posts never appear in the yard backyard feed"
-        status: spec
+        status: tested
         v1: true
       - id: S-205
         epic: E2
@@ -176,7 +176,7 @@ epics:
         acceptance:
           - "Mute silently hides a pod from my feed; nobody is notified"
           - "Leaving a pod produces no broadcast to remaining members"
-        status: spec
+        status: tested
         v1: true
 
   - id: E3
@@ -190,7 +190,11 @@ epics:
         acceptance:
           - "Card shows title, image, and description when the target provides them, with graceful fallback"
           - "Tracking parameters (utm and friends) are stripped from stored URLs"
-        status: spec
+        # Card title/description and tracking-strip are tested (SSRF-hardened fetcher,
+        # its own review). The preview IMAGE is deferred to wave 3, where the media
+        # store re-hosts it: hotlinking a remote image is the beacon/IP leak TS-PP-6
+        # forbids, so the image cannot ship before the media pipeline exists.
+        status: built
         v1: true
       - id: S-302
         epic: E3
@@ -199,7 +203,7 @@ epics:
         acceptance:
           - "Text post inserts chronologically"
           - "Edit window of at least 15 minutes; delete available always"
-        status: spec
+        status: tested
         v1: true
         security:
           threat_refs:
@@ -218,7 +222,7 @@ epics:
           - "Feed is strictly chronological per audience with a visible you-are-caught-up end state"
           - "An unread boundary marks where I left off last visit"
           - "No infinite recycling, resurfacing, or suggested content of any kind"
-        status: spec
+        status: tested
         v1: true
       - id: S-304
         epic: E3
@@ -227,7 +231,7 @@ epics:
         acceptance:
           - "Reactions display as who reacted, never as tallies or leaderboards"
           - "No like counts, view counts, read receipts, or online indicators anywhere in the UI"
-        status: spec
+        status: tested
         v1: true
       - id: S-305
         epic: E3
@@ -236,7 +240,7 @@ epics:
         acceptance:
           - "Default notification state is zero push for every event type"
           - "The only opt-in available is replies-to-my-posts; there is no all-activity firehose option"
-        status: spec
+        status: tested
         v1: true
 
   - id: E4
@@ -504,7 +508,7 @@ epics:
           - "Kinship display name (Nana, Uncle Jim) is shown alongside the legal name in feed, comments, and directory"
           - "Birthday stores month and day required, year optional; age is never displayed"
           - "Owners edit their own profiles; supervised and elder profiles are manageable by the parent or designated helper"
-        status: spec
+        status: tested
         v1: true
       - id: S-902
         epic: E9
@@ -514,7 +518,7 @@ epics:
           - "Contact fields (phone, email, address) are optional, with per-field visibility scoped to pods or yards the member belongs to"
           - "Directory is searchable within my yards and never leaks across a yard boundary (same 404 rule as posts)"
           - "Every member can see and change exactly who sees each of their fields"
-        status: spec
+        status: tested
         v1: true
       - id: S-903
         epic: E9
