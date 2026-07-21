@@ -13,6 +13,7 @@ from core import (
     media_views,
     pod_views,
     profile_views,
+    provisioning_views,
     views,
 )
 from core.breakglass import break_glass
@@ -64,6 +65,12 @@ urlpatterns = [
     path("members/digests/", admin_views.digests, name="member_digests"),
     path("members/quarantine/", admin_views.quarantine, name="member_quarantine"),
     path("members/metrics/", admin_views.metrics, name="member_metrics"),
+    # Elder-token provisioning (S-104): generate/regenerate a member's link + QR.
+    path(
+        "members/<int:member_id>/elder-link/",
+        provisioning_views.provision_elder,
+        name="provision_elder",
+    ),
     # The /d/ read surface (TM-5): what a digest deep link opens. The token only
     # authenticates; every render re-resolves through the one audience query.
     # The elder path (S-102): the handed-over link exchanges for a session and
