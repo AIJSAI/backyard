@@ -14,6 +14,7 @@ from core import (
     pod_views,
     profile_views,
     provisioning_views,
+    pwa_views,
     views,
 )
 from core.breakglass import break_glass
@@ -101,6 +102,13 @@ urlpatterns = [
     # email admin-recovery path.
     path("break-glass/<str:uidb64>/<str:token>/", break_glass, name="break_glass"),
     path("healthz", views.healthz, name="healthz"),
+    # PWA install surface (S-103): manifest, icons, and a minimal service
+    # worker (no precache, ADR-002). Served at root so the worker takes / scope.
+    path("manifest.webmanifest", pwa_views.manifest, name="manifest"),
+    path("service-worker.js", pwa_views.service_worker, name="service_worker"),
+    path("icon-192.png", pwa_views.icon_192, name="icon_192"),
+    path("icon-512.png", pwa_views.icon_512, name="icon_512"),
+    path("icon-maskable-512.png", pwa_views.icon_maskable_512, name="icon_maskable_512"),
     # Account and MFA (login, logout, password, passkeys). The invite-token signup
     # is a custom view (S-101) that lands with the invite surface; allauth's own
     # open signup is not mounted, so there is no self-serve account creation.

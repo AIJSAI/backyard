@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>{% block title %}Backyard{% endblock %}</title>
+  <link rel="manifest" href="{% url 'manifest' %}">
+  <meta name="theme-color" content="#2f5d3a">
+  <link rel="apple-touch-icon" href="{% url 'icon_192' %}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Backyard">
   <style>
     :root { color-scheme: light dark; }
     body {
@@ -22,5 +27,16 @@
 </head>
 <body>
   {% block body %}{% endblock %}
+  <script>
+    // Register the minimal service worker so member pages are installable
+    // (S-103). The elder token surface deliberately never does this: it is a
+    // standalone page with no manifest and no worker (the Safari eviction rule,
+    // ADR-002).
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('{% url "service_worker" %}');
+      });
+    }
+  </script>
 </body>
 </html>

@@ -113,7 +113,10 @@ def test_generate_shows_link_and_inline_qr(world: World) -> None:
     assert ElderToken.objects.filter(member=world.nana).count() == 1
     assert "/t/" in body  # the handover link
     assert "<svg" in body and "</svg>" in body  # the QR, inline, no network
-    assert "script" not in body.lower()  # printable, script-free
+    # The QR SVG itself carries no script (the mark_safe safety claim); the page
+    # chrome may include the base template's service-worker registration.
+    svg = body[body.index("<svg") : body.index("</svg>") + 6]
+    assert "<script" not in svg.lower() and "onload" not in svg.lower()
 
 
 def test_regenerate_invalidates_the_prior_token_and_shows_fresh_artifacts(world: World) -> None:
