@@ -55,6 +55,12 @@ def add_member_to_pod(*, actor: Member, pod: Pod, new_member: Member) -> None:
 
 def set_house_rule(*, actor: Member, pod: Pod, house_rule: str) -> None:
     """Owner-only: set the one-sentence house rule shown at the top of the pod."""
+    # Symmetry with add_member (security review INFO-1): a house rule is an ad-hoc-pod
+    # concept. Household pods have no owner, so the owner check below already fails
+    # closed, but guard the kind explicitly so a future household owner cannot inherit
+    # this by accident.
+    if pod.kind != Pod.ADHOC:
+        raise PodActionNotAllowed("A household pod has no house rule.")
     if pod.owner_id != actor.id:
         raise PodActionNotAllowed("Only the pod owner can set the house rule.")
     pod.house_rule = house_rule.strip()[:200]
@@ -62,7 +68,14 @@ def set_house_rule(*, actor: Member, pod: Pod, house_rule: str) -> None:
 
 
 def leave_pod(*, member: Member, pod: Pod) -> None:
-    """Leave a pod silently (S-205): drop the membership and any mute, no broadcast."""
+    """Leave an ad-hoc pod silently (S-205): drop the membership and any mute, no
+    broadcast. Restricted to ad-hoc pods (security review LOW-1): leaving a household
+    pod would strip a member of their yards and lock them out with no self-service way
+    back, so household membership only changes through admin removal (S-702)."""
+    if pod.kind != Pod.ADHOC:
+        raise PodActionNotAllowed(
+            "You can leave an ad-hoc pod; a household is managed by an admin."
+        )
     PodMembership.objects.filter(member=member, pod=pod).delete()
     PodMute.objects.filter(member=member, pod=pod).delete()
 

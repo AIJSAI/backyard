@@ -184,6 +184,29 @@ def test_mute_hides_from_feed_but_keeps_direct_access(world: dict[str, object]) 
     assert "in the pod" in client.get(reverse("feed")).content.decode()  # back after unmute
 
 
+def test_cannot_leave_a_household_pod(world: dict[str, object]) -> None:
+    """Security review LOW-1: leaving is restricted to ad-hoc pods, so a member cannot
+    self-lock out of their household (which strips their yards)."""
+    author = world["author"]
+    m_pod = world["m_pod"]
+    assert isinstance(author, Member)
+    assert isinstance(m_pod, Pod)
+    with pytest.raises(pods.PodActionNotAllowed):
+        pods.leave_pod(member=author, pod=m_pod)
+    assert PodMembership.objects.filter(member=author, pod=m_pod).exists()
+
+
+def test_cannot_set_house_rule_on_a_household_pod(world: dict[str, object]) -> None:
+    """Security review INFO-1: a house rule is an ad-hoc concept; household pods refuse
+    it on kind, not only on the (null) owner."""
+    author = world["author"]
+    m_pod = world["m_pod"]
+    assert isinstance(author, Member)
+    assert isinstance(m_pod, Pod)
+    with pytest.raises(pods.PodActionNotAllowed):
+        pods.set_house_rule(actor=author, pod=m_pod, house_rule="no")
+
+
 def test_leaving_a_pod_is_silent_and_drops_visibility(world: dict[str, object]) -> None:
     author = world["author"]
     mate = world["mate"]
