@@ -18,7 +18,7 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
-from . import commenting, posting, scoping
+from . import commenting, link_preview, posting, scoping
 from .models import Member, Post
 
 # A family text post, not an essay. Bounds the stored size of a single post so a
@@ -85,7 +85,9 @@ def _render_feed(
             is_editable=post.author_id == member.id and posting.within_edit_window(post),
             is_new=boundary is not None and post.created_at > boundary,
         )
-        for post in scoping.visible_posts(member).select_related("author", "pod")[:100]
+        for post in scoping.visible_posts(member).select_related("author", "pod", "link_preview")[
+            :100
+        ]
     ]
     first_seen_id: int | None = None
     if any(item.is_new for item in items):
@@ -147,7 +149,11 @@ def compose(request: HttpRequest) -> HttpResponse:
         )
 
     if not errors:
-        posting.create_post(author=member, pod=pod, audience_yards=audience_yards, body=body)
+        post = posting.create_post(author=member, pod=pod, audience_yards=audience_yards, body=body)
+        # Best-effort preview for a link in the body. Synchronous for now (bounded by
+        # the fetcher's per-hop timeout); it moves to the worker in wave 3, where the
+        # SSRF-sensitive fetch belongs on its own network segment (TS-CO-4).
+        link_preview.attach_to_post(post)
         return redirect("feed")
 
     # Re-render the feed with the error (rare; the composer requires a body client-side).
