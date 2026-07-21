@@ -1,0 +1,16 @@
+{{ header.yard_name }}: your family digest
+{{ header.window_text }}
+
+{% for block in post_blocks %}{{ block.author_line }} on {{ block.date_text }}:
+{{ block.body }}
+{% if block.photo_count %}({{ block.photo_count }} photo{{ block.photo_count|pluralize }} - see them here) {% endif %}{% if block.reply_count %}({{ block.reply_count }} repl{{ block.reply_count|pluralize:"y,ies" }}) {% endif %}
+Open this post: {{ block.url }}
+
+{% empty %}A quiet stretch; nothing new this time.
+
+{% endfor %}{% if dates_block %}Coming up in the next week:
+{% for entry in dates_block.entries %}  {{ entry.name_line }}'s {{ entry.kind }} ({{ entry.date_text }})
+{% endfor %}
+{% endif %}See everything in your backyard: {{ footer.digest_url }}
+
+Too many emails? Pause them here (you stay in the family): {{ footer.unsubscribe_url }}
