@@ -41,7 +41,13 @@ class ContactField:
 
 @dataclass
 class ViewableProfile:
-    member: Member
+    """A profile reduced to exactly what the viewer may see. It carries safe
+    primitives, never the raw Member (security review LOW-1), so a HIDDEN field or
+    the birthday year cannot leak through a future template accessing profile.member.
+    """
+
+    member_id: int
+    display_name: str
     kinship_name: str
     birthday: str  # "March 5" or ""; never a year, never an age
     contacts: list[ContactField]
@@ -56,7 +62,9 @@ def birthday_text(member: Member) -> str:
     return f"{_MONTHS[member.birthday_month]} {member.birthday_day}"
 
 
-def _can_see_field(viewer: Member, member: Member, visibility: str) -> bool:
+def _can_see_field(
+    viewer: Member, member: Member, visibility: str, viewer_pod_ids: set[int]
+) -> bool:
     """Whether the viewer may see a field with this visibility. A member always sees
     their own fields; YARD is the directory scope (a shared yard is already implied);
     POD needs a shared pod; HIDDEN is never."""
@@ -65,13 +73,19 @@ def _can_see_field(viewer: Member, member: Member, visibility: str) -> bool:
     if visibility == Member.YARD:
         return True
     if visibility == Member.POD:
-        return bool(scoping.member_pod_ids(viewer) & scoping.member_pod_ids(member))
+        return bool(viewer_pod_ids & scoping.member_pod_ids(member))
     return False
 
 
-def viewable_profile(viewer: Member, member: Member) -> ViewableProfile:
+def viewable_profile(
+    viewer: Member, member: Member, *, viewer_pod_ids: set[int] | None = None
+) -> ViewableProfile:
     """The member's profile as this viewer may see it: only the contact fields the
-    viewer is scoped for, each present only if it has a value."""
+    viewer is scoped for, each present only if it has a value. The caller may pass the
+    viewer's pod-id set (computed once) to avoid recomputing it per row in a directory
+    render (security review MEDIUM-2)."""
+    if viewer_pod_ids is None:
+        viewer_pod_ids = scoping.member_pod_ids(viewer)
     fields = [
         (member.phone, member.phone_visibility, "Phone"),
         (member.contact_email, member.contact_email_visibility, "Email"),
@@ -80,10 +94,11 @@ def viewable_profile(viewer: Member, member: Member) -> ViewableProfile:
     contacts = [
         ContactField(label=label, value=value)
         for value, visibility, label in fields
-        if value and _can_see_field(viewer, member, visibility)
+        if value and _can_see_field(viewer, member, visibility, viewer_pod_ids)
     ]
     return ViewableProfile(
-        member=member,
+        member_id=member.id,
+        display_name=member.display_name,
         kinship_name=member.kinship_name,
         birthday=birthday_text(member),
         contacts=contacts,

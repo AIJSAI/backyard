@@ -42,7 +42,11 @@ def directory(request: HttpRequest) -> HttpResponse:
     members = scoping.visible_members(member).exclude(id=member.id)
     if query:
         members = members.filter(display_name__icontains=query)
-    rows = [profiles.viewable_profile(member, other) for other in members[:200]]
+    viewer_pod_ids = scoping.member_pod_ids(member)  # computed once, not per row (MEDIUM-2)
+    rows = [
+        profiles.viewable_profile(member, other, viewer_pod_ids=viewer_pod_ids)
+        for other in members[:200]
+    ]
     return render(request, "core/directory.html", {"member": member, "profiles": rows, "q": query})
 
 

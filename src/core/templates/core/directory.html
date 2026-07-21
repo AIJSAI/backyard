@@ -12,7 +12,7 @@
   <ul class="directory">
     {% for profile in profiles %}
       <li>
-        <a href="{% url 'member_profile' profile.member.id %}">{{ profile.member.display_name }}</a>
+        <a href="{% url 'member_profile' profile.member_id %}">{{ profile.display_name }}</a>
         {% if profile.kinship_name %}<span class="kinship">({{ profile.kinship_name }})</span>{% endif %}
         {% if profile.birthday %}<span class="birthday">Birthday: {{ profile.birthday }}</span>{% endif %}
         {% for c in profile.contacts %}<span class="contact">{{ c.label }}: {{ c.value }}</span>{% endfor %}

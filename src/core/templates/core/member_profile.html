@@ -1,9 +1,9 @@
 {% extends "core/base.html" %}
-{% block title %}{{ profile.member.display_name }}{% endblock %}
+{% block title %}{{ profile.display_name }}{% endblock %}
 {% block body %}
   <p><a href="{% url 'directory' %}">Back to the directory</a></p>
   <h1>
-    {{ profile.member.display_name }}
+    {{ profile.display_name }}
     {% if profile.kinship_name %}<span class="kinship">({{ profile.kinship_name }})</span>{% endif %}
   </h1>
   {% if profile.birthday %}<p>Birthday: {{ profile.birthday }}</p>{% endif %}
