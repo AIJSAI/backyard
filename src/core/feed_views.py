@@ -10,17 +10,33 @@ requires an explicit confirmation that names the audience and its member count.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
+from django.utils import timezone
 
 from . import posting, scoping
-from .models import Member
+from .models import Member, Post
 
 # A family text post, not an essay. Bounds the stored size of a single post so a
 # crafted request cannot park megabytes of text behind the composer (the wider
 # ceiling is Django's DATA_UPLOAD_MAX_MEMORY_SIZE; this is the friendly limit).
 _MAX_BODY = 5000
+
+
+@dataclass
+class FeedItem:
+    """A post as the feed shows it to one viewer: the post plus the viewer-relative
+    facts the template needs. Kept as a typed value rather than attributes stapled
+    onto the model instance, so the view stays type-checked."""
+
+    post: Post
+    is_own: bool
+    is_editable: bool
+    is_new: bool
 
 
 def _acting_member(request: HttpRequest) -> Member:
@@ -34,17 +50,51 @@ def _acting_member(request: HttpRequest) -> Member:
 
 @login_required
 def feed(request: HttpRequest) -> HttpResponse:
-    """The chronological feed that ends, plus the composer form."""
+    """The chronological feed that ends, plus the composer form. Opening the feed
+    advances the member's unread boundary (S-303)."""
     member = _acting_member(request)
-    posts = scoping.visible_posts(member).select_related("author", "pod")[:100]
+    return _render_feed(request, member, advance_seen=True)
+
+
+def _render_feed(
+    request: HttpRequest,
+    member: Member,
+    *,
+    advance_seen: bool,
+    errors: list[str] | None = None,
+) -> HttpResponse:
+    """Render the feed: the member's visible posts newest-first, each marked as their
+    own (and still editable) and as new-since-last-visit, with one unread boundary
+    before the first already-seen post. On a real feed open (advance_seen) the
+    member's last-seen marker moves to now; a re-render after a composer error does
+    not advance it, so an error never silently marks the feed as read."""
+    boundary = member.feed_last_seen_at
+    if advance_seen:
+        Member.objects.filter(pk=member.pk).update(feed_last_seen_at=timezone.now())
+
+    items = [
+        FeedItem(
+            post=post,
+            is_own=post.author_id == member.id,
+            is_editable=post.author_id == member.id and posting.within_edit_window(post),
+            is_new=boundary is not None and post.created_at > boundary,
+        )
+        for post in scoping.visible_posts(member).select_related("author", "pod")[:100]
+    ]
+    first_seen_id: int | None = None
+    if any(item.is_new for item in items):
+        first_seen_id = next((item.post.id for item in items if not item.is_new), None)
+
     return render(
         request,
         "core/feed.html",
         {
             "member": member,
-            "posts": posts,
+            "items": items,
             "pods": scoping.visible_pods(member),
             "yards": scoping.visible_yards(member),
+            "first_seen_id": first_seen_id,
+            "errors": errors or [],
         },
     )
 
@@ -95,18 +145,50 @@ def compose(request: HttpRequest) -> HttpResponse:
         return redirect("feed")
 
     # Re-render the feed with the error (rare; the composer requires a body client-side).
-    posts = scoping.visible_posts(member).select_related("author", "pod")[:100]
-    return render(
-        request,
-        "core/feed.html",
-        {
-            "member": member,
-            "posts": posts,
-            "pods": scoping.visible_pods(member),
-            "yards": scoping.visible_yards(member),
-            "errors": errors,
-        },
-    )
+    return _render_feed(request, member, advance_seen=False, errors=errors)
+
+
+@login_required
+def edit_post(request: HttpRequest, post_id: int) -> HttpResponse:
+    """Edit one's own post within the edit window (S-302). The post is resolved
+    through the guard, so a post the member cannot see is a byte-identical 404; a
+    post they can see but did not write is a 403."""
+    member = _acting_member(request)
+    post = scoping.require_visible_post(member, post_id)
+    if post.author_id != member.id:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        body = request.POST.get("body", "").strip()
+        errors: list[str] = []
+        if not body:
+            errors.append("Write something to post.")
+        elif len(body) > _MAX_BODY:
+            errors.append(f"That post is a little long. Keep it under {_MAX_BODY} characters.")
+        if not errors:
+            posting.edit_post(actor=member, post=post, body=body)
+            return redirect("feed")
+        return render(request, "core/edit_post.html", {"post": post, "errors": errors})
+
+    if not posting.within_edit_window(post):
+        raise PermissionDenied  # the feed hides the edit link by now; enforce it here too
+    return render(request, "core/edit_post.html", {"post": post, "errors": []})
+
+
+@login_required
+def delete_post(request: HttpRequest, post_id: int) -> HttpResponse:
+    """Delete one's own post (S-302). GET confirms, stating plainly that copies
+    already sent in email digests cannot be recalled; POST performs the soft delete.
+    Same guard rules as edit: 404 if not visible, 403 if visible but not yours."""
+    member = _acting_member(request)
+    post = scoping.require_visible_post(member, post_id)
+    if post.author_id != member.id:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        posting.delete_post(actor=member, post=post)
+        return redirect("feed")
+    return render(request, "core/delete_confirm.html", {"post": post})
 
 
 def _int(value: str) -> int:

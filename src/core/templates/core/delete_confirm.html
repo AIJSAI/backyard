@@ -1,0 +1,15 @@
+{% extends "core/base.html" %}
+{% block title %}Delete this post?{% endblock %}
+{% block body %}
+  <h1>Delete this post?</h1>
+  <blockquote>{{ post.body }}</blockquote>
+  <p class="muted">
+    This removes it from the feed for everyone. Copies already sent in an email
+    digest cannot be recalled.
+  </p>
+  <form method="post" action="{% url 'delete_post' post.id %}">
+    {% csrf_token %}
+    <button type="submit">Delete</button>
+  </form>
+  <p><a href="{% url 'feed' %}">Keep it</a></p>
+{% endblock %}

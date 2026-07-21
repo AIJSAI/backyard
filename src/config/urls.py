@@ -15,6 +15,10 @@ urlpatterns = [
     # plus the composer. compose is POST-only and writes through core/posting.
     path("feed/", feed_views.feed, name="feed"),
     path("compose/", feed_views.compose, name="compose"),
+    # Post lifecycle (S-302): edit within the window, delete anytime. Both are
+    # author-only and resolve the post through the guard first.
+    path("posts/<int:post_id>/edit/", feed_views.edit_post, name="edit_post"),
+    path("posts/<int:post_id>/delete/", feed_views.delete_post, name="delete_post"),
     path("join/<str:token>/", join, name="join"),
     # Instance-admin member management (S-701 enforced, S-703 supervised, S-702 removal).
     path("members/", admin_views.members, name="members"),

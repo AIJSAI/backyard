@@ -80,7 +80,7 @@ def test_feed_shows_only_visible_posts_and_ends(world: dict[str, object]) -> Non
 
     response = _client_for(author).get(reverse("feed"))
     assert response.status_code == 200
-    ids = {p.id for p in response.context["posts"]}
+    ids = {item.post.id for item in response.context["items"]}
     assert mine.id in ids
     assert theirs.id not in ids  # cross-yard post never appears
     body = response.content.decode()

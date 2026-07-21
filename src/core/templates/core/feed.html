@@ -27,11 +27,21 @@
   </form>
 
   <ul class="feed">
-    {% for post in posts %}
+    {% for item in items %}
+      {% if item.post.id == first_seen_id %}
+        <li class="boundary"><span>New since your last visit is above</span></li>
+      {% endif %}
       <li>
-        <span class="author">{{ post.author.display_name }}</span>
-        <span class="when">{{ post.created_at|date:"M j, g:i a" }}</span>
-        <p>{{ post.body }}</p>
+        <span class="author">{{ item.post.author.display_name }}</span>
+        <span class="when">{{ item.post.created_at|date:"M j, g:i a" }}</span>
+        {% if item.post.edited_at %}<span class="edited">(edited)</span>{% endif %}
+        <p>{{ item.post.body }}</p>
+        {% if item.is_own %}
+          <span class="actions">
+            {% if item.is_editable %}<a href="{% url 'edit_post' item.post.id %}">Edit</a>{% endif %}
+            <a href="{% url 'delete_post' item.post.id %}">Delete</a>
+          </span>
+        {% endif %}
       </li>
     {% empty %}
       <li class="empty">Nothing here yet. Be the first to post.</li>
