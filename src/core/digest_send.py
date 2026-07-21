@@ -56,12 +56,19 @@ def send_due_digests(now: datetime.datetime) -> SendReport:
     report = SendReport()
     for due in digesting.due_recipients(now):
         member = due.subscription.member
+        # One unsubscribe capability per subscription per RUN, shared by that
+        # run's per-yard emails: rotating per email would kill the first
+        # email's link the moment the second sent (live-repro finding on the
+        # bridge topology). The first sending yard mints it, inside its own
+        # transaction, so a fully rolled-back run rolls the rotation back too.
+        unsubscribe_raw: str | None = None
         for yard in scoping.visible_yards(member):
-            outcome = _send_one(
+            outcome, unsubscribe_raw = _send_one(
                 subscription_id=due.subscription.pk,
                 yard_id=yard.pk,
                 window_start=due.window_start,
                 window_end=due.window_end,
+                unsubscribe_raw=unsubscribe_raw,
             )
             setattr(report, outcome, getattr(report, outcome) + 1)
             report.note(outcome, f"member={member.pk} yard={yard.pk}")
@@ -74,10 +81,13 @@ def _send_one(
     yard_id: int,
     window_start: datetime.datetime,
     window_end: datetime.datetime,
-) -> str:
-    """One (member, yard) digest, atomically. Returns 'sent', 'failed', or
-    'skipped'. Takes identifiers only (TS-DJ-11): everything else is re-read
-    from live state inside the transaction."""
+    unsubscribe_raw: str | None,
+) -> tuple[str, str | None]:
+    """One (member, yard) digest, atomically. Returns (outcome, the unsubscribe
+    raw in play) where outcome is 'sent', 'failed', or 'skipped'. Takes
+    identifiers only (TS-DJ-11) plus the run's already-minted unsubscribe raw,
+    if an earlier yard minted one: everything else is re-read live inside the
+    transaction."""
     with transaction.atomic():
         subscription = (
             DigestSubscription.objects.select_for_update()
@@ -90,9 +100,9 @@ def _send_one(
         # a pod-leave dropped the yard — whatever happened since the due list
         # was computed wins, because it is checked NOW, under lock.
         if not subscription.enabled or subscription.confirmed_at is None:
-            return "skipped"
+            return "skipped", unsubscribe_raw
         if yard_id not in scoping.member_yard_ids(member):
-            return "skipped"
+            return "skipped", unsubscribe_raw
 
         issue, created = DigestIssue.objects.get_or_create(
             member=member,
@@ -101,12 +111,13 @@ def _send_one(
             defaults={"window_end": window_end},
         )
         if not created:
-            return "skipped"  # an overlapping run already covered this window
+            return "skipped", unsubscribe_raw  # an overlapping run covered this window
 
         raw_digest_token = digest_links.mint(issue)
-        raw_unsubscribe = digesting.rotate_unsubscribe_token(subscription)
+        if unsubscribe_raw is None:
+            unsubscribe_raw = digesting.rotate_unsubscribe_token(subscription)
         built = digest.build_digest(
-            issue, digest_token=raw_digest_token, unsubscribe_token=raw_unsubscribe
+            issue, digest_token=raw_digest_token, unsubscribe_token=unsubscribe_raw
         )
         try:
             emailing.send_family_email(
@@ -126,6 +137,6 @@ def _send_one(
                 status=DigestDelivery.REJECTED,
                 detail=str(exc)[:200],
             )
-            return "failed"
+            return "failed", unsubscribe_raw
         DigestDelivery.objects.create(issue=issue, status=DigestDelivery.HANDED_TO_RELAY)
-        return "sent"
+        return "sent", unsubscribe_raw

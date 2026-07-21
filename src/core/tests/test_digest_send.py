@@ -234,3 +234,21 @@ def test_unsubscribe_link_in_the_sent_digest_works_and_rotates(world: World) -> 
     later = timezone.now() + datetime.timedelta(days=8)
     send_due_digests(later)
     assert Client().get(f"/digest/unsubscribe/{raw}/").status_code == 404
+
+
+def test_multi_yard_emails_share_one_working_unsubscribe_link(world: World) -> None:
+    """Live-repro finding: per-email rotation killed the first email's link the
+    moment the second sent. One capability per subscription per run — both of
+    the bridge member's emails carry it, and it works."""
+    from django.test import Client
+
+    _confirmed(world.bridge, "bridge@example.com")
+    send_due_digests(timezone.now())
+    assert len(mail.outbox) == 2
+    marker = "/digest/unsubscribe/"
+    raws = set()
+    for message in mail.outbox:
+        body = message.body
+        raws.add(body[body.index(marker) + len(marker) :].split("/", 1)[0])
+    assert len(raws) == 1  # the same capability in both emails...
+    assert Client().get(f"/digest/unsubscribe/{raws.pop()}/").status_code == 200  # ...and it works
