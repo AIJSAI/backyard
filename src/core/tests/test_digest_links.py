@@ -287,3 +287,17 @@ def test_settings_wire_the_redaction_filter() -> None:
         handlers = logging_config["loggers"][logger_name]["handlers"]
         for handler_name in handlers:
             assert "redact_capability_paths" in logging_config["handlers"][handler_name]["filters"]
+
+
+def test_hygiene_headers_cover_failure_shapes_too(world: World) -> None:
+    """Security review of #36 LOW-2: the middleware stamps TM-5 headers on every
+    /d/ response shape, not just the rendered pages — a cached or
+    referrer-leaked failure still names a token-bearing URL."""
+    failures = [
+        Client().get(reverse("digest_web", args=["never-was-a-token"])),  # 404
+        Client().post(reverse("digest_web", args=[world.raw])),  # 405
+    ]
+    for response in failures:
+        assert response["Cache-Control"] == "no-store"
+        assert response["Referrer-Policy"] == "no-referrer"
+        assert response["X-Robots-Tag"] == "noindex, nofollow"

@@ -71,5 +71,7 @@ fi
 # No --access-logfile on the web role: gunicorn's access log records the full
 # request line, which would write elder token URLs verbatim into the container
 # logs the moment the token surface lands (threat model TS-EDGE-LOG / TM-5).
-# Caddy is the edge and does access logging under its redaction rule.
+# Caddy access logging is OFF too (no log directive in the Caddyfile), and must
+# stay off unless token paths are redacted first; django.request 404s are
+# redacted in-app (config/log_redaction.py).
 exec "$@"

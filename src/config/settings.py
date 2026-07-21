@@ -83,6 +83,9 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",  # required by allauth
+    # TM-5: every response under a token-bearing path prefix carries the
+    # no-store/no-referrer/noindex set, including guard 404s (#36 LOW-2).
+    "core.middleware.TokenSurfaceHeadersMiddleware",
 ]
 
 AUTHENTICATION_BACKENDS = [
