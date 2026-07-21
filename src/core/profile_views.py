@@ -9,11 +9,13 @@ edits their own profile and chooses, per field, exactly who sees it.
 
 from __future__ import annotations
 
+import tempfile
+
 from django.contrib.auth.decorators import login_required
-from django.http import HttpRequest, HttpResponse
+from django.http import FileResponse, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 
-from . import profiles, scoping
+from . import export, profiles, scoping
 from .feed_views import _acting_member
 from .models import Member
 
@@ -108,6 +110,21 @@ def profile_edit(request: HttpRequest) -> HttpResponse:
         ]
     )
     return redirect("directory")
+
+
+@login_required
+def export_data(request: HttpRequest) -> FileResponse:
+    """Download a zip of the member's own posts, comments, and photos (S-704). Never
+    gated; strictly the acting member's own authored content. The archive is written to
+    a temp file that spills to disk past a small threshold and is streamed back, so a
+    heavy history cannot hold the whole zip in memory (security review of #32)."""
+    member = _acting_member(request)
+    archive = tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024)
+    export.write_member_export(member, archive)
+    archive.seek(0)
+    response = FileResponse(archive, content_type="application/zip")
+    response["Content-Disposition"] = 'attachment; filename="backyard-export.zip"'
+    return response
 
 
 def _edit_context(member: Member, errors: list[str]) -> dict[str, object]:
