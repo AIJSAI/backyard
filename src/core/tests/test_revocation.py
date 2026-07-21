@@ -157,6 +157,7 @@ def test_registry_is_the_only_shape(household: dict[str, object]) -> None:
         revocation._void_invites,
         revocation._cancel_digest_subscription,  # wave 4: the digest joins the registry
         revocation._void_digest_tokens,  # wave 4: per-digest read links, row-level belt
+        revocation._void_reply_addresses,  # wave 4: reply-by-email capabilities
     )
     member = household["member"]
     assert isinstance(member, Member)
@@ -196,3 +197,34 @@ def test_revocation_cancels_the_digest_subscription(household: dict[str, object]
             peek("raw-confirm")
         with pytest.raises(digesting.DigestTokenInvalid):
             peek("raw-unsub")
+
+
+def test_revocation_voids_reply_addresses(household: dict[str, object]) -> None:
+    """Reply capabilities join the registry (wave 4): after the one revocation
+    act, a minted address resolves like it never existed — the voided clock,
+    independent of grace and generation."""
+    import datetime
+
+    from django.utils import timezone
+
+    from core import reply_addresses
+    from core.models import DigestIssue, Pod, Post, Yard
+
+    member = household["member"]
+    pod = household["pod"]
+    yard = household["yard"]
+    assert isinstance(member, Member)
+    assert isinstance(pod, Pod)
+    assert isinstance(yard, Yard)
+    post = Post.objects.create(author=member, pod=pod, body="a post")
+    now = timezone.now()
+    issue = DigestIssue.objects.create(
+        member=member, yard=yard, window_start=now - datetime.timedelta(days=7), window_end=now
+    )
+    minted = reply_addresses.mint_for_issue(issue, [post.id])
+    assert reply_addresses.resolve(minted[post.id])  # live before
+
+    revocation.revoke_member_credentials(member)
+
+    with pytest.raises(reply_addresses.ReplyAddressInvalid):
+        reply_addresses.resolve(minted[post.id])

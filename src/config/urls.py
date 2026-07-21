@@ -61,6 +61,7 @@ urlpatterns = [
         name="digest_unsubscribe",
     ),
     path("members/digests/", admin_views.digests, name="member_digests"),
+    path("members/quarantine/", admin_views.quarantine, name="member_quarantine"),
     # The /d/ read surface (TM-5): what a digest deep link opens. The token only
     # authenticates; every render re-resolves through the one audience query.
     path("d/<str:token>/", digest_views.digest_view, name="digest_web"),

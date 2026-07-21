@@ -17,7 +17,7 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 
 from . import permissions, scoping, supervised
-from .models import DigestDelivery, DigestSubscription, Member
+from .models import DigestDelivery, DigestSubscription, InboundQuarantine, Member
 from .removal import remove_member
 
 
@@ -99,6 +99,22 @@ def digests(request: HttpRequest) -> HttpResponse:
         for subscription in subscriptions
     ]
     return render(request, "core/members_digests.html", {"actor": actor, "rows": rows})
+
+
+@login_required
+def quarantine(request: HttpRequest) -> HttpResponse:
+    """Inbound mail held for review (S-502). Instance admin ONLY: quarantine
+    rows hold email content that predates attribution, so no yard scoping can
+    apply and nobody below the instance admin sees it (T-OP-G2). POST with a
+    row id deletes it (handled = gone; rows never accumulate)."""
+    actor = _acting_member(request)
+    if not permissions.is_instance_admin(actor):
+        raise PermissionDenied
+    if request.method == "POST":
+        InboundQuarantine.objects.filter(pk=_int_or_404(request.POST.get("row_id", ""))).delete()
+        return redirect("member_quarantine")
+    rows = InboundQuarantine.objects.select_related("member")[:100]
+    return render(request, "core/members_quarantine.html", {"actor": actor, "rows": rows})
 
 
 @login_required

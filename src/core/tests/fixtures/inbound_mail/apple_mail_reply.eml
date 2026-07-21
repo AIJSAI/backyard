@@ -1,0 +1,16 @@
+Message-ID: <{message_id}>
+From: {from_addr}
+To: {to_addr}
+Subject: Re: {subject}
+Content-Type: text/plain; charset=utf-8
+
+{reply_text}
+
+Sent from my iPhone
+
+> On Jul 20, 2026, at 9:14 PM, Backyard <family@example.com> wrote:
+>
+> {separator}
+>
+> Maternal: your family digest
+> {quoted_body}

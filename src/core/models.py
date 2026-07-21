@@ -286,6 +286,10 @@ class Comment(models.Model):
     author = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="comments")
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="comments")
     body = models.TextField()
+    # Comments that arrived by email carry a visible badge (S-502): a reader can
+    # always tell a typed reply from an emailed one, which is also the social
+    # backstop against a forged reply reading as in-person (T-TOKEN-8).
+    via_email = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     edited_at = models.DateTimeField(null=True, blank=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -573,6 +577,93 @@ class DigestToken(models.Model):
 
     def __str__(self) -> str:
         return f"Digest token for issue {self.issue_id} (expires {self.expires_at})"
+
+
+class ReplyAddress(models.Model):
+    """A per-member, per-post reply capability (S-502, TM-4).
+
+    The local part of a digest's reply address IS the credential: >=128-bit
+    CSPRNG raw value living only inside that digest email, SHA-256 at rest.
+    Attribution comes from this row alone; the From: header is only a
+    consistency check that quarantines on mismatch and never attributes.
+
+    Three independent kill clocks (each asserted separately in the suite):
+    supersession — a newer issue's minting stamps superseded_at, and a
+    superseded address dies after the reply grace window (T-EMAIL-2, forwarded
+    digests expire); voiding — voided_at set by the TM-1 registry on removal
+    and by pod-leave for posts no longer visible (S-502: revoked on ANY
+    membership change); generation — minted_generation checked against the
+    member's current one on every resolve (ADR-003). Satisfying one clock
+    never masks another.
+    """
+
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="reply_addresses")
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="reply_addresses")
+    issue = models.ForeignKey(DigestIssue, on_delete=models.CASCADE, related_name="reply_addresses")
+    local_part_digest = models.CharField(max_length=64, unique=True)
+    minted_generation = models.PositiveIntegerField()
+    superseded_at = models.DateTimeField(null=True, blank=True)
+    voided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Reply address for member {self.member_id} post {self.post_id}"
+
+
+class InboundLedger(models.Model):
+    """Processed-mail idempotency (S-502): an IMAP re-poll of the same message
+    never posts twice. Keyed on the Message-ID digest plus the capability it
+    arrived on, so a replayed or duplicated fetch is a silent no-op."""
+
+    message_id_digest = models.CharField(max_length=64)
+    local_part_digest = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["message_id_digest", "local_part_digest"],
+                name="inbound_once_per_message_and_capability",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"Inbound ledger entry {self.message_id_digest[:12]}"
+
+
+class InboundQuarantine(models.Model):
+    """Inbound mail held for the instance admin instead of posted (T-EMAIL-G2,
+    T-EMAIL-1): From mismatch, a missing reply separator, a malformed or
+    oversized message, or an over-rate sender. Rows hold email content, so the
+    panel is instance-admin-only and rows are deleted once handled (T-OP-G2)."""
+
+    FROM_MISMATCH = "from_mismatch"
+    NO_SEPARATOR = "no_separator"
+    MALFORMED = "malformed"
+    RATE_LIMITED = "rate_limited"
+    REASON_CHOICES = [
+        (FROM_MISMATCH, "From did not match the member's address"),
+        (NO_SEPARATOR, "Reply separator not found"),
+        (MALFORMED, "Malformed or oversized message"),
+        (RATE_LIMITED, "Too many replies too fast"),
+    ]
+
+    reason = models.CharField(max_length=16, choices=REASON_CHOICES)
+    from_header = models.CharField(max_length=254, blank=True)
+    body_excerpt = models.TextField(blank=True)  # capped at write time
+    member = models.ForeignKey(
+        Member, null=True, blank=True, on_delete=models.CASCADE, related_name="quarantined_mail"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Quarantined inbound mail ({self.reason})"
 
 
 class SetupToken(models.Model):

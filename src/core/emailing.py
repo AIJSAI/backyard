@@ -45,6 +45,13 @@ def absolute_url(path: str) -> str:
     return f"{settings.BASE_URL}{path}"
 
 
+def reply_domain() -> str:
+    """The domain reply capabilities live under: the sending identity's own
+    domain (T-EMAIL-G3's one fixed sender), so a reply address can never point
+    anywhere the family's mail does not already go."""
+    return settings.DEFAULT_FROM_EMAIL.rsplit("@", 1)[1]
+
+
 def strip_control(text: str) -> str:
     """User-authored text with every control character removed (T-EMAIL-8).
 

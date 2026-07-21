@@ -1,0 +1,25 @@
+{% extends "core/base.html" %}
+{% block title %}Held email replies{% endblock %}
+{% block body %}
+  <h1>Held email replies</h1>
+  <p><a href="{% url 'members' %}">Back to members</a></p>
+  <p class="muted">Replies that could not be posted safely. Handle each with the family
+  member directly, then clear it; nothing here was posted or delivered.</p>
+  <ul class="quarantine">
+    {% for row in rows %}
+      <li>
+        <strong>{{ row.get_reason_display }}</strong>
+        {% if row.member %}(capability of {{ row.member.display_name }}){% endif %}
+        · from {{ row.from_header|default:"(no sender)" }} · {{ row.created_at }}
+        {% if row.body_excerpt %}<blockquote>{{ row.body_excerpt }}</blockquote>{% endif %}
+        <form method="post" action="{% url 'member_quarantine' %}">
+          {% csrf_token %}
+          <input type="hidden" name="row_id" value="{{ row.id }}">
+          <button type="submit">Handled, clear it</button>
+        </form>
+      </li>
+    {% empty %}
+      <li class="empty">Nothing held.</li>
+    {% endfor %}
+  </ul>
+{% endblock %}

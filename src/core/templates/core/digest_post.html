@@ -8,7 +8,7 @@
   </article>
   <section class="comments">
     {% for comment in comments %}
-      <p><strong>{{ comment.author.display_name }}</strong>: {{ comment.body }}</p>
+      <p><strong>{{ comment.author.display_name }}</strong>{% if comment.via_email %} <span class="via-email">(via email)</span>{% endif %}: {{ comment.body }}</p>
     {% empty %}
       <p class="empty">No replies yet.</p>
     {% endfor %}
