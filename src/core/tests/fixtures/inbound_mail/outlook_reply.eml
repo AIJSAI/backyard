@@ -1,0 +1,17 @@
+Message-ID: <{message_id}>
+From: {from_addr}
+To: {to_addr}
+Subject: RE: {subject}
+Content-Type: text/plain; charset="utf-8"
+
+{reply_text}
+
+-----Original Message-----
+From: Backyard <family@example.com>
+Sent: Monday, July 20, 2026 9:14 PM
+Subject: {subject}
+
+{separator}
+
+Maternal: your family digest
+{quoted_body}

@@ -78,6 +78,12 @@ def leave_pod(*, member: Member, pod: Pod) -> None:
         )
     PodMembership.objects.filter(member=member, pod=pod).delete()
     PodMute.objects.filter(member=member, pod=pod).delete()
+    # Reply capabilities for this pod's posts die with the membership (S-502:
+    # revoked on ANY membership change); the write path's audience re-check is
+    # the second lock, this keeps the row state honest.
+    from . import reply_addresses
+
+    reply_addresses.void_for_pod_leave(member, pod)
 
 
 def set_muted(*, member: Member, pod: Pod, muted: bool) -> None:

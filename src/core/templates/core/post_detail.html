@@ -40,7 +40,7 @@
   <ul class="comments">
     {% for comment in comments %}
       <li>
-        <span class="author">{{ comment.author.display_name }}{% if comment.author.kinship_name %} ({{ comment.author.kinship_name }}){% endif %}</span>
+        <span class="author">{{ comment.author.display_name }}{% if comment.author.kinship_name %} ({{ comment.author.kinship_name }}){% endif %}</span>{% if comment.via_email %} <span class="via-email">via email</span>{% endif %}
         <span class="when">{{ comment.created_at|date:"M j, g:i a" }}</span>
         <p>{{ comment.body }}</p>
         {% if comment.author_id == member.id %}

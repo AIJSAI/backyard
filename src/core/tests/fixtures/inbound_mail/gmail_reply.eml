@@ -1,0 +1,16 @@
+Message-ID: <{message_id}>
+From: {from_addr}
+To: {to_addr}
+Subject: Re: {subject}
+Content-Type: text/plain; charset="UTF-8"
+
+{reply_text}
+
+On Mon, Jul 20, 2026 at 9:14 PM Backyard <family@example.com> wrote:
+> {separator}
+>
+> Maternal: your family digest
+> July 14 to July 21
+>
+> {quoted_body}
+> Open this post: http://localhost:8000/d/sometoken/posts/1/

@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 
 from django.db import transaction
 
-from . import digest, digest_links, digesting, emailing, scoping
+from . import digest, digest_links, digesting, emailing, reply_addresses, scoping
 from .models import DigestDelivery, DigestIssue, DigestSubscription
 
 
@@ -157,8 +157,20 @@ def _send_one(
         if unsubscribe_raw is None:
             unsubscribe_raw = digesting.rotate_unsubscribe_token(subscription)
             rotated_here = True
+        # Per-post reply capabilities (S-502), minted inside the savepoint so a
+        # refused send also rolls back the supersession of the member's older
+        # addresses (a failed send must not kill last week's working ones).
+        post_ids = list(digest_links.issue_posts(issue).values_list("id", flat=True))
+        reply_domain = emailing.reply_domain()
+        reply_map = {
+            post_id: f"{local}@{reply_domain}"
+            for post_id, local in reply_addresses.mint_for_issue(issue, post_ids).items()
+        }
         built = digest.build_digest(
-            issue, digest_token=raw_digest_token, unsubscribe_token=unsubscribe_raw
+            issue,
+            digest_token=raw_digest_token,
+            unsubscribe_token=unsubscribe_raw,
+            reply_addresses=reply_map,
         )
         try:
             emailing.send_family_email(

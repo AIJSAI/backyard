@@ -1,0 +1,10 @@
+Message-ID: <{message_id}>
+From: {from_addr}
+To: {to_addr}
+Subject: Re: {subject}
+Content-Type: text/plain
+
+{reply_text}
+{separator}
+Maternal: your family digest
+{quoted_body}

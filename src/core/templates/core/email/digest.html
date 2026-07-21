@@ -1,4 +1,5 @@
 <div style="font-family: Georgia, serif; font-size: 18px; line-height: 1.5; max-width: 600px;">
+  <p style="color: #999; font-size: 12px;">{{ separator }}</p>
   <h1 style="font-size: 24px;">{{ header.yard_name }}: your family digest</h1>
   <p style="color: #555;">{{ header.window_text }}</p>
 
@@ -11,6 +12,11 @@
         {% if block.reply_count %}{{ block.reply_count }} repl{{ block.reply_count|pluralize:"y,ies" }} ·{% endif %}
         <a href="{{ block.url }}">Open this post</a>
       </p>
+      {% if block.reply_address %}
+        <p style="font-size: 16px;">Reply to this post by email:
+          <a href="mailto:{{ block.reply_address }}">{{ block.reply_address }}</a>
+          (your reply goes to everyone who can see this post)</p>
+      {% endif %}
     </div>
   {% empty %}
     <p>A quiet stretch; nothing new this time.</p>

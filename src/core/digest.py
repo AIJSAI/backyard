@@ -35,6 +35,11 @@ from .models import DigestIssue
 # The upcoming-dates lookahead (S-903: "the next 7 days in my yards").
 UPCOMING_DAYS = 7
 
+# The deterministic reply separator (T-EMAIL-G2): baked into every digest as
+# the first body line, so inbound stripping never guesses. A reply's text sits
+# above it; the quoted digest (separator included) sits below.
+REPLY_SEPARATOR = "=== reply above this line ==="
+
 
 @dataclass(frozen=True)
 class HeaderBlock:
@@ -50,6 +55,7 @@ class PostBlock:
     url: str  # the /d/ deep link for this post
     photo_count: int  # photos degrade to the deep link until W3's signer lands
     reply_count: int
+    reply_address: str  # "reply-<capability>@<our domain>", or "" when absent
 
 
 @dataclass(frozen=True)
@@ -90,6 +96,10 @@ class NonFamilyContent(Exception):
     origin, tried to enter a digest. Refusing to build is the point."""
 
 
+def _reply_domain() -> str:
+    return settings.DEFAULT_FROM_EMAIL.rsplit("@", 1)[1]
+
+
 def _family_urls_of(block: DigestBlock) -> list[str]:
     if isinstance(block, PostBlock):
         return [block.url]
@@ -109,9 +119,20 @@ def validate_blocks(blocks: tuple[DigestBlock, ...]) -> None:
         for url in _family_urls_of(block):
             if not url.startswith(base):
                 raise NonFamilyContent(f"off-origin link in a digest: {url!r}")
+        if isinstance(block, PostBlock) and block.reply_address:
+            if not block.reply_address.endswith("@" + _reply_domain()):
+                raise NonFamilyContent(
+                    f"reply address off the sending domain: {block.reply_address!r}"
+                )
 
 
-def build_digest(issue: DigestIssue, *, digest_token: str, unsubscribe_token: str) -> DigestEmail:
+def build_digest(
+    issue: DigestIssue,
+    *,
+    digest_token: str,
+    unsubscribe_token: str,
+    reply_addresses: dict[int, str] | None = None,
+) -> DigestEmail:
     """One digest email for one (member, yard) issue, resolved live (TM-2).
 
     Deleted posts, narrowed audiences, and changed date visibility between
@@ -121,6 +142,7 @@ def build_digest(issue: DigestIssue, *, digest_token: str, unsubscribe_token: st
     """
     member = issue.member
     yard = issue.yard
+    reply_map = reply_addresses or {}
     digest_url = emailing.absolute_url(f"/d/{digest_token}/")
 
     post_blocks = [
@@ -135,6 +157,7 @@ def build_digest(issue: DigestIssue, *, digest_token: str, unsubscribe_token: st
             url=emailing.absolute_url(f"/d/{digest_token}/posts/{post.id}/"),
             photo_count=scoping.visible_media(member).filter(post=post).count(),
             reply_count=scoping.visible_comments(member).filter(post=post).count(),
+            reply_address=reply_map.get(post.id, ""),
         )
         for post in digest_links.issue_posts(issue).select_related("author").order_by("created_at")
     ]
@@ -171,6 +194,7 @@ def build_digest(issue: DigestIssue, *, digest_token: str, unsubscribe_token: st
     validate_blocks(blocks)
 
     context = {
+        "separator": REPLY_SEPARATOR,
         "header": blocks[0],
         "post_blocks": post_blocks,
         "dates_block": next((b for b in blocks if isinstance(b, UpcomingDatesBlock)), None),

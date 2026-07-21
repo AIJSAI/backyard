@@ -26,7 +26,7 @@ class NotYourComment(PermissionDenied):
     """Only the author may delete their own comment."""
 
 
-def create_comment(*, author: Member, post: Post, body: str) -> Comment:
+def create_comment(*, author: Member, post: Post, body: str, via_email: bool = False) -> Comment:
     """Create a comment after confirming the author may see the post.
 
     The view resolves the post through the guard first; this re-checks
@@ -35,7 +35,7 @@ def create_comment(*, author: Member, post: Post, body: str) -> Comment:
     """
     if not scoping.visible_posts(author).filter(id=post.id).exists():
         raise CommentNotAllowed("You can only comment on a post you can see.")
-    return Comment.objects.create(author=author, post=post, body=body)
+    return Comment.objects.create(author=author, post=post, body=body, via_email=via_email)
 
 
 def delete_comment(*, actor: Member, comment: Comment) -> None:

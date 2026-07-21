@@ -310,3 +310,75 @@ def test_partial_crash_never_loses_a_yards_window(world: World, monkeypatch: Any
     assert second_run.crashed == 0
     paternal_bodies = [m.body for m in mail.outbox if "Paternal" in m.subject]
     assert paternal_bodies and "ALMOST-LOST-BODY" in paternal_bodies[-1]
+
+
+def test_sent_digest_carries_working_reply_addresses(world: World) -> None:
+    """The emailed reply block is real end-to-end: the address in the sent
+    digest resolves to the right (member, post), and a reply through the full
+    inbound pipeline posts a badged comment."""
+    from core import digest, inbound
+
+    _confirmed(world.maternal_cousin, "cousin@example.com")
+    post = Post.objects.create(author=world.maternal_cousin, pod=world.m_pod, body="reply to me")
+    post.audience_yards.set([world.maternal])
+    send_due_digests(timezone.now())
+    body = mail.outbox[0].body
+    assert digest.REPLY_SEPARATOR in body  # the separator ships in every digest
+    line = next(line for line in body.splitlines() if "Reply to this post by email:" in line)
+    address = line.split(":", 1)[1].strip()
+    raw = (
+        f"Message-ID: <e2e@x>\nFrom: cousin@example.com\nTo: {address}\n"
+        f"Subject: Re: digest\nContent-Type: text/plain\n\n"
+        f"Emailed reply!\n{digest.REPLY_SEPARATOR}\nquoted digest below"
+    ).encode()
+    assert inbound.process_inbound(raw).outcome == "posted"
+    from core.models import Comment
+
+    comment = Comment.objects.get(via_email=True)
+    assert comment.post_id == post.id and comment.author_id == world.maternal_cousin.id
+
+
+def test_transport_failure_rolls_back_supersession_of_old_reply_addresses(
+    world: World, monkeypatch: Any
+) -> None:
+    """A refused send must not supersede last week's reply capabilities: the
+    savepoint covers the reply-address minting too."""
+    from core.models import ReplyAddress
+
+    _confirmed(world.maternal_cousin, "cousin@example.com")
+    post = Post.objects.create(author=world.maternal_cousin, pod=world.m_pod, body="week one")
+    post.audience_yards.set([world.maternal])
+    send_due_digests(timezone.now())
+    week1 = ReplyAddress.objects.get()
+    assert week1.superseded_at is None
+
+    def greylisted(**kwargs: Any) -> None:
+        raise smtplib.SMTPResponseException(450, b"try again later")
+
+    monkeypatch.setattr("core.digest_send.emailing.send_family_email", greylisted)
+    send_due_digests(timezone.now() + datetime.timedelta(days=8))
+    week1.refresh_from_db()
+    assert week1.superseded_at is None  # the failed send never started the grace clock
+    assert ReplyAddress.objects.count() == 1  # and minted nothing durable
+
+
+def test_same_run_yards_do_not_supersede_each_other(world: World) -> None:
+    """#39 review MED-2: the bridge member's two same-run issues each keep
+    their own unsuperseded reply addresses; supersession is per yard stream."""
+    from core.models import ReplyAddress
+
+    _confirmed(world.bridge, "bridge@example.com")
+    post = Post.objects.create(author=world.bridge, pod=world.bridge_pod, body="both sides")
+    send_due_digests(timezone.now())
+    # The MED-2 regression: after ONE run, the bridge member's two per-yard
+    # mints have NOT stamped each other — zero superseded addresses.
+    assert ReplyAddress.objects.filter(post=post).count() == 2
+    assert ReplyAddress.objects.filter(superseded_at__isnull=False).count() == 0
+    # The NEXT run supersedes each yard's own predecessor (starting its grace
+    # window, T-EMAIL-2) — per-yard streams age independently, and both aged
+    # addresses stay within grace rather than dying.
+    send_due_digests(timezone.now() + datetime.timedelta(days=8))
+    for yard in (world.maternal, world.paternal):
+        aged = ReplyAddress.objects.get(issue__yard=yard, post=post)
+        assert aged.superseded_at is not None
+        assert aged.superseded_at > timezone.now() - datetime.timedelta(hours=1)

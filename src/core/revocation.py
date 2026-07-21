@@ -97,6 +97,15 @@ def _cancel_digest_subscription(member: Member) -> int:
     )
 
 
+def _void_reply_addresses(member: Member) -> int:
+    """Kill every reply-by-email capability immediately (TM-4/TM-1): voided is
+    dead regardless of grace, and the write path's audience re-check is the
+    second lock behind this row state."""
+    from . import reply_addresses
+
+    return reply_addresses.void_for_member(member)
+
+
 def _void_digest_tokens(member: Member) -> int:
     """Delete the member's per-digest read links (TM-5). The generation check in
     digest_links.resolve already kills them on the bump (ADR-003 rule 3), so this
@@ -119,6 +128,7 @@ _REVOCATION_STEPS = (
     _void_invites,
     _cancel_digest_subscription,
     _void_digest_tokens,
+    _void_reply_addresses,
 )
 
 
