@@ -13,7 +13,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 
-from . import profiles, scoping
+from . import export, profiles, scoping
 from .feed_views import _acting_member
 from .models import Member
 
@@ -108,6 +108,17 @@ def profile_edit(request: HttpRequest) -> HttpResponse:
         ]
     )
     return redirect("directory")
+
+
+@login_required
+def export_data(request: HttpRequest) -> HttpResponse:
+    """Download a zip of the member's own posts, comments, and photos (S-704). Never
+    gated; strictly the acting member's own authored content."""
+    member = _acting_member(request)
+    archive = export.build_member_export(member)
+    response = HttpResponse(archive, content_type="application/zip")
+    response["Content-Disposition"] = 'attachment; filename="backyard-export.zip"'
+    return response
 
 
 def _edit_context(member: Member, errors: list[str]) -> dict[str, object]:
