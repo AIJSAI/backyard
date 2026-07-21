@@ -20,7 +20,7 @@ from django.utils import timezone
 from PIL import Image
 
 from core import media, scoping
-from core.models import Member, Pod, PodMembership, Post, Yard
+from core.models import MediaAsset, Member, Pod, PodMembership, Post, Yard
 
 pytestmark = pytest.mark.django_db
 User = get_user_model()
@@ -237,3 +237,37 @@ def test_compose_attaches_a_photo(world: dict[str, object]) -> None:
     first_media = new_post.media.first()
     assert first_media is not None
     assert first_media.content_type == "image/jpeg"
+
+
+# --- hard purge on delete (T-MEDIA-6) ---
+
+
+def test_purge_removes_files_and_rows(world: dict[str, object]) -> None:
+    post = world["post"]
+    assert isinstance(post, Post)
+    asset = media.ingest_photo(post=post, raw=_jpeg_with_exif())
+    storage = asset.image.storage
+    full_name, thumb_name = asset.image.name, asset.thumbnail.name
+    assert storage.exists(full_name) and storage.exists(thumb_name)
+
+    purged = media.purge_post_media(post)
+    assert purged == 1
+    assert not MediaAsset.objects.filter(post=post).exists()  # row gone
+    assert not storage.exists(full_name)  # file gone from disk (T-MEDIA-6)
+    assert not storage.exists(thumb_name)
+
+
+def test_delete_post_purges_its_photos(world: dict[str, object]) -> None:
+    author = world["author"]
+    m_pod = world["m_pod"]
+    assert isinstance(author, Member)
+    assert isinstance(m_pod, Pod)
+    post = Post.objects.create(author=author, pod=m_pod, body="photo to delete")
+    asset = media.ingest_photo(post=post, raw=_jpeg_with_exif())
+    storage = asset.image.storage
+    full_name = asset.image.name
+
+    response = _client_for(author).post(reverse("delete_post", args=[post.id]))
+    assert response.status_code == 302
+    assert not MediaAsset.objects.filter(post=post).exists()
+    assert not storage.exists(full_name)  # the file is hard-deleted, not just hidden

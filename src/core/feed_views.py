@@ -229,6 +229,7 @@ def delete_post(request: HttpRequest, post_id: int) -> HttpResponse:
 
     if request.method == "POST":
         posting.delete_post(actor=member, post=post)
+        media.purge_post_media(post)  # hard-delete the photo files too (T-MEDIA-6)
         return redirect("feed")
     return render(request, "core/delete_confirm.html", {"post": post})
 

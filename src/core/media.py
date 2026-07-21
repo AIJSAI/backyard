@@ -94,3 +94,20 @@ def ingest_photo(*, post: Post, raw: bytes, alt_text: str = "") -> MediaAsset:
     asset.thumbnail.save(f"{asset.thumbnail_token}.jpg", ContentFile(thumb_bytes), save=False)
     asset.save()
     return asset
+
+
+def purge_post_media(post: Post) -> int:
+    """Hard-delete a post's photos and their derivatives from storage (T-MEDIA-6).
+
+    Called when the post is deleted. Soft-delete alone stops the serving path (the view
+    re-checks the post), but the files themselves must leave the disk so a deleted
+    photo does not linger on the volume or behind a stale cached URL. Removes both the
+    full image and the thumbnail file, then drops the row. Returns the count purged.
+    """
+    count = 0
+    for asset in post.media.all():
+        asset.image.delete(save=False)  # remove the file from storage, keep the row briefly
+        asset.thumbnail.delete(save=False)
+        asset.delete()  # then drop the row
+        count += 1
+    return count
