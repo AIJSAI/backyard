@@ -12,6 +12,9 @@
         <span class="role">{{ member.get_role_display }}</span>
         {% if member.is_supervised %}<span class="flag">supervised</span>{% endif %}
         {% if member.id in manageable_ids %}
+          {% if not member.is_supervised %}
+            <a href="{% url 'provision_elder' member.id %}">Elder link</a>
+          {% endif %}
           <form method="post" action="{% url 'member_remove' member.id %}" class="inline">
             {% csrf_token %}
             <button type="submit">Remove</button>

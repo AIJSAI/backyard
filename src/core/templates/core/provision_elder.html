@@ -1,0 +1,34 @@
+{% extends "core/base.html" %}
+{% block title %}Elder link for {{ target.display_name }}{% endblock %}
+{% block body %}
+  <h1>Elder link for {{ target.display_name }}</h1>
+  <p><a href="{% url 'members' %}">Back to members</a></p>
+
+  <p class="notice">This is the <strong>elder path</strong>: a no-login link that opens a
+  large-text view of the family feed. Whoever holds the link can read and react as
+  {{ target.display_name }}, so hand it over in person or by a private message, and
+  regenerate it if it ever goes astray.</p>
+
+  <h2>What this link will grant</h2>
+  <p>Reading and one-tap reactions in:</p>
+  <ul>
+    {% for yard in yards %}<li>the <strong>{{ yard.name }}</strong> family feed</li>{% endfor %}
+  </ul>
+  <p>Their pods: {% for pod in pods %}{{ pod.name }}{% if not forloop.last %}, {% endif %}{% empty %}none yet{% endfor %}.</p>
+  <p class="muted">It cannot edit profiles, browse the directory, export data, or invite anyone.</p>
+
+  {% if minted_link %}
+    <h2>{% if regenerated %}New link ready (the old one no longer works){% else %}Link ready to hand over{% endif %}</h2>
+    <p><input type="text" readonly value="{{ minted_link }}" style="width:100%" aria-label="Elder link"></p>
+    <div class="qr">{{ qr_svg }}</div>
+    <p class="muted">Print this page for the QR, or copy the link above to send it.</p>
+  {% endif %}
+
+  <form method="post" action="{% url 'provision_elder' target.id %}">
+    {% csrf_token %}
+    <input type="hidden" name="intent" value="{{ intent }}">
+    <button type="submit">
+      {% if has_token and not minted_link %}Regenerate the link{% elif not has_token %}Generate the link{% else %}Regenerate again{% endif %}
+    </button>
+  </form>
+{% endblock %}
