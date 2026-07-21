@@ -742,6 +742,29 @@ class MemberWeekPresence(models.Model):
         return f"{self.member} week {self.week_start}: {'present' if self.present else 'quiet'}"
 
 
+class ElderToken(models.Model):
+    """The elder path's master credential (S-102, TM-5, ADR-003).
+
+    One live token per member: a long-lived tokenized URL that opens the
+    large-text feed with no login. The default is NO expiry, recorded in
+    ADR-003: months of use with no re-auth is the requirement, and revocation
+    (the generation check plus row deletion through the TM-1 registry), not
+    TTL, is what kills it. >=128-bit raw value, SHA-256 at rest, never issued
+    to a supervised member (TM-10). The URL is exchanged for an httpOnly
+    session cookie on first open (TM-5), so the token itself is not replayed
+    on every request.
+    """
+
+    member = models.OneToOneField(Member, on_delete=models.CASCADE, related_name="elder_token")
+    token_digest = models.CharField(max_length=64, unique=True)
+    minted_generation = models.PositiveIntegerField()
+    expires_at = models.DateTimeField(null=True, blank=True)  # null = the no-expiry default
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"Elder token for {self.member}"
+
+
 class SetupToken(models.Model):
     """One-time secret gating the first-run wizard (threat model TM-8).
 

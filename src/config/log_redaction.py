@@ -19,7 +19,15 @@ import re
 # greedy past the route prefix (break-glass carries two sensitive segments, /d/
 # links have sub-paths): losing a /posts/5/ suffix from a log line is a fair
 # price for never having to reason about which segment was the secret.
-_CAPABILITY_ROUTES = ("d", "digest/confirm", "digest/unsubscribe", "join", "media", "break-glass")
+_CAPABILITY_ROUTES = (
+    "d",
+    "t",
+    "digest/confirm",
+    "digest/unsubscribe",
+    "join",
+    "media",
+    "break-glass",
+)
 _TOKEN_SEGMENT = re.compile(
     r"/(?P<route>" + "|".join(re.escape(route) for route in _CAPABILITY_ROUTES) + r")/[^\s?#]+"
 )

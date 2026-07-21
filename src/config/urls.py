@@ -8,6 +8,7 @@ from core import (
     admin_views,
     digest_views,
     digesting_views,
+    elder_views,
     feed_views,
     media_views,
     pod_views,
@@ -65,6 +66,12 @@ urlpatterns = [
     path("members/metrics/", admin_views.metrics, name="member_metrics"),
     # The /d/ read surface (TM-5): what a digest deep link opens. The token only
     # authenticates; every render re-resolves through the one audience query.
+    # The elder path (S-102): the handed-over link exchanges for a session and
+    # lands on the clean large-text surface; the token never rides in use.
+    path("t/<str:token>/", elder_views.enter, name="elder_enter"),
+    path("e/", elder_views.elder_feed, name="elder_feed"),
+    path("e/react/<int:post_id>/", elder_views.elder_react, name="elder_react"),
+    path("e/text/", elder_views.elder_text_size, name="elder_text_size"),
     path("d/<str:token>/", digest_views.digest_view, name="digest_web"),
     path(
         "d/<str:token>/posts/<int:post_id>/",
