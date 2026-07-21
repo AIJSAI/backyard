@@ -16,6 +16,8 @@ import io
 import warnings
 
 from django.core.files.base import ContentFile
+from django.core.files.storage import Storage
+from django.db import transaction
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .models import MediaAsset, Post
@@ -104,10 +106,23 @@ def purge_post_media(post: Post) -> int:
     photo does not linger on the volume or behind a stale cached URL. Removes both the
     full image and the thumbnail file, then drops the row. Returns the count purged.
     """
+    to_remove: list[tuple[Storage, str]] = []
     count = 0
     for asset in post.media.all():
-        asset.image.delete(save=False)  # remove the file from storage, keep the row briefly
-        asset.thumbnail.delete(save=False)
-        asset.delete()  # then drop the row
+        if asset.image.name:
+            to_remove.append((asset.image.storage, asset.image.name))
+        if asset.thumbnail.name:
+            to_remove.append((asset.thumbnail.storage, asset.thumbnail.name))
+        asset.delete()  # drop the row inside the request transaction
         count += 1
+
+    def _remove_files() -> None:
+        for storage, name in to_remove:
+            storage.delete(name)  # idempotent; swallows an already-missing file
+
+    # Remove the files only after the surrounding transaction commits (security review
+    # of #31): a rollback then cannot leave a live row pointing at a deleted file, and a
+    # concurrent serve that already resolved an asset never opens a file this request
+    # just unlinked. on_commit runs immediately when there is no open transaction.
+    transaction.on_commit(_remove_files)
     return count

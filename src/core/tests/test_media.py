@@ -242,7 +242,9 @@ def test_compose_attaches_a_photo(world: dict[str, object]) -> None:
 # --- hard purge on delete (T-MEDIA-6) ---
 
 
-def test_purge_removes_files_and_rows(world: dict[str, object]) -> None:
+def test_purge_removes_files_and_rows(
+    world: dict[str, object], django_capture_on_commit_callbacks: object
+) -> None:
     post = world["post"]
     assert isinstance(post, Post)
     asset = media.ingest_photo(post=post, raw=_jpeg_with_exif())
@@ -250,14 +252,19 @@ def test_purge_removes_files_and_rows(world: dict[str, object]) -> None:
     full_name, thumb_name = asset.image.name, asset.thumbnail.name
     assert storage.exists(full_name) and storage.exists(thumb_name)
 
-    purged = media.purge_post_media(post)
+    # File removal is scheduled on transaction commit; run the callbacks so the test,
+    # which never really commits, still exercises the deletion.
+    with django_capture_on_commit_callbacks(execute=True):  # type: ignore[operator]
+        purged = media.purge_post_media(post)
     assert purged == 1
     assert not MediaAsset.objects.filter(post=post).exists()  # row gone
     assert not storage.exists(full_name)  # file gone from disk (T-MEDIA-6)
     assert not storage.exists(thumb_name)
 
 
-def test_delete_post_purges_its_photos(world: dict[str, object]) -> None:
+def test_delete_post_purges_its_photos(
+    world: dict[str, object], django_capture_on_commit_callbacks: object
+) -> None:
     author = world["author"]
     m_pod = world["m_pod"]
     assert isinstance(author, Member)
@@ -267,7 +274,8 @@ def test_delete_post_purges_its_photos(world: dict[str, object]) -> None:
     storage = asset.image.storage
     full_name = asset.image.name
 
-    response = _client_for(author).post(reverse("delete_post", args=[post.id]))
+    with django_capture_on_commit_callbacks(execute=True):  # type: ignore[operator]
+        response = _client_for(author).post(reverse("delete_post", args=[post.id]))
     assert response.status_code == 302
     assert not MediaAsset.objects.filter(post=post).exists()
     assert not storage.exists(full_name)  # the file is hard-deleted, not just hidden

@@ -27,7 +27,14 @@ def serve_media(request: HttpRequest, token: str) -> FileResponse:
         raise Http404
     is_thumbnail = token == asset.thumbnail_token
     handle = asset.thumbnail if is_thumbnail else asset.image
-    response = FileResponse(handle.open("rb"), content_type=asset.content_type)
+    try:
+        stream = handle.open("rb")
+    except FileNotFoundError as exc:
+        # Defense in depth (review of #31): if a purge removed the file out from under a
+        # request that had already resolved the asset, fail closed to the same 404 as an
+        # unknown token, never a 500 and never another asset's bytes.
+        raise Http404 from exc
+    response = FileResponse(stream, content_type=asset.content_type)
     response["X-Content-Type-Options"] = "nosniff"
     response["Content-Disposition"] = 'inline; filename="photo.jpg"'
     response["Cache-Control"] = "private, no-store"
