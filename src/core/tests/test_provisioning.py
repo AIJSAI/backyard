@@ -41,6 +41,24 @@ def _client_for(member: Member) -> Client:
     return c
 
 
+def _intent(client: Client, member_id: int) -> str:
+    """Read a fresh intent nonce off the provisioning page (the hidden field)."""
+    import re
+
+    body = client.get(reverse("provision_elder", args=[member_id])).content.decode()
+    match = re.search(r'name="intent" value="([^"]+)"', body)
+    assert match, "no intent nonce on the page"
+    return match.group(1)
+
+
+def _mint(client: Client, member_id: int) -> str:
+    """Generate via the real form (grant page -> intent -> POST) and return the body."""
+    intent = _intent(client, member_id)
+    return client.post(
+        reverse("provision_elder", args=[member_id]), {"intent": intent}
+    ).content.decode()
+
+
 @dataclass
 class World:
     maternal: Yard
@@ -91,10 +109,7 @@ def test_page_shows_the_grant_before_generation(world: World) -> None:
 
 
 def test_generate_shows_link_and_inline_qr(world: World) -> None:
-    response = _client_for(world.instance_admin).post(
-        reverse("provision_elder", args=[world.nana.id])
-    )
-    body = response.content.decode()
+    body = _mint(_client_for(world.instance_admin), world.nana.id)
     assert ElderToken.objects.filter(member=world.nana).count() == 1
     assert "/t/" in body  # the handover link
     assert "<svg" in body and "</svg>" in body  # the QR, inline, no network
@@ -103,9 +118,9 @@ def test_generate_shows_link_and_inline_qr(world: World) -> None:
 
 def test_regenerate_invalidates_the_prior_token_and_shows_fresh_artifacts(world: World) -> None:
     client = _client_for(world.instance_admin)
-    first = client.post(reverse("provision_elder", args=[world.nana.id])).content.decode()
+    first = _mint(client, world.nana.id)
     first_link = _link_from(first)
-    second = client.post(reverse("provision_elder", args=[world.nana.id])).content.decode()
+    second = _mint(client, world.nana.id)  # a fresh intent = a deliberate regenerate
     second_link = _link_from(second)
 
     assert second_link != first_link  # a fresh link in the same flow
@@ -151,3 +166,64 @@ def _link_from(body: str) -> str:
     match = re.search(r'value="(http[^"]*/t/[^"]+)"', body)
     assert match, "no elder link in the page"
     return match.group(1)
+
+
+# --- folds from the #43 security review ---
+
+
+def test_the_minted_token_page_carries_the_tm5_headers(world: World) -> None:
+    """#43 review HIGH-1: the one page that displays the master token gets the
+    no-store/no-referrer/noindex set, defending a bfcache restore of a
+    walked-away-from admin screen — even though /members/ is not a token route."""
+    client = _client_for(world.instance_admin)
+    intent = _intent(client, world.nana.id)
+    response = client.post(reverse("provision_elder", args=[world.nana.id]), {"intent": intent})
+    assert response["Cache-Control"] == "no-store"
+    assert response["Referrer-Policy"] == "no-referrer"
+    assert response["X-Robots-Tag"] == "noindex, nofollow"
+    # The grant page (no token in the body) carries them too, harmlessly.
+    assert (
+        client.get(reverse("provision_elder", args=[world.nana.id]))["Cache-Control"] == "no-store"
+    )
+
+
+def test_refresh_does_not_silently_regenerate(world: World) -> None:
+    """#43 review MEDIUM-2: a replayed POST (browser refresh) with a spent intent
+    nonce re-renders WITHOUT minting, so the link the admin just handed over
+    stays alive."""
+    client = _client_for(world.instance_admin)
+    intent = _intent(client, world.nana.id)
+    minted = client.post(
+        reverse("provision_elder", args=[world.nana.id]), {"intent": intent}
+    ).content.decode()
+    handed_over = _link_from(minted)
+    raw = handed_over.split("/t/")[1].rstrip("/")
+
+    # The refresh: the SAME POST body, replaying the now-spent nonce.
+    replay = client.post(reverse("provision_elder", args=[world.nana.id]), {"intent": intent})
+    assert b"/t/" not in replay.content  # nothing new minted or shown
+    assert elder_tokens.resolve(raw)  # the handed-over link is still alive
+    assert ElderToken.objects.filter(member=world.nana).count() == 1  # exactly one
+
+
+def test_a_bridge_target_needs_the_instance_admin(world: World) -> None:
+    """#43 review LOW-4 / T-AUTH-G2: a bridge member is visible to a yard admin
+    but has yards spilling outside their scope, so a yard admin cannot provision
+    them; only the instance admin can, and it mints nothing on refusal."""
+    bridge_pod = Pod.objects.create(name="Bridge household")
+    bridge_pod.yards.set([world.maternal, world.paternal])
+    bridge = Member.objects.create(display_name="Bridge parent")
+    PodMembership.objects.create(member=bridge, pod=bridge_pod)
+
+    yard_admin = _client_for(world.yard_admin)
+    assert yard_admin.get(reverse("provision_elder", args=[bridge.id])).status_code == 403
+    assert yard_admin.post(reverse("provision_elder", args=[bridge.id])).status_code == 403
+    assert not ElderToken.objects.filter(member=bridge).exists()
+    # The instance admin, in both yards, can — and the page shows BOTH yards as
+    # the grant (the token's true blast radius, T-TOKEN-G1).
+    body = (
+        _client_for(world.instance_admin)
+        .get(reverse("provision_elder", args=[bridge.id]))
+        .content.decode()
+    )
+    assert "Maternal" in body and "Paternal" in body

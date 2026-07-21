@@ -26,6 +26,7 @@
 
   <form method="post" action="{% url 'provision_elder' target.id %}">
     {% csrf_token %}
+    <input type="hidden" name="intent" value="{{ intent }}">
     <button type="submit">
       {% if has_token and not minted_link %}Regenerate the link{% elif not has_token %}Generate the link{% else %}Regenerate again{% endif %}
     </button>

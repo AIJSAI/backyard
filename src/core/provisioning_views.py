@@ -17,6 +17,7 @@ it, and is never stored or logged.
 from __future__ import annotations
 
 import io
+import secrets
 
 import qrcode  # type: ignore[import-untyped]  # qrcode ships no stubs
 import qrcode.image.svg  # type: ignore[import-untyped]
@@ -57,18 +58,30 @@ def provision_elder(request: HttpRequest, member_id: int) -> HttpResponse:
         # explicitly so the UI cannot offer it rather than failing on submit.
         raise Http404
 
+    # Deliberately the TARGET's full scope, not the actor's (#43 review LOW-3):
+    # the token grants the target's whole visibility, and only an instance admin
+    # can reach a bridge target (a yard admin is refused by can_manage_member's
+    # subset check), so viewer-scoping here would UNDERSTATE the grant's blast
+    # radius to the person about to hand it over, gutting T-TOKEN-G1.
     pods = list(scoping.visible_pods(target))
     yards = list(scoping.visible_yards(target))
+    has_token = hasattr(target, "elder_token")
     context: dict[str, object] = {
         "actor": actor,
         "target": target,
         "pods": pods,
         "yards": yards,
-        "has_token": hasattr(target, "elder_token"),
+        "has_token": has_token,
     }
 
-    if request.method == "POST":
-        raw = elder_tokens.regenerate(target) if context["has_token"] else elder_tokens.mint(target)
+    # A one-time intent nonce (#43 review MEDIUM-2): the mint form carries it,
+    # the POST consumes it, and a browser refresh (a replayed POST with a spent
+    # nonce) re-renders WITHOUT minting instead of silently regenerating the
+    # link the admin just handed over. Consume BEFORE minting the next nonce,
+    # or the fresh one would overwrite the submitted one's match. Kept in the
+    # session, never the DB row, so the raw token still appears exactly once.
+    if request.method == "POST" and _consume_intent(request, target.id, request.POST.get("intent")):
+        raw = elder_tokens.regenerate(target) if has_token else elder_tokens.mint(target)
         link = f"{settings.BASE_URL}/t/{raw}/"
         context.update(
             {
@@ -77,9 +90,35 @@ def provision_elder(request: HttpRequest, member_id: int) -> HttpResponse:
                 # only input is our CSPRNG token plus the configured BASE_URL —
                 # the URL becomes QR modules, never reflected as SVG text.
                 "qr_svg": mark_safe(_qr_svg(link)),  # noqa: S308
-                "regenerated": context["has_token"],
+                "regenerated": has_token,
                 "has_token": True,
             }
         )
+    # The nonce for the NEXT action, set after any consume so it never clobbers
+    # the one just submitted.
+    context["intent"] = _fresh_intent(request, target.id)
 
-    return render(request, "core/provision_elder.html", context)
+    response = render(request, "core/provision_elder.html", context)
+    # This page can carry the raw master token in its body, so it gets the full
+    # TM-5 header set even though /members/ is not a token-prefix route (#43
+    # review HIGH-1). The token is never in the URL, but no-store defends the
+    # bfcache/history restore of a walked-away-from admin screen.
+    response["Cache-Control"] = "no-store"
+    response["Referrer-Policy"] = "no-referrer"
+    response["X-Robots-Tag"] = "noindex, nofollow"
+    return response
+
+
+def _fresh_intent(request: HttpRequest, target_id: int) -> str:
+    intent = secrets.token_urlsafe(16)
+    request.session[f"elder_intent:{target_id}"] = intent
+    return intent
+
+
+def _consume_intent(request: HttpRequest, target_id: int, submitted: str | None) -> bool:
+    key = f"elder_intent:{target_id}"
+    expected = request.session.get(key)
+    if not submitted or submitted != expected:
+        return False
+    del request.session[key]  # single use: a refreshed POST replays a spent nonce
+    return True
