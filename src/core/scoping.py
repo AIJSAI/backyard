@@ -29,7 +29,7 @@ from django.db import models
 from django.db.models import Q
 from django.http import Http404
 
-from .models import Comment, Member, Pod, Post, Yard
+from .models import Comment, Member, Pod, Post, Reaction, Yard
 
 
 def member_yard_ids(member: Member) -> set[int]:
@@ -92,6 +92,14 @@ def visible_comments(member: Member) -> models.QuerySet[Comment]:
 def require_visible_comment(member: Member, comment_id: int) -> Comment:
     """Return the comment if the member may see its post, else a byte-identical 404."""
     return _require(visible_comments(member), comment_id)
+
+
+def visible_reactions(member: Member) -> models.QuerySet[Reaction]:
+    """Every reaction a member may see: the reactions on posts they can see. Like
+    comments, a reaction has no audience of its own and inherits its post's through
+    visible_posts, so the reactor list (S-202: reactor lists are in the matrix) never
+    reveals who reacted on a post in a yard the member is not in."""
+    return Reaction.objects.filter(post__in=visible_posts(member)).distinct()
 
 
 def visible_pods_of(viewer: Member, target: Member) -> models.QuerySet[Pod]:

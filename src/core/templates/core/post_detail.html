@@ -17,6 +17,18 @@
     {% endif %}
   </div>
 
+  <div class="reactions">
+    {% for group in reactor_groups %}
+      <p><span class="reaction-label">{{ group.label }}</span> {{ group.names|join:", " }}</p>
+    {% endfor %}
+    <form method="post" action="{% url 'react' post.id %}" class="react-buttons">
+      {% csrf_token %}
+      {% for kind, label in reaction_kinds %}
+        <button type="submit" name="kind" value="{{ kind }}"{% if kind == my_reaction %} class="reacted"{% endif %}>{{ label }}</button>
+      {% endfor %}
+    </form>
+  </div>
+
   <h2>Replies</h2>
   <ul class="comments">
     {% for comment in comments %}

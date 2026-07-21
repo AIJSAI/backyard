@@ -1,0 +1,19 @@
+{% extends "core/base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block body %}
+  <h1>Notifications</h1>
+  <p class="muted">
+    Backyard never pushes anything at you by default. The only thing you can turn on
+    is a nudge when someone replies to your own post. There is no all-activity feed
+    to subscribe to, on purpose.
+  </p>
+  <form method="post" action="{% url 'notification_settings' %}">
+    {% csrf_token %}
+    <label>
+      <input type="checkbox" name="notify_on_reply"{% if pref.notify_on_reply %} checked{% endif %}>
+      Tell me when someone replies to my post
+    </label>
+    <button type="submit">Save</button>
+  </form>
+  <p><a href="{% url 'feed' %}">Back to the feed</a></p>
+{% endblock %}
