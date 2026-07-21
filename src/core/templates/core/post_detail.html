@@ -8,6 +8,13 @@
     <span class="when">{{ post.created_at|date:"M j, g:i a" }}</span>
     {% if post.edited_at %}<span class="edited">(edited)</span>{% endif %}
     <p>{{ post.body }}</p>
+    {% if post.link_preview %}
+      <a class="preview" href="{{ post.link_preview.url }}" target="_blank" rel="noopener noreferrer nofollow">
+        {% if post.link_preview.title %}<span class="preview-title">{{ post.link_preview.title }}</span>{% endif %}
+        {% if post.link_preview.description %}<span class="preview-desc">{{ post.link_preview.description }}</span>{% endif %}
+        <span class="preview-url">{{ post.link_preview.url }}</span>
+      </a>
+    {% endif %}
   </div>
 
   <h2>Replies</h2>

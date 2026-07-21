@@ -220,6 +220,27 @@ class Comment(models.Model):
         return f"Comment by {self.author} on post {self.post_id}"
 
 
+class LinkPreview(models.Model):
+    """A card for the first URL in a post (S-301). The stored URL has tracking
+    parameters stripped; title and description come from a safely-fetched preview
+    when one is available and are blank otherwise, so the card degrades to a bare
+    link (graceful fallback). image_url is captured but not rendered until wave 3
+    re-hosts it, because hotlinking a remote image is the tracking-beacon and
+    IP-disclosure leak TS-PP-6 forbids. A preview inherits its post's audience by
+    living on the post; it is never fetched or shown outside the post.
+    """
+
+    post = models.OneToOneField(Post, on_delete=models.CASCADE, related_name="link_preview")
+    url = models.URLField(max_length=2000)
+    title = models.CharField(max_length=300, blank=True)
+    description = models.CharField(max_length=600, blank=True)
+    image_url = models.URLField(max_length=2000, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"Preview for post {self.post_id}: {self.url}"
+
+
 class Invite(models.Model):
     """A household or member invite: a bearer credential held to the TM-5 bar.
 
