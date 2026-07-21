@@ -19,8 +19,8 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
-from . import commenting, link_preview, posting, scoping
-from .models import Member, Post
+from . import commenting, link_preview, notifications, posting, reacting, scoping
+from .models import Member, Post, Reaction
 
 # A family text post, not an essay. Bounds the stored size of a single post so a
 # crafted request cannot park megabytes of text behind the composer (the wider
@@ -249,10 +249,61 @@ def _render_post_detail(
     comments = (
         scoping.visible_comments(member).filter(post=post).select_related("author")[:_MAX_THREAD]
     )
+    # Reactions show WHO reacted, grouped by kind, never a count (S-304).
+    reactions = scoping.visible_reactions(member).filter(post=post).select_related("member")
+    by_kind: dict[str, list[str]] = {}
+    my_reaction: str | None = None
+    for reaction in reactions:
+        by_kind.setdefault(reaction.kind, []).append(reaction.member.display_name)
+        if reaction.member_id == member.id:
+            my_reaction = reaction.kind
+    reactor_groups = [
+        {"kind": kind, "label": label, "names": by_kind[kind]}
+        for kind, label in Reaction.KIND_CHOICES
+        if kind in by_kind
+    ]
     return render(
         request,
         "core/post_detail.html",
-        {"member": member, "post": post, "comments": comments, "errors": errors or []},
+        {
+            "member": member,
+            "post": post,
+            "comments": comments,
+            "errors": errors or [],
+            "reactor_groups": reactor_groups,
+            "my_reaction": my_reaction,
+            "reaction_kinds": Reaction.KIND_CHOICES,
+        },
+    )
+
+
+@login_required
+def react(request: HttpRequest, post_id: int) -> HttpResponse:
+    """Set, change, or clear the member's reaction to a post they can see (S-304).
+    POST only; resolved through the guard, so a post the member cannot see is a 404
+    and an unknown reaction kind is a 404."""
+    member = _acting_member(request)
+    post = scoping.require_visible_post(member, post_id)
+    if request.method != "POST":
+        raise Http404
+    kind = request.POST.get("kind", "")
+    if kind not in reacting.VALID_KINDS:
+        raise Http404
+    reacting.toggle_reaction(member=member, post=post, kind=kind)
+    return redirect("post_detail", post_id=post.id)
+
+
+@login_required
+def notification_settings(request: HttpRequest) -> HttpResponse:
+    """The member's push preferences (S-305): a single opt-in, replies to my posts,
+    off by default. There is no other option to offer."""
+    member = _acting_member(request)
+    if request.method == "POST":
+        enabled = request.POST.get("notify_on_reply") == "on"
+        notifications.set_reply_notification(member, enabled=enabled)
+        return redirect("notification_settings")
+    return render(
+        request, "core/notification_settings.html", {"pref": notifications.preference_for(member)}
     )
 
 

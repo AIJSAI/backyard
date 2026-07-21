@@ -24,6 +24,10 @@ urlpatterns = [
     path("posts/<int:post_id>/", feed_views.post_detail, name="post_detail"),
     path("posts/<int:post_id>/comment/", feed_views.add_comment, name="add_comment"),
     path("comments/<int:comment_id>/delete/", feed_views.delete_comment, name="delete_comment"),
+    # Reactions (S-304): who reacted, never a count. Notification prefs (S-305): the
+    # single reply opt-in, off by default.
+    path("posts/<int:post_id>/react/", feed_views.react, name="react"),
+    path("settings/notifications/", feed_views.notification_settings, name="notification_settings"),
     path("join/<str:token>/", join, name="join"),
     # Instance-admin member management (S-701 enforced, S-703 supervised, S-702 removal).
     path("members/", admin_views.members, name="members"),

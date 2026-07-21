@@ -241,6 +241,59 @@ class LinkPreview(models.Model):
         return f"Preview for post {self.post_id}: {self.url}"
 
 
+class Reaction(models.Model):
+    """A named reaction to a post (S-304). Reactions show WHO reacted, never a count
+    or a leaderboard: there is deliberately no tally field, and the UI lists reactors
+    by name. A member holds at most one reaction per post (picking a new kind replaces
+    it; removing it deletes the row). A reaction inherits its post's audience, so the
+    reactor list is scoped by the same query and never leaks across a yard.
+    """
+
+    HEART = "heart"
+    LAUGH = "laugh"
+    WOW = "wow"
+    HUG = "hug"
+    SAD = "sad"
+    KIND_CHOICES = [
+        (HEART, "Love"),
+        (LAUGH, "Ha"),
+        (WOW, "Wow"),
+        (HUG, "Hug"),
+        (SAD, "Sad"),
+    ]
+
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="reactions")
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="reactions")
+    kind = models.CharField(max_length=16, choices=KIND_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["member", "post"], name="one_reaction_per_member_post"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.member} reacted {self.kind} to post {self.post_id}"
+
+
+class NotificationPreference(models.Model):
+    """A member's push preferences (S-305), which are a negative guarantee. The only
+    opt-in that exists is replies to my own posts, and it defaults OFF, so a member
+    is pushed nothing unless they explicitly ask, and even then only for replies to
+    them. There is deliberately no all-activity firehose field: the absence is the
+    feature, and a test asserts this model grows no such option.
+    """
+
+    member = models.OneToOneField(
+        Member, on_delete=models.CASCADE, related_name="notification_preference"
+    )
+    # The one and only push opt-in. Off by default (zero push for every event type).
+    notify_on_reply = models.BooleanField(default=False)
+
+    def __str__(self) -> str:
+        return f"Notification preference for {self.member} (reply={self.notify_on_reply})"
+
+
 class Invite(models.Model):
     """A household or member invite: a bearer credential held to the TM-5 bar.
 
