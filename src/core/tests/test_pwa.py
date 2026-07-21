@@ -20,8 +20,8 @@ from django.test import Client
 from django.urls import reverse
 from PIL import Image
 
-from core import elder_tokens
-from core.models import Member, Pod, PodMembership, Post, Yard
+from core import digest_links, elder_tokens
+from core.models import DigestIssue, Member, Pod, PodMembership, Post, Yard
 
 pytestmark = pytest.mark.django_db
 User = get_user_model()
@@ -79,6 +79,31 @@ def test_member_pages_link_the_manifest_and_register_the_worker() -> None:
     assert reverse("manifest") in body  # the manifest link
     assert reverse("service_worker") in body  # the registration
     assert "serviceWorker" in body
+
+
+def test_the_digest_token_surface_is_worker_free(world_dates: None = None) -> None:
+    """#44 review MEDIUM: the /d/ digest surface shares base.html with member
+    pages but mints no session, so it must NOT plant a root-scope worker on an
+    intermittent digest recipient (the Safari eviction rule applies to every
+    token surface, not only the elder one)."""
+    import datetime
+
+    from django.utils import timezone
+
+    yard = Yard.objects.create(name="Maternal", slug="maternal")
+    pod = Pod.objects.create(name="Cousins")
+    pod.yards.set([yard])
+    member = Member.objects.create(display_name="Nana")
+    PodMembership.objects.create(member=member, pod=pod)
+    now = timezone.now()
+    issue = DigestIssue.objects.create(
+        member=member, yard=yard, window_start=now - datetime.timedelta(days=7), window_end=now
+    )
+    raw = digest_links.mint(issue)
+    body = Client().get(reverse("digest_web", args=[raw])).content.decode()
+    assert "serviceWorker" not in body
+    assert "service-worker.js" not in body
+    assert "manifest" not in body  # anonymous /d/ recipient gets no worker or manifest
 
 
 def test_the_elder_surface_never_depends_on_the_service_worker() -> None:

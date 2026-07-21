@@ -204,7 +204,11 @@ def test_refresh_does_not_silently_regenerate(world: World) -> None:
 
     # The refresh: the SAME POST body, replaying the now-spent nonce.
     replay = client.post(reverse("provision_elder", args=[world.nana.id]), {"intent": intent})
-    assert b"/t/" not in replay.content  # nothing new minted or shown
+    # No handover link input is rendered (the spent nonce minted nothing). The
+    # substring "/t/" also appears in a base-template comment, so match the link.
+    import re as _re
+
+    assert not _re.search(r'value="http[^"]*/t/', replay.content.decode())
     assert elder_tokens.resolve(raw)  # the handed-over link is still alive
     assert ElderToken.objects.filter(member=world.nana).count() == 1  # exactly one
 
