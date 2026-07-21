@@ -77,21 +77,20 @@ boxes wait only on founder inputs, not on code:
    worker container already exists as the transcode home. Everything else in
    wave 3 (photos, access-checked serving, export, the backup/restore drill) is
    built and drilled.
-3. **The batched policy defaults**, ratified on the record at the wave boundary.
-   Each has a proposed value live in the code awaiting sign-off:
-   - the 3-and-4 build overlap, taken so wave 4 could land while wave 3 waits on
-     hardware;
-   - the digest-link TTL: 21 days, long enough for an elder to open a
-     two-week-old email, short enough to cap a forwarded link's exposure;
-   - the reply-address grace: two issues plus 30 days, sized to elders replying
-     to a month-old digest;
-   - date-visibility defaults: YARD for adults, POD for supervised;
-   - a bridge household's pod-only posts in both sides' digests: yes (the pod
-     spans, the yard never fuses);
-   - top-quoting mail clients: quarantine, not recover, because fail-closed
-     never republishes the other yard's quoted section;
-   - the S-705 disclosure text to the family, in the founder's own words;
-   - digest default-on versus opt-in, and the send day and hour.
+3. **The batched policy defaults** — RATIFIED in
+   [ADR-005](adr/ADR-005-batched-defaults.md) (2026-07-21). The wave-boundary
+   knobs are now decided on the record, each unchanged from its proposed value:
+   the 3-and-4 build overlap; the digest-link TTL (21 days); the reply-address
+   grace (30 days past supersession, with voiding and generation-kill immediate
+   underneath); date-visibility (YARD for adults, POD for supervised, contact
+   fields HIDDEN); a bridge household's pod-only posts in both sides' digests
+   (yes — the pod spans, the yard never fuses); top-quoting clients (quarantine,
+   never recover); digest enrollment (opt-in with double-confirm) and timing
+   (rolling per-member weekly anchor, not a global send-time). The **only** item
+   still open is the S-705 family disclosure *wording* — drafted and
+   judge-reviewed in [the family privacy note](family-privacy-note.md), pending
+   the founder's own voice. The privacy posture it describes is already ratified
+   and enforced in code.
 
 ## Phase 3: Story loop
 
