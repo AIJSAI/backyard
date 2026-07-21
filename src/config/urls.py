@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django.urls import include, path
 
-from core import admin_views, feed_views, pod_views, views
+from core import admin_views, feed_views, pod_views, profile_views, views
 from core.breakglass import break_glass
 from core.join import join
 
@@ -35,6 +35,10 @@ urlpatterns = [
     path("pods/<int:pod_id>/house-rule/", pod_views.pod_house_rule, name="pod_house_rule"),
     path("pods/<int:pod_id>/mute/", pod_views.pod_mute, name="pod_mute"),
     path("pods/<int:pod_id>/leave/", pod_views.pod_leave, name="pod_leave"),
+    # Profiles and the family directory (S-901, S-902).
+    path("directory/", profile_views.directory, name="directory"),
+    path("directory/<int:member_id>/", profile_views.member_profile, name="member_profile"),
+    path("settings/profile/", profile_views.profile_edit, name="profile_edit"),
     path("join/<str:token>/", join, name="join"),
     # Instance-admin member management (S-701 enforced, S-703 supervised, S-702 removal).
     path("members/", admin_views.members, name="members"),

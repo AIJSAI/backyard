@@ -1,0 +1,49 @@
+{% extends "core/base.html" %}
+{% block title %}Edit my profile{% endblock %}
+{% block body %}
+  <h1>Edit my profile</h1>
+  {% if errors %}
+    <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
+  {% endif %}
+
+  <form method="post" action="{% url 'profile_edit' %}">
+    {% csrf_token %}
+
+    <label for="kinship_name">What the family calls you (Nana, Uncle Jim)</label>
+    <input id="kinship_name" type="text" name="kinship_name" value="{{ member.kinship_name }}" maxlength="50">
+
+    <fieldset>
+      <legend>Birthday (year optional; your age is never shown)</legend>
+      <input type="number" name="birthday_month" value="{{ member.birthday_month|default_if_none:'' }}" min="1" max="12" placeholder="Month">
+      <input type="number" name="birthday_day" value="{{ member.birthday_day|default_if_none:'' }}" min="1" max="31" placeholder="Day">
+      <input type="number" name="birthday_year" value="{{ member.birthday_year|default_if_none:'' }}" placeholder="Year (optional)">
+    </fieldset>
+
+    <label for="phone">Phone</label>
+    <input id="phone" type="text" name="phone" value="{{ member.phone }}" maxlength="40">
+    <select name="phone_visibility" aria-label="Who can see my phone">
+      {% for value, label in visibility_choices %}
+        <option value="{{ value }}"{% if value == member.phone_visibility %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="contact_email">Email</label>
+    <input id="contact_email" type="email" name="contact_email" value="{{ member.contact_email }}" maxlength="254">
+    <select name="contact_email_visibility" aria-label="Who can see my email">
+      {% for value, label in visibility_choices %}
+        <option value="{{ value }}"{% if value == member.contact_email_visibility %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="address">Address</label>
+    <input id="address" type="text" name="address" value="{{ member.address }}" maxlength="255">
+    <select name="address_visibility" aria-label="Who can see my address">
+      {% for value, label in visibility_choices %}
+        <option value="{{ value }}"{% if value == member.address_visibility %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <button type="submit">Save</button>
+  </form>
+  <p><a href="{% url 'directory' %}">Back to the directory</a></p>
+{% endblock %}

@@ -2,7 +2,7 @@
 {% block title %}Your backyard{% endblock %}
 {% block body %}
   <h1>Your backyard</h1>
-  <p><a href="{% url 'pod_list' %}">Your pods</a></p>
+  <p><a href="{% url 'pod_list' %}">Your pods</a> · <a href="{% url 'directory' %}">Family directory</a></p>
 
   {% if errors %}
     <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
@@ -33,7 +33,7 @@
         <li class="boundary"><span>New since your last visit is above</span></li>
       {% endif %}
       <li>
-        <span class="author">{{ item.post.author.display_name }}</span>
+        <span class="author">{{ item.post.author.display_name }}{% if item.post.author.kinship_name %} ({{ item.post.author.kinship_name }}){% endif %}</span>
         <span class="when">{{ item.post.created_at|date:"M j, g:i a" }}</span>
         {% if item.post.edited_at %}<span class="edited">(edited)</span>{% endif %}
         <p>{{ item.post.body }}</p>

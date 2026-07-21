@@ -105,6 +105,35 @@ class Member(models.Model):
     # The name the kids actually call them (Nana, Uncle Jim), shown beside the
     # legal name (S-901). Optional.
     kinship_name = models.CharField(max_length=50, blank=True)
+
+    # Profile (S-901, S-902). Birthday stores month and day; year is optional and age
+    # is never displayed anywhere. Contact fields are optional, each carrying its own
+    # per-field visibility scoped to the member's pods or yards (S-902); a member sees
+    # and changes exactly who sees each field.
+    HIDDEN = "hidden"
+    POD = "pod"
+    YARD = "yard"
+    FIELD_VISIBILITY_CHOICES = [
+        (HIDDEN, "No one"),
+        (POD, "People in my pods"),
+        (YARD, "People in my yards"),
+    ]
+    birthday_month = models.PositiveSmallIntegerField(null=True, blank=True)
+    birthday_day = models.PositiveSmallIntegerField(null=True, blank=True)
+    birthday_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    phone = models.CharField(max_length=40, blank=True)
+    phone_visibility = models.CharField(
+        max_length=8, choices=FIELD_VISIBILITY_CHOICES, default=HIDDEN
+    )
+    contact_email = models.EmailField(blank=True)
+    contact_email_visibility = models.CharField(
+        max_length=8, choices=FIELD_VISIBILITY_CHOICES, default=HIDDEN
+    )
+    address = models.CharField(max_length=255, blank=True)
+    address_visibility = models.CharField(
+        max_length=8, choices=FIELD_VISIBILITY_CHOICES, default=HIDDEN
+    )
+
     role = models.CharField(max_length=16, choices=ROLE_CHOICES, default=MEMBER)
     is_supervised = models.BooleanField(default=False)
     # The parent who manages a supervised account, and the only party who can

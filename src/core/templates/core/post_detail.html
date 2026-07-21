@@ -4,7 +4,7 @@
   <p><a href="{% url 'feed' %}">Back to the feed</a></p>
 
   <div class="post">
-    <span class="author">{{ post.author.display_name }}</span>
+    <span class="author">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %}</span>
     <span class="when">{{ post.created_at|date:"M j, g:i a" }}</span>
     {% if post.edited_at %}<span class="edited">(edited)</span>{% endif %}
     <p>{{ post.body }}</p>
@@ -33,7 +33,7 @@
   <ul class="comments">
     {% for comment in comments %}
       <li>
-        <span class="author">{{ comment.author.display_name }}</span>
+        <span class="author">{{ comment.author.display_name }}{% if comment.author.kinship_name %} ({{ comment.author.kinship_name }}){% endif %}</span>
         <span class="when">{{ comment.created_at|date:"M j, g:i a" }}</span>
         <p>{{ comment.body }}</p>
         {% if comment.author_id == member.id %}
