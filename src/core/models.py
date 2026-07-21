@@ -146,6 +146,39 @@ class PodMembership(models.Model):
         return f"{self.member} in {self.pod}"
 
 
+class Post(models.Model):
+    """A post in the feed: a short text update or link (photos land in wave 3),
+    scoped to an audience.
+
+    The audience is the poster's own pod (the narrowest default, TM-3) or one or
+    more yards the poster belongs to (S-203). A yard-scoped post lists those yards
+    in `audience_yards`; a pod-only post lists none, and reaches only the pod's
+    members (an ad-hoc pod post never leaks to the wider yard, S-204).
+
+    Isolation (TM-2, S-202): a post never reaches a member who shares neither its
+    pod (pod-only) nor one of its audience yards. That rule lives once, in the
+    audience-resolution module (core/scoping.visible_posts), which the feed, the
+    digest, and search all consume; there is no second implementation to drift.
+    Delete is a soft delete here so the feed and digest both stop showing it
+    through the same query; a hard purge of media derivatives lands with media.
+    """
+
+    author = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="posts")
+    pod = models.ForeignKey(Pod, on_delete=models.CASCADE, related_name="posts")
+    audience_yards = models.ManyToManyField(Yard, blank=True, related_name="posts")
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    edited_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["-created_at"])]
+
+    def __str__(self) -> str:
+        return f"Post by {self.author} at {self.created_at:%Y-%m-%d %H:%M}"
+
+
 class Invite(models.Model):
     """A household or member invite: a bearer credential held to the TM-5 bar.
 
