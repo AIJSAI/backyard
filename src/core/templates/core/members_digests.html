@@ -1,0 +1,24 @@
+{% extends "core/base.html" %}
+{% block title %}Digest delivery{% endblock %}
+{% block body %}
+  <h1>Digest delivery</h1>
+  <p><a href="{% url 'members' %}">Back to members</a></p>
+  <table class="digests">
+    <tr><th>Member</th><th>Address</th><th>Cadence</th><th>State</th><th>Latest deliveries</th></tr>
+    {% for row in rows %}
+      <tr>
+        <td>{{ row.subscription.member.display_name }}</td>
+        <td>{{ row.subscription.address }}</td>
+        <td>{{ row.subscription.get_cadence_display }}</td>
+        <td>
+          {% if not row.subscription.enabled %}off{% elif not row.subscription.confirmed_at %}awaiting confirmation{% else %}on{% endif %}
+        </td>
+        <td>
+          {% for d in row.deliveries %}<span class="delivery">{{ d.get_status_display }}{% if d.detail %} ({{ d.detail }}){% endif %}</span>{% empty %}<span class="muted">none yet</span>{% endfor %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" class="empty">No digest subscriptions.</td></tr>
+    {% endfor %}
+  </table>
+{% endblock %}

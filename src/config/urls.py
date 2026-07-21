@@ -4,7 +4,15 @@ from __future__ import annotations
 
 from django.urls import include, path
 
-from core import admin_views, feed_views, media_views, pod_views, profile_views, views
+from core import (
+    admin_views,
+    digesting_views,
+    feed_views,
+    media_views,
+    pod_views,
+    profile_views,
+    views,
+)
 from core.breakglass import break_glass
 from core.join import join
 
@@ -41,6 +49,17 @@ urlpatterns = [
     path("settings/profile/", profile_views.profile_edit, name="profile_edit"),
     # Member data export (S-704): a zip of your own posts, comments, and photos.
     path("settings/export/", profile_views.export_data, name="export_data"),
+    # Digest lifecycle (S-501): opt-in settings, the content-free address
+    # confirmation (T-EMAIL-6), and the two-step unsubscribe. The token routes are
+    # unauthenticated email-link surfaces; acting is always an explicit POST.
+    path("settings/digest/", digesting_views.digest_settings, name="digest_settings"),
+    path("digest/confirm/<str:token>/", digesting_views.confirm_digest, name="digest_confirm"),
+    path(
+        "digest/unsubscribe/<str:token>/",
+        digesting_views.unsubscribe_digest,
+        name="digest_unsubscribe",
+    ),
+    path("members/digests/", admin_views.digests, name="member_digests"),
     # The one access-checked path for every media byte (S-403, TM-9). The token is the
     # only URL handle; the view re-checks the owning post's audience.
     path("media/<str:token>/", media_views.serve_media, name="serve_media"),

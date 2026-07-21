@@ -1,0 +1,16 @@
+{% extends "core/base.html" %}
+{% block title %}Pause the digest{% endblock %}
+{% block body %}
+  {% if done %}
+    <h1>Digest turned off</h1>
+    <p>No more digest emails will be sent to this address. You are still a member of
+    your family's Backyard; turn the digest back on any time from your settings.</p>
+  {% else %}
+    <h1>Stop the digest emails?</h1>
+    <p>This stops the email only. It does not remove you from the family.</p>
+    <form method="post">
+      {% csrf_token %}
+      <button type="submit">Yes, stop the emails</button>
+    </form>
+  {% endif %}
+{% endblock %}
