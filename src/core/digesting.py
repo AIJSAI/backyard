@@ -59,17 +59,32 @@ _CADENCE_PERIOD = {
 
 
 def subscribe(member: Member, *, address: str, cadence: str) -> DigestSubscription:
-    """Enroll (or re-point) a member's digest and send the content-free confirmation.
+    """Enroll (or re-point) a member's digest, confirming only when it must.
 
-    Any address change resets confirmed_at: family content never follows an address
-    the holder has not acknowledged (T-EMAIL-6). Cadence falls back to weekly on an
+    An address change (or a first enrollment, or a resend to a still-unconfirmed
+    address) resets confirmed_at and sends the content-free confirmation: family
+    content never follows an address the holder has not acknowledged (T-EMAIL-6).
+    A cadence or re-enable tweak on an already-confirmed address changes nothing
+    about trust, so it keeps the confirmation and sends no email (security review
+    of #35 LOW-1: an elder switching weekly to daily must not silently pause their
+    digest behind a new confirmation link). Cadence falls back to weekly on an
     unknown value (fail to the default, never to an error page from a form race).
     """
     if cadence not in _CADENCE_PERIOD:
         cadence = DigestSubscription.WEEKLY
-    raw_confirm = secrets.token_urlsafe(32)  # 256 bits, shown once (in the email)
-    raw_unsubscribe = secrets.token_urlsafe(32)
     with transaction.atomic():
+        existing = DigestSubscription.objects.select_for_update().filter(member=member).first()
+        if existing and existing.address == address and existing.confirmed_at is not None:
+            existing.cadence = cadence
+            existing.enabled = True
+            existing.save(update_fields=["cadence", "enabled", "updated_at"])
+            return existing
+        raw_confirm = secrets.token_urlsafe(32)  # 256 bits, shown once (in the email)
+        # The raw unsubscribe value is deliberately dropped: nothing emails it at
+        # this stage. The send path rotates unsubscribe_token_digest per issue and
+        # mails that raw value inside the digest; the digest stored here only
+        # guarantees the column is never empty-matchable in the interim.
+        raw_unsubscribe = secrets.token_urlsafe(32)
         subscription, _created = DigestSubscription.objects.update_or_create(
             member=member,
             defaults={
@@ -164,7 +179,12 @@ def due_recipients(now: datetime.datetime) -> list[DueRecipient]:
         .distinct()
     )
     for subscription in subscriptions:
-        period = _CADENCE_PERIOD[subscription.cadence]
+        # Skip-not-crash on a cadence outside the dict (security review of #35
+        # LOW-2): choices are not DB-enforced, and one bad row must degrade to one
+        # member's missed digest, never a whole-batch outage.
+        period = _CADENCE_PERIOD.get(subscription.cadence)
+        if period is None:
+            continue
         newest = subscription.member.digest_issues.order_by("-window_end").first()
         confirmed_at = subscription.confirmed_at
         if confirmed_at is None:  # filtered above; plain guard narrows the type

@@ -77,6 +77,10 @@ def digests(request: HttpRequest) -> HttpResponse:
     if not permissions.is_admin(actor):
         raise PermissionDenied
     visible_ids = set(scoping.visible_members(actor).values_list("id", flat=True))
+    # Deliveries are yard-scoped too, not just member-scoped (security review of
+    # #35 MEDIUM-1): a bridge member has issues in both yards, and a yard-A admin
+    # must never see the yard-B ones' existence, timing, or failure detail.
+    actor_yard_ids = scoping.member_yard_ids(actor)
     subscriptions = (
         DigestSubscription.objects.filter(member_id__in=visible_ids)
         .select_related("member")
@@ -86,9 +90,10 @@ def digests(request: HttpRequest) -> HttpResponse:
         DigestRow(
             subscription=subscription,
             deliveries=list(
-                DigestDelivery.objects.filter(issue__member_id=subscription.member_id).order_by(
-                    "-created_at"
-                )[:5]
+                DigestDelivery.objects.filter(
+                    issue__member_id=subscription.member_id,
+                    issue__yard_id__in=actor_yard_ids,
+                ).order_by("-created_at")[:5]
             ),
         )
         for subscription in subscriptions

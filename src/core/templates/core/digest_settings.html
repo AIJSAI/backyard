@@ -8,6 +8,8 @@
   {% if sent %}
     <p class="notice">Check {{ subscription.address }} for a confirmation email. Nothing
     from the family is sent until you confirm it is your address.</p>
+  {% elif saved %}
+    <p class="notice">Saved.</p>
   {% endif %}
 
   {% if subscription %}

@@ -228,3 +228,75 @@ def test_settings_page_rejects_a_non_address(world: World) -> None:
     assert response.status_code == 200
     assert not DigestSubscription.objects.filter(member=world.nana).exists()
     assert len(mail.outbox) == 0  # nothing sent for a rejected address
+
+
+# --- folds from the #35 security review ---
+
+
+def test_delivery_rows_are_yard_scoped_for_bridge_members(world: World) -> None:
+    """Security review of #35 MEDIUM-1: a yard admin sees a bridge member's
+    deliveries for the shared yard only; the far side's existence, timing, and
+    failure detail never render."""
+    bridge_pod = Pod.objects.create(name="Bridge household")
+    bridge_pod.yards.set([world.maternal, world.paternal])
+    bridge = _member_with_user(bridge_pod, "Bridge")
+    yard_admin = _member_with_user(world.m_pod, "Yadmin", role=Member.YARD_ADMIN)
+    digesting.subscribe(bridge, address="bridge-mailbox@example.com", cadence="weekly")
+
+    t0 = timezone.now() - datetime.timedelta(days=7)
+    t1 = timezone.now()
+    near = DigestIssue.objects.create(
+        member=bridge, yard=world.maternal, window_start=t0, window_end=t1
+    )
+    far = DigestIssue.objects.create(
+        member=bridge, yard=world.paternal, window_start=t0, window_end=t1
+    )
+    from core.models import DigestDelivery
+
+    DigestDelivery.objects.create(
+        issue=near, status=DigestDelivery.HANDED_TO_RELAY, detail="maternal-marker"
+    )
+    DigestDelivery.objects.create(
+        issue=far, status=DigestDelivery.REJECTED, detail="paternal-marker"
+    )
+
+    body = _client_for(yard_admin).get(reverse("member_digests")).content.decode()
+    assert "maternal-marker" in body  # shared-yard delivery: the positive control
+    assert "paternal-marker" not in body  # far-side delivery never crosses (S-202)
+
+
+def test_settings_post_is_rate_limited(world: World) -> None:
+    """Security review of #35 MEDIUM-2: enrollment emits email to an arbitrary
+    address, so it consumes a shared-cache rate limit like the join view."""
+    client = _client_for(world.nana)
+    statuses = [
+        client.post(
+            reverse("digest_settings"),
+            {"address": f"target-{i}@example.com", "cadence": "weekly"},
+        ).status_code
+        for i in range(25)
+    ]
+    assert 429 in statuses  # the bombardment primitive dies at the limit
+    assert len(mail.outbox) < 25  # and the emails stop with it
+
+
+def test_cadence_tweak_keeps_confirmation_and_sends_no_email(world: World) -> None:
+    """Security review of #35 LOW-1: changing weekly to daily on a confirmed
+    address must not silently pause the digest behind a new confirmation."""
+    _subscribe_and_confirm(world.nana)
+    before = len(mail.outbox)
+    digesting.subscribe(world.nana, address="nana@example.com", cadence="daily")
+    subscription = DigestSubscription.objects.get(member=world.nana)
+    assert subscription.confirmed_at is not None  # confirmation kept
+    assert subscription.cadence == DigestSubscription.DAILY
+    assert len(mail.outbox) == before  # no email for a trust-neutral tweak
+
+
+def test_a_bad_cadence_row_degrades_to_one_member_not_the_batch(world: World) -> None:
+    """Security review of #35 LOW-2: choices are not DB-enforced; one bad row is
+    one member's missed digest, never a whole-batch KeyError outage."""
+    _subscribe_and_confirm(world.nana, "good-row@example.com")
+    _subscribe_and_confirm(world.admin, "bad-row@example.com")
+    DigestSubscription.objects.filter(member=world.admin).update(cadence="biweekly")
+    due = digesting.due_recipients(timezone.now() + datetime.timedelta(days=40))
+    assert {d.subscription.member.display_name for d in due} == {"Nana"}

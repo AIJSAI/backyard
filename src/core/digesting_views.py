@@ -11,6 +11,9 @@ address it does not own (T-EMAIL-6).
 
 from __future__ import annotations
 
+from typing import cast
+
+from allauth.core import ratelimit
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import render
@@ -31,6 +34,15 @@ def digest_settings(request: HttpRequest) -> HttpResponse:
             "core/digest_settings.html",
             {"member": member, "subscription": subscription, "sent": False},
         )
+    # Enrollment can emit an email to an arbitrary address, so it rides the same
+    # shared-cache rate limit as the other outbound-shaped endpoints (security
+    # review of #35 MEDIUM-2: without this, a logged-in member is an unthrottled
+    # bombardment primitive against a third party's mailbox and the instance's
+    # own sender reputation). The join view sets the precedent (join.py).
+    # reset_password is the email-emitting limit shape: per-IP plus per-key, and
+    # keying on the member caps how fast any one account can make us send.
+    if not ratelimit.consume(request, action="reset_password", key=str(member.pk)):
+        return cast(HttpResponse, ratelimit.respond_429(request))  # allauth is untyped
     address = request.POST.get("address", "").strip()[:254]
     if not address or "@" not in address:
         return render(
@@ -46,10 +58,17 @@ def digest_settings(request: HttpRequest) -> HttpResponse:
     subscription = digesting.subscribe(
         member, address=address, cadence=request.POST.get("cadence", "")
     )
+    # "sent" is honest: a cadence tweak on a confirmed address sends no email, so
+    # the page must not tell the member to go look for one.
     return render(
         request,
         "core/digest_settings.html",
-        {"member": member, "subscription": subscription, "sent": True},
+        {
+            "member": member,
+            "subscription": subscription,
+            "sent": subscription.confirmed_at is None,
+            "saved": True,
+        },
     )
 
 
