@@ -119,9 +119,24 @@ def test_export_view_returns_a_zip(world: dict[str, object]) -> None:
     assert response.status_code == 200
     assert response["Content-Type"] == "application/zip"
     assert "attachment" in response["Content-Disposition"]
-    files = _read_zip(response.content)
+    body = b"".join(response.streaming_content)  # type: ignore[attr-defined]  # FileResponse streams
+    files = _read_zip(body)
     assert "manifest.json" in files and "posts.json" in files
 
 
 def test_export_requires_login() -> None:
     assert Client().get(reverse("export_data")).status_code == 302
+
+
+def test_export_skips_a_missing_media_file(world: dict[str, object]) -> None:
+    """Security review of #32 (LOW): a media file missing from storage is skipped, so
+    the export never 500s on storage drift."""
+    author = world["author"]
+    m_pod = world["m_pod"]
+    assert isinstance(author, Member)
+    assert isinstance(m_pod, Pod)
+    post = Post.objects.create(author=author, pod=m_pod, body="post with a lost photo")
+    asset = media.ingest_photo(post=post, raw=_jpeg())
+    asset.image.storage.delete(asset.image.name)  # remove the file, leave the DB row
+    files = _read_zip(export.build_member_export(author))  # must not raise
+    assert json.loads(files["media.json"]) == []  # the missing file was skipped

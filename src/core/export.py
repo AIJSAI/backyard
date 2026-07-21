@@ -5,6 +5,10 @@ and the photos on their posts, in a documented JSON format. The export is strict
 member's own authored content, never anyone else's: it reads their reverse relations
 (member.posts, member.comments) directly, not the audience query, so it can only ever
 contain what they wrote. It is available from the first release and never gated.
+
+The archive is written into a caller-provided file so the view can spill it to disk
+and stream it, keeping peak memory to about one image plus the zip buffers rather than
+the whole archive at once (security review of #32).
 """
 
 from __future__ import annotations
@@ -12,6 +16,7 @@ from __future__ import annotations
 import io
 import json
 import zipfile
+from typing import IO
 
 from django.utils import timezone
 
@@ -20,11 +25,12 @@ from .models import Member
 EXPORT_FORMAT = "backyard-member-export/1"
 
 
-def build_member_export(member: Member) -> bytes:
-    """Return a zip of the member's own posts, comments, and media as bytes.
+def write_member_export(member: Member, destination: IO[bytes]) -> None:
+    """Write the member's own posts, comments, and media as a zip into `destination`.
 
     Layout: manifest.json, posts.json, comments.json, media.json, and media/<token>.jpg
-    for each photo. Only the member's authored, non-deleted content is included.
+    for each photo. Only the member's authored, non-deleted content is included. A media
+    file that is missing from storage is skipped rather than failing the whole export.
     """
     posts = list(
         member.posts.filter(deleted_at__isnull=True)
@@ -33,8 +39,7 @@ def build_member_export(member: Member) -> bytes:
     )
     comments = list(member.comments.filter(deleted_at__isnull=True))
 
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+    with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(
             "manifest.json",
             json.dumps(
@@ -89,9 +94,20 @@ def build_member_export(member: Member) -> bytes:
                 if asset.deleted_at is not None:
                     continue
                 arcname = f"media/{asset.token}.jpg"
-                archive.writestr(arcname, asset.image.read())
+                try:
+                    with asset.image.open("rb") as handle:
+                        archive.writestr(arcname, handle.read())
+                except FileNotFoundError:
+                    continue  # a missing file is skipped, never a 500 (review of #32 LOW)
                 media_index.append(
                     {"post_id": post.id, "file": arcname, "alt_text": asset.alt_text}
                 )
         archive.writestr("media.json", json.dumps(media_index, indent=2))
+
+
+def build_member_export(member: Member) -> bytes:
+    """The export as bytes. Convenience for callers that want the whole archive in
+    memory (tests); the view streams from a temp file instead."""
+    buffer = io.BytesIO()
+    write_member_export(member, buffer)
     return buffer.getvalue()
