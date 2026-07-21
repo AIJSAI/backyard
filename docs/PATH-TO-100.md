@@ -52,6 +52,47 @@ The single canonical checklist for Backyard v1.0. Rules:
 - [x] Wave 5 (PWA + elder path) closed: full gate + live repro receipt; RAM footprint measured (four containers, ~294 MiB); full revocation drill (six credential classes, live) evidence: docs/receipts/2026-07-21-wave-5-close.md
 - [ ] Every wave closes on the full verification gate plus a live repro, never subset tests
 
+### What is left, and who unblocks it
+
+Waves 1, 2, and 5 are closed and tested. Wave 3 and wave 4 are built. Wave 3
+and the digest render and inbound-parse paths are proven live on the compose
+stack; real email delivery is not proven, because no provider is wired yet (see
+below). Their stories sit at `built`, not `tested`. The ADR-002 gates are
+measurements that need resources only the founder can provide, and this project
+never flips a story to `tested` on an unmeasured gate (rule 3). The remaining
+boxes wait only on founder inputs, not on code:
+
+1. **Email provider, sending domain, inbound mailbox** (closes wave 4). Pick the
+   transport (Postmark, Mailgun, SES, self-hosted Postal, or bare SMTP through
+   the family mailbox), set SPF/DKIM/aligned-DMARC on the sending domain, and
+   stand up one dedicated instance-only inbound mailbox. This is zero repo code
+   but real ops: the email substrate ships behind a provider-agnostic seam, so
+   Anymail is one settings change behind it. Then measure the ADR-002
+   delivery-and-bounce matrix for that provider, run the live mailbox
+   round-trip, and wave 4's stories flip to `tested`. Recommended: Postmark, for
+   clean bounce webhooks at family scale.
+2. **Target hardware for the video gate** (closes wave 3, with S-402). The one
+   remaining wave-3 story is S-402 (video); its acceptance is transcode latency
+   measured on the real N100-class box, not the dev machine. The Procrastinate
+   worker container already exists as the transcode home. Everything else in
+   wave 3 (photos, access-checked serving, export, the backup/restore drill) is
+   built and drilled.
+3. **The batched policy defaults**, ratified on the record at the wave boundary.
+   Each has a proposed value live in the code awaiting sign-off:
+   - the 3-and-4 build overlap, taken so wave 4 could land while wave 3 waits on
+     hardware;
+   - the digest-link TTL: 21 days, long enough for an elder to open a
+     two-week-old email, short enough to cap a forwarded link's exposure;
+   - the reply-address grace: two issues plus 30 days, sized to elders replying
+     to a month-old digest;
+   - date-visibility defaults: YARD for adults, POD for supervised;
+   - a bridge household's pod-only posts in both sides' digests: yes (the pod
+     spans, the yard never fuses);
+   - top-quoting mail clients: quarantine, not recover, because fail-closed
+     never republishes the other yard's quoted section;
+   - the S-705 disclosure text to the family, in the founder's own words;
+   - digest default-on versus opt-in, and the send day and hour.
+
 ## Phase 3: Story loop
 
 - [ ] Every v1 story tested against the live app with receipts; loop until 100% passing
