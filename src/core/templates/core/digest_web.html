@@ -1,0 +1,15 @@
+{% extends "core/base.html" %}
+{% block title %}Your family digest{% endblock %}
+{% block body %}
+  <h1>{{ issue.yard.name }}: your family digest</h1>
+  <p class="muted">What your family shared, {{ issue.window_start|date }} to {{ issue.window_end|date }}.</p>
+  {% for post in posts %}
+    <article class="post">
+      <p class="byline">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %} · {{ post.created_at|date }}</p>
+      <p>{{ post.body }}</p>
+      <p><a href="{% url 'digest_web_post' token post.id %}">See replies</a></p>
+    </article>
+  {% empty %}
+    <p class="empty">A quiet stretch; nothing new this time.</p>
+  {% endfor %}
+{% endblock %}

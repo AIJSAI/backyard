@@ -1,0 +1,16 @@
+{% extends "core/base.html" %}
+{% block title %}From your family digest{% endblock %}
+{% block body %}
+  <p><a href="{% url 'digest_web' token %}">Back to your digest</a></p>
+  <article class="post">
+    <p class="byline">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %} · {{ post.created_at|date }}</p>
+    <p>{{ post.body }}</p>
+  </article>
+  <section class="comments">
+    {% for comment in comments %}
+      <p><strong>{{ comment.author.display_name }}</strong>: {{ comment.body }}</p>
+    {% empty %}
+      <p class="empty">No replies yet.</p>
+    {% endfor %}
+  </section>
+{% endblock %}

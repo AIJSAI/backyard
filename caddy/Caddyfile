@@ -9,6 +9,10 @@
 #       header Referrer-Policy no-referrer
 #       header X-Content-Type-Options nosniff
 #   }
+#
+# Do NOT add a `log` directive here: request lines carry bearer tokens in their
+# paths (/d/, /join/, /media/, /digest/*, /break-glass/ — threat model
+# TS-EDGE-LOG). If you need edge access logs, redact those paths first.
 
 {
 	admin off

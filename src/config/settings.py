@@ -83,6 +83,9 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",  # required by allauth
+    # TM-5: every response under a token-bearing path prefix carries the
+    # no-store/no-referrer/noindex set, including guard 404s (#36 LOW-2).
+    "core.middleware.TokenSurfaceHeadersMiddleware",
 ]
 
 AUTHENTICATION_BACKENDS = [
@@ -230,6 +233,34 @@ validate_email_transport(
     use_ssl=EMAIL_USE_SSL,
     default_from=DEFAULT_FROM_EMAIL,
 )
+
+# Request logs would otherwise contain capability URLs: django.request logs the
+# path of every 404, and /d/'s expired/mistyped links GUARANTEE token-bearing
+# paths in the log stream (TS-EDGE-LOG). The filter rewrites them before emit;
+# it ships in the same change as the first token-bearing route on purpose.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {"redact_capability_paths": {"()": "config.log_redaction.RedactCapabilityPaths"}},
+    "handlers": {
+        "console_redacted": {
+            "class": "logging.StreamHandler",
+            "filters": ["redact_capability_paths"],
+        }
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console_redacted"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "django.security": {
+            "handlers": ["console_redacted"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+    },
+}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

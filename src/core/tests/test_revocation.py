@@ -156,6 +156,7 @@ def test_registry_is_the_only_shape(household: dict[str, object]) -> None:
         revocation._revoke_sessions,
         revocation._void_invites,
         revocation._cancel_digest_subscription,  # wave 4: the digest joins the registry
+        revocation._void_digest_tokens,  # wave 4: per-digest read links, row-level belt
     )
     member = household["member"]
     assert isinstance(member, Member)
