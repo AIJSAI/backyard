@@ -1,0 +1,24 @@
+{% extends "core/base.html" %}
+{% block title %}Family directory{% endblock %}
+{% block body %}
+  <h1>Family directory</h1>
+  <p><a href="{% url 'feed' %}">Back to the feed</a> · <a href="{% url 'profile_edit' %}">Edit my profile</a></p>
+
+  <form method="get" action="{% url 'directory' %}">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search by name">
+    <button type="submit">Search</button>
+  </form>
+
+  <ul class="directory">
+    {% for profile in profiles %}
+      <li>
+        <a href="{% url 'member_profile' profile.member_id %}">{{ profile.display_name }}</a>
+        {% if profile.kinship_name %}<span class="kinship">({{ profile.kinship_name }})</span>{% endif %}
+        {% if profile.birthday %}<span class="birthday">Birthday: {{ profile.birthday }}</span>{% endif %}
+        {% for c in profile.contacts %}<span class="contact">{{ c.label }}: {{ c.value }}</span>{% endfor %}
+      </li>
+    {% empty %}
+      <li class="empty">No one to show.</li>
+    {% endfor %}
+  </ul>
+{% endblock %}
