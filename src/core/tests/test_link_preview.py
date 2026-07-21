@@ -15,7 +15,7 @@ import socket
 import pytest
 
 from core import link_preview
-from core.models import Member, Pod, PodMembership, Post, Yard
+from core.models import LinkPreview, Member, Pod, PodMembership, Post, Yard
 
 # --- IP range validation (the SSRF core) ---
 
@@ -36,6 +36,11 @@ from core.models import Member, Pod, PodMembership, Post, Yard
         "::ffff:127.0.0.1",  # IPv4-mapped loopback
         "::ffff:10.0.0.1",  # IPv4-mapped private
         "ff02::1",  # IPv6 multicast
+        "64:ff9b::a9fe:a9fe",  # NAT64 well-known -> 169.254.169.254 (metadata, HIGH-2)
+        "64:ff9b::0a00:0001",  # NAT64 well-known -> 10.0.0.1
+        "::a00:1",  # IPv4-compatible -> 10.0.0.1
+        "::ffff:0:a00:1",  # SIIT embedded -> 10.0.0.1
+        "2002:0a00:0001::",  # 6to4 embedding 10.0.0.1
     ],
 )
 def test_check_ip_blocks_non_global(addr: str) -> None:
@@ -62,7 +67,7 @@ def test_resolve_and_pin_rejects_when_any_address_is_internal(
 def test_fetch_once_blocks_a_direct_internal_literal() -> None:
     # No network: getaddrinfo of a literal IP returns it, and _check_ip rejects it.
     with pytest.raises(link_preview.PreviewUnavailable):
-        link_preview._fetch_once("http://127.0.0.1/")
+        link_preview._fetch_once("http://127.0.0.1/", float("inf"))
 
 
 def test_fetch_preview_returns_none_for_an_internal_target() -> None:
@@ -105,7 +110,7 @@ def test_redirect_is_followed_but_revalidated_each_hop(monkeypatch: pytest.Monke
     function) on the target, so a 302 to an internal address is rejected there."""
     calls: list[str] = []
 
-    def fake_fetch_once(url: str) -> tuple[int, str | None, bytes]:
+    def fake_fetch_once(url: str, deadline: float = 0.0) -> tuple[int, str | None, bytes]:
         calls.append(url)
         if len(calls) == 1:
             return (302, "http://10.0.0.1/meta", b"")
@@ -117,7 +122,7 @@ def test_redirect_is_followed_but_revalidated_each_hop(monkeypatch: pytest.Monke
 
 
 def test_too_many_redirects_gives_up(monkeypatch: pytest.MonkeyPatch) -> None:
-    def always_redirect(url: str) -> tuple[int, str | None, bytes]:
+    def always_redirect(url: str, deadline: float = 0.0) -> tuple[int, str | None, bytes]:
         return (302, "https://example.com/next", b"")
 
     monkeypatch.setattr(link_preview, "_fetch_once", always_redirect)
@@ -228,6 +233,39 @@ def test_attach_degrades_to_a_bare_link_when_fetch_fails(
     assert preview is not None
     assert preview.title == ""
     assert preview.url == "http://x.com/a?id=5"  # still stored, still cleaned
+
+
+@pytest.mark.django_db
+def test_attach_caps_an_overlong_og_image_without_error(
+    a_post: Post, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """HIGH-1 second trigger: an attacker-controlled 3000-char og:image must not
+    overflow the url column and 500 the post; it is capped, and the card still saves."""
+    giant_image = "https://cdn.example/" + "a" * 3000
+    monkeypatch.setattr(
+        link_preview,
+        "fetch_preview",
+        lambda url: link_preview.Preview(url=url, title="T", description="", image_url=giant_image),
+    )
+    preview = link_preview.attach_to_post(a_post)
+    assert preview is not None
+    assert len(preview.image_url) == 2000
+
+
+@pytest.mark.django_db
+def test_attach_skips_an_overlong_url_without_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A URL longer than the LinkPreview.url column gets no card rather than raising a
+    DataError that would 500 the compose POST."""
+    yard = Yard.objects.create(name="Y", slug="y")
+    pod = Pod.objects.create(name="P")
+    pod.yards.set([yard])
+    author = Member.objects.create(display_name="A")
+    PodMembership.objects.create(member=author, pod=pod)
+    giant = "https://x.com/" + "a" * 3000
+    post = Post.objects.create(author=author, pod=pod, body=f"look {giant}")
+    monkeypatch.setattr(link_preview, "fetch_preview", lambda url: None)
+    assert link_preview.attach_to_post(post) is None
+    assert not LinkPreview.objects.filter(post=post).exists()
 
 
 @pytest.mark.django_db

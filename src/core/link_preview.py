@@ -34,6 +34,7 @@ import ipaddress
 import re
 import socket
 import ssl
+import time
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from typing import TYPE_CHECKING
@@ -42,13 +43,20 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 if TYPE_CHECKING:
     from .models import LinkPreview, Post
 
-_TIMEOUT = 3.0  # seconds, per connect and per read; a slow host must not hold a worker
+_TIMEOUT = 3.0  # seconds, per connect and per recv
+_TOTAL_BUDGET = 8.0  # seconds, whole fetch across all hops; the per-recv timeout
+# resets on every chunk, so a slow trickle needs a wall-clock ceiling too (HIGH-3)
 _MAX_BYTES = 512 * 1024  # only the head matters; cap the whole read anyway
 _MAX_REDIRECTS = 3
 _ALLOWED_SCHEMES = {"http", "https"}
 _ALLOWED_PORTS = {80, 443}
 _TITLE_MAX = 300
 _DESC_MAX = 600
+# The LinkPreview.url / image_url columns are URLField(max_length=2000). A post body
+# can hold a URL longer than that, and Model.objects.create does not truncate, so an
+# over-long URL would raise a DataError and 500 the compose POST. Guard it here: a
+# pathological URL simply gets no card.
+_MAX_URL_LEN = 2000
 _USER_AGENT = "BackyardLinkPreview/1.0 (+self-hosted family network)"
 
 # Tracking parameters stripped from stored URLs (S-301). Prefix match on "utm_"
@@ -106,14 +114,53 @@ def strip_tracking_params(url: str) -> str:
     return urlunsplit(parts._replace(query="&".join(kept)))
 
 
+# IPv6 prefixes that embed an IPv4 address in their low 32 bits. On Python 3.13
+# ip.is_global returns True for NAT64 (64:ff9b::/96) and the IPv4-compatible/SIIT
+# forms even when the embedded IPv4 is internal, so an attacker who controls DNS can
+# publish an AAAA of 64:ff9b::<metadata-v4> and, on a NAT64 network, reach the cloud
+# metadata endpoint (security review HIGH-2). Decode the embedded v4 and re-check it.
+_V4_EMBEDDING_PREFIXES = (
+    ipaddress.IPv6Network("::/96"),  # IPv4-compatible (deprecated)
+    ipaddress.IPv6Network("::ffff:0:0/96"),  # IPv4-mapped (also via .ipv4_mapped)
+    ipaddress.IPv6Network("::ffff:0:0:0/96"),  # SIIT ::ffff:0:<v4>
+    ipaddress.IPv6Network("64:ff9b::/96"),  # NAT64 well-known prefix
+    ipaddress.IPv6Network("64:ff9b:1::/48"),  # NAT64 local-use prefix
+)
+
+
+def _embedded_ipv4(ip: ipaddress.IPv6Address) -> ipaddress.IPv4Address | None:
+    """The IPv4 an IPv6 address embeds (mapped, 6to4, NAT64, IPv4-compatible/SIIT),
+    or None. These forms can route to an internal IPv4 while ip.is_global is True."""
+    if ip.ipv4_mapped is not None:
+        return ip.ipv4_mapped
+    if ip.sixtofour is not None:
+        return ip.sixtofour
+    for net in _V4_EMBEDDING_PREFIXES:
+        if ip in net:
+            return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    return None
+
+
 def _check_ip(raw: str) -> None:
     """Raise PreviewUnavailable unless the address is a globally routable unicast
-    address. Non-global (private, loopback, link-local, reserved, CGNAT,
-    unspecified) and multicast are rejected, including IPv4-mapped IPv6 forms."""
-    ip = ipaddress.ip_address(raw)
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
-        ip = ip.ipv4_mapped
-    if ip.is_multicast or not ip.is_global:
+    address. Rejects every non-global category (private, loopback, link-local,
+    reserved, CGNAT, unspecified, multicast) and, for IPv6, decodes any embedded
+    IPv4 (mapped, 6to4, NAT64, IPv4-compatible) and re-checks it, so an IPv6 form
+    that routes to an internal IPv4 cannot slip past is_global (HIGH-2)."""
+    ip: ipaddress.IPv4Address | ipaddress.IPv6Address = ipaddress.ip_address(raw)
+    if isinstance(ip, ipaddress.IPv6Address):
+        embedded = _embedded_ipv4(ip)
+        if embedded is not None:
+            ip = embedded
+    if (
+        ip.is_multicast
+        or ip.is_unspecified
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_private
+        or not ip.is_global
+    ):
         raise PreviewUnavailable(f"blocked address {raw}")
 
 
@@ -183,9 +230,28 @@ def _validate_url(url: str) -> tuple[str, str, int, str]:
     return parts.scheme, host, port, path
 
 
-def _fetch_once(url: str) -> tuple[int, str | None, bytes]:
+def _read_capped(resp: http.client.HTTPResponse, deadline: float) -> bytes:
+    """Read at most _MAX_BYTES, giving up if the total deadline passes. The socket
+    timeout bounds each recv but resets on every chunk, so a slow trickle needs this
+    wall-clock ceiling (security review HIGH-3)."""
+    chunks: list[bytes] = []
+    total = 0
+    while total < _MAX_BYTES:
+        if time.monotonic() > deadline:
+            raise PreviewUnavailable("read deadline exceeded")
+        chunk = resp.read(min(65536, _MAX_BYTES - total))
+        if not chunk:
+            break
+        chunks.append(chunk)
+        total += len(chunk)
+    return b"".join(chunks)
+
+
+def _fetch_once(url: str, deadline: float) -> tuple[int, str | None, bytes]:
     """One validated, IP-pinned, non-redirecting GET. Returns (status, location,
     body). Body is empty unless the response is 2xx text/html within the size cap."""
+    if time.monotonic() > deadline:
+        raise PreviewUnavailable("deadline exceeded")
     scheme, host, port, path = _validate_url(url)
     pinned_ip = _resolve_and_pin(host, port)
 
@@ -212,7 +278,7 @@ def _fetch_once(url: str) -> tuple[int, str | None, bytes]:
         content_type = (resp.getheader("Content-Type") or "").split(";", 1)[0].strip().lower()
         if content_type != "text/html":
             raise PreviewUnavailable(f"content type {content_type!r} not html")
-        body = resp.read(_MAX_BYTES)
+        body = _read_capped(resp, deadline)
         return status, None, body
     except (OSError, http.client.HTTPException, ssl.SSLError) as exc:
         raise PreviewUnavailable(str(exc)) from exc
@@ -225,9 +291,12 @@ def fetch_preview(url: str) -> Preview | None:
     failure (graceful fallback). Follows up to a few redirects, re-validating every
     hop from scratch so no hop can reach an internal address."""
     current = url
+    deadline = time.monotonic() + _TOTAL_BUDGET
     try:
         for _hop in range(_MAX_REDIRECTS + 1):
-            status, location, body = _fetch_once(current)
+            if time.monotonic() > deadline:
+                return None
+            status, location, body = _fetch_once(current, deadline)
             if status >= 300:
                 if not location:
                     return None
@@ -323,11 +392,14 @@ def attach_to_post(post: Post) -> LinkPreview | None:
     if not raw:
         return None
     clean = strip_tracking_params(raw)
+    if len(clean) > _MAX_URL_LEN:
+        return None  # a URL past the column width gets no card, never a 500
     preview = fetch_preview(clean)
     return LinkPreview.objects.create(
         post=post,
         url=clean,
         title=preview.title if preview else "",
         description=preview.description if preview else "",
-        image_url=preview.image_url if preview else "",
+        # og:image is captured for wave 3 only; cap it to the column width defensively.
+        image_url=(preview.image_url[:_MAX_URL_LEN] if preview else ""),
     )

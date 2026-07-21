@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
@@ -107,10 +108,16 @@ def _render_feed(
     )
 
 
+@transaction.non_atomic_requests
 @login_required
 def compose(request: HttpRequest) -> HttpResponse:
     """Create a post. POST only. Enforces TM-3 confirm-on-widen and, through the
-    posting service, the audience-integrity invariant."""
+    posting service, the audience-integrity invariant.
+
+    Marked non-atomic (the project sets ATOMIC_REQUESTS) so the best-effort link
+    fetch in attach_to_post does not run inside an open request transaction holding a
+    DB connection (security review HIGH-3). create_post wraps its own writes in an
+    explicit transaction, so post creation stays atomic on its own."""
     member = _acting_member(request)
     if request.method != "POST":
         raise Http404
