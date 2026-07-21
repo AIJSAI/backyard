@@ -466,7 +466,7 @@ epics:
           - "Member export produces a zip of their posts, comments, and media with a documented JSON format"
           - "Instance export covers everything; a documented restore path exists and is exercised"
           - "Export is available from v0.1 onward, never gated"
-        status: spec
+        status: built  # instance export (pg_dump + media archive) + member export #32; restore drill exercised live (canary round-trip); held at built until wave-3 close
         v1: true
       - id: S-705
         epic: E7
@@ -586,7 +586,7 @@ epics:
         acceptance:
           - "Single backup command captures database and media"
           - "Restore drill documented and exercised before each release"
-        status: spec
+        status: built  # one-command backup (db + media) + restore, drill exercised live on the compose stack; held at built until wave-3 close
         v1: true
         security:
           threat_refs:
