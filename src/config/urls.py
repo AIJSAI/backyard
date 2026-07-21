@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django.urls import include, path
 
-from core import admin_views, feed_views, views
+from core import admin_views, feed_views, pod_views, views
 from core.breakglass import break_glass
 from core.join import join
 
@@ -28,6 +28,13 @@ urlpatterns = [
     # single reply opt-in, off by default.
     path("posts/<int:post_id>/react/", feed_views.react, name="react"),
     path("settings/notifications/", feed_views.notification_settings, name="notification_settings"),
+    # Ad-hoc pods and quiet exits (S-204, S-205).
+    path("pods/", pod_views.pod_list, name="pod_list"),
+    path("pods/create/", pod_views.pod_create, name="pod_create"),
+    path("pods/<int:pod_id>/add-member/", pod_views.pod_add_member, name="pod_add_member"),
+    path("pods/<int:pod_id>/house-rule/", pod_views.pod_house_rule, name="pod_house_rule"),
+    path("pods/<int:pod_id>/mute/", pod_views.pod_mute, name="pod_mute"),
+    path("pods/<int:pod_id>/leave/", pod_views.pod_leave, name="pod_leave"),
     path("join/<str:token>/", join, name="join"),
     # Instance-admin member management (S-701 enforced, S-703 supervised, S-702 removal).
     path("members/", admin_views.members, name="members"),

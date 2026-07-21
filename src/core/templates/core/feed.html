@@ -2,6 +2,7 @@
 {% block title %}Your backyard{% endblock %}
 {% block body %}
   <h1>Your backyard</h1>
+  <p><a href="{% url 'pod_list' %}">Your pods</a></p>
 
   {% if errors %}
     <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
