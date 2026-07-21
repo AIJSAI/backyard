@@ -18,13 +18,19 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
-from . import posting, scoping
+from . import commenting, posting, scoping
 from .models import Member, Post
 
 # A family text post, not an essay. Bounds the stored size of a single post so a
 # crafted request cannot park megabytes of text behind the composer (the wider
 # ceiling is Django's DATA_UPLOAD_MAX_MEMORY_SIZE; this is the friendly limit).
 _MAX_BODY = 5000
+# A reply is shorter still.
+_MAX_COMMENT = 2000
+# Cap the rendered thread so a pathological number of replies cannot inflate every
+# co-viewer's page (security review LOW-1). A real family thread never approaches
+# this; if one ever did, the newest replies within the cap still render.
+_MAX_THREAD = 500
 
 
 @dataclass
@@ -212,3 +218,65 @@ def _int_ids(values: list[str]) -> list[int]:
         except (TypeError, ValueError):
             continue
     return out
+
+
+@login_required
+def post_detail(request: HttpRequest, post_id: int) -> HttpResponse:
+    """A post and its replies (S-202: the post resolves through the guard, so a post
+    the member cannot see is a byte-identical 404). Comments are scoped by the same
+    query, so only replies on a visible post render."""
+    member = _acting_member(request)
+    post = scoping.require_visible_post(member, post_id)
+    return _render_post_detail(request, member, post)
+
+
+def _render_post_detail(
+    request: HttpRequest, member: Member, post: Post, errors: list[str] | None = None
+) -> HttpResponse:
+    comments = (
+        scoping.visible_comments(member).filter(post=post).select_related("author")[:_MAX_THREAD]
+    )
+    return render(
+        request,
+        "core/post_detail.html",
+        {"member": member, "post": post, "comments": comments, "errors": errors or []},
+    )
+
+
+@login_required
+def add_comment(request: HttpRequest, post_id: int) -> HttpResponse:
+    """Reply to a post the member can see (S-502 substrate). POST only. The post is
+    resolved through the guard first, so a reply to a post outside the member's
+    audience is a 404, and the service re-checks visibility as defense in depth."""
+    member = _acting_member(request)
+    post = scoping.require_visible_post(member, post_id)
+    if request.method != "POST":
+        raise Http404
+
+    body = request.POST.get("body", "").strip()
+    errors: list[str] = []
+    if not body:
+        errors.append("Write a reply.")
+    elif len(body) > _MAX_COMMENT:
+        errors.append(f"That reply is a little long. Keep it under {_MAX_COMMENT} characters.")
+    if errors:
+        return _render_post_detail(request, member, post, errors)
+
+    commenting.create_comment(author=member, post=post, body=body)
+    return redirect("post_detail", post_id=post.id)
+
+
+@login_required
+def delete_comment(request: HttpRequest, comment_id: int) -> HttpResponse:
+    """Delete one's own comment (author-only, soft). POST only. Resolved through the
+    guard, so a comment the member cannot see is a 404 and one they can see but did
+    not write is a 403."""
+    member = _acting_member(request)
+    if request.method != "POST":
+        raise Http404  # POST-only; a GET never reaches the guard, so GET is a uniform 404
+    comment = scoping.require_visible_comment(member, comment_id)
+    if comment.author_id != member.id:
+        raise PermissionDenied
+    post_id = comment.post_id
+    commenting.delete_comment(actor=member, comment=comment)
+    return redirect("post_detail", post_id=post_id)

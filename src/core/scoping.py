@@ -29,7 +29,7 @@ from django.db import models
 from django.db.models import Q
 from django.http import Http404
 
-from .models import Member, Pod, Post, Yard
+from .models import Comment, Member, Pod, Post, Yard
 
 
 def member_yard_ids(member: Member) -> set[int]:
@@ -76,6 +76,22 @@ def visible_posts(member: Member) -> models.QuerySet[Post]:
 def require_visible_post(member: Member, post_id: int) -> Post:
     """Return the post if the member may see it, else a byte-identical 404 (S-202)."""
     return _require(visible_posts(member), post_id)
+
+
+def visible_comments(member: Member) -> models.QuerySet[Comment]:
+    """Every comment a member may see: the non-deleted comments on posts they can
+    see. A comment has no audience of its own; it inherits its post's audience
+    through visible_posts, so it never routes around the one query (TM-2) and a
+    comment on a yard the member is not in, or on a deleted post, never reaches
+    them."""
+    return Comment.objects.filter(
+        post__in=visible_posts(member), deleted_at__isnull=True
+    ).distinct()
+
+
+def require_visible_comment(member: Member, comment_id: int) -> Comment:
+    """Return the comment if the member may see its post, else a byte-identical 404."""
+    return _require(visible_comments(member), comment_id)
 
 
 def visible_pods_of(viewer: Member, target: Member) -> models.QuerySet[Pod]:

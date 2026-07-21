@@ -192,6 +192,34 @@ class Post(models.Model):
         return f"Post by {self.author} at {self.created_at:%Y-%m-%d %H:%M}"
 
 
+class Comment(models.Model):
+    """A reply under a post (born in wave 2 alongside posts, ahead of its
+    email-reply ingress in wave 4, S-502).
+
+    A comment has no audience of its own: it is visible to exactly the audience of
+    its post, so it inherits the post's scope through the single audience query
+    (scoping.visible_comments filters on scoping.visible_posts). There is no second
+    audience path to drift (TM-2). Anyone who can see the post may comment; delete
+    is author-only and soft, mirroring the post lifecycle. Deleting or narrowing a
+    post takes its comments with it, because they resolve through the post.
+    """
+
+    author = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="comments")
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="comments")
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    edited_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        # Oldest first: a comment thread reads top to bottom under its post.
+        ordering = ["created_at"]
+        indexes = [models.Index(fields=["post", "created_at"])]
+
+    def __str__(self) -> str:
+        return f"Comment by {self.author} on post {self.post_id}"
+
+
 class Invite(models.Model):
     """A household or member invite: a bearer credential held to the TM-5 bar.
 
