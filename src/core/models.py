@@ -130,6 +130,19 @@ class Member(models.Model):
     birthday_month = models.PositiveSmallIntegerField(null=True, blank=True)
     birthday_day = models.PositiveSmallIntegerField(null=True, blank=True)
     birthday_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    # Dates are per-field visible like contact data, never auto-broadcast (S-903,
+    # T-MINOR-6). Ordinary members default to YARD, the documented decision
+    # (threat model design tension 6) that matches the directory's original reach;
+    # supervised members are narrowed to POD at creation and by migration 0013.
+    birthday_visibility = models.CharField(
+        max_length=8, choices=FIELD_VISIBILITY_CHOICES, default=YARD
+    )
+    anniversary_month = models.PositiveSmallIntegerField(null=True, blank=True)
+    anniversary_day = models.PositiveSmallIntegerField(null=True, blank=True)
+    anniversary_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    anniversary_visibility = models.CharField(
+        max_length=8, choices=FIELD_VISIBILITY_CHOICES, default=YARD
+    )
     phone = models.CharField(max_length=40, blank=True)
     phone_visibility = models.CharField(
         max_length=8, choices=FIELD_VISIBILITY_CHOICES, default=HIDDEN
