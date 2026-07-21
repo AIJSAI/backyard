@@ -34,7 +34,7 @@ epics:
           - "Account needs only a name plus one auth method (passkey preferred, password fallback); email optional"
           - "Completing signup lands directly in the pod feed"
           - "Flow verified on iOS Safari and Android Chrome"
-        status: spec
+        status: built
         v1: true
         security:
           threat_refs:
@@ -108,7 +108,7 @@ epics:
           - "Household invite creates the pod with a name in one flow"
           - "Invitees land already inside their pod and yard"
           - "No invitee ever sees a create-a-community screen"
-        status: spec
+        status: built
         v1: true
         security:
           threat_refs:
@@ -127,7 +127,7 @@ epics:
           - "Cross-yard requests return 404, not 403, so nothing leaks existence"
           - "Isolation enforced server-side with automated tests covering feed, members, media, and search"
           - "A pod in both yards sees both; its members' single account switches context cleanly"
-        status: spec
+        status: built
         v1: true
         security:
           threat_refs:
@@ -403,7 +403,7 @@ epics:
         acceptance:
           - "Roles limited to instance admin, yard admin, pod owner, member, supervised member"
           - "Permission matrix documented in docs and enforced server-side with tests"
-        status: spec
+        status: built
         v1: true
         security:
           threat_refs:
@@ -422,7 +422,7 @@ epics:
         acceptance:
           - "Removal revokes sessions and token links immediately"
           - "Admin explicitly chooses: keep content attributed, anonymize, or delete"
-        status: spec
+        status: tested
         v1: true
         security:
           threat_refs:
@@ -443,7 +443,7 @@ epics:
         acceptance:
           - "Supervised accounts need no email; credentials are parent-managed"
           - "Supervised members are visibly flagged to admins"
-        status: spec
+        status: built
         v1: true
         security:
           threat_refs:
@@ -562,7 +562,7 @@ epics:
           - "docker compose up with documented defaults yields a working instance"
           - "First-run wizard creates the admin, the first yard, and the first pod with no config-file editing"
           - "Clean-machine run documented with timings as the release evidence"
-        status: spec
+        status: tested
         v1: true
         security:
           threat_refs:
@@ -602,7 +602,7 @@ epics:
         acceptance:
           - "Migrations run automatically on upgrade with a pre-flight backup prompt"
           - "An archive-compatibility test upgrades a seeded old-version database in CI from v0.1 onward"
-        status: spec
+        status: tested
         v1: true
       - id: S-804
         epic: E8
@@ -629,7 +629,7 @@ epics:
           - break-glass admin recovery is a one-time console command that prints a short-lived reset URL (the same trust anchor as the first-run setup secret), never a web flow
           - no email or web 'recover admin' path exists
           - deploy docs recommend configuring a second instance admin
-        status: spec
+        status: tested
         v1: true
         security:
           threat_refs:
