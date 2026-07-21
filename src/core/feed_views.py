@@ -19,8 +19,8 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
-from . import commenting, link_preview, notifications, posting, reacting, scoping
-from .models import Member, Post, Reaction
+from . import commenting, link_preview, notifications, pods, posting, reacting, scoping
+from .models import Member, Pod, Post, Reaction
 
 # A family text post, not an essay. Bounds the stored size of a single post so a
 # crafted request cannot park megabytes of text behind the composer (the wider
@@ -79,6 +79,13 @@ def _render_feed(
     if advance_seen:
         Member.objects.filter(pk=member.pk).update(feed_last_seen_at=timezone.now())
 
+    # Muted pods drop out of this member's feed only (S-205); the posts stay reachable
+    # by direct link, so mute is a display choice, not an authorization change.
+    feed_posts = (
+        scoping.visible_posts(member)
+        .exclude(pod_id__in=pods.muted_pod_ids(member))
+        .select_related("author", "pod", "link_preview")[:100]
+    )
     items = [
         FeedItem(
             post=post,
@@ -86,9 +93,7 @@ def _render_feed(
             is_editable=post.author_id == member.id and posting.within_edit_window(post),
             is_new=boundary is not None and post.created_at > boundary,
         )
-        for post in scoping.visible_posts(member).select_related("author", "pod", "link_preview")[
-            :100
-        ]
+        for post in feed_posts
     ]
     first_seen_id: int | None = None
     if any(item.is_new for item in items):
@@ -130,6 +135,9 @@ def compose(request: HttpRequest) -> HttpResponse:
     # id is dropped by the visible_yards filter below, so neither can widen the reach.
     yard_ids = _int_ids(request.POST.getlist("audience_yards"))
     audience_yards = list(scoping.visible_yards(member).filter(id__in=yard_ids)) if yard_ids else []
+    # An ad-hoc pod's posts stay in the pod (S-204): never widen, never confirm.
+    if pod.kind == Pod.ADHOC:
+        audience_yards = []
 
     errors: list[str] = []
     if not body:

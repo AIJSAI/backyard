@@ -57,6 +57,11 @@ def create_post(*, author: Member, pod: Pod, audience_yards: list[Yard], body: s
     author_yards = scoping.member_yard_ids(author)
     if pod.id not in author_pods:
         raise AudienceNotAllowed("You can only post to a pod you belong to.")
+    # An ad-hoc pod's posts stay in the pod: they never carry a yard audience, so they
+    # never surface in the wider yard feed (S-204). This is a narrowing, so it is
+    # applied silently rather than raising.
+    if pod.kind == Pod.ADHOC:
+        audience_yards = []
     for yard in audience_yards:
         if yard.id not in author_yards:
             raise AudienceNotAllowed("You can only post to a yard you belong to.")

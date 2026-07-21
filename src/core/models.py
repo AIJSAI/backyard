@@ -51,6 +51,13 @@ class Pod(models.Model):
     kind = models.CharField(max_length=16, choices=KIND_CHOICES, default=HOUSEHOLD)
     # A pod in more than one yard is the bridge; this M2M carries that from day one.
     yards = models.ManyToManyField(Yard, related_name="pods")
+    # The member who created an ad-hoc pod and may set its house rule and add members
+    # (S-204). Null for household pods, which admins create.
+    owner = models.ForeignKey(
+        "Member", null=True, blank=True, on_delete=models.SET_NULL, related_name="owned_pods"
+    )
+    # A one-sentence house rule shown at the top of an ad-hoc pod (S-204). Optional.
+    house_rule = models.CharField(max_length=200, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -148,6 +155,27 @@ class PodMembership(models.Model):
 
     def __str__(self) -> str:
         return f"{self.member} in {self.pod}"
+
+
+class PodMute(models.Model):
+    """A member's private mute of a pod (S-205). Muting silently hides that pod's
+    posts from the muter's feed and nobody else; it is a personal display choice, not
+    a membership or authorization change, so the muted posts stay reachable by direct
+    link and the mute is invisible to everyone else. Leaving a pod is a separate,
+    equally quiet act (deleting the PodMembership) with no broadcast.
+    """
+
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="pod_mutes")
+    pod = models.ForeignKey(Pod, on_delete=models.CASCADE, related_name="mutes")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["member", "pod"], name="unique_member_pod_mute"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.member} muted {self.pod}"
 
 
 class Post(models.Model):
