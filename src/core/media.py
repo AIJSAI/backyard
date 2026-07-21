@@ -13,13 +13,17 @@ trusted. The access-checked serving of the result lives in media_views.
 from __future__ import annotations
 
 import io
+import tempfile
 import warnings
+from pathlib import Path
 
+from django.core.files import File
 from django.core.files.base import ContentFile
 from django.core.files.storage import Storage
 from django.db import transaction
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from . import transcoding
 from .models import MediaAsset, Post
 
 # Formats accepted at open. HEIC is deliberately absent: the pillow-heif question is a
@@ -36,6 +40,7 @@ _FULL_MAX = (2048, 2048)
 _THUMB_MAX = (400, 400)
 _JPEG_QUALITY = 85
 _OUTPUT_CONTENT_TYPE = "image/jpeg"
+_VIDEO_OUTPUT_CONTENT_TYPE = "video/mp4"
 _MAX_ALT = 500
 
 # Cap decoded pixels process-wide, set once at import (security review LOW-1). Doing it
@@ -98,21 +103,81 @@ def ingest_photo(*, post: Post, raw: bytes, alt_text: str = "") -> MediaAsset:
     return asset
 
 
+def validate_video(raw: bytes) -> float:
+    """Reject an upload over the size or duration cap, or not an ISOBMFF container, with
+    a clear member-facing MediaRejected message; return its duration in seconds (S-402).
+
+    The single video validation gate. The composer calls it upfront so a bad clip fails
+    before the post is created ("rejected upfront, never a silent failure"), and
+    ingest_video calls it again so the stored path is never reachable without it. The
+    magic-byte check happens before ffprobe runs, so the hardened forced-demuxer probe
+    only ever sees a plausible ISOBMFF file (TS-PP-1).
+    """
+    if len(raw) > transcoding.MAX_VIDEO_BYTES:
+        cap_mb = transcoding.MAX_VIDEO_BYTES // (1024 * 1024)
+        raise MediaRejected(f"That clip is too large. Keep it under {cap_mb} MB.")
+    if not transcoding.looks_like_isobmff(raw):
+        raise MediaRejected("That file is not a video we can play. Try an MP4 or a phone clip.")
+    with tempfile.TemporaryDirectory() as workdir:
+        raw_path = Path(workdir) / "upload"
+        raw_path.write_bytes(raw)
+        try:
+            duration = transcoding.probe_duration_seconds(str(raw_path))
+        except transcoding.FfmpegError as exc:
+            raise MediaRejected("That file is not a video we can play.") from exc
+    if duration > transcoding.MAX_VIDEO_DURATION_S:
+        cap_s = transcoding.MAX_VIDEO_DURATION_S
+        raise MediaRejected(f"That clip is too long. Keep it under {cap_s} seconds.")
+    return duration
+
+
+def ingest_video(*, post: Post, raw: bytes, alt_text: str = "") -> MediaAsset:
+    """Validate and store one uploaded video as a PENDING asset on the post (S-402).
+
+    The stored source is metadata-stripped at ingest (TM-9), before any transcode or
+    poster runs, so the retained original carries no QuickTime/MP4 location atom; the
+    worker later produces the served H.264 rendition and a poster. content_type is pinned
+    to the eventual rendition, never the client's claim.
+    """
+    validate_video(raw)
+    with tempfile.TemporaryDirectory() as workdir:
+        raw_path = Path(workdir) / "upload"
+        raw_path.write_bytes(raw)
+        clean_path = Path(workdir) / "clean.mp4"
+        try:
+            transcoding.strip_metadata(str(raw_path), str(clean_path))
+        except transcoding.FfmpegError as exc:
+            raise MediaRejected("That video could not be processed.") from exc
+        asset = MediaAsset(
+            post=post,
+            media_kind=MediaAsset.VIDEO,
+            content_type=_VIDEO_OUTPUT_CONTENT_TYPE,
+            transcode_status=MediaAsset.PENDING,
+            alt_text=alt_text.strip()[:_MAX_ALT],
+        )
+        with open(clean_path, "rb") as clean:
+            # Named by the token but stored under media/source/, which no route serves;
+            # only the rendition (token) and poster (thumbnail_token) are ever reachable.
+            asset.source.save(f"{asset.token}.mp4", File(clean), save=False)
+        asset.save()
+    return asset
+
+
 def purge_post_media(post: Post) -> int:
-    """Hard-delete a post's photos and their derivatives from storage (T-MEDIA-6).
+    """Hard-delete a post's media and every derivative from storage (T-MEDIA-6).
 
     Called when the post is deleted. Soft-delete alone stops the serving path (the view
-    re-checks the post), but the files themselves must leave the disk so a deleted
-    photo does not linger on the volume or behind a stale cached URL. Removes both the
-    full image and the thumbnail file, then drops the row. Returns the count purged.
+    re-checks the post), but the files themselves must leave the disk so deleted media
+    does not linger on the volume or behind a stale cached URL. Removes every stored file
+    a photo or video carries (image, thumbnail, video source, and rendition), then drops
+    the row. Returns the count purged.
     """
     to_remove: list[tuple[Storage, str]] = []
     count = 0
     for asset in post.media.all():
-        if asset.image.name:
-            to_remove.append((asset.image.storage, asset.image.name))
-        if asset.thumbnail.name:
-            to_remove.append((asset.thumbnail.storage, asset.thumbnail.name))
+        for field in (asset.image, asset.thumbnail, asset.source, asset.video):
+            if field.name:
+                to_remove.append((field.storage, field.name))
         asset.delete()  # drop the row inside the request transaction
         count += 1
 

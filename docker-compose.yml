@@ -41,6 +41,10 @@ services:
     build: .
     restart: unless-stopped
     logging: *default-logging
+    # The web process also touches parsers on upload (Pillow, and ffprobe/strip for the
+    # video pre-flight), so it too gets a memory and pid ceiling (TS-CO-6).
+    mem_limit: 768m
+    pids_limit: 512
     environment:
       DJANGO_DEBUG: ${DJANGO_DEBUG:-0}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
@@ -70,9 +74,16 @@ services:
     # migrates, generates a secret, or races the web boot. It reads the shared
     # secret and media from appdata and reaches the database only on worker-db.
     build: .
-    command: ["python", "manage.py", "procrastinate", "worker"]
+    # Concurrency 1: the worker processes one job at a time, so two crafted uploads can
+    # never drive ffmpeg in parallel (TS-PP-2). At family scale the digest/rollup jobs
+    # serialize behind an occasional transcode with no user-visible cost.
+    command: ["python", "manage.py", "procrastinate", "worker", "--concurrency", "1"]
     restart: unless-stopped
     logging: *default-logging
+    # A parser bomb (ffmpeg or Pillow) OOMs its own container, not the box (TS-CO-6). The
+    # transcode home gets the larger share; sized for the target hardware, founder-tunable.
+    mem_limit: 1500m
+    pids_limit: 512
     environment:
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
       BACKYARD_BASE_URL: ${BACKYARD_BASE_URL:-http://localhost:8000}

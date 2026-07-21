@@ -11,7 +11,19 @@
     {% if media_list %}
       <div class="photos">
         {% for m in media_list %}
-          <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.thumbnail_token %}" alt="{{ m.alt_text }}" loading="lazy"></a>
+          {% if m.media_kind == 'video' %}
+            {% if m.transcode_status == 'done' %}
+              <video class="clip" controls preload="metadata" poster="{% url 'serve_media' m.thumbnail_token %}">
+                <source src="{% url 'serve_media' m.token %}" type="video/mp4">
+              </video>
+            {% elif m.transcode_status == 'failed' %}
+              <p class="clip-status">This clip couldn't be processed.</p>
+            {% else %}
+              <p class="clip-status">Processing this clip… it'll appear here shortly.</p>
+            {% endif %}
+          {% else %}
+            <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.thumbnail_token %}" alt="{{ m.alt_text }}" loading="lazy"></a>
+          {% endif %}
         {% endfor %}
       </div>
     {% endif %}

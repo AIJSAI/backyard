@@ -52,6 +52,11 @@ jobs:
           uv run ruff format --check src
       - name: Typecheck
         run: uv run mypy src
+      - name: Install ffmpeg (S-402 video transcode tests run against the real binary)
+        # The transcode tests exercise the actual ffmpeg/ffprobe, so the gate is not
+        # vacuous: without the binary they would skip and hide a regression. The image
+        # ships ffmpeg (Dockerfile); the bare test runner needs it installed here.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - name: Tests
         run: uv run pytest
       - name: Deploy check (production-like posture, fail on any warning)
