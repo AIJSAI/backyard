@@ -231,6 +231,34 @@ validate_email_transport(
     default_from=DEFAULT_FROM_EMAIL,
 )
 
+# Request logs would otherwise contain capability URLs: django.request logs the
+# path of every 404, and /d/'s expired/mistyped links GUARANTEE token-bearing
+# paths in the log stream (TS-EDGE-LOG). The filter rewrites them before emit;
+# it ships in the same change as the first token-bearing route on purpose.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {"redact_capability_paths": {"()": "config.log_redaction.RedactCapabilityPaths"}},
+    "handlers": {
+        "console_redacted": {
+            "class": "logging.StreamHandler",
+            "filters": ["redact_capability_paths"],
+        }
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console_redacted"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "django.security": {
+            "handlers": ["console_redacted"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+    },
+}
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Where login_required sends an anonymous visitor: the allauth login page (the

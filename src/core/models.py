@@ -549,6 +549,32 @@ class DigestDelivery(models.Model):
         return f"Delivery of issue {self.issue_id}: {self.status}"
 
 
+class DigestToken(models.Model):
+    """A per-member, per-digest read link (ADR-003 rule 1, TM-5, T-EMAIL-3).
+
+    The deep links inside one digest email all carry one of these: read-only,
+    expiring, scoped to that issue's member and yard, never the master token. The
+    raw value is >=128-bit CSPRNG, lives only inside the sent email, and is stored
+    here as a SHA-256 digest (the Invite pattern). `minted_generation` is checked
+    against Member.token_generation on every request (ADR-003 rule 3), so TTL is
+    the freshness bound, never the revocation mechanism; revocation also deletes
+    the rows outright through the TM-1 registry, belt and suspenders.
+    """
+
+    issue = models.ForeignKey(DigestIssue, on_delete=models.CASCADE, related_name="tokens")
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="digest_tokens")
+    token_digest = models.CharField(max_length=64, unique=True)
+    minted_generation = models.PositiveIntegerField()
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Digest token for issue {self.issue_id} (expires {self.expires_at})"
+
+
 class SetupToken(models.Model):
     """One-time secret gating the first-run wizard (threat model TM-8).
 

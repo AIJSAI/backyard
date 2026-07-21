@@ -6,6 +6,7 @@ from django.urls import include, path
 
 from core import (
     admin_views,
+    digest_views,
     digesting_views,
     feed_views,
     media_views,
@@ -60,6 +61,17 @@ urlpatterns = [
         name="digest_unsubscribe",
     ),
     path("members/digests/", admin_views.digests, name="member_digests"),
+    # The /d/ read surface (TM-5): what a digest deep link opens. The token only
+    # authenticates; every render re-resolves through the one audience query.
+    path("d/<str:token>/", digest_views.digest_view, name="digest_web"),
+    path(
+        "d/<str:token>/posts/<int:post_id>/",
+        digest_views.digest_post_view,
+        name="digest_web_post",
+    ),
+    # A private family instance is never indexed; token links double down with
+    # per-response X-Robots-Tag (TM-5).
+    path("robots.txt", views.robots, name="robots"),
     # The one access-checked path for every media byte (S-403, TM-9). The token is the
     # only URL handle; the view re-checks the owning post's audience.
     path("media/<str:token>/", media_views.serve_media, name="serve_media"),

@@ -169,3 +169,10 @@ def healthz(request: HttpRequest) -> JsonResponse:
         cursor.execute("SELECT 1")
         cursor.fetchone()
     return JsonResponse({"status": "ok"})
+
+
+def robots(request: HttpRequest) -> HttpResponse:
+    """A private family instance is never crawled: disallow everything (TM-5).
+    Token routes additionally send X-Robots-Tag per response, so this file is a
+    politeness layer, not the control."""
+    return HttpResponse("User-agent: *\nDisallow: /\n", content_type="text/plain")

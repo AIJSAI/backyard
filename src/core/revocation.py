@@ -29,7 +29,7 @@ from django.contrib.sessions.models import Session
 from django.db import models, transaction
 from django.utils import timezone
 
-from .models import DigestSubscription, Invite, Member, Yard
+from .models import DigestSubscription, DigestToken, Invite, Member, Yard
 
 
 def _revoke_sessions(member: Member) -> int:
@@ -97,6 +97,15 @@ def _cancel_digest_subscription(member: Member) -> int:
     )
 
 
+def _void_digest_tokens(member: Member) -> int:
+    """Delete the member's per-digest read links (TM-5). The generation check in
+    digest_links.resolve already kills them on the bump (ADR-003 rule 3), so this
+    is the registry-literal belt: the class registers its own step, and a link in
+    a forwarded or compromised mailbox dies as a row too, not only as a check."""
+    count, _ = DigestToken.objects.filter(member=member).delete()
+    return count
+
+
 def _bump_generation(member: Member) -> None:
     """Invalidate every generation-checked credential class at once (ADR-003)."""
     Member.objects.filter(pk=member.pk).update(token_generation=models.F("token_generation") + 1)
@@ -109,6 +118,7 @@ _REVOCATION_STEPS = (
     _revoke_sessions,
     _void_invites,
     _cancel_digest_subscription,
+    _void_digest_tokens,
 )
 
 
