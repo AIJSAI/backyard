@@ -112,6 +112,10 @@ class Member(models.Model):
     # Bumped by the TM-1 revocation handler; every derived credential is checked
     # against it, so removal or regeneration kills all of a member's access at once.
     token_generation = models.PositiveIntegerField(default=1)
+    # When the member last opened their feed. The feed uses it to draw one
+    # unread boundary (S-303) between what is new since that visit and what they
+    # already saw; it is advanced on each feed open. Null until the first visit.
+    feed_last_seen_at = models.DateTimeField(null=True, blank=True)
     pods: models.ManyToManyField[Pod, PodMembership] = models.ManyToManyField(
         Pod, through="PodMembership", related_name="members"
     )

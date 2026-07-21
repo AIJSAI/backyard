@@ -1,0 +1,14 @@
+{% extends "core/base.html" %}
+{% block title %}Edit your post{% endblock %}
+{% block body %}
+  <h1>Edit your post</h1>
+  {% if errors %}
+    <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
+  {% endif %}
+  <form method="post" action="{% url 'edit_post' post.id %}">
+    {% csrf_token %}
+    <textarea name="body" rows="4" required>{{ post.body }}</textarea>
+    <button type="submit">Save</button>
+  </form>
+  <p><a href="{% url 'feed' %}">Cancel</a></p>
+{% endblock %}
