@@ -37,6 +37,7 @@ select = ["E", "F", "I", "UP", "B", "DJ", "S"]
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101", "S105", "S106", "S107"]  # asserts and test-only credentials
 "src/config/settings.py" = ["S105"]  # placeholder-secret detection is done in code, not by ruff
+"src/core/backups.py" = ["S607"]  # pg_dump/pg_restore invoked by name from the container PATH (postgresql-client-18)
 
 [tool.mypy]
 python_version = "3.13"
