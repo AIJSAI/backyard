@@ -319,7 +319,7 @@ epics:
           - "Links open the token or web view without a login wall for entitled members"
           - "Multipart delivery with a plain-text fallback for old mail clients"
           - "Unsubscribe requires a confirm step and never severs a member silently; the admin can see per-member delivery status and failures"
-        status: spec
+        status: built  # wave 4: full pipeline built + live-repro through the console transport; NOT tested until the provider delivery-and-bounce matrix is MEASURED (ADR-002 gate)
         v1: true
         security:
           threat_refs:
@@ -341,7 +341,7 @@ epics:
           - "Per-member, per-post reply addresses map inbound mail to the correct thread"
           - "Plain-text reply becomes a comment attributed to the member"
           - "Failures bounce with a gentle, human explanation"
-        status: spec
+        status: built  # wave 4: capability addresses + bounded inbound + quoted-strip built against the .eml corpus; NOT tested until a live mailbox round-trip (W4-B2)
         v1: true
         security:
           threat_refs:
@@ -476,7 +476,7 @@ epics:
           - "Weekly WCM plus the four input metrics from docs/metrics.md, as aggregates per pod and yard"
           - "The only per-person datum is the KPI yes/no weekly presence, and the measured family is told about it in the docs"
           - "No time-on-site, session counts, or per-person activity feeds exist anywhere"
-        status: spec
+        status: built  # wave 4: counts-only rollup + instance-admin panel built and live-repro-d; tested-flip waits on the wave close
         v1: true
 
       - id: S-706
@@ -528,7 +528,7 @@ epics:
           - "The digest includes an upcoming-dates section for the next 7 days in my yards"
           - "The feed shows a quiet banner on the day itself; no push notification exists for dates"
           - "Anniversaries work the same way as birthdays"
-        status: spec
+        status: built  # wave 4: per-field date visibility, banner, and digest section built and live-repro-d; tested-flip waits on the wave close
         v1: true
         security:
           threat_refs:
