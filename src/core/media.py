@@ -24,13 +24,22 @@ from .models import MediaAsset, Post
 # wave-3 measurement gate, so a HEIC phone photo is re-encoded client-side or rejected
 # here, never passed through undecoded.
 _ALLOWED_INPUT_FORMATS = frozenset({"JPEG", "PNG", "WEBP", "GIF"})
-# Error, not warn, above this bound (TS-PP-3). Sized well above a real phone photo.
-_MAX_PIXELS = 50_000_000
+# Error, not warn, above this bound (TS-PP-3). Sized above a normal phone photo but
+# tight enough that the decoded RGB bitmap (~3 bytes/pixel, doubled by transpose and
+# convert) cannot exhaust a small self-hosted VM across the three gunicorn workers
+# (security review MEDIUM-2). A full-resolution multi-tens-of-megapixel shot should be
+# resized client-side before upload (S-401), which the output box already forces anyway.
+_MAX_PIXELS = 30_000_000
 _FULL_MAX = (2048, 2048)
 _THUMB_MAX = (400, 400)
 _JPEG_QUALITY = 85
 _OUTPUT_CONTENT_TYPE = "image/jpeg"
 _MAX_ALT = 500
+
+# Cap decoded pixels process-wide, set once at import (security review LOW-1). Doing it
+# here instead of mutating the global per call removes the cross-request race a threaded
+# worker would expose, and a lower bomb limit is only ever more protective for any decode.
+Image.MAX_IMAGE_PIXELS = _MAX_PIXELS
 
 
 class MediaRejected(Exception):
@@ -40,22 +49,17 @@ class MediaRejected(Exception):
 def _decode(raw: bytes) -> Image.Image:
     """Open and validate an uploaded image, or raise MediaRejected. Enforces the
     format allowlist and the error-not-warn decompression-bomb limit."""
-    previous = Image.MAX_IMAGE_PIXELS
-    Image.MAX_IMAGE_PIXELS = _MAX_PIXELS
-    try:
-        with warnings.catch_warnings():
-            # A decompression-bomb warning becomes an error, so a bomb is a rejected
-            # upload rather than a log line that decoded anyway (TS-PP-3).
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            try:
-                img = Image.open(io.BytesIO(raw))
-                img.load()  # force a full decode so a truncated or bomb file fails here
-            except (Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
-                raise MediaRejected("image too large") from exc
-            except (UnidentifiedImageError, OSError, ValueError) as exc:
-                raise MediaRejected("undecodable image") from exc
-    finally:
-        Image.MAX_IMAGE_PIXELS = previous
+    with warnings.catch_warnings():
+        # A decompression-bomb warning becomes an error, so a bomb is a rejected upload
+        # rather than a log line that decoded anyway (TS-PP-3).
+        warnings.simplefilter("error", Image.DecompressionBombWarning)
+        try:
+            img = Image.open(io.BytesIO(raw))
+            img.load()  # force a full decode so a truncated or bomb file fails here
+        except (Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+            raise MediaRejected("image too large") from exc
+        except (UnidentifiedImageError, OSError, ValueError) as exc:
+            raise MediaRejected("undecodable image") from exc
     if img.format not in _ALLOWED_INPUT_FORMATS:
         raise MediaRejected(f"format {img.format!r} not accepted")
     return img
@@ -67,6 +71,10 @@ def _reencode(img: Image.Image, max_size: tuple[int, int]) -> bytes:
     oriented = ImageOps.exif_transpose(img)  # bake orientation before it is discarded
     flattened = oriented.convert("RGB")  # JPEG has no alpha or palette
     flattened.thumbnail(max_size)  # in place, preserves aspect ratio
+    # Pillow's JPEG encoder is the one path that back-fills a field from im.info: the
+    # COM comment marker rides along from a JPEG or GIF source even though EXIF/XMP/ICC
+    # do not (security review MEDIUM-1). Drop it so the re-encode strips it too (TM-9).
+    flattened.info.pop("comment", None)
     out = io.BytesIO()
     flattened.save(out, format="JPEG", quality=_JPEG_QUALITY)
     return out.getvalue()

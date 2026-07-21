@@ -240,9 +240,12 @@ def _attach_photos(post: Post, files: list[UploadedFile]) -> None:
     file too large or one that will not decode is dropped, not fatal to the post."""
     for uploaded in files[:_MAX_PHOTOS]:
         if uploaded.size is not None and uploaded.size > _MAX_PHOTO_BYTES:
-            continue
+            continue  # fast path when the size is known
+        raw = uploaded.read()
+        if len(raw) > _MAX_PHOTO_BYTES:
+            continue  # backstop for an unknown size (security review LOW-2)
         try:
-            media.ingest_photo(post=post, raw=uploaded.read())
+            media.ingest_photo(post=post, raw=raw)
         except media.MediaRejected:
             continue
 

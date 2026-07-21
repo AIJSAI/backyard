@@ -64,6 +64,15 @@ def _png(size: tuple[int, int] = (60, 60)) -> bytes:
     return buf.getvalue()
 
 
+def _jpeg_with_comment(comment: bytes = b"SECRET-COMMENT-METADATA") -> bytes:
+    """A JPEG carrying a COM marker, the one field Pillow's encoder back-fills from
+    the source (security review MEDIUM-1)."""
+    img = Image.new("RGB", (50, 50), (10, 10, 10))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", comment=comment)
+    return buf.getvalue()
+
+
 @pytest.fixture
 def world() -> dict[str, object]:
     maternal = Yard.objects.create(name="Maternal", slug="maternal")
@@ -97,6 +106,15 @@ def test_ingest_strips_all_exif(world: dict[str, object]) -> None:
     assert _ORIENTATION not in exif  # the orientation tag is gone (baked in, then dropped)
     assert _IMAGE_DESCRIPTION not in exif  # the location-bearing description is stripped
     assert dict(exif) == {}  # nothing at all carries over
+
+
+def test_ingest_strips_the_jpeg_comment(world: dict[str, object]) -> None:
+    """The JPEG COM marker is the one field Pillow's encoder back-fills from the source
+    (security review MEDIUM-1); the re-encode must drop it too, not only EXIF."""
+    post = world["post"]
+    assert isinstance(post, Post)
+    asset = media.ingest_photo(post=post, raw=_jpeg_with_comment())
+    assert b"SECRET-COMMENT-METADATA" not in asset.image.read()
 
 
 def test_ingest_applies_orientation_then_drops_the_tag(world: dict[str, object]) -> None:
