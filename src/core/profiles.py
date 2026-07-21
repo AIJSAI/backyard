@@ -20,7 +20,7 @@ import datetime
 from dataclasses import dataclass
 
 from . import scoping
-from .models import Member
+from .models import Member, Yard
 
 _MONTHS = (
     "",
@@ -149,13 +149,20 @@ class UpcomingDate:
     date_text: str  # "March 5"
 
 
-def upcoming_dates(viewer: Member, *, start: datetime.date, days: int) -> list[UpcomingDate]:
+def upcoming_dates(
+    viewer: Member, *, start: datetime.date, days: int, within_yard: Yard | None = None
+) -> list[UpcomingDate]:
     """Birthdays and anniversaries falling in [start, start + days), among members
     the viewer shares a yard with, honoring each date's own visibility (S-903).
 
     This is the single date resolver: the feed banner asks for one day, the digest
     section for seven. Occurrences come from the real calendar, so a February 29
     date appears only in leap years and a window crossing New Year still works.
+
+    `within_yard` narrows the candidates to members of one yard: a per-yard digest
+    must never carry the other side's dates for a bridge recipient (S-501's
+    no-fusion rule). It only ever narrows — the base set is still visible_members,
+    so this stays the one enforcement point rather than a second path.
 
     The window is capped at a year (security review of #33 LOW-2): past 366 days
     every (month, day) recurs, so a larger ask is a caller bug, and the one
@@ -172,6 +179,8 @@ def upcoming_dates(viewer: Member, *, start: datetime.date, days: int) -> list[U
     candidates = scoping.visible_members(viewer).exclude(
         birthday_month__isnull=True, anniversary_month__isnull=True
     )
+    if within_yard is not None:
+        candidates = candidates.filter(pods__yards=within_yard).distinct()
     found: list[UpcomingDate] = []
     for member in candidates:
         dated = [
