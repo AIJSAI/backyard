@@ -53,7 +53,7 @@ epics:
           - "Long-lived tokenized URL opens the large-text feed view without credentials"
           - "Token is scoped to the member, revocable by an admin, with configurable expiry"
           - "Zero account or app-store steps anywhere on the path"
-        status: spec
+        status: tested  # wave 5: elder master token + URL->cookie exchange + capability ceiling; live-repro through Caddy, security review (HIGH shared-login-leak fixed), in the full revocation drill
         v1: true
         security:
           threat_refs:
@@ -74,7 +74,7 @@ epics:
         acceptance:
           - "Passes PWA installability checks on iOS Safari and Android Chrome"
           - "Standalone display with correct icon and name"
-        status: spec
+        status: tested  # wave 5: PWA manifest + deterministic icons + minimal no-cache worker; installability fields verified, elder+/d/ surfaces worker-free
         v1: true
       - id: S-104
         epic: E1
@@ -84,7 +84,7 @@ epics:
           - "Admin UI generates and displays the token link with a printable QR option"
           - "Elder's pod and yard membership are preset before first open"
           - "Regenerating invalidates the previous token"
-        status: spec
+        status: tested  # wave 5: provisioning UI + printable QR + regenerate; grant-before-generation, no-store token page, refresh-safe intent nonce; live-repro + review
         v1: true
 
         security:
@@ -375,7 +375,7 @@ epics:
           - "Single-column layout, large type with a bigger-text toggle, giant tap targets"
           - "Meets WCAG 2.1 AA for contrast and touch target size"
           - "No navigation dead ends; every screen has one obvious way back to the feed"
-        status: spec
+        status: tested  # wave 5: large-type single-column elder view, bigger-text toggle, no dead ends; WCAG AA contrast + tap-target checks pass
         v1: true
       - id: S-602
         epic: E6
@@ -384,7 +384,7 @@ epics:
         acceptance:
           - "Token surface offers one-tap reactions attributed to the elder by name"
           - "Reactions from the token surface count in reciprocity metrics"
-        status: spec
+        status: tested  # wave 5: one-tap named reactions on the token surface, counted in reciprocity; proven live and in the metrics rollup
         v1: true
       - id: S-603
         epic: E6
