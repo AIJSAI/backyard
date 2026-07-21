@@ -91,4 +91,61 @@
   </ul>
 
   <p class="caught-up">You are all caught up.</p>
+
+  <script>
+    // Client-side pre-upload resize (S-401 acceptance 1). Shrinks large phone photos to
+    // save bandwidth and converts HEIC to JPEG in browsers that can decode it (Safari/iOS)
+    // before upload. Pure progressive enhancement: the server re-encodes and strips
+    // metadata on EVERY path regardless (core/media.py, TM-9), so this is never a security
+    // or correctness dependency. If it is disabled, unsupported, or fails, the original
+    // file uploads and the server handles it — or rejects an undecodable one (the
+    // documented pillow-heif posture: rely on this conversion, don't ship pillow-heif).
+    (function () {
+      var MAX_EDGE = 2048;  // matches the server's stored max; larger is wasted bytes
+      var QUALITY = 0.85;   // matches the server JPEG quality
+      var input = document.getElementById("photos");
+      var form = input && input.closest("form");
+      if (!input || !form || typeof createImageBitmap !== "function" ||
+          typeof DataTransfer !== "function") {
+        return;  // no hook or unsupported browser: submit originals, the server copes
+      }
+
+      async function resizeOne(file) {
+        if (!file.type.startsWith("image/") && !/\.(heic|heif)$/i.test(file.name)) {
+          return file;  // not an image we handle here
+        }
+        var bitmap;
+        try {
+          bitmap = await createImageBitmap(file);
+        } catch (e) {
+          return file;  // undecodable here (e.g. HEIC on Chrome/Firefox): let the server decide
+        }
+        var scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+        var w = Math.round(bitmap.width * scale), h = Math.round(bitmap.height * scale);
+        var canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
+        if (bitmap.close) bitmap.close();
+        var blob = await new Promise(function (r) { canvas.toBlob(r, "image/jpeg", QUALITY); });
+        if (!blob || blob.size >= file.size) return file;  // no win (already small/efficient)
+        var name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+        return new File([blob], name, { type: "image/jpeg", lastModified: Date.now() });
+      }
+
+      var busy = false;
+      form.addEventListener("submit", function (ev) {
+        // The submit event only fires after HTML5 validation passes, so the form is valid
+        // here; we re-submit natively (form.submit bypasses this handler via the busy guard).
+        if (busy || !input.files || input.files.length === 0) return;
+        ev.preventDefault();
+        busy = true;
+        Promise.all(Array.prototype.map.call(input.files, resizeOne)).then(function (files) {
+          var dt = new DataTransfer();
+          files.forEach(function (f) { dt.items.add(f); });
+          input.files = dt.files;
+          form.submit();
+        }).catch(function () { busy = false; form.submit(); });  // any failure: send originals
+      });
+    })();
+  </script>
 {% endblock %}

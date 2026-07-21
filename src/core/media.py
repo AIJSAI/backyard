@@ -26,9 +26,12 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from . import transcoding
 from .models import MediaAsset, Post
 
-# Formats accepted at open. HEIC is deliberately absent: the pillow-heif question is a
-# wave-3 measurement gate, so a HEIC phone photo is re-encoded client-side or rejected
-# here, never passed through undecoded.
+# Formats accepted at open. HEIC is deliberately absent (the wave-3 pillow-heif decision):
+# the composer's client-side resize (feed.html) converts HEIC to JPEG in browsers that can
+# decode it (Safari/iOS) before upload, and a HEIC that reaches here undecoded — from a
+# browser that could not convert it — is rejected rather than passed through. v1 relies on
+# that client conversion and does NOT ship the pillow-heif dependency; revisit only if the
+# seed pod hits raw-HEIC rejections in practice.
 _ALLOWED_INPUT_FORMATS = frozenset({"JPEG", "PNG", "WEBP", "GIF"})
 # Error, not warn, above this bound (TS-PP-3). Sized above a normal phone photo but
 # tight enough that the decoded RGB bitmap (~3 bytes/pixel, doubled by transpose and

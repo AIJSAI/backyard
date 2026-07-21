@@ -256,7 +256,7 @@ epics:
           - "GPS EXIF data is stripped by default before storage"
           - "EXIF orientation is respected; vertical phone photos display upright everywhere, including email"
           - "Optional alt text per photo"
-        status: built  # wave 3: Pillow ingest + full metadata strip, merged #30, live-repro-d (EXIF stripped, orientation baked); tested-flip waits on wave-3 close
+        status: tested  # wave 3 CLOSED 2026-07-21 (docs/receipts/2026-07-21-wave-3-close.md): server strip + client-side Canvas resize live-repro'd (4000x3000/1.44MB -> 2048x1536/213KB in real Chromium)
         v1: true
         security:
           threat_refs:
@@ -273,7 +273,7 @@ epics:
           - "Clips up to a documented size and duration cap upload and play in-feed"
           - "Post-to-visible latency is minutes at most on target hardware, never deferred to idle hours"
           - "Anything over the cap is rejected upfront with a clear message, never a silent failure"
-        status: built  # wave 3: hardened ffmpeg ingest+transcode on the worker, metadata strip, access-checked serving, upfront rejection — built and unit-tested against real ffmpeg. tested-flip waits on the ADR-002 transcode-latency measurement on target hardware (the wave-3 close gate).
+        status: tested  # wave 3 CLOSED 2026-07-21 (docs/receipts/2026-07-21-wave-3-close.md): ffmpeg latency MEASURED on a 2-vCPU Ubicloud runner (60s 1080p HEVC 14.9s, PASS, run 29873024812); worker transcode + serve live-repro'd through Caddy
         v1: true
         security:
           threat_refs:
@@ -290,7 +290,7 @@ epics:
           - "Media URLs are unguessable and access-checked against pod/yard membership"
           - "Direct fetch without a valid session or token returns 404"
           - "Digest and token surfaces use signed, expiring media URLs"
-        status: built  # wave 3: the one access-checked media serving path, merged #30, live-repro-d (cross-yard 404 both tokens); tested-flip waits on wave-3 close
+        status: tested  # wave 3 CLOSED 2026-07-21 (docs/receipts/2026-07-21-wave-3-close.md): isolation matrix covers every derivative (photo original/thumbnail + video rendition/poster), cross-yard/unknown/pending all byte-identical 404
         v1: true
 
         security:
@@ -466,7 +466,7 @@ epics:
           - "Member export produces a zip of their posts, comments, and media with a documented JSON format"
           - "Instance export covers everything; a documented restore path exists and is exercised"
           - "Export is available from v0.1 onward, never gated"
-        status: built  # instance export (pg_dump + media archive) + member export #32; restore drill exercised live (canary round-trip); held at built until wave-3 close
+        status: tested  # wave 3 CLOSED 2026-07-21 (docs/receipts/2026-07-21-wave-3-close.md): instance + member export; encrypted-path restore drill live (backup -> age encrypt/decrypt byte-identical -> restore -> canary survived)
         v1: true
       - id: S-705
         epic: E7
@@ -586,7 +586,7 @@ epics:
         acceptance:
           - "Single backup command captures database and media"
           - "Restore drill documented and exercised before each release"
-        status: built  # one-command backup (db + media) + restore, drill exercised live on the compose stack; held at built until wave-3 close
+        status: tested  # wave 3 CLOSED 2026-07-21 (docs/receipts/2026-07-21-wave-3-close.md): one-command backup+restore, encrypted round-trip drilled live + security replay (crafted-archive rejection) in the gate
         v1: true
         security:
           threat_refs:

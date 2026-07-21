@@ -47,40 +47,39 @@ The single canonical checklist for Backyard v1.0. Rules:
 - [x] ADR-004: Postgres RLS belt-and-suspenders decision on the record (defer-with-triggers; role split + same-yard schema built wave 1) evidence: docs/adr/ADR-004-rls.md
 - [x] Wave 1 (pods+auth) closed: full gate + live repro receipt (S-101 feed-landing and S-201 household-onboarding carried into wave 2 per the wave plan) evidence: docs/receipts/2026-07-20-wave-1-close.md
 - [x] Wave 2 (feed+links) closed: full gate + live repro receipt evidence: docs/receipts/2026-07-20-wave-2-close.md
-- [ ] Wave 3 (media) closed: full gate + live repro receipt; ffmpeg latency and pillow-heif gates measured
+- [x] Wave 3 (media) closed: full gate + live repro receipt; ffmpeg latency measured (2-vCPU Ubicloud, 60s 1080p 14.9s) and pillow-heif decided evidence: docs/receipts/2026-07-21-wave-3-close.md
 - [ ] Wave 4 (digest in/out) closed: full gate + live repro receipt; Anymail delivery-status matrix measured
 - [x] Wave 5 (PWA + elder path) closed: full gate + live repro receipt; RAM footprint measured (four containers, ~294 MiB); full revocation drill (six credential classes, live) evidence: docs/receipts/2026-07-21-wave-5-close.md
 - [ ] Every wave closes on the full verification gate plus a live repro, never subset tests
 
 ### What is left, and who unblocks it
 
-Waves 1, 2, and 5 are closed and tested. Wave 3 and wave 4 are built. Wave 3
-and the digest render and inbound-parse paths are proven live on the compose
-stack; real email delivery is not proven, because no provider is wired yet (see
-below). Their stories sit at `built`, not `tested`. The ADR-002 gates are
-measurements that need resources only the founder can provide, and this project
-never flips a story to `tested` on an unmeasured gate (rule 3). The remaining
-boxes wait only on founder inputs, not on code:
+Waves 1, 2, 3, and 5 are closed and tested. **Only wave 4 (digest email in/out)
+is `built`, not `tested`.** Its digest render and inbound-parse paths are proven
+live on the compose stack, but real email delivery is not proven because no
+provider is wired yet — and this project never flips a story to `tested` on an
+unmeasured gate (rule 3). The one remaining box waits on a founder input, not on
+code:
 
-1. **Email provider, sending domain, inbound mailbox** (closes wave 4). Pick the
-   transport (Postmark, Mailgun, SES, self-hosted Postal, or bare SMTP through
-   the family mailbox), set SPF/DKIM/aligned-DMARC on the sending domain, and
-   stand up one dedicated instance-only inbound mailbox. This is zero repo code
-   but real ops: the email substrate ships behind a provider-agnostic seam, so
-   Anymail is one settings change behind it. Then measure the ADR-002
-   delivery-and-bounce matrix for that provider, run the live mailbox
-   round-trip, and wave 4's stories flip to `tested`. Recommended: Postmark, for
-   clean bounce webhooks at family scale.
-2. **Target hardware for the video gate** (closes wave 3). S-402 (video) is now
-   *built*: hardened ffmpeg ingest and transcode on the worker (TS-PP-1/2), the
-   container location-atom strip, access-checked serving of the rendition and
-   poster, and upfront rejection are all in and unit-tested against real ffmpeg.
-   What remains is only the measurement: its acceptance is transcode latency on
-   the real N100-class box, not the dev machine (the committed encoder is software
-   libx264; `BACKYARD_FFMPEG_VCODEC=h264_qsv` moves it onto the box's Quick Sync).
-   Everything else in wave 3 (photos, access-checked serving, export, the
-   backup/restore drill) is built and drilled.
-3. **The batched policy defaults** — RATIFIED in
+1. **Email provider, sending domain, inbound mailbox** (closes wave 4).
+   Recommended and researched: create a second **free Resend Team** under the
+   existing login (the "one project" limit is really Free's 1-domain cap;
+   multiple isolated Teams are free), put **both sending and receiving on one
+   domain** (`mail.backyard.family`, since each subdomain counts against the
+   1-domain cap), set SPF/DKIM/aligned-DMARC, and add Resend's inbound MX +
+   `email.received` webhook. Verified: Resend does inbound and django-anymail
+   wires it (v15.0), and inbound is included on Free. This is zero repo code but
+   real ops — Anymail is one settings change behind a provider-agnostic seam.
+   Then measure the ADR-002 delivery-and-bounce matrix, run the live mailbox
+   round-trip, and wave 4's stories flip to `tested`.
+
+   *Wave 3 closed 2026-07-21* ([receipt](receipts/2026-07-21-wave-3-close.md)):
+   ffmpeg latency measured on a 2-vCPU Ubicloud runner (60s 1080p 14.9s, PASS),
+   pillow-heif decided (client Canvas conversion, defer the dependency),
+   client-side resize + video transcode + encrypted-backup restore all
+   live-repro'd.
+
+2. **The batched policy defaults** — RATIFIED in
    [ADR-005](adr/ADR-005-batched-defaults.md) (2026-07-21). The wave-boundary
    knobs are now decided on the record, each unchanged from its proposed value:
    the 3-and-4 build overlap; the digest-link TTL (21 days); the reply-address
