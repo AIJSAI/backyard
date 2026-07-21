@@ -152,6 +152,18 @@ def unsubscribe(raw_token: str) -> DigestSubscription:
     return subscription
 
 
+def rotate_unsubscribe_token(subscription: DigestSubscription) -> str:
+    """Mint a fresh unsubscribe capability for one outgoing digest and return
+    the raw value for that email alone. Rotation per issue keeps an old
+    forwarded digest's unsubscribe link from working forever; the digest stored
+    at enrollment is never emailed and exists only so the column is never
+    empty-matchable."""
+    raw = secrets.token_urlsafe(32)
+    subscription.unsubscribe_token_digest = _digest(raw)
+    subscription.save(update_fields=["unsubscribe_token_digest", "updated_at"])
+    return raw
+
+
 @dataclass
 class DueRecipient:
     """One member due a digest now, with the window the next issue should cover."""
