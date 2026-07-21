@@ -4,13 +4,17 @@ from __future__ import annotations
 
 from django.urls import include, path
 
-from core import admin_views, views
+from core import admin_views, feed_views, views
 from core.breakglass import break_glass
 from core.join import join
 
 urlpatterns = [
     path("", views.home, name="home"),
     path("setup/", views.setup, name="setup"),
+    # The feed is the member's landing surface: their visible posts, newest first,
+    # plus the composer. compose is POST-only and writes through core/posting.
+    path("feed/", feed_views.feed, name="feed"),
+    path("compose/", feed_views.compose, name="compose"),
     path("join/<str:token>/", join, name="join"),
     # Instance-admin member management (S-701 enforced, S-703 supervised, S-702 removal).
     path("members/", admin_views.members, name="members"),
