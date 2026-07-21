@@ -205,6 +205,32 @@ MEDIA_ROOT = os.environ.get("MEDIA_ROOT", "/data/media")
 # bound the number of files in one upload. Per-file size is checked in the upload view.
 DATA_UPLOAD_MAX_NUMBER_FILES = 20
 
+# --- Outbound email (wave 4 substrate, S-501) --------------------------------
+# Everything product-facing sends through core/emailing.py, which mints links from
+# BASE_URL only (TS-DJ-14). The compose default is the console backend until the
+# founder picks a provider; ADR-002 keeps Anymail one settings change behind this
+# seam. A real SMTP transport is validated at boot: encrypted, with a host and one
+# fixed sender identity, or the app refuses to start (TS-PP-9, T-EMAIL-G3).
+from config.email_guard import env_flag, validate_email_transport  # noqa: E402
+
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_flag(os.environ.get("EMAIL_USE_TLS", "1"))
+EMAIL_USE_SSL = env_flag(os.environ.get("EMAIL_USE_SSL", "0"))
+EMAIL_TIMEOUT = 30
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "backyard@localhost")
+
+validate_email_transport(
+    backend=EMAIL_BACKEND,
+    host=EMAIL_HOST,
+    use_tls=EMAIL_USE_TLS,
+    use_ssl=EMAIL_USE_SSL,
+    default_from=DEFAULT_FROM_EMAIL,
+)
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Where login_required sends an anonymous visitor: the allauth login page (the
