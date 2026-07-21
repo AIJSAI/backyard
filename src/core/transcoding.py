@@ -14,10 +14,11 @@ in one place and cannot drift:
 - **`-enable_drefs` is never passed** (it stays off), so an MP4 `dref` external-data
   atom cannot read `/data/secret_key` off the box (the local-read half of TS-PP-1).
 - **`-nostdin`** on every ffmpeg call so a byte in the stream can never be read as a key.
-- **wall-clock timeout + rlimits** (TS-PP-2) on the subprocess: a pathological clip fails
-  the job with a clear message instead of wedging the worker, and cannot exhaust CPU,
-  memory, or disk beyond its bound. The container `mem_limit`/`pids_limit` (TS-CO-6) is
-  the outer net; these rlimits are the per-process one.
+- **wall-clock timeout + CPU/output-size rlimits** (TS-PP-2) on the subprocess: a
+  pathological clip fails the job with a clear message instead of wedging the worker, and
+  cannot exhaust CPU time or disk. Physical memory is bounded by the container
+  `mem_limit`/`pids_limit` (TS-CO-6) — deliberately not an RLIMIT_AS, which limits virtual
+  address space and breaks legitimate multi-threaded HD encoding.
 
 The re-encode is the TM-9 gate for video the same way Pillow's is for photos: the served
 rendition is a fresh H.264 file, `-map_metadata -1` drops the container location atoms
@@ -54,9 +55,14 @@ _VCODEC = os.environ.get("BACKYARD_FFMPEG_VCODEC", "libx264")
 _OUTPUT_HEIGHT = 720
 _OUTPUT_WIDTH = 1280
 
-# TS-PP-2 limits. The wall-clock timeout is the primary control; the rlimits bound CPU,
-# output size, and address space per process as defense in depth beneath the container
-# mem_limit (TS-CO-6). Generous enough that a real 60s clip transcodes on software.
+# TS-PP-2 limits. The wall-clock timeout is the primary control; the rlimits bound CPU
+# time and output size per process. Memory is deliberately NOT bounded by an RLIMIT_AS
+# here: multi-threaded libx264 at HD reserves far more VIRTUAL address space (thread
+# stacks + per-thread glibc arenas) than it ever touches physically, so a 2GB RLIMIT_AS
+# fails a legitimate 1080p transcode at encoder-open ("Error while opening encoder") while
+# a small clip passes — a real bug the latency harness caught. Physical memory (the metric
+# that actually OOMs the box) is bounded by the container mem_limit (TS-CO-6), which is the
+# correct control; RLIMIT_AS is redundant with it and harmful, so it is gone.
 _TRANSCODE_TIMEOUT_S = 300
 # The probe and the stream-copy strip run web-synchronously on upload, so their timeout is
 # tighter: a valid short clip probes/remuxes in well under a second, and a shorter cap
@@ -65,7 +71,6 @@ _TRANSCODE_TIMEOUT_S = 300
 _PROBE_TIMEOUT_S = 20
 _RLIMIT_CPU_S = 600
 _RLIMIT_FSIZE = 600 * 1024 * 1024
-_RLIMIT_AS = 2048 * 1024 * 1024
 
 
 class FfmpegError(Exception):
@@ -80,13 +85,13 @@ def looks_like_isobmff(raw: bytes) -> bool:
 
 
 def _rlimits() -> None:  # pragma: no cover - runs only in the forked child
-    """Applied in the child before exec (POSIX). Bounds CPU time, output file size, and
-    address space so a pathological clip cannot exhaust the box (TS-PP-2)."""
+    """Applied in the child before exec (POSIX). Bounds CPU time and output file size
+    (TS-PP-2); physical memory is bounded by the container mem_limit (TS-CO-6), not an
+    RLIMIT_AS, which would break multi-threaded HD encoding — see the constants above."""
     import resource
 
     resource.setrlimit(resource.RLIMIT_CPU, (_RLIMIT_CPU_S, _RLIMIT_CPU_S))
     resource.setrlimit(resource.RLIMIT_FSIZE, (_RLIMIT_FSIZE, _RLIMIT_FSIZE))
-    resource.setrlimit(resource.RLIMIT_AS, (_RLIMIT_AS, _RLIMIT_AS))
 
 
 def _run(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:

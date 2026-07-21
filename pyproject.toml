@@ -38,6 +38,7 @@ select = ["E", "F", "I", "UP", "B", "DJ", "S"]
 "**/tests/**" = ["S101", "S105", "S106", "S107", "S603", "S607", "S404"]  # asserts, test creds, ffmpeg subprocess
 "src/config/settings.py" = ["S105"]  # placeholder-secret detection is done in code, not by ruff
 "src/core/backups.py" = ["S607"]  # pg_dump/pg_restore invoked by name from the container PATH (postgresql-client-18)
+"src/core/management/commands/measure_transcode.py" = ["S607"]  # ffmpeg invoked by name from PATH
 
 [tool.mypy]
 python_version = "3.13"

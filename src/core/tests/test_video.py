@@ -70,7 +70,9 @@ def _client_for(member: Member) -> Client:
     return c
 
 
-def _make_video(path: Path, *, duration: float = 1.0, with_location: bool = True) -> bytes:
+def _make_video(
+    path: Path, *, duration: float = 1.0, with_location: bool = True, size: str = "320x240"
+) -> bytes:
     """Synthesize a small MP4 with (by default) an iPhone-style location atom, a faithful
     reproducible stand-in for a real device clip with known location (S-402 corpus)."""
     args = [
@@ -80,7 +82,7 @@ def _make_video(path: Path, *, duration: float = 1.0, with_location: bool = True
         "-f",
         "lavfi",
         "-i",
-        f"testsrc=duration={duration}:size=320x240:rate=10",
+        f"testsrc=duration={duration}:size={size}:rate=10",
         "-f",
         "lavfi",
         "-i",
@@ -238,6 +240,19 @@ def test_transcode_produces_clean_rendition_and_poster(world: World, tmp_path: P
     rendition = Path(asset.video.path).read_bytes()
     assert rendition[4:8] == b"ftyp"  # a real mp4
     assert "location" not in _format_tags(rendition, tmp_path)
+
+
+@requires_ffmpeg
+def test_transcode_handles_an_hd_source(world: World, tmp_path: Path) -> None:
+    # Regression: a 2GB RLIMIT_AS failed multi-threaded libx264 at HD ("Error while opening
+    # encoder") while tiny clips passed; the latency harness caught it. A realistic 1080p
+    # source must transcode cleanly now that memory is bounded by the container, not AS.
+    raw = _make_video(tmp_path / "hd.mp4", duration=3.0, with_location=False, size="1920x1080")
+    asset = media.ingest_video(post=world.post, raw=raw)
+    transcoding.transcode_asset(asset.id)
+    asset.refresh_from_db()
+    assert asset.transcode_status == MediaAsset.DONE
+    assert asset.video.name
 
 
 @requires_ffmpeg
