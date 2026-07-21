@@ -49,7 +49,7 @@ The single canonical checklist for Backyard v1.0. Rules:
 - [x] Wave 2 (feed+links) closed: full gate + live repro receipt evidence: docs/receipts/2026-07-20-wave-2-close.md
 - [ ] Wave 3 (media) closed: full gate + live repro receipt; ffmpeg latency and pillow-heif gates measured
 - [ ] Wave 4 (digest in/out) closed: full gate + live repro receipt; Anymail delivery-status matrix measured
-- [ ] Wave 5 (PWA + elder path) closed: full gate + live repro receipt; RAM footprint measured; full revocation drill
+- [x] Wave 5 (PWA + elder path) closed: full gate + live repro receipt; RAM footprint measured (four containers, ~294 MiB); full revocation drill (six credential classes, live) evidence: docs/receipts/2026-07-21-wave-5-close.md
 - [ ] Every wave closes on the full verification gate plus a live repro, never subset tests
 
 ## Phase 3: Story loop

@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     "allauth",
     "allauth.account",
     "allauth.mfa",  # TOTP + WebAuthn passkeys (ADR-002 S-101)
+    "procrastinate.contrib.django",  # Postgres-native job queue + worker (ADR-002)
     "core",
 ]
 

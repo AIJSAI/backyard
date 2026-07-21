@@ -33,9 +33,9 @@ services:
       interval: 3s
       timeout: 3s
       retries: 30
-    networks: [web-db]
-    # No published port, and no shared network with the edge: only web (and later
-    # the worker, on its own db network) can address the database (TM-8, TS-CO-4).
+    networks: [web-db, worker-db]
+    # No published port, and no shared network with the edge: only web and the
+    # worker, each on its own db network, can address the database (TM-8, TS-CO-4).
 
   web:
     build: .
@@ -63,6 +63,36 @@ services:
     # No published port: only the proxy is exposed (threat model TM-8). The app
     # generates and persists its own DJANGO_SECRET_KEY at first boot into appdata.
 
+  worker:
+    # The ADR-002 fourth container: the same image, running the Procrastinate
+    # worker instead of gunicorn. The entrypoint's role check (TS-CO-3) sees a
+    # non-gunicorn command, so it execs directly as backyard_app and never
+    # migrates, generates a secret, or races the web boot. It reads the shared
+    # secret and media from appdata and reaches the database only on worker-db.
+    build: .
+    command: ["python", "manage.py", "procrastinate", "worker"]
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      BACKYARD_BASE_URL: ${BACKYARD_BASE_URL:-http://localhost:8000}
+      POSTGRES_DB: ${POSTGRES_DB:-backyard}
+      POSTGRES_USER: backyard_app
+      POSTGRES_PASSWORD: ${POSTGRES_APP_PASSWORD:?set POSTGRES_APP_PASSWORD in .env, see .env.example}
+      POSTGRES_HOST: postgres
+    volumes:
+      - appdata:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # web owns migrations (the single migrator); the worker needs the
+      # Procrastinate schema web creates. restart:unless-stopped converges if it
+      # starts before web finishes migrating.
+      web:
+        condition: service_started
+    networks: [worker-db]
+    # No edge network and no published port: the worker never faces the internet.
+
   caddy:
     image: caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
     restart: unless-stopped
@@ -88,6 +118,7 @@ services:
 networks:
   edge:
   web-db:
+  worker-db:
 
 volumes:
   pgdata:

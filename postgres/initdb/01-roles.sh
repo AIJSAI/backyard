@@ -39,6 +39,12 @@ ALTER DEFAULT PRIVILEGES FOR ROLE backyard_migrator IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO backyard_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE backyard_migrator IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO backyard_app;
+-- Procrastinate's schema is PL/pgSQL functions the worker (backyard_app) must
+-- EXECUTE (ADR-002 job queue). Scoped FOR ROLE backyard_migrator like the table
+-- grant above, so only the functions migrations create are reachable, and the
+-- app role gains EXECUTE on nothing the bootstrap superuser owns.
+ALTER DEFAULT PRIVILEGES FOR ROLE backyard_migrator IN SCHEMA public
+  GRANT EXECUTE ON ROUTINES TO backyard_app;
 SQL
 
 echo "backyard role split created: backyard_migrator (DDL) / backyard_app (DML only)."
