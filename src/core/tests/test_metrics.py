@@ -153,9 +153,15 @@ def test_digest_open_proxy_is_the_one_time_stamp(world: World) -> None:
         window_end=now,
     )
     raw = digest_links.mint(issue)
+    # A fetch inside the scanner grace never stamps (#40 review MEDIUM-3):
+    # delivery-time link scanners must not count as an elder opening the digest.
+    Client().get(reverse("digest_web", args=[raw]))
+    token = DigestToken.objects.get()
+    assert token.first_used_at is None  # the scanner-shaped fetch was ignored
+    DigestToken.objects.update(created_at=now - datetime.timedelta(minutes=11))
     Client().get(reverse("digest_web", args=[raw]))
     time.sleep(0)  # ordering only; the stamp is synchronous
-    token = DigestToken.objects.get()
+    token.refresh_from_db()
     first = token.first_used_at
     assert first is not None
     Client().get(reverse("digest_web", args=[raw]))  # a second open never re-stamps
@@ -211,3 +217,98 @@ def test_metrics_panel_is_instance_admin_only(world: World) -> None:
     assert _client_for(yard_admin).get(reverse("member_metrics")).status_code == 403
     body = _client_for(instance_admin).get(reverse("member_metrics")).content.decode()
     assert "Connection health" in body and "Maternal" in body
+
+
+# --- folds from the #40 security review ---
+
+
+def test_presence_is_rollup_order_independent(world: World) -> None:
+    """#40 review HIGH-1, the reviewer's exact probe: a bridge member who posted
+    only on one side must read present no matter which yard rolls up last (the
+    command rolls yards alphabetically, so Paternal used to overwrite)."""
+    m_only_pod = Pod.objects.create(name="Bridge maternal side pod")
+    m_only_pod.yards.set([world.maternal])
+    PodMembership.objects.create(member=world.bridge, pod=m_only_pod)
+    Post.objects.create(author=world.bridge, pod=m_only_pod, body="maternal-side only")
+
+    metrics.rollup_week(world.maternal, world.week_start)
+    metrics.rollup_week(world.paternal, world.week_start)  # the overwriting order
+    assert MemberWeekPresence.objects.get(member=world.bridge).present is True
+
+
+def test_other_yard_addressed_posts_never_absorb(world: World) -> None:
+    """#40 review MEDIUM-1: a bridge-pod post addressed exclusively to the
+    paternal yard is paternal activity; the maternal counts never absorb it."""
+    far_only = Post.objects.create(author=world.bridge, pod=world.bridge_pod, body="far only")
+    far_only.audience_yards.set([world.paternal])
+    maternal_row = metrics.rollup_week(world.maternal, world.week_start)
+    paternal_row = metrics.rollup_week(world.paternal, world.week_start)
+    assert maternal_row.posts_in_week == 0 and maternal_row.posting_breadth == 0
+    assert paternal_row.posts_in_week == 1
+    # Presence stays global: the bridge member touched the platform.
+    assert MemberWeekPresence.objects.get(member=world.bridge).present is True
+
+
+def test_digest_opens_and_email_replies_are_yard_scoped(world: World) -> None:
+    """#40 review MEDIUM-2: opening a paternal digest is one paternal open,
+    never one in each yard; an email reply to a paternal-only post is paternal."""
+    from core import digest_links
+    from core.models import DigestIssue, DigestToken
+
+    now = timezone.now()
+    issue = DigestIssue.objects.create(
+        member=world.bridge,
+        yard=world.paternal,
+        window_start=now - datetime.timedelta(days=7),
+        window_end=now,
+    )
+    digest_links.mint(issue)
+    DigestToken.objects.update(created_at=now - datetime.timedelta(minutes=11), first_used_at=now)
+    far_post = Post.objects.create(author=world.far, pod=world.p_pod, body="far")
+    far_post.audience_yards.set([world.paternal])
+    Comment.objects.create(author=world.bridge, post=far_post, body="from mail", via_email=True)
+
+    maternal_row = metrics.rollup_week(world.maternal, world.week_start)
+    paternal_row = metrics.rollup_week(world.paternal, world.week_start)
+    assert maternal_row.digest_opens == 0 and paternal_row.digest_opens == 1
+    assert maternal_row.email_replies == 0 and paternal_row.email_replies == 1
+
+
+def test_self_response_never_counts_as_reciprocity(world: World) -> None:
+    """#40 review LOW-1: reciprocity is loop closure by OTHERS (R2)."""
+    post = Post.objects.create(author=world.poster, pod=world.m_pod, body="anyone?")
+    Comment.objects.create(author=world.poster, post=post, body="bump")
+    Reaction.objects.create(member=world.poster, post=post, kind=Reaction.HEART)
+    row = metrics.rollup_week(world.maternal, world.week_start)
+    assert row.posts_responded == 0
+    Reaction.objects.create(member=world.lurker, post=post, kind=Reaction.HEART)
+    assert metrics.rollup_week(world.maternal, world.week_start).posts_responded == 1
+
+
+def test_app_wide_anti_surveillance_sweep(world: World) -> None:
+    """#40 review LOW-2: the field-set pin covers three models; this closes the
+    fourth-model residual — no model in the app grows a surveillance-shaped
+    field name, and the metric-shaped model set is exactly the pinned three."""
+    from django.apps import apps
+
+    banned = ("session", "duration", "time_on", "streak", "seconds_on", "minutes_on")
+    metric_shaped = set()
+    for model in apps.get_app_config("core").get_models():
+        for field in model._meta.get_fields():
+            name = getattr(field, "name", "")
+            assert not any(bad in name for bad in banned), f"{model.__name__}.{name}"
+        if any(hint in model.__name__ for hint in ("Week", "Metric", "Presence")):
+            metric_shaped.add(model.__name__)
+    assert metric_shaped == {"YardWeekMetrics", "PodWeekMetrics", "MemberWeekPresence"}
+
+
+def test_command_heals_the_previous_week(world: World) -> None:
+    """#40 review LOW-3: each run re-rolls the week before, so a late-week
+    post's reciprocity heals once its 7-day response window has really run."""
+    from django.core.management import call_command
+
+    call_command("rollup_metrics")
+    weeks = set(
+        YardWeekMetrics.objects.filter(yard=world.maternal).values_list("week_start", flat=True)
+    )
+    assert len(weeks) == 2  # the trailing week and the one before it

@@ -19,9 +19,10 @@ from __future__ import annotations
 
 import datetime
 
-from django.db import transaction
+from django.db import models, transaction
 from django.utils import timezone
 
+from .digest_links import in_yard_posts_q
 from .models import (
     Comment,
     DigestToken,
@@ -45,12 +46,28 @@ def rollup_week(yard: Yard, week_start: datetime.date) -> YardWeekMetrics:
     members = list(Member.objects.filter(pods__yards=yard).distinct())
     member_ids = [m.id for m in members]
     yard_pods = list(Pod.objects.filter(yards=yard))
-    pod_ids = [p.id for p in yard_pods]
 
-    week_posts = Post.objects.filter(
-        pod_id__in=pod_ids, deleted_at__isnull=True, created_at__gte=start, created_at__lt=end
+    # The yard's own slice, through THE in-yard predicate (#40 review MEDIUM-1):
+    # a bridge-pod post addressed exclusively to the other yard never lands in
+    # this yard's counts.
+    week_posts = (
+        Post.objects.filter(deleted_at__isnull=True, created_at__gte=start, created_at__lt=end)
+        .filter(in_yard_posts_q(yard.id))
+        .distinct()
     )
-    posted_member_ids = set(week_posts.values_list("author_id", flat=True))
+    # Presence is GLOBAL on purpose (#40 review HIGH-1): "active" means any
+    # deliberate touch anywhere (docs/metrics.md), and a per-yard posted set
+    # would let rollup ORDER overwrite an active bridge member as quiet in the
+    # one per-person datum. Every input to `touched` is yard-independent, so
+    # every yard's rollup writes the identical presence row.
+    posted_member_ids = set(
+        Post.objects.filter(
+            author_id__in=member_ids,
+            deleted_at__isnull=True,
+            created_at__gte=start,
+            created_at__lt=end,
+        ).values_list("author_id", flat=True)
+    )
     commented_member_ids = set(
         Comment.objects.filter(
             deleted_at__isnull=True, created_at__gte=start, created_at__lt=end
@@ -69,6 +86,14 @@ def rollup_week(yard: Yard, week_start: datetime.date) -> YardWeekMetrics:
             "member_id", flat=True
         )
     )
+    # The published per-yard column is scoped to THIS yard's issues (#40 review
+    # MEDIUM-2): a bridge member opening their paternal digest is one paternal
+    # open, not one in each yard. The global set above still feeds presence.
+    yard_digest_openers = set(
+        DigestToken.objects.filter(
+            first_used_at__gte=start, first_used_at__lt=end, issue__yard=yard
+        ).values_list("member_id", flat=True)
+    )
     touched = (
         posted_member_ids
         | commented_member_ids
@@ -81,20 +106,37 @@ def rollup_week(yard: Yard, week_start: datetime.date) -> YardWeekMetrics:
     responded = 0
     for post in posts:
         deadline = post.created_at + datetime.timedelta(days=7)
-        has_comment = Comment.objects.filter(
-            post=post, deleted_at__isnull=True, created_at__lt=deadline
-        ).exists()
-        has_reaction = Reaction.objects.filter(post=post, created_at__lt=deadline).exists()
+        # Reciprocity is loop-closure by OTHERS (docs/metrics.md R2): the
+        # author bumping their own post closes nothing (#40 review LOW-1).
+        has_comment = (
+            Comment.objects.filter(post=post, deleted_at__isnull=True, created_at__lt=deadline)
+            .exclude(author=post.author)
+            .exists()
+        )
+        has_reaction = (
+            Reaction.objects.filter(post=post, created_at__lt=deadline)
+            .exclude(member=post.author)
+            .exists()
+        )
         if has_comment or has_reaction:
             responded += 1
 
-    email_replies = Comment.objects.filter(
-        via_email=True,
-        deleted_at__isnull=True,
-        created_at__gte=start,
-        created_at__lt=end,
-        author_id__in=member_ids,
-    ).count()
+    email_replies = (
+        Comment.objects.filter(
+            via_email=True,
+            deleted_at__isnull=True,
+            created_at__gte=start,
+            created_at__lt=end,
+            author_id__in=member_ids,
+        )
+        .filter(
+            # The same in-yard rule, one join deeper (#40 review MEDIUM-2).
+            models.Q(post__audience_yards=yard)
+            | models.Q(post__audience_yards__isnull=True, post__pod__yards=yard)
+        )
+        .distinct()
+        .count()
+    )
 
     with transaction.atomic():
         for member in members:
@@ -119,7 +161,7 @@ def rollup_week(yard: Yard, week_start: datetime.date) -> YardWeekMetrics:
                 "posts_in_week": len(posts),
                 "posts_responded": responded,
                 "catch_up_members": len(visited_member_ids),
-                "digest_opens": len(digest_open_member_ids & set(member_ids)),
+                "digest_opens": len(yard_digest_openers & set(member_ids)),
                 "email_replies": email_replies,
             },
         )

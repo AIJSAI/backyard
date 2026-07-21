@@ -28,6 +28,12 @@ from django.utils import timezone
 from . import scoping
 from .models import DigestIssue, DigestToken, Post
 
+# Link fetches that arrive almost immediately after minting are scanners
+# (Outlook SafeLinks, AV prefetch), not people; stamping them would systematically
+# OVERCOUNT presence in exactly the managed-mailbox elder segment the metric
+# exists to measure (#40 review MEDIUM-3; docs/metrics.md promises undercounts).
+SCANNER_GRACE = datetime.timedelta(minutes=10)
+
 # The freshness bound. ADR-003 rule 1 commits to "weeks" so a digest opened from
 # a two-week-old email still works for an elder; 21 days is the proposed default,
 # recorded for founder ratification at the wave boundary. Revocation, not TTL, is
@@ -82,12 +88,24 @@ def resolve(raw_token: str) -> DigestToken:
         raise DigestLinkInvalid  # revoked resolves exactly like never-existed
     if token.expires_at <= timezone.now():
         raise DigestLinkExpired
-    if token.first_used_at is None:
+    now = timezone.now()
+    if token.first_used_at is None and now - token.created_at > SCANNER_GRACE:
         # The one-time open proxy (S-705): a single stamp, never an open log.
+        # Fetches inside SCANNER_GRACE are delivery-time scanners, ignored.
         DigestToken.objects.filter(pk=token.pk, first_used_at__isnull=True).update(
-            first_used_at=timezone.now()
+            first_used_at=now
         )
     return token
+
+
+def in_yard_posts_q(yard_id: int) -> models.Q:
+    """THE in-yard predicate: a post belongs to a yard's slice if it addresses
+    that yard, or is pod-only in a pod of that yard. The digest slice and the
+    metrics rollup both consume this one Q so the definition cannot drift into
+    a second implementation (#40 review MEDIUM-1, the TM-2 pattern)."""
+    return models.Q(audience_yards=yard_id) | models.Q(
+        audience_yards__isnull=True, pod__yards=yard_id
+    )
 
 
 def issue_posts(issue: DigestIssue) -> models.QuerySet[Post]:
@@ -101,12 +119,9 @@ def issue_posts(issue: DigestIssue) -> models.QuerySet[Post]:
     scoping.visible_posts evaluated NOW, a post deleted or narrowed after the
     email went out is simply absent from the still-valid link.
     """
-    in_this_yard = models.Q(audience_yards=issue.yard) | models.Q(
-        audience_yards__isnull=True, pod__yards=issue.yard
-    )
     return (
         scoping.visible_posts(issue.member)
-        .filter(in_this_yard)
+        .filter(in_yard_posts_q(issue.yard_id))
         .filter(created_at__gte=issue.window_start, created_at__lt=issue.window_end)
         .distinct()
     )

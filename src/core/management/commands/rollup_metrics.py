@@ -22,7 +22,11 @@ class Command(BaseCommand):
 
     def handle(self, *args: Any, **options: Any) -> None:
         week_start = timezone.localdate() - datetime.timedelta(days=7)
+        # Re-roll the week before as well (#40 review LOW-3): a post from day 6
+        # of that window had barely a day of its 7-day response deadline at the
+        # first roll; idempotency makes the heal free.
         for yard in Yard.objects.all():
+            rollup_week(yard, week_start - datetime.timedelta(days=7))
             row = rollup_week(yard, week_start)
             self.stdout.write(
                 f"{yard.name} {week_start}: wcm={row.wcm}/{row.member_count} "
