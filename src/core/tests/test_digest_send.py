@@ -152,35 +152,32 @@ def test_deleted_after_enqueue_is_absent_from_the_sent_payload(world: World) -> 
     assert "DOOMED-BODY" not in mail.outbox[0].body
 
 
-def test_hard_crash_mid_batch_leaves_no_half_state(world: World, monkeypatch: Any) -> None:
-    """The TS-DJ-2 kill shape: recipient one fully recorded, the crashed
-    recipient fully absent — no issue, no delivery, no extra email."""
+def test_hard_crash_is_isolated_and_leaves_no_half_state(world: World, monkeypatch: Any) -> None:
+    """The TS-DJ-2 kill shape plus per-recipient isolation (#38 review): the
+    crashed recipient is fully absent — no issue, no delivery, no email — while
+    recipients before AND after it still send, and the report says so loudly."""
     _confirmed(world.maternal_cousin, "first@example.com")
-    _confirmed(world.paternal_cousin, "second@example.com")
+    _confirmed(world.bridge, "second@example.com")
+    _confirmed(world.paternal_cousin, "third@example.com")
 
-    calls = {"n": 0}
     real_send = emailing.send_family_email
 
     def crashing_send(**kwargs: Any) -> None:
-        calls["n"] += 1
-        if calls["n"] == 2:
-            raise RuntimeError("power loss")  # not a transport error: propagates
+        if kwargs["to"] == "second@example.com":
+            raise RuntimeError("power loss")  # not a transport error
         real_send(**kwargs)
 
     monkeypatch.setattr("core.digest_send.emailing.send_family_email", crashing_send)
-    with pytest.raises(RuntimeError):
-        send_due_digests(timezone.now())
+    report = send_due_digests(timezone.now())
 
-    assert len(mail.outbox) == 1  # recipient one sent...
-    first = DigestIssue.objects.filter(member__in=[world.maternal_cousin, world.paternal_cousin])
-    assert first.count() == 1  # ...and fully recorded
-    assert DigestDelivery.objects.count() == 1
-    crashed_member = (
-        world.paternal_cousin
-        if first.get().member_id == world.maternal_cousin.id
-        else world.maternal_cousin
-    )
-    assert not DigestIssue.objects.filter(member=crashed_member).exists()  # fully absent
+    assert report.crashed == 2  # the bridge member's two yard-sends both crashed
+    assert report.sent == 2  # the recipients around the poisoned one still sent
+    assert {message.to[0] for message in mail.outbox} == {
+        "first@example.com",
+        "third@example.com",
+    }
+    assert not DigestIssue.objects.filter(member=world.bridge).exists()  # fully absent
+    assert DigestDelivery.objects.count() == 2  # only the real sends recorded
 
 
 def test_transport_failure_records_and_never_flips_subscription(
@@ -252,3 +249,64 @@ def test_multi_yard_emails_share_one_working_unsubscribe_link(world: World) -> N
         raws.add(body[body.index(marker) + len(marker) :].split("/", 1)[0])
     assert len(raws) == 1  # the same capability in both emails...
     assert Client().get(f"/digest/unsubscribe/{raws.pop()}/").status_code == 200  # ...and it works
+
+
+def test_transport_failure_never_kills_the_previous_emailed_unsubscribe_link(
+    world: World, monkeypatch: Any
+) -> None:
+    """#38 review HIGH, the reviewer's exact probe: week-1 digest delivered;
+    week-2 send greylisted. The rotation rolls back with the refused send, so
+    week-1's emailed consent-revocation link still works."""
+    from django.test import Client
+
+    _confirmed(world.maternal_cousin, "cousin@example.com")
+    send_due_digests(timezone.now())
+    body = mail.outbox[0].body
+    marker = "/digest/unsubscribe/"
+    week1_raw = body[body.index(marker) + len(marker) :].split("/", 1)[0]
+    assert Client().get(f"/digest/unsubscribe/{week1_raw}/").status_code == 200
+
+    def greylisted(**kwargs: Any) -> None:
+        raise smtplib.SMTPResponseException(450, b"try again later")
+
+    monkeypatch.setattr("core.digest_send.emailing.send_family_email", greylisted)
+    later = timezone.now() + datetime.timedelta(days=8)
+    report = send_due_digests(later)
+    assert report.failed == 1
+    assert Client().get(f"/digest/unsubscribe/{week1_raw}/").status_code == 200  # still alive
+    # And the orphan digest token from the refused send rolled back too.
+    from core.models import DigestToken
+
+    refused_issue = DigestIssue.objects.filter(member=world.maternal_cousin).order_by(
+        "-created_at"
+    )[0]
+    assert not DigestToken.objects.filter(issue=refused_issue).exists()
+
+
+def test_partial_crash_never_loses_a_yards_window(world: World, monkeypatch: Any) -> None:
+    """#38 review MEDIUM, the reviewer's exact probe: the bridge member's
+    maternal send commits, the paternal send crashes. Content posted in that
+    window must still reach the paternal digest on the next run — the window
+    anchors per (member, yard), never on a sibling yard's success."""
+    _confirmed(world.bridge, "bridge@example.com")
+    lost_post = Post.objects.create(
+        author=world.paternal_cousin, pod=world.p_pod, body="ALMOST-LOST-BODY"
+    )
+    lost_post.audience_yards.set([world.paternal])
+
+    real_send = emailing.send_family_email
+
+    def crash_paternal(**kwargs: Any) -> None:
+        if "Paternal" in kwargs["subject"]:
+            raise RuntimeError("power loss")
+        real_send(**kwargs)
+
+    monkeypatch.setattr("core.digest_send.emailing.send_family_email", crash_paternal)
+    first_run = send_due_digests(timezone.now())
+    assert first_run.sent == 1 and first_run.crashed == 1
+
+    monkeypatch.setattr("core.digest_send.emailing.send_family_email", real_send)
+    second_run = send_due_digests(timezone.now() + datetime.timedelta(days=8))
+    assert second_run.crashed == 0
+    paternal_bodies = [m.body for m in mail.outbox if "Paternal" in m.subject]
+    assert paternal_bodies and "ALMOST-LOST-BODY" in paternal_bodies[-1]

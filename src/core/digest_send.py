@@ -43,6 +43,7 @@ class SendReport:
     sent: int = 0
     failed: int = 0
     skipped: int = 0
+    crashed: int = 0
     details: list[str] = field(default_factory=list)
 
     def note(self, outcome: str, what: str) -> None:
@@ -63,13 +64,22 @@ def send_due_digests(now: datetime.datetime) -> SendReport:
         # transaction, so a fully rolled-back run rolls the rotation back too.
         unsubscribe_raw: str | None = None
         for yard in scoping.visible_yards(member):
-            outcome, unsubscribe_raw = _send_one(
-                subscription_id=due.subscription.pk,
-                yard_id=yard.pk,
-                window_start=due.window_start,
-                window_end=due.window_end,
-                unsubscribe_raw=unsubscribe_raw,
-            )
+            # Per-recipient isolation (#38 review MEDIUM): one poisoned row must
+            # not starve every later recipient on every run. _send_one's atomic
+            # block still rolls the crashed recipient back whole (TS-DJ-2); the
+            # batch continues, and the command surfaces the crash count loudly.
+            try:
+                outcome, unsubscribe_raw = _send_one(
+                    subscription_id=due.subscription.pk,
+                    yard_id=yard.pk,
+                    window_start=due.window_start,
+                    window_end=due.window_end,
+                    unsubscribe_raw=unsubscribe_raw,
+                )
+            except Exception as exc:  # noqa: BLE001  # the isolation point, by design
+                report.crashed += 1
+                report.note("crashed", f"member={member.pk} yard={yard.pk} {type(exc).__name__}")
+                continue
             setattr(report, outcome, getattr(report, outcome) + 1)
             report.note(outcome, f"member={member.pk} yard={yard.pk}")
     return report
@@ -104,18 +114,49 @@ def _send_one(
         if yard_id not in scoping.member_yard_ids(member):
             return "skipped", unsubscribe_raw
 
+        # The window anchors per (member, yard), not per member (#38 review
+        # MEDIUM): after a partial crash, the crashed yard resumes from ITS own
+        # newest issue, so no yard ever loses a window to a sibling's success.
+        # The due computation's member-level anchor is only the first-digest
+        # fallback.
+        newest_for_yard = (
+            DigestIssue.objects.filter(member=member, yard_id=yard_id)
+            .order_by("-window_end")
+            .first()
+        )
+        # No issue for THIS yard yet means its first digest, anchored at
+        # confirmation exactly like due_recipients' first-ever case — never at
+        # a sibling yard's success, which is how a crashed yard's window was
+        # getting lost.
+        if newest_for_yard is not None:
+            yard_window_start = newest_for_yard.window_end
+        else:
+            yard_window_start = subscription.confirmed_at or window_start
+        if yard_window_start >= window_end:
+            return "skipped", unsubscribe_raw  # this yard is already covered
+
         issue, created = DigestIssue.objects.get_or_create(
             member=member,
             yard_id=yard_id,
-            window_start=window_start,
+            window_start=yard_window_start,
             defaults={"window_end": window_end},
         )
         if not created:
             return "skipped", unsubscribe_raw  # an overlapping run covered this window
 
+        # Everything from the token mint onward sits behind a savepoint (#38
+        # review HIGH): a transport failure must not commit a rotated
+        # unsubscribe digest whose raw value only exists in an email the relay
+        # refused — that would kill the member's previously emailed link with
+        # no delivered replacement. Rolling back to here restores the old
+        # digest and drops the orphan DigestToken, while the issue row and the
+        # delivery record still commit.
+        savepoint = transaction.savepoint()
         raw_digest_token = digest_links.mint(issue)
+        rotated_here = False
         if unsubscribe_raw is None:
             unsubscribe_raw = digesting.rotate_unsubscribe_token(subscription)
+            rotated_here = True
         built = digest.build_digest(
             issue, digest_token=raw_digest_token, unsubscribe_token=unsubscribe_raw
         )
@@ -127,16 +168,20 @@ def _send_one(
                 html=built.html,
             )
         except (smtplib.SMTPException, OSError) as exc:
+            transaction.savepoint_rollback(savepoint)
             # Transport truth for the admin panel (T-EMAIL-6): the failure is
             # recorded, the issue stays (so the next run does not hammer the
             # same window), and subscription state is untouched. Anything
-            # non-transport (a contract ValueError from the seam) propagates
-            # and rolls this recipient back whole.
+            # non-transport propagates and rolls this recipient back whole.
             DigestDelivery.objects.create(
                 issue=issue,
                 status=DigestDelivery.REJECTED,
                 detail=str(exc)[:200],
             )
-            return "failed", unsubscribe_raw
+            # If this call minted the rotation, it was just rolled back: the
+            # next yard must re-rotate rather than email a raw whose digest no
+            # longer exists.
+            return "failed", (None if rotated_here else unsubscribe_raw)
+        transaction.savepoint_commit(savepoint)
         DigestDelivery.objects.create(issue=issue, status=DigestDelivery.HANDED_TO_RELAY)
         return "sent", unsubscribe_raw
