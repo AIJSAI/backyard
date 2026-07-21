@@ -360,3 +360,25 @@ def test_transport_failure_rolls_back_supersession_of_old_reply_addresses(
     week1.refresh_from_db()
     assert week1.superseded_at is None  # the failed send never started the grace clock
     assert ReplyAddress.objects.count() == 1  # and minted nothing durable
+
+
+def test_same_run_yards_do_not_supersede_each_other(world: World) -> None:
+    """#39 review MED-2: the bridge member's two same-run issues each keep
+    their own unsuperseded reply addresses; supersession is per yard stream."""
+    from core.models import ReplyAddress
+
+    _confirmed(world.bridge, "bridge@example.com")
+    post = Post.objects.create(author=world.bridge, pod=world.bridge_pod, body="both sides")
+    send_due_digests(timezone.now())
+    # The MED-2 regression: after ONE run, the bridge member's two per-yard
+    # mints have NOT stamped each other — zero superseded addresses.
+    assert ReplyAddress.objects.filter(post=post).count() == 2
+    assert ReplyAddress.objects.filter(superseded_at__isnull=False).count() == 0
+    # The NEXT run supersedes each yard's own predecessor (starting its grace
+    # window, T-EMAIL-2) — per-yard streams age independently, and both aged
+    # addresses stay within grace rather than dying.
+    send_due_digests(timezone.now() + datetime.timedelta(days=8))
+    for yard in (world.maternal, world.paternal):
+        aged = ReplyAddress.objects.get(issue__yard=yard, post=post)
+        assert aged.superseded_at is not None
+        assert aged.superseded_at > timezone.now() - datetime.timedelta(hours=1)

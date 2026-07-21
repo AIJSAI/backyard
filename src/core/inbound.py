@@ -11,6 +11,14 @@ and write through commenting.create_comment — whose independent visible_posts
 re-check is the second lock, so a valid capability for a post outside the
 sender's CURRENT audience bounces exactly like an unknown address.
 
+Documented postures, on the record: a TOP-quoting client (quoted digest above
+the user's words) quarantines rather than posts — fail-closed for T-EMAIL-G2,
+at the cost of losing that client's replies to the admin panel; recovering the
+below-quote text is a founder product decision. A Message-ID-less client that
+sends two byte-identical short replies dedupes the second (narrow, fail-safe).
+Invalid-capability bounces are unmetered (cheap, never sent, private mailbox)
+and the ledger is unpruned — both fine at family scale, revisit with volume.
+
 Bounces are built by one branch-free constructor: "no such thread" and "not
 your thread" are the same bytes (the email analog of the guard's 404 parity).
 Quarantine rows hold mail content, so they surface only on the instance-admin
@@ -20,6 +28,7 @@ panel and are deleted once handled (T-OP-G2).
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass
 from email import message_from_bytes
 from email.message import Message
@@ -38,6 +47,10 @@ _MAX_BODY_CHARS = 2000  # a reply is a comment; the composer's cap applies
 _EXCERPT_CHARS = 500  # what a quarantine row retains for the admin
 # Per-capability inbound ceiling, on the shared DatabaseCache (TS-DJ-13).
 _RATE_LIMIT_PER_HOUR = 20
+
+# A quoting client's attribution line, e.g. "On Mon, Jul 20 ... wrote:" or
+# Outlook's "-----Original Message-----".
+_ATTRIBUTION_LINE = re.compile(r"^(On .{0,200}wrote:|-{3,}\s*Original Message\s*-{3,})$")
 
 # One constant, one construction path: byte-identical for every refusal shape
 # that must not leak thread existence (S-502 hardening verbatim).
@@ -129,8 +142,14 @@ def _strip_below_separator(body: str) -> str | None:
     tolerated: clients quote the digest, separator included."""
     for lineno, line in enumerate(body.splitlines()):
         if digest.REPLY_SEPARATOR in line:
-            above = "\n".join(body.splitlines()[:lineno]).strip()
-            return above
+            kept = body.splitlines()[:lineno]
+            # Drop a trailing client attribution line ("On ... wrote:",
+            # "-----Original Message-----") so the sending address never posts
+            # into the thread (#39 review LOW-2). Cosmetic; the separator rule
+            # above is the security boundary.
+            while kept and (_ATTRIBUTION_LINE.match(kept[-1].strip()) or not kept[-1].strip()):
+                kept.pop()
+            return "\n".join(kept).strip()
     return None
 
 
@@ -160,7 +179,12 @@ def process_inbound(raw: bytes) -> InboundResult:
     rate_key = f"inbound-rate:{_sha(local_part)}"
     if cache.get_or_set(rate_key, 0, timeout=3600) >= _RATE_LIMIT_PER_HOUR:  # type: ignore[operator]
         return _quarantine(InboundQuarantine.RATE_LIMITED, member_id=address.member_id)
-    cache.incr(rate_key)
+    try:
+        cache.incr(rate_key)
+    except ValueError:
+        # The key was culled between get_or_set and incr (#39 review MED-1):
+        # the pipeline never raises for cache weather; restart the counter.
+        cache.set(rate_key, 1, timeout=3600)
 
     # From: is a consistency check ONLY (T-EMAIL-1): mismatch quarantines and
     # never attributes; match proves nothing (it is spoofable) and grants
@@ -208,11 +232,9 @@ def process_inbound(raw: bytes) -> InboundResult:
     # web form, whose independent visible_posts re-check bounces a post outside
     # the sender's CURRENT audience — byte-identically with an unknown address.
     try:
-        comment = commenting.create_comment(
-            author=address.member, post=address.post, body=comment_body
+        commenting.create_comment(
+            author=address.member, post=address.post, body=comment_body, via_email=True
         )
     except commenting.CommentNotAllowed:
         return _bounce()
-    comment.via_email = True
-    comment.save(update_fields=["via_email"])
     return InboundResult(outcome="posted")

@@ -52,8 +52,16 @@ def mint_for_issue(issue: DigestIssue, post_ids: list[int]) -> dict[int, str]:
     live addresses (starting their grace clock). Returns {post_id: local part};
     the raw values live only in the email this issue produces."""
     now = timezone.now()
+    # Supersession is per YARD (#39 review MED-2): a bridge member's two
+    # same-run issues must not stamp each other, or the first-minted yard's
+    # addresses never get an unsuperseded window and a monthly-cadence reply
+    # can bounce right at the next digest boundary (T-EMAIL-2 wants a NEWER
+    # issue of the SAME digest stream to supersede an older one).
     ReplyAddress.objects.filter(
-        member=issue.member, superseded_at__isnull=True, voided_at__isnull=True
+        member=issue.member,
+        issue__yard=issue.yard,
+        superseded_at__isnull=True,
+        voided_at__isnull=True,
     ).exclude(issue=issue).update(superseded_at=now)
     minted: dict[int, str] = {}
     for post_id in post_ids:

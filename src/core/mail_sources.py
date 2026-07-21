@@ -4,6 +4,13 @@ A MailSource yields raw RFC-5322 bytes and acknowledges what was consumed.
 The fixture source drives the test corpus today; the IMAP adapter (W4-B2, one
 thin class when the dedicated mailbox exists) plugs in here with zero change
 to the pipeline, because everything security-relevant lives in core/inbound.
+
+IMAP adapter contract (#39 review, bake into W4-B2): the capability must be
+read from the trusted MTA-prepended Delivered-To (the envelope recipient),
+never an attacker-supplied duplicate header; verify the mail path preserves
+local-part case end-to-end (the digest lookup is case-sensitive, so a
+lowercasing hop would bounce every reply — fail-closed but a deployment
+footgun); HTML-only replies quarantine (only text/plain is read).
 """
 
 from __future__ import annotations

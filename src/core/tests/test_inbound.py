@@ -17,6 +17,7 @@ from __future__ import annotations
 import datetime
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pytest
 from django.utils import timezone
@@ -292,3 +293,46 @@ def test_pod_leave_voids_that_pods_reply_capabilities(world: World) -> None:
     pods_service.leave_pod(member=world.bridge, pod=adhoc)
     with pytest.raises(reply_addresses.ReplyAddressInvalid):
         reply_addresses.resolve(minted[adhoc_post.id])
+
+
+# --- folds from the #39 security review ---
+
+
+def test_cache_eviction_race_never_raises(world: World, monkeypatch: Any) -> None:
+    """#39 review MED-1: DatabaseCache can cull the rate key between get_or_set
+    and incr; the pipeline restarts the counter instead of raising out of the
+    never-raises contract (which would poison the poll loop)."""
+    from django.core.cache import cache as real_cache
+
+    calls = {"n": 0}
+    real_incr = real_cache.incr
+
+    def evicted_once(key: str, delta: int = 1) -> int:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise ValueError(f"Key {key!r} not found")
+        return real_incr(key, delta)
+
+    monkeypatch.setattr("core.inbound.cache.incr", evicted_once)
+    result = inbound.process_inbound(_email(world, message_id="evict@x"))
+    assert result.outcome == "posted"  # weather, not a crash
+
+
+def test_attribution_line_never_posts(world: World) -> None:
+    """#39 review LOW-2: the trailing 'On ... wrote:' line a bottom-quoting
+    client leaves above the separator is dropped, so the sending address never
+    lands in the thread."""
+    result = inbound.process_inbound(_email(world, "gmail_reply.eml", message_id="attr@x"))
+    assert result.outcome == "posted"
+    comment = Comment.objects.get()
+    assert "wrote:" not in comment.body
+    assert "family@example.com" not in comment.body
+    assert comment.body == "So glad to see this!"
+
+
+def test_badge_is_atomic_with_the_comment(world: World) -> None:
+    """#39 review LOW-1: via_email is set in the single create, so no crash
+    window can leave an email comment that reads as typed."""
+    inbound.process_inbound(_email(world, message_id="atomic@x"))
+    comment = Comment.objects.get()
+    assert comment.via_email is True  # set at INSERT time, not a follow-up write
