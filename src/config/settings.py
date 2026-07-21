@@ -198,7 +198,9 @@ STORAGES = {
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-LOGIN_URL = "/setup/"
+# Where login_required sends an anonymous visitor: the allauth login page (the
+# member-management surface is the first login-gated view).
+LOGIN_URL = "account_login"
 
 # Security headers. Secure cookies and HSTS switch on when the instance is served over
 # HTTPS, keyed off BASE_URL rather than DEBUG, so the local HTTP clean-machine repro still
