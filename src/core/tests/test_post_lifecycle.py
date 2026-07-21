@@ -13,6 +13,7 @@ from datetime import timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.core.exceptions import PermissionDenied
 from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
@@ -114,6 +115,20 @@ def test_only_the_author_may_delete(world: dict[str, object]) -> None:
     post = _post(author, m_pod)
     with pytest.raises(posting.NotYourPost):
         posting.delete_post(actor=pod_mate, post=post)
+
+
+def test_editing_a_deleted_post_is_refused(world: dict[str, object]) -> None:
+    """Defense in depth (security review LOW-2): the service refuses to edit a
+    deleted post even though the view already 404s one through the guard."""
+    author = world["author"]
+    m_pod = world["m_pod"]
+    assert isinstance(author, Member)
+    assert isinstance(m_pod, Pod)
+    post = _post(author, m_pod)
+    posting.delete_post(actor=author, post=post)
+    post.refresh_from_db()
+    with pytest.raises(PermissionDenied):
+        posting.edit_post(actor=author, post=post, body="back from the dead")
 
 
 def test_delete_is_soft_and_idempotent(world: dict[str, object]) -> None:

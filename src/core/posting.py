@@ -83,6 +83,12 @@ def edit_post(*, actor: Member, post: Post, body: str) -> Post:
     """
     if post.author_id != actor.id:
         raise NotYourPost("You can only edit your own post.")
+    if post.deleted_at is not None:
+        # Defense in depth (security review LOW-2): the view already 404s a deleted
+        # post through the guard before reaching here, but the service refuses
+        # independently so a future non-guard caller cannot edit a tombstoned post
+        # back into the feed. Mirrors delete_post's own deleted-state guard.
+        raise PermissionDenied("This post has been deleted and can no longer be edited.")
     if not within_edit_window(post):
         raise EditWindowClosed("The window for editing this post has passed.")
     post.body = body
