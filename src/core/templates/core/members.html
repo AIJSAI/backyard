@@ -1,0 +1,23 @@
+{% extends "core/base.html" %}
+{% block title %}Family members{% endblock %}
+{% block body %}
+  <h1>Family members</h1>
+  <p class="muted">Everyone in your yards. Supervised accounts are managed by a parent.</p>
+
+  <ul class="members">
+    {% for member in members %}
+      <li>
+        <span>{{ member.display_name }}</span>
+        {% if member.kinship_name %}<span class="muted">({{ member.kinship_name }})</span>{% endif %}
+        <span class="role">{{ member.get_role_display }}</span>
+        {% if member.is_supervised %}<span class="flag">supervised</span>{% endif %}
+        {% if member.id in manageable_ids %}
+          <form method="post" action="{% url 'member_remove' member.id %}" class="inline">
+            {% csrf_token %}
+            <button type="submit">Remove</button>
+          </form>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+{% endblock %}

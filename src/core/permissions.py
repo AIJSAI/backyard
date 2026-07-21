@@ -63,6 +63,10 @@ def can_manage_member(actor: Member, target: Member) -> bool:
         return is_instance_admin(actor)
     if is_instance_admin(actor):
         return True
+    # Below the instance admin, no one manages an admin: a yard admin cannot remove
+    # or re-role an instance admin or a peer yard admin (no privilege inversion).
+    if target.role in _ADMIN_ROLES:
+        return False
     if actor.role == Member.YARD_ADMIN:
         return _target_within_actor_scope(actor, target)
     return False

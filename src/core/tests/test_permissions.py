@@ -133,6 +133,18 @@ def test_only_instance_admin_grants_admin_roles(world: dict[str, object]) -> Non
     assert not permissions.can_assign_role(ya, member_a, Member.INSTANCE_ADMIN)
 
 
+def test_yard_admin_cannot_manage_another_admin_even_in_scope(world: dict[str, object]) -> None:
+    """No privilege inversion: a yard admin sharing a yard with the instance admin
+    (or a peer yard admin) still cannot administer them; only the instance admin can."""
+    ya = world["yard_a_admin"]
+    instance = world["instance_admin"]
+    peer = _member(world["pod_a"], "A-admin-2", Member.YARD_ADMIN)  # type: ignore[arg-type]
+    assert isinstance(ya, Member)
+    assert isinstance(instance, Member)
+    assert not permissions.can_manage_member(ya, instance)
+    assert not permissions.can_manage_member(ya, peer)
+
+
 def test_can_create_supervised_scope(world: dict[str, object]) -> None:
     parent = world["member_a"]
     ya = world["yard_a_admin"]
