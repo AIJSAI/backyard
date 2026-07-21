@@ -58,12 +58,19 @@ def elder_page() -> str:
 
 
 def test_body_text_meets_aa_contrast(elder_page: str) -> None:
-    # The elder page declares its foreground/background as hex in the inline CSS.
-    assert "#1a1a1a" in elder_page and "#ffffff" in elder_page
-    ratio = _contrast("#1a1a1a", "#ffffff")
+    # Parse the body rule's actual foreground/background roles (#45 review LOW-4),
+    # not mere substring presence, so a theme that dropped body text below AA
+    # while keeping #1a1a1a on a border still fails here.
+    body_rule = re.search(r"body\s*\{([^}]*)\}", elder_page)
+    assert body_rule, "no body CSS rule on the elder page"
+    fg = re.search(r"color:\s*(#[0-9a-fA-F]{6})", body_rule.group(1))
+    bg = re.search(r"background:\s*(#[0-9a-fA-F]{6})", body_rule.group(1))
+    assert fg and bg, "body rule missing explicit color/background"
+    ratio = _contrast(fg.group(1), bg.group(1))
     assert ratio >= _AA_NORMAL, f"body contrast {ratio:.1f}:1 below AA {_AA_NORMAL}:1"
+    assert ratio >= 17.0  # the intended high-contrast elder palette, pinned
     # The muted byline must still clear AA against the same background.
-    assert _contrast("#444444", "#ffffff") >= _AA_NORMAL
+    assert _contrast("#444444", bg.group(1)) >= _AA_NORMAL
 
 
 def test_tap_targets_declare_an_aa_size(elder_page: str) -> None:

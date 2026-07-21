@@ -256,7 +256,7 @@ epics:
           - "GPS EXIF data is stripped by default before storage"
           - "EXIF orientation is respected; vertical phone photos display upright everywhere, including email"
           - "Optional alt text per photo"
-        status: spec
+        status: built  # wave 3: Pillow ingest + full metadata strip, merged #30, live-repro-d (EXIF stripped, orientation baked); tested-flip waits on wave-3 close
         v1: true
         security:
           threat_refs:
@@ -290,7 +290,7 @@ epics:
           - "Media URLs are unguessable and access-checked against pod/yard membership"
           - "Direct fetch without a valid session or token returns 404"
           - "Digest and token surfaces use signed, expiring media URLs"
-        status: spec
+        status: built  # wave 3: the one access-checked media serving path, merged #30, live-repro-d (cross-yard 404 both tokens); tested-flip waits on wave-3 close
         v1: true
 
         security:

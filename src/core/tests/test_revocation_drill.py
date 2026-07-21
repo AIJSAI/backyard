@@ -7,6 +7,16 @@ every credential class the product mints against a single revocation act, so a
 future class that forgets to register in the TM-1 registry fails HERE even if
 its own suite is green. It is the belt over the belt: each class already has its
 own completeness assertion, and this proves they all die together.
+
+Coverage honesty (#45 review): the drill checks every credential class that
+exists today. Some die by a registry row-void step (invites, digest
+subscription, digest tokens, reply addresses, elder tokens); two die by the
+generation bump alone with NO registry row (the elder session and the web
+session), so a length-of-registry pin cannot be the whole tripwire. The
+canonical set below is the real one, asserted by EQUALITY against what the drill
+checks. A future generation-only bearer capability (the planned W3 signed-media
+URL, digest.py notes it "carries the generation") MUST be added to this set and
+to all_dead() when it ships, or the equality assertion here fails.
 """
 
 from __future__ import annotations
@@ -21,7 +31,7 @@ from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
 
-from core import digest_links, elder_tokens, media, reply_addresses, revocation
+from core import digest_links, digesting, elder_tokens, media, reply_addresses, revocation
 from core.models import (
     DigestIssue,
     DigestSubscription,
@@ -37,6 +47,23 @@ from core.models import (
 
 pytestmark = pytest.mark.django_db
 User = get_user_model()
+
+# Every credential/capability class the product mints today. A new class MUST be
+# added here and to Credentials.all_dead(); the equality assertion in
+# test_the_drill_covers_every_registered_credential_class enforces it. The
+# planned W3 signed-media bearer URL is the next expected addition.
+_ALL_CAPABILITY_CLASSES = frozenset(
+    {
+        "master_token",
+        "elder_session",
+        "web_session",
+        "digest_link",
+        "signed_media_url",
+        "reply_address",
+        "digest_confirm_token",
+        "digest_unsubscribe_token",
+    }
+)
 _TEST_PW = "a-Strong-passphrase-9"
 _BACKEND = "django.contrib.auth.backends.ModelBackend"
 
@@ -59,6 +86,13 @@ class Credentials:
         self.media_token = media.ingest_photo(post=post, raw=_jpeg()).token
         # A reply-by-email capability.
         self.reply_local = reply_addresses.mint_for_issue(issue, [post.id])[post.id]
+        # The digest subscription's emailed confirm + unsubscribe bearer tokens.
+        self.confirm_raw = "drill-confirm-raw-token-value-000000"
+        self.unsub_raw = "drill-unsub-raw-token-value-00000000"
+        DigestSubscription.objects.filter(member=member).update(
+            confirm_token_digest=digesting._digest(self.confirm_raw),
+            unsubscribe_token_digest=digesting._digest(self.unsub_raw),
+        )
         # A logged-in web session, if the member has a login.
         self.web_client: Client | None = None
         if member.user is not None:
@@ -80,11 +114,22 @@ class Credentials:
             "web_session": self.web_client.get(reverse("feed")).status_code == 302,
             "digest_link": Client().get(reverse("digest_web", args=[self.digest_raw])).status_code
             == 404,
+            # Media is served via the member's own login_required, audience-scoped
+            # session today (no bearer media URL exists yet), so its death here
+            # is the session dying. When the W3 signed-media signer lands as a
+            # true bearer URL, this check MUST switch to the bare-token path or
+            # it would silently pass on a surviving bearer URL (#45 review LOW-3).
             "signed_media_url": self.web_client.get(
                 reverse("serve_media", args=[self.media_token])
             ).status_code
             != 200,
             "reply_address": _reply_bounces(self.reply_local),
+            "digest_confirm_token": _digest_token_dead(
+                self.confirm_raw, digesting.peek_confirmation
+            ),
+            "digest_unsubscribe_token": _digest_token_dead(
+                self.unsub_raw, digesting.peek_unsubscribe
+            ),
         }
 
 
@@ -92,6 +137,14 @@ def _jpeg() -> bytes:
     buf = io.BytesIO()
     Image.new("RGB", (24, 24), (3, 3, 3)).save(buf, format="JPEG")
     return buf.getvalue()
+
+
+def _digest_token_dead(raw: str, peek: object) -> bool:
+    try:
+        peek(raw)  # type: ignore[operator]
+        return False
+    except digesting.DigestTokenInvalid:
+        return True
 
 
 def _reply_bounces(local_part: str) -> bool:
@@ -169,20 +222,13 @@ def test_the_drill_covers_every_registered_credential_class(
     creds = member_with_everything
     elder_tokens.regenerate(creds.member)
     checked = set(creds.all_dead().keys())
-    # The row-backed classes the registry voids, plus the two session classes
-    # the generation bump kills, are all represented in the drill.
-    assert {
-        "master_token",
-        "elder_session",
-        "web_session",
-        "digest_link",
-        "signed_media_url",
-        "reply_address",
-    } <= checked
-    # And every registry step that deletes/voids a member-scoped row has a drill
-    # check: sessions, invites (no live invite here), digest subscription,
-    # digest tokens, reply addresses, elder tokens. The registry length is the
-    # tripwire — a new step forces a reviewer to extend this drill.
+    # EQUALITY, not subset (#45 review): adding a class to the drill without
+    # naming it here, or vice versa, fails. A new product capability class must
+    # land in BOTH the canonical set and all_dead().
+    assert checked == _ALL_CAPABILITY_CLASSES
+    # The registry length is a SECOND tripwire for the row-void classes: a new
+    # _REVOCATION_STEPS entry forces a reviewer back to this drill. (Generation-
+    # only classes are caught by the equality pin above, not this count.)
     assert len(revocation._REVOCATION_STEPS) == 6
 
 
