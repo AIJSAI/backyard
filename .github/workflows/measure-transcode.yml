@@ -1,0 +1,40 @@
+# The ADR-002 / S-402 transcode-latency gate, measured on a real modest VM instead of a
+# dev machine. Manual trigger only; the run log records the box spec AND the production
+# transcode latency table, and IS the wave-3 close receipt (docs/runbooks/measure-transcode.md).
+#
+# Runs on a 2-vCPU Ubicloud runner — deliberately the WEAKEST realistic self-host box (a
+# home NAS / N100 class), because the gate proves the floor, not the ceiling. If it's fast
+# here, it's fast on any real deployment. Software libx264, no hardware acceleration.
+#
+# Requires the Ubicloud GitHub App to have access to this repo (the `ubicloud-standard-2`
+# label); adjust the size if a different runner is provisioned.
+name: Measure transcode latency (S-402 gate)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubicloud-standard-2
+    env:
+      # Not a secret: this job never sends mail or touches a database; settings.py just
+      # needs a long-enough key to boot so the transcoding module imports.
+      DJANGO_SECRET_KEY: measure-transcode-not-a-secret-0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.6"
+      - run: uv sync --frozen
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Record the box (target-hardware spec for the receipt)
+        run: |
+          echo "== CPU =="; nproc; grep -m1 'model name' /proc/cpuinfo || true
+          echo "== RAM =="; free -h | head -2 || true
+          echo "== ffmpeg =="; ffmpeg -version | head -1 || true
+      - name: Measure transcode latency
+        run: uv run python manage.py measure_transcode
