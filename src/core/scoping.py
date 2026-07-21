@@ -26,9 +26,10 @@ from __future__ import annotations
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
+from django.db.models import Q
 from django.http import Http404
 
-from .models import Member, Pod, Yard
+from .models import Member, Pod, Post, Yard
 
 
 def member_yard_ids(member: Member) -> set[int]:
@@ -58,6 +59,23 @@ def visible_members(member: Member) -> models.QuerySet[Member]:
     (S-902). A bridging member is visible from both yards; a cross-yard member is
     not visible at all."""
     return Member.objects.filter(pods__yards__id__in=member_yard_ids(member)).distinct()
+
+
+def visible_posts(member: Member) -> models.QuerySet[Post]:
+    """Every post a member may see, newest first (S-303): the pod-only posts of
+    pods they belong to, plus the yard posts of yards they belong to, excluding
+    deleted ones. This is the ONE audience-resolution query (TM-2): the feed, the
+    digest, and search all consume it, so a post scoped to a yard the member is
+    not in, or to another member's ad-hoc pod, never reaches them, and the rule
+    cannot drift into a second implementation."""
+    pod_only = Q(audience_yards__isnull=True, pod__memberships__member=member)
+    in_my_yard = Q(audience_yards__pods__memberships__member=member)
+    return Post.objects.filter(deleted_at__isnull=True).filter(pod_only | in_my_yard).distinct()
+
+
+def require_visible_post(member: Member, post_id: int) -> Post:
+    """Return the post if the member may see it, else a byte-identical 404 (S-202)."""
+    return _require(visible_posts(member), post_id)
 
 
 def visible_pods_of(viewer: Member, target: Member) -> models.QuerySet[Pod]:
