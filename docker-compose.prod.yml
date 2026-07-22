@@ -1,0 +1,23 @@
+# Production overlay for a real deployment (a persistent VM + domain + TLS).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+#
+# It replaces the local loopback-plain-HTTP Caddy with a public HTTPS edge:
+# Caddy publishes 0.0.0.0:80 + :443 and serves $BACKYARD_DOMAIN with an
+# automatically-provisioned Let's Encrypt certificate (caddy/Caddyfile.prod).
+#
+# The web/worker production env (DJANGO_DEBUG=0, DJANGO_ALLOWED_HOSTS, BACKYARD_BASE_URL)
+# is read from .env by the base compose's ${...} substitutions — set them there along
+# with the three postgres passwords, BACKYARD_DOMAIN, ACME_EMAIL, and (for email) the
+# Resend variables. See docs/runbooks/live-repro.md section B.
+services:
+  caddy:
+    ports: !override
+      - "80:80"
+      - "443:443"
+    volumes: !override
+      - ./caddy/Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    environment:
+      BACKYARD_DOMAIN: ${BACKYARD_DOMAIN:?set BACKYARD_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:-}
