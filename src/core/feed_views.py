@@ -25,7 +25,9 @@ from . import (
     commenting,
     link_preview,
     media,
+    moderation,
     notifications,
+    permissions,
     pods,
     posting,
     profiles,
@@ -145,6 +147,10 @@ def _render_feed(
             # through the one date resolver, so it honors per-field visibility.
             # No push notification for dates exists anywhere (S-305).
             "todays_dates": profiles.upcoming_dates(member, start=timezone.localdate(), days=1),
+            # A yard/instance admin sees a per-post takedown affordance (S-713); the
+            # posts rendered here are already the ones they can see, so the affordance is
+            # exactly scoped to what they may act on.
+            "is_moderator": permissions.is_admin(member),
             "errors": errors or [],
         },
     )
@@ -389,6 +395,9 @@ def _render_post_detail(
             "media_list": post.media.filter(deleted_at__isnull=True).exclude(
                 media_kind=MediaAsset.LINK_PREVIEW
             ),
+            # Admins get the takedown affordance on this (visible) post and its comments
+            # (S-713); the thread only renders items the member can see.
+            "is_moderator": permissions.is_admin(member),
         },
     )
 
@@ -459,4 +468,37 @@ def delete_comment(request: HttpRequest, comment_id: int) -> HttpResponse:
         raise PermissionDenied
     post_id = comment.post_id
     commenting.delete_comment(actor=member, comment=comment)
+    return redirect("post_detail", post_id=post_id)
+
+
+@login_required
+def take_down_post(request: HttpRequest, post_id: int) -> HttpResponse:
+    """Moderator takedown of one post (S-713). POST-only, admins only. The post resolves
+    through the MODERATOR's read guard, so a post they cannot see is a byte-identical 404 —
+    a yard admin can never take down a pod-private post outside their visibility (the
+    reach-vs-visibility rule; route those to the parent/pod post-v1). Distinct from the
+    author-only self-delete: an admin may take down anyone's post that they can see."""
+    member = _acting_member(request)
+    if request.method != "POST":
+        raise Http404
+    if not permissions.is_admin(member):
+        raise PermissionDenied
+    post = scoping.require_visible_post(member, post_id)
+    moderation.take_down_post(moderator=member, post=post)
+    media.purge_post_media(post)  # a takedown hard-purges the post's photos too (T-MEDIA-6)
+    return redirect("feed")
+
+
+@login_required
+def take_down_comment(request: HttpRequest, comment_id: int) -> HttpResponse:
+    """Moderator takedown of one comment (S-713). POST-only, admins only, scoped to the
+    moderator's visibility: a comment on a post they cannot see is a byte-identical 404."""
+    member = _acting_member(request)
+    if request.method != "POST":
+        raise Http404
+    if not permissions.is_admin(member):
+        raise PermissionDenied
+    comment = scoping.require_visible_comment(member, comment_id)
+    post_id = comment.post_id
+    moderation.take_down_comment(moderator=member, comment=comment)
     return redirect("post_detail", post_id=post_id)
