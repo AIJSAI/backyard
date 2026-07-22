@@ -20,26 +20,46 @@ moderation notice exists in v1 (ratified). Idempotent.
 
 from __future__ import annotations
 
+from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 
+from . import permissions, scoping
 from .models import Comment, Member, Post
 
 
 def take_down_post(*, moderator: Member, post: Post) -> None:
-    """Take down a post on a moderator's authority. Idempotent: an already-removed post
-    (author-deleted or already taken down) is left as it is, so a takedown never revives a
-    tombstone's timestamp or overwrites the record of who first removed it."""
+    """Take down a post on a moderator's authority (S-713). Idempotent: an already-removed
+    post (author-deleted or already taken down) is left as it is, so a takedown never
+    revives a tombstone's timestamp or overwrites the record of who first removed it.
+
+    Authorization is re-checked here, not only at the view guard, so a future non-guard
+    caller (a bulk-moderation tool, an admin API, a management command) cannot bypass it —
+    the same write-side defense in depth the sibling services carry (posting.delete_post
+    re-checks the author, commenting.create_comment re-checks visibility). The rule matches
+    the view: an admin may take down what they can see (membership-scoped, the ratified
+    "scoped to visible" decision), so a member with no admin role, or an admin acting on a
+    post outside their own visibility, is refused."""
     if post.deleted_at is not None:
         return
+    if not permissions.is_admin(moderator):
+        raise PermissionDenied("Only an admin may take down content.")
+    if not scoping.visible_posts(moderator).filter(id=post.id).exists():
+        raise PermissionDenied("You can only take down content you can see.")
     post.deleted_at = timezone.now()
     post.moderated_by = moderator
     post.save(update_fields=["deleted_at", "moderated_by"])
 
 
 def take_down_comment(*, moderator: Member, comment: Comment) -> None:
-    """Take down a comment on a moderator's authority. Idempotent, like take_down_post."""
+    """Take down a comment on a moderator's authority (S-713). Idempotent and re-checks
+    authorization independently, exactly like take_down_post: an admin may take down a
+    comment they can see (its post is in their visibility)."""
     if comment.deleted_at is not None:
         return
+    if not permissions.is_admin(moderator):
+        raise PermissionDenied("Only an admin may take down content.")
+    if not scoping.visible_comments(moderator).filter(id=comment.id).exists():
+        raise PermissionDenied("You can only take down content you can see.")
     comment.deleted_at = timezone.now()
     comment.moderated_by = moderator
     comment.save(update_fields=["deleted_at", "moderated_by"])

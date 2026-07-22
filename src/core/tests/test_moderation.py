@@ -19,8 +19,8 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 
-from core import scoping
-from core.models import Comment, Member, Pod, PodMembership, Post, Yard
+from core import moderation, scoping
+from core.models import Comment, MediaAsset, Member, Pod, PodMembership, Post, Yard
 
 pytestmark = pytest.mark.django_db
 User = get_user_model()
@@ -62,6 +62,7 @@ class World:
     m_post: Post  # a maternal-yard post
     p_post: Post  # a paternal-yard post
     m_comment: Comment  # a comment on the maternal post
+    p_comment: Comment  # a comment on the paternal post (invisible to a maternal admin)
 
 
 @pytest.fixture
@@ -77,6 +78,7 @@ def world() -> World:
     m_post = _yard_post(author, m_pod, maternal, "MATERNAL post body")
     p_post = _yard_post(p_author, p_pod, paternal, "PATERNAL post body")
     m_comment = Comment.objects.create(author=author, post=m_post, body="a maternal reply")
+    p_comment = Comment.objects.create(author=p_author, post=p_post, body="a paternal reply")
     return World(
         maternal=maternal,
         paternal=paternal,
@@ -90,6 +92,7 @@ def world() -> World:
         m_post=m_post,
         p_post=p_post,
         m_comment=m_comment,
+        p_comment=p_comment,
     )
 
 
@@ -186,3 +189,48 @@ def test_the_thread_offers_takedown_to_admins_only(world: World) -> None:
         _client_for(world.plain).get(reverse("post_detail", args=[world.m_post.id]))
     ).content.decode()
     assert reverse("take_down_comment", args=[world.m_comment.id]) not in plain_thread
+
+
+def test_takedown_of_a_comment_the_admin_cannot_see_404s(world: World) -> None:
+    """The reach-vs-visibility rule for comments too: a maternal admin cannot take down a
+    comment on a paternal post they do not belong to — byte-identical 404, untouched."""
+    resp = _client_for(world.m_admin).post(reverse("take_down_comment", args=[world.p_comment.id]))
+    assert resp.status_code == 404
+    world.p_comment.refresh_from_db()
+    assert world.p_comment.deleted_at is None
+
+
+def test_takedown_purges_the_posts_media(world: World) -> None:
+    """A post takedown hard-purges the post's photos from storage (T-MEDIA-6), exactly as
+    the author self-delete does — the media row is gone, not just soft-hidden."""
+    asset = MediaAsset.objects.create(post=world.m_post)
+    resp = _client_for(world.m_admin).post(reverse("take_down_post", args=[world.m_post.id]))
+    assert resp.status_code == 302
+    assert not MediaAsset.objects.filter(id=asset.id).exists()  # hard-purged
+
+
+def test_the_service_re_checks_authorization_and_is_idempotent(world: World) -> None:
+    """Write-side defense in depth (matches posting/commenting): the service refuses a
+    non-admin and an admin acting outside their own visibility, independently of the view
+    guard, and is idempotent — an already-removed item is a no-op that never overwrites the
+    record of who first removed it (an author self-delete stays moderated_by=None)."""
+    from django.core.exceptions import PermissionDenied
+
+    # A plain member is refused at the service, not only the view.
+    with pytest.raises(PermissionDenied):
+        moderation.take_down_post(moderator=world.plain, post=world.m_post)
+    # An admin acting on a post outside their own visibility is refused at the service.
+    with pytest.raises(PermissionDenied):
+        moderation.take_down_post(moderator=world.m_admin, post=world.p_post)
+    world.m_post.refresh_from_db()
+    world.p_post.refresh_from_db()
+    assert world.m_post.deleted_at is None and world.p_post.deleted_at is None  # nothing removed
+
+    # Idempotency: taking down an already-removed post is a no-op that keeps the first
+    # record. An author self-delete leaves moderated_by None; the service must not stamp it.
+    from core import posting
+
+    posting.delete_post(actor=world.author, post=world.m_post)  # author self-delete
+    moderation.take_down_post(moderator=world.m_admin, post=world.m_post)  # direct, already gone
+    world.m_post.refresh_from_db()
+    assert world.m_post.moderated_by_id is None  # not overwritten (distinguishable)

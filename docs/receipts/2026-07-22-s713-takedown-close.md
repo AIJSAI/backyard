@@ -56,6 +56,28 @@ CSRF-authenticated takedown HTTP path through Caddy:
 - Takedown of the **cross-yard** paternal post the admin cannot see → **404**, and the post
   is **untouched** (`deleted_at` null). The reach-vs-visibility rule holds on the real edge.
 
+## Review panel (no CRITICAL, no HIGH) + folded findings
+
+- **security-reviewer**: guard reuse, oracle ordering, CSRF/POST-only, idempotency/tombstone,
+  media-purge TOCTOU safety, and silence all confirmed sound. One MEDIUM: the lever is
+  bounded by *visibility* (membership), faithful to the ratified "scoped to visible," but
+  it diverges from the person-lever's T-AUTH-G2 *subset* scope for the both-side/bridge
+  case (a member in both yards via a bridge household, or a single-side admin removing a
+  both-side post — one object in both feeds). **Resolution: keep the ratified visibility
+  rule** (a stricter audience-subset rule would go beyond what was ratified and block a
+  single-side admin from moderating a both-side post in their own feed) and **document the
+  divergence** in the story hardening + the threat model, flagged for the founder's manual
+  QA. Two LOWs noted and deferred as conscious v1 choices: a takedown drops the author's
+  own removed post from their S-704 export (their data withheld from themselves — a
+  data-portability judgment for a later export refinement); no per-endpoint rate limit
+  (parity with the sibling delete endpoints; admin-gated, ~60-person instance).
+- **code-reviewer**: APPROVE. Two MEDIUM folded — **service-level defense-in-depth authz**
+  (`moderation.take_down_*` now re-checks is_admin + visibility independently of the view
+  guard, matching `posting.delete_post` / `commenting.create_comment`), and a **direct
+  service test** for idempotency + the defense-in-depth refusals (the HTTP path can never
+  reach the service's idempotency branch because the guard 404s a deleted item first).
+  LOW coverage gaps folded: a comment reach-vs-visibility 404 test and a media-purge test.
+
 ## Files
 
 Logic: `core/moderation.py` (new), `core/feed_views.py` (take_down_post/comment + is_moderator
