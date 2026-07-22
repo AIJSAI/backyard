@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.mfa",  # TOTP + WebAuthn passkeys (ADR-002 S-101)
     "procrastinate.contrib.django",  # Postgres-native job queue + worker (ADR-002)
+    "anymail",  # Resend send + inbound webhook seam (wave 4 provider, ADR-002)
     "core",
 ]
 
@@ -227,12 +228,25 @@ EMAIL_USE_SSL = env_flag(os.environ.get("EMAIL_USE_SSL", "0"))
 EMAIL_TIMEOUT = 30
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "backyard@localhost")
 
+# Anymail wires the Resend provider (send + inbound) behind the EMAIL_BACKEND seam
+# (ADR-002). Both secrets come from the environment; the boot guard below refuses
+# the Resend backend if the API key is missing. RESEND_INBOUND_SECRET is the Resend
+# webhook signing secret (whsec_...) Anymail uses to verify inbound email.received
+# posts, distinct from any tracking secret (django-anymail docs, esps/resend).
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+RESEND_INBOUND_SECRET = os.environ.get("RESEND_INBOUND_SECRET", "")
+ANYMAIL = {
+    "RESEND_API_KEY": RESEND_API_KEY,
+    "RESEND_INBOUND_SECRET": RESEND_INBOUND_SECRET,
+}
+
 validate_email_transport(
     backend=EMAIL_BACKEND,
     host=EMAIL_HOST,
     use_tls=EMAIL_USE_TLS,
     use_ssl=EMAIL_USE_SSL,
     default_from=DEFAULT_FROM_EMAIL,
+    resend_api_key=RESEND_API_KEY,
 )
 
 # Request logs would otherwise contain capability URLs: django.request logs the

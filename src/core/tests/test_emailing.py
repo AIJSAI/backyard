@@ -175,3 +175,44 @@ def test_boot_guard_refuses_missing_host_or_sender_and_tls_ssl_both() -> None:
             use_ssl=True,
             default_from="a@b.c",
         )
+
+
+# --- the Anymail Resend backend (wave 4): HTTPS transport, its own validation ---
+
+_RESEND = "anymail.backends.resend.EmailBackend"
+
+
+def test_boot_guard_accepts_anymail_resend_with_api_key_and_sender() -> None:
+    """The Resend backend sends over HTTPS, so the cleartext/host checks do not
+    apply; it needs only its API key and the one fixed sender identity."""
+    validate_email_transport(
+        backend=_RESEND,
+        host="",
+        use_tls=False,
+        use_ssl=False,
+        default_from="digests@mail.backyard.family",
+        resend_api_key="re_live_key",
+    )  # must not raise
+
+
+def test_boot_guard_refuses_anymail_resend_without_api_key() -> None:
+    with pytest.raises(RuntimeError, match="RESEND_API_KEY is empty"):
+        validate_email_transport(
+            backend=_RESEND,
+            host="",
+            use_tls=False,
+            use_ssl=False,
+            default_from="digests@mail.backyard.family",
+        )
+
+
+def test_boot_guard_refuses_anymail_resend_without_a_sender() -> None:
+    with pytest.raises(RuntimeError, match="DEFAULT_FROM_EMAIL"):
+        validate_email_transport(
+            backend=_RESEND,
+            host="",
+            use_tls=False,
+            use_ssl=False,
+            default_from="",
+            resend_api_key="re_live_key",
+        )

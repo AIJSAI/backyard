@@ -10,4 +10,6 @@ class CoreConfig(AppConfig):
     name = "core"
 
     def ready(self) -> None:
-        from . import signals  # noqa: F401  # register the login-cleanup handler
+        # Import for side effects: registering signal receivers (login cleanup,
+        # and the Anymail inbound webhook -> reply-by-email pipeline).
+        from . import inbound_webhook, signals  # noqa: F401

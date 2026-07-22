@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from anymail.webhooks.resend import ResendInboundWebhookView
 from django.urls import include, path
 
 from core import (
@@ -62,6 +63,15 @@ urlpatterns = [
         "digest/unsubscribe/<str:token>/",
         digesting_views.unsubscribe_digest,
         name="digest_unsubscribe",
+    ),
+    # Inbound reply-by-email (S-502): Anymail verifies the Resend webhook's svix
+    # signature (RESEND_INBOUND_SECRET), fetches the full message, and fires the
+    # inbound signal that core/inbound_webhook processes. ONLY this endpoint is
+    # mounted, no tracking endpoints and no other ESPs (minimal deliberate surface).
+    path(
+        "anymail/resend/inbound/",
+        ResendInboundWebhookView.as_view(),
+        name="anymail_resend_inbound",
     ),
     path("members/digests/", admin_views.digests, name="member_digests"),
     path("members/quarantine/", admin_views.quarantine, name="member_quarantine"),

@@ -336,3 +336,34 @@ def test_badge_is_atomic_with_the_comment(world: World) -> None:
     inbound.process_inbound(_email(world, message_id="atomic@x"))
     comment = Comment.objects.get()
     assert comment.via_email is True  # set at INSERT time, not a follow-up write
+
+
+# --- the trusted envelope recipient (wave 4 webhook path, T-EMAIL-1) ---
+
+
+def test_envelope_recipient_overrides_a_forged_to_header(world: World) -> None:
+    """The webhook path trusts the ESP's envelope recipient, not a To header a
+    sender can forge: a message whose To points at a bogus capability still posts
+    when the trusted envelope carries the real one."""
+    raw = _email(world, local_part="reply-forgednonsense", message_id="env1@x")
+    result = inbound.process_inbound(
+        raw, envelope_recipient=f"{world.local_part}@mail.backyard.family"
+    )
+    assert result.outcome == "posted"
+    assert Comment.objects.get().post_id == world.m_post.id
+
+
+def test_envelope_recipient_authoritative_even_when_to_header_is_valid(world: World) -> None:
+    """The converse: a real-looking To header cannot rescue a dead envelope
+    capability. When the transport supplies an envelope, attribution never falls
+    back to the forgeable header."""
+    raw = _email(world, message_id="env2@x")  # To carries the REAL capability
+    result = inbound.process_inbound(raw, envelope_recipient="reply-neverwas@mail.backyard.family")
+    assert result.outcome == "bounced"
+    assert Comment.objects.count() == 0
+
+
+def test_no_envelope_falls_back_to_the_header(world: World) -> None:
+    """Raw-bytes sources (fixture, a future IMAP poll) pass no envelope and keep
+    the existing MTA-prepended-header behavior."""
+    assert inbound.process_inbound(_email(world, message_id="env3@x")).outcome == "posted"

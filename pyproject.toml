@@ -14,6 +14,7 @@ dependencies = [
   "procrastinate[django]>=3,<4", # Postgres-native job queue + worker (ADR-002)
   "qrcode>=8,<9",               # elder-token handover QR (S-104); SVG factory, no PIL/JS
   "whitenoise>=6.12,<7",
+  "django-anymail[resend]>=15,<16", # Resend send + inbound (v15 added Resend inbound); svix verifies webhooks
 ]
 
 [dependency-groups]
@@ -51,7 +52,7 @@ explicit_package_bases = true
 django_settings_module = "config.settings"
 
 [[tool.mypy.overrides]]
-module = ["whitenoise.*", "gunicorn.*", "allauth.*"]
+module = ["whitenoise.*", "gunicorn.*", "allauth.*", "anymail.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

@@ -135,6 +135,15 @@ def _capability_of(message: Message) -> str:
     return ""
 
 
+def _local_part_of(address: str) -> str:
+    """The local part of one trusted envelope-recipient address (the webhook
+    path). Unlike _capability_of, this is the transport's envelope-to — the
+    address the ESP actually delivered to — not a header a sender can forge, so
+    it is preferred whenever the transport supplies it."""
+    _display, addr = parseaddr(address)
+    return addr.rsplit("@", 1)[0] if "@" in addr else ""
+
+
 def _strip_below_separator(body: str) -> str | None:
     """Everything above the digest's deterministic separator, or None if the
     separator is nowhere in the reply (T-EMAIL-G2: never guess, never post the
@@ -158,9 +167,16 @@ def _strip_control(text: str) -> str:
     return "".join(ch for ch in text if ch in ("\n", "\t") or ch.isprintable())
 
 
-def process_inbound(raw: bytes) -> InboundResult:
+def process_inbound(raw: bytes, *, envelope_recipient: str = "") -> InboundResult:
     """One inbound message through the whole pipeline. Never raises for
-    message-shaped problems: every failure is a bounce or a quarantine row."""
+    message-shaped problems: every failure is a bounce or a quarantine row.
+
+    envelope_recipient, when supplied, is the transport's trusted envelope-to
+    (the Resend webhook via Anymail passes it): the capability is read from it
+    rather than a To/Delivered-To header a sender can forge (T-EMAIL-1). The
+    raw-bytes sources (fixture, a future IMAP poll) pass it empty and fall back
+    to the MTA-prepended header, per the mail_sources IMAP contract.
+    """
     if len(raw) > _MAX_MESSAGE_BYTES:
         return _quarantine(InboundQuarantine.MALFORMED)
     try:
@@ -169,7 +185,9 @@ def process_inbound(raw: bytes) -> InboundResult:
     except (ValueError, UnicodeError, LookupError):
         return _quarantine(InboundQuarantine.MALFORMED)
 
-    local_part = _capability_of(message)
+    local_part = (
+        _local_part_of(envelope_recipient) if envelope_recipient else _capability_of(message)
+    )
     try:
         address = reply_addresses.resolve(local_part)
     except reply_addresses.ReplyAddressInvalid:
