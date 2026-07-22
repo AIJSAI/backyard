@@ -50,6 +50,14 @@ retired). Warm, calm, elder-first; legible to a 9-year-old and a 79-year-old at 
 - **Live-repro (visual):** rendered from the applied `base.html` CSS + the real elder template and
   screenshotted — the member app in **both themes** (light "open daylight" + dusk) and the elder
   view. Navy identity, non-colour cues, and the Homestead brand all render correctly.
+- **Deployed + re-verified on the box** (https://backyard.family): the live authenticated feed
+  renders the navy identity clean. The redeploy surfaced (and the loop fixed, PR #76) a real
+  **multi-line-`{# #}`-comment leak** — Django's `{# #}` is single-line only, so the multi-line PWA
+  comment (pre-existing) + the new Homestead/email comments rendered as literal text on authenticated
+  pages; converted to `{% comment %}` with a non-vacuous CI guard (`test_template_hygiene.py`).
+- **Axe-in-browser WCAG 2 A/AA sweep on the live instance: 0 serious/critical violations** across 8
+  surfaces (setup, home, feed, members, metrics, profile, invite, elder) — the automated AA check
+  beyond the token-contrast guard, completing criterion 3's "WCAG AA on every surface."
 
 ## No CSP / no Python-security change
 
