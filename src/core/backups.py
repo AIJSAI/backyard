@@ -34,7 +34,11 @@ from pathlib import Path
 from typing import IO
 
 from django.conf import settings
-from django.db import connection
+from django.contrib.sessions.models import Session
+from django.db import connection, models, transaction
+from django.utils import timezone
+
+from .models import Invite, Member
 
 MANIFEST_NAME = "backup-manifest.json"
 DB_DUMP_NAME = "database.dump"
@@ -114,11 +118,12 @@ def write_backup(destination: IO[bytes]) -> None:
             archive.add(media_path, arcname=MEDIA_TAR_NAME)
 
 
-def restore_backup(source: IO[bytes], *, force: bool) -> None:
+def restore_backup(source: IO[bytes], *, force: bool) -> dict[str, int]:
     """Restore an instance from a backup archive. DESTRUCTIVE: it clean-restores
     the database (dropping existing objects) and replaces the media tree. Refuses
     a database that still holds members unless `force` is set (a fresh box or a
-    drill scratch DB has none)."""
+    drill scratch DB has none). Ends with a forced security-replay (TM-7) and returns
+    its summary, so the restore can never silently resurrect a revoked bearer credential."""
     if not force and _has_members():
         raise BackupError(
             "Refusing to restore over a database that still has members. This is "
@@ -157,6 +162,34 @@ def restore_backup(source: IO[bytes], *, force: bool) -> None:
             raise BackupError(f"pg_restore failed: {result.stderr.strip()[:300]}")
 
         _restore_media(Path(workdir) / MEDIA_TAR_NAME, Path(workdir))
+    # The DB and media are back; now the security half, so a restore is never a way to
+    # replay a credential the family already revoked (TM-7 / T-OP-G5).
+    return _forced_security_replay()
+
+
+def _forced_security_replay() -> dict[str, int]:
+    """The TM-7 / T-OP-G5 forced security-replay: a restore ends here so it can never
+    silently resurrect a revoked token or an expelled ex-partner's live link.
+
+    It rotates the token-signing material — bumps Member.token_generation for EVERY member,
+    which invalidates every generation-anchored bearer credential the backup carried at
+    once (elder token links, digest deep-links, reply-by-email addresses; each resolve
+    checks minted_generation == member.token_generation, so one bump kills them all) —
+    flushes every session (the elder and web sessions that carry no generation-checked
+    row), and voids every outstanding invite (a restored /join link is a replayable bearer
+    credential too). All of it is re-issuable: the admin re-provisions only the members who
+    should still have access and re-issues invites as needed. One transaction, so a partial
+    restore never leaves some credentials live.
+
+    Residual (named in the operator checklist, T-OP-G5): a restore cannot know what happened
+    AFTER the backup, so member removals and content deletions that postdate it still come
+    back. The checklist is the only control there and depends on the admin reading it.
+    """
+    with transaction.atomic():
+        members = Member.objects.update(token_generation=models.F("token_generation") + 1)
+        sessions = Session.objects.all().delete()[0]
+        invites = Invite.objects.filter(revoked_at__isnull=True).update(revoked_at=timezone.now())
+    return {"members_rotated": members, "sessions_flushed": sessions, "invites_voided": invites}
 
 
 def _restore_media(media_tar_path: Path, workdir: Path) -> None:

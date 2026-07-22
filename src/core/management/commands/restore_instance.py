@@ -32,7 +32,32 @@ class Command(BaseCommand):
             raise CommandError(f"backup archive not found: {archive}")
         try:
             with archive.open("rb") as source:
-                backups.restore_backup(source, force=bool(options["force"]))
+                replay = backups.restore_backup(source, force=bool(options["force"]))
         except backups.BackupError as exc:
             raise CommandError(str(exc)) from exc
         self.stdout.write(f"instance restored from {archive}")
+        self._print_security_replay(replay)
+
+    def _print_security_replay(self, replay: dict[str, int]) -> None:
+        """Surface the TM-7 / T-OP-G5 forced-security-replay outcome and the human half of
+        it (the removals/deletions that postdate the backup, which no code can know)."""
+        self.stdout.write(
+            self.style.WARNING("\nSECURITY REPLAY (TM-7) — a restore is a security event:")
+        )
+        self.stdout.write(
+            f"  - Rotated token-signing material for {replay['members_rotated']} members: every "
+            "no-login elder link, digest deep-link, and reply-by-email address the backup "
+            "carried is now DEAD. Re-provision only the members who should still have access."
+        )
+        self.stdout.write(
+            f"  - Flushed {replay['sessions_flushed']} sessions and voided "
+            f"{replay['invites_voided']} outstanding invites: everyone re-authenticates; "
+            "re-issue invites as needed."
+        )
+        self.stdout.write(
+            self.style.WARNING(
+                "  - REVIEW THE ROSTER: any member removed AFTER this backup, and any content "
+                "deleted after it, has been restored. The restore cannot know what postdates it — "
+                "remove those members again and re-delete that content now (T-OP-G5)."
+            )
+        )

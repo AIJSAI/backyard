@@ -687,7 +687,7 @@ epics:
         acceptance:
           - "Single backup command captures database and media"
           - "Restore drill documented and exercised before each release"
-        status: tested  # wave 3 CLOSED 2026-07-21 (docs/receipts/2026-07-21-wave-3-close.md): one-command backup+restore, encrypted round-trip drilled live + security replay (crafted-archive rejection) in the gate
+        status: tested  # wave 3 CLOSED 2026-07-21: one-command backup+restore, encrypted round-trip drilled live + tar-escape guard (crafted-archive rejection). S-727 2026-07-22: the TM-7/T-OP-G5 forced security-replay is now IMPLEMENTED (backups._forced_security_replay bumps every member's token_generation so every restored elder/digest/reply token is dead, flushes sessions, voids invites; restore_instance prints the post-backup-removal checklist) — a restore can no longer resurrect an expelled ex-partner's elder link (test_backups). This closes the retro-flagged gap where the earlier "security replay" was really the tar-escape guard, not the revocation replay (docs/receipts/2026-07-22-s727-restore-security-replay-close.md)
         v1: true
         security:
           threat_refs:
