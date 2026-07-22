@@ -161,7 +161,12 @@ def test_forced_security_replay_kills_every_restored_bearer_credential() -> None
     assert not Session.objects.filter(session_key=session.session_key).exists()  # flushed
     invite.refresh_from_db()
     assert invite.revoked_at is not None  # voided
-    assert summary == {"members_rotated": 1, "sessions_flushed": 1, "invites_voided": 1}
+    assert summary == {
+        "members_rotated": 1,
+        "sessions_flushed": 1,
+        "invites_voided": 1,
+        "digest_tokens_cleared": 0,  # no digest subscription seeded here (see drift-guard)
+    }
 
 
 def test_restore_runs_the_security_replay_so_an_expelled_link_cannot_be_resurrected(

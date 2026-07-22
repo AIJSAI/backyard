@@ -213,6 +213,25 @@ def test_removal_kills_every_class_on_next_request(
     assert all(dead.values()), f"survivors: {[k for k, v in dead.items() if not v]}"
 
 
+def test_restore_forced_security_replay_kills_every_registered_class(
+    member_with_everything: Credentials,
+) -> None:
+    """S-727 / TM-7: a restore's forced security-replay must kill EVERY class the drill
+    enforces — the generation-anchored ones (bump), the sessions (flush), the invites
+    (void), AND the digest confirm/unsubscribe tokens (column-clear, since they are the one
+    class NOT generation-anchored). Equality-checked against the canonical set so a new
+    credential class can never be forgotten in the restore replay (the security-reviewer's
+    drift-guard). One layer up from the per-member regenerate/removal drills above."""
+    from core import backups
+
+    backups._forced_security_replay()
+    dead = member_with_everything.all_dead()
+    assert set(dead) == _ALL_CAPABILITY_CLASSES  # no registered class silently omitted
+    assert all(dead.values()), (
+        f"survivors after restore replay: {[k for k, v in dead.items() if not v]}"
+    )
+
+
 def test_the_drill_covers_every_registered_credential_class(
     member_with_everything: Credentials,
 ) -> None:

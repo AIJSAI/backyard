@@ -45,9 +45,10 @@ class Command(BaseCommand):
             self.style.WARNING("\nSECURITY REPLAY (TM-7) — a restore is a security event:")
         )
         self.stdout.write(
-            f"  - Rotated token-signing material for {replay['members_rotated']} members: every "
-            "no-login elder link, digest deep-link, and reply-by-email address the backup "
-            "carried is now DEAD. Re-provision only the members who should still have access."
+            f"  - Rotated {replay['members_rotated']} members' token-signing material and cleared "
+            f"{replay['digest_tokens_cleared']} digest confirm/unsubscribe tokens: every no-login "
+            "elder link, digest deep-link, reply-by-email address, and digest confirm/unsubscribe "
+            "link the backup carried is now DEAD. Re-provision only members who should keep access."
         )
         self.stdout.write(
             f"  - Flushed {replay['sessions_flushed']} sessions and voided "
