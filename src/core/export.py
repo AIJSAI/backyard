@@ -20,7 +20,7 @@ from typing import IO
 
 from django.utils import timezone
 
-from .models import Member
+from .models import MediaAsset, Member
 
 EXPORT_FORMAT = "backyard-member-export/1"
 
@@ -90,7 +90,10 @@ def write_member_export(member: Member, destination: IO[bytes]) -> None:
         )
         media_index = []
         for post in posts:
-            for asset in post.media.all():
+            # The member's OWN photos only: a LINK_PREVIEW asset is a re-hosted copy of a
+            # third party's og:image, not the member's content, so it never rides their
+            # personal data export (S-301 / S-704).
+            for asset in post.media.exclude(media_kind=MediaAsset.LINK_PREVIEW):
                 if asset.deleted_at is not None:
                     continue
                 arcname = f"media/{asset.token}.jpg"

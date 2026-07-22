@@ -65,9 +65,16 @@ def test_resolve_and_pin_rejects_when_any_address_is_internal(
 
 
 def test_fetch_once_blocks_a_direct_internal_literal() -> None:
-    # No network: getaddrinfo of a literal IP returns it, and _check_ip rejects it.
+    # No network: getaddrinfo of a literal IP returns it, and _check_ip rejects it
+    # before any content-type logic runs, so the accept/type args are immaterial here.
     with pytest.raises(link_preview.PreviewUnavailable):
-        link_preview._fetch_once("http://127.0.0.1/", float("inf"))
+        link_preview._fetch_once(
+            "http://127.0.0.1/",
+            float("inf"),
+            accept="text/html",
+            content_type_ok=lambda ct: ct == "text/html",
+            max_bytes=link_preview._MAX_BYTES,
+        )
 
 
 def test_fetch_preview_returns_none_for_an_internal_target() -> None:
@@ -110,7 +117,9 @@ def test_redirect_is_followed_but_revalidated_each_hop(monkeypatch: pytest.Monke
     function) on the target, so a 302 to an internal address is rejected there."""
     calls: list[str] = []
 
-    def fake_fetch_once(url: str, deadline: float = 0.0) -> tuple[int, str | None, bytes]:
+    def fake_fetch_once(
+        url: str, deadline: float = 0.0, **_kw: object
+    ) -> tuple[int, str | None, bytes]:
         calls.append(url)
         if len(calls) == 1:
             return (302, "http://10.0.0.1/meta", b"")
@@ -122,7 +131,9 @@ def test_redirect_is_followed_but_revalidated_each_hop(monkeypatch: pytest.Monke
 
 
 def test_too_many_redirects_gives_up(monkeypatch: pytest.MonkeyPatch) -> None:
-    def always_redirect(url: str, deadline: float = 0.0) -> tuple[int, str | None, bytes]:
+    def always_redirect(
+        url: str, deadline: float = 0.0, **_kw: object
+    ) -> tuple[int, str | None, bytes]:
         return (302, "https://example.com/next", b"")
 
     monkeypatch.setattr(link_preview, "_fetch_once", always_redirect)
@@ -214,7 +225,7 @@ def test_attach_stores_a_fetched_preview(a_post: Post, monkeypatch: pytest.Monke
     monkeypatch.setattr(
         link_preview,
         "fetch_preview",
-        lambda url: link_preview.Preview(
+        lambda url, **_k: link_preview.Preview(
             url=url, title="Fetched", description="Desc", image_url=""
         ),
     )
@@ -228,7 +239,7 @@ def test_attach_stores_a_fetched_preview(a_post: Post, monkeypatch: pytest.Monke
 def test_attach_degrades_to_a_bare_link_when_fetch_fails(
     a_post: Post, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(link_preview, "fetch_preview", lambda url: None)
+    monkeypatch.setattr(link_preview, "fetch_preview", lambda url, **_k: None)
     preview = link_preview.attach_to_post(a_post)
     assert preview is not None
     assert preview.title == ""
@@ -245,8 +256,13 @@ def test_attach_caps_an_overlong_og_image_without_error(
     monkeypatch.setattr(
         link_preview,
         "fetch_preview",
-        lambda url: link_preview.Preview(url=url, title="T", description="", image_url=giant_image),
+        lambda url, **_k: link_preview.Preview(
+            url=url, title="T", description="", image_url=giant_image
+        ),
     )
+    # Keep the test hermetic: the re-host would otherwise attempt a real network fetch of
+    # the (capped) og:image. The column-cap assertion is the point here.
+    monkeypatch.setattr(link_preview, "fetch_image_bytes", lambda url, **_k: None)
     preview = link_preview.attach_to_post(a_post)
     assert preview is not None
     assert len(preview.image_url) == 2000
@@ -263,7 +279,7 @@ def test_attach_skips_an_overlong_url_without_error(monkeypatch: pytest.MonkeyPa
     PodMembership.objects.create(member=author, pod=pod)
     giant = "https://x.com/" + "a" * 3000
     post = Post.objects.create(author=author, pod=pod, body=f"look {giant}")
-    monkeypatch.setattr(link_preview, "fetch_preview", lambda url: None)
+    monkeypatch.setattr(link_preview, "fetch_preview", lambda url, **_k: None)
     assert link_preview.attach_to_post(post) is None
     assert not LinkPreview.objects.filter(post=post).exists()
 
@@ -277,3 +293,185 @@ def test_attach_does_nothing_without_a_url() -> None:
     PodMembership.objects.create(member=author, pod=pod)
     post = Post.objects.create(author=author, pod=pod, body="no links here, just words")
     assert link_preview.attach_to_post(post) is None
+
+
+# --- og:image re-host (S-301, the SSRF-hardened image fetch) ---
+
+
+def _tiny_jpeg() -> bytes:
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (40, 30), (10, 120, 200)).save(buf, format="JPEG")
+    return buf.getvalue()
+
+
+def test_fetch_image_blocks_a_direct_internal_literal() -> None:
+    # The image fetch runs the SAME SSRF gate as the HTML: a literal internal address
+    # is rejected by resolve-then-pin before any byte is read (no network needed).
+    assert link_preview.fetch_image_bytes("http://169.254.169.254/card.png") is None
+    assert link_preview.fetch_image_bytes("http://127.0.0.1/card.png") is None
+
+
+def test_fetch_image_revalidates_every_redirect_hop(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A public image URL that 302s to an internal address is rejected at the hop, the
+    same guarantee as the HTML fetch (a redirect cannot reach the metadata endpoint)."""
+    calls: list[str] = []
+
+    def fake_fetch_once(
+        url: str, deadline: float = 0.0, **_kw: object
+    ) -> tuple[int, str | None, bytes]:
+        calls.append(url)
+        if len(calls) == 1:
+            return (302, "http://169.254.169.254/card.png", b"")
+        raise link_preview.PreviewUnavailable("hop blocked")
+
+    monkeypatch.setattr(link_preview, "_fetch_once", fake_fetch_once)
+    assert link_preview.fetch_image_bytes("https://cdn.example/card.png") is None
+    assert calls == ["https://cdn.example/card.png", "http://169.254.169.254/card.png"]
+
+
+def test_fetch_image_returns_bytes_on_an_image_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    payload = _tiny_jpeg()
+
+    def fake_fetch_once(
+        url: str, deadline: float = 0.0, **_kw: object
+    ) -> tuple[int, str | None, bytes]:
+        return (200, None, payload)
+
+    monkeypatch.setattr(link_preview, "_fetch_once", fake_fetch_once)
+    assert link_preview.fetch_image_bytes("https://cdn.example/card.jpg") == payload
+
+
+def test_fetch_image_requires_an_image_content_type(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The content-type predicate the image fetch passes to _fetch_once accepts only
+    image/*; an HTML body served at the og:image URL yields no image (not text sniffed
+    as an image)."""
+    seen_predicates: list[object] = []
+    real = link_preview._fetch_once
+
+    def spy_fetch_once(url: str, deadline: float, **kw: object) -> tuple[int, str | None, bytes]:
+        seen_predicates.append(kw["content_type_ok"])
+        return real(url, deadline, **kw)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(link_preview, "_fetch_once", spy_fetch_once)
+    # An internal literal still short-circuits before content typing, but the predicate
+    # was constructed and handed in; assert it accepts image/* and rejects text/html.
+    link_preview.fetch_image_bytes("http://127.0.0.1/x")
+    assert seen_predicates, "the image fetch must go through _fetch_once"
+    predicate = seen_predicates[0]
+    assert callable(predicate)
+    assert predicate("image/png") and predicate("image/jpeg")
+    assert not predicate("text/html")
+
+
+@pytest.mark.django_db
+def test_attach_rehosts_the_og_image_as_a_link_preview_asset(
+    a_post: Post, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End to end: a fetched preview with an og:image gets that image re-hosted as a
+    LINK_PREVIEW media asset on the post (never a hotlink), linked from the card."""
+    from core.models import MediaAsset
+
+    monkeypatch.setattr(
+        link_preview,
+        "fetch_preview",
+        lambda url, **_k: link_preview.Preview(
+            url=url, title="T", description="D", image_url="https://cdn.example/card.jpg"
+        ),
+    )
+    monkeypatch.setattr(link_preview, "fetch_image_bytes", lambda url, **_k: _tiny_jpeg())
+
+    preview = link_preview.attach_to_post(a_post)
+    assert preview is not None
+    assert preview.image_asset is not None
+    asset = preview.image_asset
+    assert asset.media_kind == MediaAsset.LINK_PREVIEW
+    assert asset.content_type == "image/jpeg"
+    assert asset.post_id == a_post.id  # lives on the post -> inherits its audience
+    assert asset.image.read()[:2] == b"\xff\xd8"  # a real re-encoded JPEG, not the origin bytes
+
+
+@pytest.mark.django_db
+def test_attach_degrades_without_an_image_when_the_fetch_fails(
+    a_post: Post, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A card whose og:image cannot be fetched or decoded still shows title and
+    description; image_asset is simply null (graceful fallback, never an error)."""
+    monkeypatch.setattr(
+        link_preview,
+        "fetch_preview",
+        lambda url, **_k: link_preview.Preview(
+            url=url, title="T", description="D", image_url="https://cdn.example/broken.jpg"
+        ),
+    )
+    monkeypatch.setattr(link_preview, "fetch_image_bytes", lambda url, **_k: b"not an image")
+    preview = link_preview.attach_to_post(a_post)
+    assert preview is not None
+    assert preview.title == "T"
+    assert preview.image_asset is None
+
+
+def test_fetch_image_honors_a_passed_deadline() -> None:
+    """A deadline already in the past short-circuits before any network work, so a
+    caller can bound the whole page+image fetch to one shared budget (S-301 DoS bound)."""
+    import time
+
+    assert (
+        link_preview.fetch_image_bytes("https://cdn.example/x.jpg", deadline=time.monotonic() - 1)
+        is None
+    )
+
+
+@pytest.mark.django_db
+def test_attach_shares_one_deadline_across_both_fetches(
+    a_post: Post, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The page fetch and the follow-up image fetch share ONE wall-clock budget, so two
+    sequential network fetches cannot block the compose for more than _TOTAL_BUDGET."""
+    seen: dict[str, float | None] = {}
+
+    def fake_preview(url: str, *, deadline: float | None = None) -> link_preview.Preview:
+        seen["preview"] = deadline
+        return link_preview.Preview(
+            url=url, title="T", description="D", image_url="https://c/x.jpg"
+        )
+
+    def fake_image(url: str, *, deadline: float | None = None) -> bytes:
+        seen["image"] = deadline
+        return _tiny_jpeg()
+
+    monkeypatch.setattr(link_preview, "fetch_preview", fake_preview)
+    monkeypatch.setattr(link_preview, "fetch_image_bytes", fake_image)
+    link_preview.attach_to_post(a_post)
+    assert seen["preview"] is not None
+    assert seen["preview"] == seen["image"]  # the identical shared deadline
+
+
+@pytest.mark.django_db
+def test_rehost_never_raises_on_an_unexpected_error(
+    a_post: Post, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The re-host runs AFTER the post is committed, so an unexpected error in the
+    fetch/decode/store path must degrade to no image, never 500 the compose or leave a
+    duplicate post (security review LOW)."""
+    from core import media
+
+    monkeypatch.setattr(
+        link_preview,
+        "fetch_preview",
+        lambda url, **_k: link_preview.Preview(
+            url=url, title="T", description="D", image_url="https://cdn.example/card.jpg"
+        ),
+    )
+    monkeypatch.setattr(link_preview, "fetch_image_bytes", lambda url, **_k: _tiny_jpeg())
+
+    def boom(**_kw: object) -> None:
+        raise RuntimeError("storage exploded")
+
+    monkeypatch.setattr(media, "ingest_link_preview_image", boom)
+    preview = link_preview.attach_to_post(a_post)  # must not raise
+    assert preview is not None
+    assert preview.image_asset is None  # degraded to no image

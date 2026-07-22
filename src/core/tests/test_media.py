@@ -279,3 +279,105 @@ def test_delete_post_purges_its_photos(
     assert response.status_code == 302
     assert not MediaAsset.objects.filter(post=post).exists()
     assert not storage.exists(full_name)  # the file is hard-deleted, not just hidden
+
+
+# --- re-hosted link-preview image (S-301) ---
+
+
+def test_ingest_link_preview_image_reencodes_to_a_link_asset(world: dict[str, object]) -> None:
+    post = world["post"]
+    assert isinstance(post, Post)
+    asset = media.ingest_link_preview_image(post=post, raw=_png())  # a PNG in
+    assert asset is not None
+    assert asset.media_kind == MediaAsset.LINK_PREVIEW
+    assert asset.content_type == "image/jpeg"  # pinned from the re-encode, not the origin
+    assert Image.open(io.BytesIO(asset.image.read())).format == "JPEG"  # inert re-encoded raster
+
+
+def test_ingest_link_preview_image_strips_remote_metadata(world: dict[str, object]) -> None:
+    """The whole point of re-hosting: the remote image's EXIF/GPS never reaches a family
+    member (TM-9), exactly like an uploaded photo."""
+    post = world["post"]
+    assert isinstance(post, Post)
+    asset = media.ingest_link_preview_image(post=post, raw=_jpeg_with_exif())
+    assert asset is not None
+    exif = Image.open(io.BytesIO(asset.image.read())).getexif()
+    assert _ORIENTATION not in exif and _IMAGE_DESCRIPTION not in exif
+    assert dict(exif) == {}
+
+
+def test_ingest_link_preview_image_rejects_oversize_dimensions(world: dict[str, object]) -> None:
+    """Security review of S-301: a preview image is held to a tighter decoded-pixel
+    budget than an uploaded photo (a small file can inflate to tens of megapixels in
+    the web tier), and one whose header declares more pixels than the budget is rejected
+    before the bitmap is allocated (graceful: the card just shows no image)."""
+    post = world["post"]
+    assert isinstance(post, Post)
+    over = media._LINK_PREVIEW_MAX_PIXELS
+    side = int(over**0.5) + 50  # comfortably over the budget
+    buf = io.BytesIO()
+    Image.new("RGB", (side, side)).save(buf, format="PNG")
+    assert media.ingest_link_preview_image(post=post, raw=buf.getvalue()) is None
+    # A card-sized image is well under the budget and re-hosts fine.
+    assert media.ingest_link_preview_image(post=post, raw=_png(size=(300, 200))) is not None
+
+
+def test_ingest_link_preview_image_rejects_undecodable(world: dict[str, object]) -> None:
+    post = world["post"]
+    assert isinstance(post, Post)
+    # A hostile or broken og:image returns None (graceful: the card shows no image),
+    # never a MediaRejected propagating into the compose path.
+    assert media.ingest_link_preview_image(post=post, raw=b"not an image at all") is None
+    assert (
+        media.ingest_link_preview_image(
+            post=post, raw=b"<svg xmlns='x'><script>alert(1)</script></svg>"
+        )
+        is None
+    )
+
+
+def test_rehosted_preview_image_is_served_with_the_post_access_check(
+    world: dict[str, object],
+) -> None:
+    """The re-hosted image rides the ONE access-checked media path (TM-9): an in-yard
+    member sees it, a cross-yard member gets the same 404 as an unknown token (S-202)."""
+    post, pod_mate, other = world["post"], world["pod_mate"], world["other"]
+    assert isinstance(post, Post)
+    assert isinstance(pod_mate, Member)
+    assert isinstance(other, Member)
+    asset = media.ingest_link_preview_image(post=post, raw=_png())
+    assert asset is not None
+    assert _client_for(pod_mate).get(reverse("serve_media", args=[asset.token])).status_code == 200
+    assert _client_for(other).get(reverse("serve_media", args=[asset.token])).status_code == 404
+
+
+def test_rehosted_preview_image_is_not_in_the_post_gallery(world: dict[str, object]) -> None:
+    """A LINK_PREVIEW asset is the card's image, not an uploaded photo, so it is absent
+    from the post's own media gallery (a real photo on the same post still shows)."""
+    post, author = world["post"], world["author"]
+    assert isinstance(post, Post)
+    assert isinstance(author, Member)
+    photo = media.ingest_photo(post=post, raw=_jpeg_with_exif())
+    link_image = media.ingest_link_preview_image(post=post, raw=_png())
+    assert link_image is not None
+    body = _client_for(author).get(reverse("post_detail", args=[post.id])).content.decode()
+    # The uploaded photo's thumbnail is in the gallery; the link-preview asset (with no
+    # LinkPreview row pointing at it here) appears nowhere on the page.
+    assert reverse("serve_media", args=[photo.thumbnail_token]) in body
+    assert reverse("serve_media", args=[link_image.token]) not in body
+
+
+def test_deleting_the_post_purges_the_rehosted_preview_image(
+    world: dict[str, object], django_capture_on_commit_callbacks: object
+) -> None:
+    post = world["post"]
+    assert isinstance(post, Post)
+    asset = media.ingest_link_preview_image(post=post, raw=_png())
+    assert asset is not None
+    storage = asset.image.storage
+    name = asset.image.name
+    assert storage.exists(name)
+    with django_capture_on_commit_callbacks(execute=True):  # type: ignore[operator]
+        media.purge_post_media(post)
+    assert not MediaAsset.objects.filter(post=post).exists()
+    assert not storage.exists(name)  # the re-hosted image leaves the disk too (T-MEDIA-6)

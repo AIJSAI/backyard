@@ -155,7 +155,11 @@ def build_digest(
             date_text=timezone.localtime(post.created_at).strftime("%B %-d"),
             body=post.body,
             url=emailing.absolute_url(f"/d/{digest_token}/posts/{post.id}/"),
-            photo_count=scoping.visible_media(member).filter(post=post).count(),
+            # Count the member's OWN photos only (through the scoping layer, TM-2): a
+            # re-hosted link-preview image is the card's picture, not a photo on the post,
+            # and post-detail's gallery excludes it too, so counting it would tell a member
+            # "1 photo" then show them none (security review MEDIUM-1, S-301).
+            photo_count=scoping.visible_attached_media(member).filter(post=post).count(),
             reply_count=scoping.visible_comments(member).filter(post=post).count(),
             reply_address=reply_map.get(post.id, ""),
         )

@@ -41,6 +41,17 @@ _ALLOWED_INPUT_FORMATS = frozenset({"JPEG", "PNG", "WEBP", "GIF"})
 _MAX_PIXELS = 30_000_000
 _FULL_MAX = (2048, 2048)
 _THUMB_MAX = (400, 400)
+# A link-preview card image is display-sized, so it is downscaled harder than a full
+# photo: it need never exceed a card's width, and a smaller raster is cheaper to store
+# and serve for a decorative image (S-301).
+_LINK_PREVIEW_MAX = (1200, 1200)
+# A preview image is fetched from an arbitrary URL and decoded synchronously in the web
+# tier, so it is held to a tighter decoded-pixel budget than an uploaded photo (security
+# review of S-301): the 5 MB byte cap does not bound decoded pixels (a small PNG can
+# inflate to tens of megapixels), so a preview whose header declares more than this many
+# pixels is rejected BEFORE the full bitmap is allocated. Ample for any real card image
+# (a 1200-box output needs far less) while well under the process-wide bomb limit.
+_LINK_PREVIEW_MAX_PIXELS = 8_000_000
 _JPEG_QUALITY = 85
 _OUTPUT_CONTENT_TYPE = "image/jpeg"
 _VIDEO_OUTPUT_CONTENT_TYPE = "video/mp4"
@@ -56,15 +67,21 @@ class MediaRejected(Exception):
     """The upload could not be safely decoded and re-encoded."""
 
 
-def _decode(raw: bytes) -> Image.Image:
+def _decode(raw: bytes, *, max_pixels: int | None = None) -> Image.Image:
     """Open and validate an uploaded image, or raise MediaRejected. Enforces the
-    format allowlist and the error-not-warn decompression-bomb limit."""
+    format allowlist and the error-not-warn decompression-bomb limit. An optional
+    max_pixels rejects an over-large image by its declared header dimensions BEFORE
+    the full bitmap is allocated (used for the tighter preview-image budget, S-301)."""
     with warnings.catch_warnings():
         # A decompression-bomb warning becomes an error, so a bomb is a rejected upload
         # rather than a log line that decoded anyway (TS-PP-3).
         warnings.simplefilter("error", Image.DecompressionBombWarning)
         try:
             img = Image.open(io.BytesIO(raw))
+            if max_pixels is not None and img.width * img.height > max_pixels:
+                # Header dimensions are known after open, before any pixel is decoded, so
+                # this rejects the allocation rather than surviving it.
+                raise MediaRejected("image dimensions exceed the preview budget")
             img.load()  # force a full decode so a truncated or bomb file fails here
         except (Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
             raise MediaRejected("image too large") from exc
@@ -102,6 +119,28 @@ def ingest_photo(*, post: Post, raw: bytes, alt_text: str = "") -> MediaAsset:
     )
     asset.image.save(f"{asset.token}.jpg", ContentFile(full_bytes), save=False)
     asset.thumbnail.save(f"{asset.thumbnail_token}.jpg", ContentFile(thumb_bytes), save=False)
+    asset.save()
+    return asset
+
+
+def ingest_link_preview_image(*, post: Post, raw: bytes) -> MediaAsset | None:
+    """Re-encode and store a fetched og:image as a LINK_PREVIEW media asset (S-301),
+    or return None if the bytes do not decode to an allowed image (graceful fallback:
+    the card simply shows no image). The re-encode is the whole point: it strips the
+    remote image's EXIF/GPS/XMP (TM-9), pins the stored content type to our own JPEG
+    rather than the origin's claim, and turns any polyglot into an inert raster
+    (TS-PP-4), so nothing the target served is ever handed back to a family member.
+    The asset lives on the post, so it inherits the post's audience through the one
+    access-checked media view and is purged with the post's other media on delete."""
+    try:
+        img = _decode(raw, max_pixels=_LINK_PREVIEW_MAX_PIXELS)
+    except MediaRejected:
+        return None
+    full_bytes = _reencode(img, _LINK_PREVIEW_MAX)
+    asset = MediaAsset(
+        post=post, media_kind=MediaAsset.LINK_PREVIEW, content_type=_OUTPUT_CONTENT_TYPE
+    )
+    asset.image.save(f"{asset.token}.jpg", ContentFile(full_bytes), save=False)
     asset.save()
     return asset
 

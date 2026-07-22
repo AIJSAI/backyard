@@ -260,6 +260,24 @@ def test_photos_degrade_to_the_deep_link_never_a_media_url(world: World) -> None
     assert f"/d/digest-raw/posts/{post.id}/" in built.text
 
 
+def test_digest_photo_count_excludes_a_rehosted_link_preview_image(world: World) -> None:
+    """Security review MEDIUM-1: a link-only post's re-hosted og:image is the card's
+    picture, not a photo on the post (post-detail excludes it too), so the digest must
+    not count it and tell the member '1 photo' when clicking through shows none."""
+    post = _post(world.maternal_cousin, world.m_pod, "just a link", yards=[world.maternal])
+    import io as _io
+
+    from PIL import Image as _Image
+
+    buf = _io.BytesIO()
+    _Image.new("RGB", (30, 30), (1, 2, 3)).save(buf, format="JPEG")
+    asset = media.ingest_link_preview_image(post=post, raw=buf.getvalue())
+    assert asset is not None  # the re-hosted card image exists on the post...
+
+    built = _build(world, world.maternal_cousin, world.maternal)
+    assert "photo" not in built.text  # ...but the digest reports zero photos
+
+
 # --- the TM-2 confinement guard trips from both sides ---
 
 
