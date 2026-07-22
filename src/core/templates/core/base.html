@@ -12,101 +12,126 @@
        get a root-scope worker planted on them — the Safari eviction rule
        ADR-002 applies to every token surface, not only the elder one. #}
     <link rel="manifest" href="{% url 'manifest' %}">
-    <meta name="theme-color" content="#2f5d3a">
+    <meta name="theme-color" content="#234a78">
     <link rel="apple-touch-icon" href="{% url 'icon_192' %}">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Backyard">
   {% endif %}
   <style>
     /* ==========================================================================
-       Backyard design system (v1). One warm, calm, elder-first identity, shared
-       by every surface that extends this base (the member app + the token/digest
-       pages). The elder feed and the digest email stand alone by design and carry
-       their own, heightened-contrast styles.
+       Backyard design system (v2) — "the backyard at dusk". One warm,
+       calm, elder-first identity shared by every surface that extends this base
+       (the member app + the token/digest pages). The elder feed and the digest
+       email stand alone by design and carry their own heightened-contrast styles.
 
-       Grounded in the product principles: calm over engagement (quiet color, the
-       feed ends, nothing shouts), separate-is-a-feature (yards/pods read as
-       gentle boundaries, never walls), reciprocity (every post-back affordance is
-       inviting and large), never-assume-a-smartphone (system fonts for fast loads
-       on any device, AA contrast, 44px targets, visible focus).
+       Grounded in the product principles: calm over engagement (quiet colour, the
+       feed ends, nothing shouts), separate-is-a-feature (yards/pods read as gentle
+       boundaries, never walls), reciprocity (every post-back affordance is inviting
+       and large), never-assume-a-smartphone (system fonts for fast loads on any
+       device, AA contrast, 44px targets, visible focus).
 
-       No webfonts: font-src is 'self' only (CSP S-724), and the app ships no
-       static dir (ManifestStaticFilesStorage), so the type is a deliberately
-       chosen system stack — a warm serif for headings (echoing the elder feed's
-       Georgia), a humanist sans for the interface.
+       No webfonts: font-src is 'self' only (CSP S-724) and the app ships no static
+       dir (ManifestStaticFilesStorage), so the type is a deliberately chosen system
+       stack — a warm serif for headings (echoing the elder feed's Georgia), a
+       humanist sans for the interface. No CSP or Python change is required.
+
+       Both themes are hand-designed (not a naive invert). Every colour token is a
+       6-digit hex (or var()->hex) and every text/background pair is proven >=4.5:1
+       in BOTH themes; test_design_system_wcag.py parses these tokens and fails the
+       build on any regression. A manual :root[data-theme] override wins over the OS
+       preference in either direction.
        ========================================================================== */
 
     :root {
       color-scheme: light dark;
 
-      /* Warm-paper daytime palette — the backyard in open light. */
-      --paper:        #f7f4ec;  /* page ground: warm paper, biased green-neutral  */
-      --surface:      #fffdf7;  /* raised cards                                    */
-      --surface-sunk: #efe9da;  /* insets, table stripes, readonly fields         */
-      --ink:          #23241f;  /* primary text: warm near-black                   */
-      --ink-soft:     #5d5f52;  /* secondary text (AA on paper)                    */
-      --line:         #ddd6c4;  /* hairline borders, like garden-bed edging        */
-      --line-strong:  #c9c0a8;
+      /* Clean, cool near-white grounds — calm, modern, generous space. */
+      --paper:        #f7f8f9;  /* page ground: cool near-white   */
+      --surface:      #ffffff;  /* raised cards: clean white                       */
+      --surface-sunk: #eef0f2;  /* insets, table stripes, readonly fields          */
+      --ink:          #1a1c22;  /* primary text: warm near-black                   */
+      --ink-soft:     #565b64;  /* secondary text (AA on every ground)             */
+      --line:         #e4e7ea;  /* hairline borders        */
+      --line-strong:  #cdd1d6;
 
-      --green:        #2f5d3a;  /* brand: deep garden green (the PWA theme color)  */
-      --green-deep:   #274c30;  /* hover / pressed                                 */
-      --green-tint:   #e7efe1;  /* soft wash for notices and gentle highlights     */
-      --amber:        #8a5512;  /* golden-hour accent (AA on its own tint), sparing */
-      --amber-tint:   #f6ecd9;
+      --green:        #234a78;  /* brand: deep navy (the PWA theme colour) */
+      --green-deep:   #17335c;  /* hover / pressed                                 */
+      --green-tint:   #e8edf4;  /* soft wash for notices and gentle highlights     */
+      --amber:        #55585f;  /* neutral accent token — retired to a quiet neutral; palette is navy + neutrals + red*/
+      --amber-tint:   #eef0f2;
 
-      --danger:       #a23a2e;  /* muted brick red for destructive + errors        */
-      --danger-tint:  #f6e5e0;
+      --danger:       #b23b2e;  /* muted brick red for destructive + errors        */
+      --danger-tint:  #f7e7e3;
 
-      /* Filled-button tokens (kept semantic so both themes stay legible). */
       --btn-bg:       var(--green);
       --btn-bg-hover: var(--green-deep);
       --btn-ink:      #ffffff;
 
-      --ring:         #8a5a12;  /* focus ring: warm, high-contrast on every ground */
+      --ring:         #234a78;  /* focus ring: warm, high-contrast on every ground */
 
-      --radius:       12px;
-      --radius-sm:    8px;
-      --shadow:       0 1px 2px rgba(40, 34, 20, 0.06),
-                      0 3px 10px rgba(40, 34, 20, 0.05);
+      --radius:       14px;
+      --radius-sm:    9px;
+      --shadow:       0 1px 2px rgba(38, 34, 20, 0.05),
+                      0 6px 18px rgba(38, 34, 20, 0.045);
 
-      --font-display: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino,
+      --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
                       "Times New Roman", serif;
       --font-body:    system-ui, -apple-system, "Segoe UI", Roboto,
                       "Helvetica Neue", Arial, sans-serif;
       --font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
-      --measure:      40rem;    /* the reading column                              */
-      --step:         1rem;     /* base vertical rhythm                            */
+      --measure:      40rem;
+      --step:         1rem;
     }
 
     @media (prefers-color-scheme: dark) {
       :root {
-        /* Dusk in the yard — warm charcoal with a green cast. */
-        --paper:        #141611;
-        --surface:      #1e211a;
-        --surface-sunk: #0f120c;
-        --ink:          #ece7d8;
-        --ink-soft:     #aaab95;
-        --line:         #343829;
-        --line-strong:  #454a38;
+        /* Dusk in the yard — deep charcoal with a navy cast (hand-tuned). */
+        --paper:        #101319;
+        --surface:      #191d24;
+        --surface-sunk: #0b0e13;
+        --ink:          #e6e8ec;
+        --ink-soft:     #a2a7b0;
+        --line:         #292e37;
+        --line-strong:  #3b414c;
 
-        --green:        #85ba90;  /* foliage, lightened for text/links on dark     */
-        --green-deep:   #9dcaa6;
-        --green-tint:   #21301f;
-        --amber:        #d6a25a;
-        --amber-tint:   #2a2416;
+        --green:        #8bb2e6;  /* navy, lightened for text/links on dark      */
+        --green-deep:   #a6c6ef;
+        --green-tint:   #16202f;
+        --amber:        #a2a7b0;
+        --amber-tint:   #0b0e13;
 
-        --danger:       #e79488;
-        --danger-tint:  #2e1a16;
+        --danger:       #e89488;
+        --danger-tint:  #2a1a19;
 
-        --btn-bg:       #3a744a;
-        --btn-bg-hover: #47895a;
-        --btn-ink:      #f5faf1;
+        --btn-bg:       #2f5488;  /* filled-button green, separate from link green   */
+        --btn-bg-hover: #3a6199;
+        --btn-ink:      #ffffff;
 
-        --ring:         #e2b878;
-        --shadow:       0 1px 2px rgba(0, 0, 0, 0.35),
-                        0 3px 12px rgba(0, 0, 0, 0.30);
+        --ring:         #8bb2e6;
+        --shadow:       0 1px 2px rgba(0, 0, 0, 0.42),
+                        0 6px 20px rgba(0, 0, 0, 0.34);
       }
+    }
+
+    /* A manual theme choice wins over the OS preference, in both directions. */
+    :root[data-theme="light"] {
+      --paper:#f7f8f9; --surface:#ffffff; --surface-sunk:#eef0f2;
+      --ink:#1a1c22; --ink-soft:#565b64; --line:#e4e7ea; --line-strong:#cdd1d6;
+      --green:#234a78; --green-deep:#17335c; --green-tint:#e8edf4;
+      --amber:#55585f; --amber-tint:#eef0f2; --danger:#b23b2e; --danger-tint:#f7e7e3;
+      --btn-bg:var(--green); --btn-bg-hover:var(--green-deep); --btn-ink:#ffffff;
+      --ring:#234a78;
+      --shadow:0 1px 2px rgba(38,34,20,.05), 0 6px 18px rgba(38,34,20,.045);
+    }
+    :root[data-theme="dark"] {
+      --paper:#101319; --surface:#191d24; --surface-sunk:#0b0e13;
+      --ink:#e6e8ec; --ink-soft:#a2a7b0; --line:#292e37; --line-strong:#3b414c;
+      --green:#8bb2e6; --green-deep:#a6c6ef; --green-tint:#16202f;
+      --amber:#a2a7b0; --amber-tint:#0b0e13; --danger:#e89488; --danger-tint:#2a1a19;
+      --btn-bg:#2f5488; --btn-bg-hover:#3a6199; --btn-ink:#ffffff;
+      --ring:#8bb2e6;
+      --shadow:0 1px 2px rgba(0,0,0,.42), 0 6px 20px rgba(0,0,0,.34);
     }
 
     /* ---- reset & base ------------------------------------------------------- */
@@ -116,13 +141,14 @@
       margin: 0;
       font-family: var(--font-body);
       font-size: 1.0625rem;          /* 17px: comfortable across generations       */
-      line-height: 1.6;
+      line-height: 1.62;
       color: var(--ink);
       background: var(--paper);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       overflow-wrap: break-word;
+      -webkit-font-smoothing: antialiased;
     }
 
     h1, h2, h3 {
@@ -132,9 +158,9 @@
       color: var(--ink);
       margin: 0 0 0.4em;
     }
-    h1 { font-size: 1.85rem; letter-spacing: -0.01em; }
-    h2 { font-size: 1.3rem; margin-top: 1.6em; }
-    h3 { font-size: 1.1rem; }
+    h1 { font-size: 1.9rem; letter-spacing: -0.015em; }
+    h2 { font-size: 1.32rem; margin-top: 1.6em; }
+    h3 { font-size: 1.08rem; }
     p  { margin: 0 0 var(--step); }
     p:last-child { margin-bottom: 0; }
 
@@ -169,20 +195,23 @@
 
     header.site {
       border-bottom: 1px solid var(--line);
-      background: color-mix(in srgb, var(--paper) 85%, var(--surface));
+      background: color-mix(in srgb, var(--paper) 82%, var(--surface));
     }
     header.site .wrap,
     main.wrap,
     footer.site .wrap { width: 100%; max-width: var(--measure); margin: 0 auto; padding: 0 1.25rem; }
-    header.site .wrap { display: flex; align-items: center; min-height: 3.5rem; }
+    header.site .wrap { display: flex; align-items: center; min-height: 3.75rem; }
 
+    /* The brand lockup is the one bold, crafted move; every content surface
+       downstream stays quiet. */
     .brand {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      font-family: var(--font-display); font-size: 1.2rem; font-weight: 700;
-      color: var(--ink); text-decoration: none; letter-spacing: -0.01em;
+      display: inline-flex; align-items: baseline; gap: 0.5rem;
+      font-family: var(--font-display); font-size: 1.28rem; font-weight: 700;
+      color: var(--ink); text-decoration: none; letter-spacing: -0.02em;
     }
     .brand:hover { color: var(--green-deep); }
-    .brand svg { width: 1.4rem; height: 1.4rem; color: var(--green); flex: none; }
+    .brand svg { width: 1.6rem; height: 1.6rem; color: var(--green); flex: none; transform: translateY(14.2%); }
+    .brand:hover svg { color: var(--green-deep); }
 
     main.wrap {
       flex: 1 0 auto;
@@ -205,7 +234,7 @@
       display: block; margin: 1.1rem 0 0.35rem; font-weight: 600; color: var(--ink);
     }
     label.inline-check {
-      display: flex; align-items: center; gap: 0.55rem; font-weight: 500; margin: 0.5rem 0;
+      display: flex; align-items: baseline; gap: 0.5rem; font-weight: 500; margin: 0.5rem 0;
     }
     input, select, textarea {
       width: 100%; font: inherit; color: var(--ink);
@@ -215,7 +244,7 @@
     }
     input[type=checkbox], input[type=radio] { width: auto; min-width: 1.15rem; min-height: 1.15rem; accent-color: var(--green); }
     input[type=file] { padding: 0.5rem; background: var(--surface-sunk); }
-    input::placeholder, textarea::placeholder { color: var(--ink-soft); opacity: 0.8; }
+    input::placeholder, textarea::placeholder { color: var(--ink-soft); opacity: 0.85; }
     input:focus, select:focus, textarea:focus { border-color: var(--green); }
     textarea { resize: vertical; min-height: 3.2rem; }
     select { appearance: none; -webkit-appearance: none;
@@ -250,16 +279,18 @@
       border-color: var(--line-strong); font-weight: 600;
     }
     .inline button:hover, .btn-secondary:hover, .handover-actions button:hover {
-      background: var(--green-tint); color: var(--green-deep);
+      background: var(--green-tint); color: var(--green-deep); border-color: var(--green);
     }
     button.danger, .inline button.danger, .btn-danger {
       background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent);
     }
-    button.danger:hover, .btn-danger:hover { background: var(--danger-tint); color: var(--danger); }
+    button.danger:hover, .btn-danger:hover { background: var(--danger-tint); color: var(--danger); border-color: var(--danger); }
+    /* Non-colour cue: destructive carries a leading × in addition to colour + wording. */
+    button.danger::before, .btn-danger::before { content: "\00d7"; font-weight: 700; font-size: 1.05em; line-height: 1; }
 
     /* ---- notices, errors, flags -------------------------------------------- */
     .notice, .errors {
-      border-radius: var(--radius-sm); padding: 0.85rem 1rem;
+      border-radius: var(--radius-sm); padding: 0.85rem 1rem 0.85rem 1.1rem;
       border-left: 4px solid var(--green); background: var(--green-tint);
       margin: 1.25rem 0;
     }
@@ -268,77 +299,84 @@
     .errors { border-left-color: var(--danger); background: var(--danger-tint); color: var(--ink); }
 
     .flag, .role, .via-email {
-      display: inline-block; font-size: 0.75rem; font-weight: 600;
-      line-height: 1.4; padding: 0.1rem 0.5rem; border-radius: 999px;
+      display: inline-flex; align-items: center; gap: 0.34em;
+      font-size: 0.75rem; font-weight: 600;
+      line-height: 1.4; padding: 0.12rem 0.55rem; border-radius: 999px;
       background: var(--surface-sunk); color: var(--ink-soft);
       letter-spacing: 0.02em; vertical-align: middle;
     }
-    .flag { background: var(--amber-tint); color: var(--amber); }
     .role { background: var(--green-tint); color: var(--green); }
+    .flag { background: var(--amber-tint); color: var(--amber); border: 1px solid color-mix(in srgb, var(--amber) 38%, transparent); }
+    /* Non-colour cue: a flag carries a small tag-diamond so it reads apart from a
+       role pill even in grayscale; via-email carries a small envelope glyph. */
+    .flag::before { content: ""; width: 0.44em; height: 0.44em; background: currentColor; border-radius: 1px; transform: rotate(45deg); flex: none; }
+    .via-email::before { content: ""; width: 0.7em; height: 0.5em; border: 1px solid currentColor; border-radius: 1px; flex: none; }
 
     /* ---- the feed & post cards --------------------------------------------- */
     .composer {
       background: var(--surface); border: 1px solid var(--line);
       border-radius: var(--radius); box-shadow: var(--shadow);
-      padding: 1.1rem; margin: 1.5rem 0 2rem;
+      padding: 1.2rem 1.25rem; margin: 1.5rem 0 2rem;
     }
     .composer textarea { border-color: var(--line); }
     .composer > label:first-of-type { margin-top: 0.75rem; }
 
     ul.feed, ul.comments, ul.members, ul.pods, ul.directory,
-    ul.invites, ul.digests, ul.redeemers, ul.uses { list-style: none; margin: 0; padding: 0; }
+    ul.invites, ul.digests, ul.redeemers, ul.uses, ul.quarantine, ul.yards, ul.contacts { list-style: none; margin: 0; padding: 0; }
     ul.feed { display: flex; flex-direction: column; gap: 1rem; }
 
     ul.feed > li, .post {
       background: var(--surface); border: 1px solid var(--line);
       border-radius: var(--radius); box-shadow: var(--shadow);
-      padding: 1.1rem 1.2rem;
+      padding: 1.15rem 1.25rem;
     }
     .post { margin: 1.25rem 0; }
     .author, .byline strong, .byline { font-weight: 650; color: var(--ink); }
-    .byline { margin: 0 0 0.5rem; color: var(--ink-soft); font-size: 0.92rem; }
+    .byline { margin: 0 0 0.5rem; color: var(--ink-soft); font-size: 0.92rem; font-weight: 400; }
     .byline strong, .author { font-size: 1rem; }
     .when, .edited {
       color: var(--ink-soft); font-size: 0.85rem; font-weight: 400; margin-left: 0.5rem;
     }
     ul.feed > li > p, .post > p, .comments p { margin: 0.5rem 0 0.75rem; }
 
-    /* The new-since divider — a quiet boundary between fresh and already-seen, not an alert. */
+    /* The new-since divider — a quiet threshold between fresh and already-seen,
+       never an alert. The text label + centred rules are the non-colour cue. */
     li.boundary {
       background: none !important; border: 0 !important; box-shadow: none !important;
-      padding: 0.25rem 0 !important; text-align: center;
-      display: flex; align-items: center; gap: 0.75rem; color: var(--amber);
+      padding: 0.35rem 0 !important; text-align: center;
+      display: flex; align-items: center; gap: 0.85rem; color: var(--amber);
     }
     li.boundary::before, li.boundary::after {
-      content: ""; flex: 1; height: 1px; background: var(--line-strong);
+      content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--amber) 40%, var(--line));
     }
-    li.boundary span { font-size: 0.82rem; font-weight: 600; letter-spacing: 0.03em; white-space: nowrap; }
+    li.boundary span { font-size: 0.82rem; font-weight: 600; letter-spacing: 0.04em; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.45em; }
+    li.boundary span::before { content: ""; width: 0.5em; height: 0.5em; border: 1.5px solid currentColor; border-radius: 50%; flex: none; }
 
     /* The feed ends — principle 1, calm over engagement. */
     .caught-up {
       text-align: center; color: var(--ink-soft); font-style: italic;
-      margin: 2rem 0 0.5rem; padding-top: 1.25rem;
+      margin: 2.25rem 0 0.5rem; padding-top: 1.25rem;
     }
     .caught-up::before {
-      content: "❧"; display: block; font-style: normal; font-size: 1.3rem;
-      color: var(--green); opacity: 0.7; margin-bottom: 0.35rem;
+      content: ""; display: block; width: 30px; height: 2px;
+      margin: 0 auto 0.8rem; background: color-mix(in srgb, var(--green) 55%, transparent); border-radius: 2px;
     }
     .empty {
-      color: var(--ink-soft); text-align: center; padding: 1.5rem 1rem;
+      color: var(--ink-soft); text-align: center; padding: 1.6rem 1rem;
       background: var(--surface-sunk); border-radius: var(--radius); border: 1px dashed var(--line-strong);
     }
-    ul.feed > li.empty, .comments > li.empty { box-shadow: none; }
+    ul.feed > li.empty, .comments > li.empty { box-shadow: none; background: var(--surface-sunk); border: 1px dashed var(--line-strong); }
 
     .date-banner {
-      background: var(--amber-tint); border: 1px solid color-mix(in srgb, var(--amber) 25%, transparent);
-      border-radius: var(--radius); padding: 0.75rem 1rem; margin: 1.25rem 0;
+      background: var(--green-tint); border: 1px solid color-mix(in srgb, var(--green) 22%, transparent);
+      border-radius: var(--radius); padding: 0.8rem 1rem; margin: 1.25rem 0;
     }
-    .date-banner p { margin: 0.15rem 0; color: var(--amber); font-weight: 600; }
+    .date-banner p { margin: 0.15rem 0; color: var(--green); font-weight: 600; }
 
     /* ---- row of quiet post actions ----------------------------------------- */
     .actions {
       display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1rem;
-      margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px solid var(--line);
+      margin-top: 0.9rem; padding-top: 0.8rem; border-top: 1px solid var(--line);
       font-size: 0.9rem;
     }
     .actions a { text-decoration: none; font-weight: 600; }
@@ -376,18 +414,22 @@
     .react-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
     .react-buttons button {
       background: var(--surface); color: var(--ink); border-color: var(--line-strong);
-      min-height: 40px; padding: 0.4rem 0.9rem; border-radius: 999px; font-weight: 600;
+      min-height: 40px; padding: 0.4rem 0.95rem; border-radius: 999px; font-weight: 600;
     }
-    .react-buttons button:hover { background: var(--green-tint); border-color: var(--green); }
+    .react-buttons button:hover { background: var(--green-tint); border-color: var(--green); color: var(--green-deep); }
     .react-buttons button.reacted { background: var(--green); color: var(--btn-ink); border-color: var(--green); }
+    /* Non-colour cue: a chosen reaction carries a leading check beyond its fill. */
+    .react-buttons button.reacted::before { content: "\2713"; font-weight: 700; }
 
     /* ---- admin lists & tables ---------------------------------------------- */
     ul.members > li, ul.pods > li, ul.directory > li, ul.invites > li,
-    ul.digests > li, ul.redeemers > li, ul.uses > li {
-      padding: 0.85rem 0; border-bottom: 1px solid var(--line);
+    ul.digests > li, ul.redeemers > li, ul.uses > li, ul.quarantine > li, ul.yards > li {
+      padding: 0.9rem 0; border-bottom: 1px solid var(--line);
       display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
     }
     ul.members .inline, ul.pods .inline, ul.invites .inline { margin-left: auto; }
+    ul.redeemers { flex-basis: 100%; padding-left: 1rem; }
+    ul.redeemers > li { border: 0; padding: 0.15rem 0; font-size: 0.9rem; color: var(--ink-soft); }
 
     table {
       width: 100%; border-collapse: collapse; margin: 1.25rem 0;
@@ -395,15 +437,15 @@
     }
     caption { text-align: left; color: var(--ink-soft); margin-bottom: 0.5rem; }
     th, td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--line); }
-    thead th { border-bottom: 2px solid var(--line-strong); font-size: 0.85rem;
-      text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); }
-    tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-sunk) 45%, transparent); }
+    thead th { border-bottom: 2px solid var(--line-strong); font-size: 0.8rem;
+      text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); }
+    tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-sunk) 55%, transparent); }
     td.delivery, .delivery { font-variant-numeric: tabular-nums; }
 
     /* ---- hand-over block & printable QR ------------------------------------ */
     .handover {
       background: var(--surface); border: 1px solid var(--line);
-      border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.1rem; margin: 1rem 0 1.5rem;
+      border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.2rem; margin: 1rem 0 1.5rem;
     }
     .handover input[readonly] { background: var(--surface-sunk); font-family: var(--font-mono); font-size: 0.9rem; }
     .handover-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.75rem 0; }
@@ -441,9 +483,12 @@
   <header class="site">
     <div class="wrap">
       <a class="brand" href="{% if user.is_authenticated %}{% url 'feed' %}{% else %}{% url 'home' %}{% endif %}">
+        {# Homestead mark — a house with an arched door cut from its centre
+           (negative space). Single currentColor path; reads at 16px flat. #}
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M12 21c0-5 0-8 0-8m0 0c0-3.5 2.8-6.3 6.3-6.3.2 0 .3.1.3.3C18.6 10.8 15.8 13 12.3 13H12Zm0 0C12 10 9.7 7.7 6.7 7.7c-.2 0-.3.1-.3.3C6.4 11 8.7 13.3 11.7 13.3H12Z"
-                stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path fill-rule="evenodd" clip-rule="evenodd"
+                d="M12 3.4 L20.6 10.8 V20.6 H3.4 V10.8 Z M9.7 20.6 V14.8 A2.3 2.3 0 0 1 14.3 14.8 V20.6 Z"
+                fill="currentColor"/>
         </svg>
         Backyard
       </a>
