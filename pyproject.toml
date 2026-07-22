@@ -9,7 +9,7 @@ dependencies = [
   "django>=5.2,<5.3",           # 5.2 LTS, extended support to 2028-04 (ADR-002)
   "django-allauth[mfa]>=65.14,<66",
   "gunicorn>=23,<24",
-  "pillow>=11,<12",             # photo ingest: re-encode + metadata strip (S-401, TM-9)
+  "pillow>=12.3,<13",           # photo ingest: re-encode + metadata strip (S-401, TM-9); >=12.3 clears the 11.3 image-decoder CVEs (S-726)
   "psycopg[binary]>=3.2,<4",
   "procrastinate[django]>=3,<4", # Postgres-native job queue + worker (ADR-002)
   "qrcode>=8,<9",               # elder-token handover QR (S-104); SVG factory, no PIL/JS

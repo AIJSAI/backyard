@@ -68,7 +68,7 @@ def link_artifacts(link: str) -> dict[str, object]:
     ``mark_safe`` on the QR lives ONLY here: its sole input is our CSPRNG token inside the
     configured BASE_URL, rendered as qrcode's own path geometry, never reflected user text,
     so the S308 justification is centralised in one auditable place."""
-    return {"minted_link": link, "qr_svg": mark_safe(qr_svg(link))}  # noqa: S308
+    return {"minted_link": link, "qr_svg": mark_safe(qr_svg(link))}  # noqa: S308  # nosec
 
 
 def fresh_intent(request: HttpRequest, key: str) -> str:
