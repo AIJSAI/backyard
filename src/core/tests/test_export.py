@@ -142,6 +142,33 @@ def test_export_skips_a_missing_media_file(world: dict[str, object]) -> None:
     assert json.loads(files["media.json"]) == []  # the missing file was skipped
 
 
+def test_export_includes_a_video_source(world: dict[str, object]) -> None:
+    """S-704 regression (caught live on the persistent instance): a member who posted a
+    VIDEO must get it in their export. A video exports its metadata-stripped SOURCE original
+    (retained for export, T-MEDIA-6), never its `image` (empty by design). Before the fix
+    the loop opened `image` for every asset, and a video's empty image raised ValueError
+    (not the caught FileNotFoundError), 500-ing the whole export for any video-poster."""
+    from django.core.files.base import ContentFile
+
+    from core.models import MediaAsset
+
+    author = world["author"]
+    m_pod = world["m_pod"]
+    assert isinstance(author, Member)
+    assert isinstance(m_pod, Pod)
+    post = Post.objects.create(author=author, pod=m_pod, body="a clip from the yard")
+    asset = MediaAsset.objects.create(
+        post=post, media_kind=MediaAsset.VIDEO, content_type="video/mp4"
+    )
+    asset.source.save(f"{asset.token}.mp4", ContentFile(b"stripped-source-bytes"), save=True)
+
+    files = _read_zip(export.build_member_export(author))  # must not raise
+    media_index = json.loads(files["media.json"])
+    assert len(media_index) == 1
+    assert media_index[0]["file"].endswith(".mp4")  # the video source, not a .jpg
+    assert files[media_index[0]["file"]] == b"stripped-source-bytes"
+
+
 def test_export_excludes_rehosted_link_preview_images(world: dict[str, object]) -> None:
     """A re-hosted link-preview og:image is a copy of a third party's image, not the
     member's own content, so it never appears in their personal data export (S-301)."""

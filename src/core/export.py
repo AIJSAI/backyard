@@ -1,14 +1,15 @@
 """Member data export (S-704): take your whole history with you.
 
 A member can download a zip of everything they authored: their posts, their comments,
-and the photos on their posts, in a documented JSON format. The export is strictly the
+and the photos and videos on their posts, in a documented JSON format. The export is strictly the
 member's own authored content, never anyone else's: it reads their reverse relations
 (member.posts, member.comments) directly, not the audience query, so it can only ever
 contain what they wrote. It is available from the first release and never gated.
 
 The archive is written into a caller-provided file so the view can spill it to disk
-and stream it, keeping peak memory to about one image plus the zip buffers rather than
-the whole archive at once (security review of #32).
+and stream it, keeping peak memory to about one media file at a time (a photo, or a
+video's <=100MB source) plus the zip buffers, rather than the whole archive at once
+(security review of #32).
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from __future__ import annotations
 import io
 import json
 import zipfile
+from pathlib import PurePosixPath
 from typing import IO
 
 from django.utils import timezone
@@ -96,12 +98,23 @@ def write_member_export(member: Member, destination: IO[bytes]) -> None:
             for asset in post.media.exclude(media_kind=MediaAsset.LINK_PREVIEW):
                 if asset.deleted_at is not None:
                     continue
-                arcname = f"media/{asset.token}.jpg"
+                # A photo exports its full re-encoded image; a video exports the
+                # metadata-stripped SOURCE original (retained precisely for member export,
+                # T-MEDIA-6), never the served H.264 rendition. A video's `image` is empty
+                # by design, so branching on kind is what keeps the export from 500-ing for
+                # any member who ever posted a clip (S-704 — leaving takes your data).
+                if asset.media_kind == MediaAsset.VIDEO:
+                    stored = asset.source
+                    ext = PurePosixPath(asset.source.name or "").suffix or ".mp4"
+                else:
+                    stored = asset.image
+                    ext = ".jpg"
+                arcname = f"media/{asset.token}{ext}"
                 try:
-                    with asset.image.open("rb") as handle:
+                    with stored.open("rb") as handle:
                         archive.writestr(arcname, handle.read())
-                except FileNotFoundError:
-                    continue  # a missing file is skipped, never a 500 (review of #32 LOW)
+                except (FileNotFoundError, ValueError):
+                    continue  # a missing or unpopulated file is skipped, never a 500
                 media_index.append(
                     {"post_id": post.id, "file": arcname, "alt_text": asset.alt_text}
                 )
