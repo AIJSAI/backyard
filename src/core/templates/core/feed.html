@@ -99,7 +99,7 @@
 
   <p class="caught-up">You are all caught up.</p>
 
-  <script>
+  <script nonce="{{ request.csp_nonce }}">
     // Client-side pre-upload resize (S-401 acceptance 1). Shrinks large phone photos to
     // save bandwidth and converts HEIC to JPEG in browsers that can decode it (Safari/iOS)
     // before upload. Pure progressive enhancement: the server re-encodes and strips

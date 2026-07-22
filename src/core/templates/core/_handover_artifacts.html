@@ -24,7 +24,7 @@ field is still selectable and the QR still scannable, so the flow never depends 
   <div class="qr">{{ handover_qr }}</div>
   <p class="muted">{{ handover_note|default:'Send the link by text or email, or print this page for the QR. It appears only once.' }}</p>
 </div>
-<script>
+<script nonce="{{ request.csp_nonce }}">
   // Reveal Copy/Share only where the browser supports them (S-212): a no-JS or
   // unsupported client keeps the selectable link field and the QR, so the hand-over
   // never relies on this. Scoped to the single hand-over block on the page.

@@ -35,7 +35,7 @@
 <body>
   {% block body %}{% endblock %}
   {% if user.is_authenticated %}
-    <script>
+    <script nonce="{{ request.csp_nonce }}">
       // Register the minimal service worker so member pages are installable
       // (S-103). Only logged-in members reach this: the token surfaces (/d/
       // digest, /t/ + /e/ elder) never register a worker, so an intermittent
