@@ -48,18 +48,20 @@ The single canonical checklist for Backyard v1.0. Rules:
 - [x] Wave 1 (pods+auth) closed: full gate + live repro receipt (S-101 feed-landing and S-201 household-onboarding carried into wave 2 per the wave plan) evidence: docs/receipts/2026-07-20-wave-1-close.md
 - [x] Wave 2 (feed+links) closed: full gate + live repro receipt evidence: docs/receipts/2026-07-20-wave-2-close.md
 - [x] Wave 3 (media) closed: full gate + live repro receipt; ffmpeg latency measured (2-vCPU Ubicloud, 60s 1080p 14.9s) and pillow-heif decided evidence: docs/receipts/2026-07-21-wave-3-close.md
-- [ ] Wave 4 (digest in/out) closed: full gate + live repro receipt; Anymail delivery-status matrix measured
+- [x] Wave 4 (digest in/out) closed: full gate + live repro receipt; Anymail delivery-status matrix measured (delivered/bounced/complained + real inbox); S-501/502/903 tested via live Resend send + inbound round-trip, S-705 wording pending founder voice evidence: docs/receipts/2026-07-22-wave-4-close.md
 - [x] Wave 5 (PWA + elder path) closed: full gate + live repro receipt; RAM footprint measured (four containers, ~294 MiB); full revocation drill (six credential classes, live) evidence: docs/receipts/2026-07-21-wave-5-close.md
-- [ ] Every wave closes on the full verification gate plus a live repro, never subset tests
+- [x] Every wave closes on the full verification gate plus a live repro, never subset tests evidence: docs/receipts/
 
 ### What is left, and who unblocks it
 
-Waves 1, 2, 3, and 5 are closed and tested. **Only wave 4 (digest email in/out)
-is `built`, not `tested`.** Its digest render and inbound-parse paths are proven
-live on the compose stack, but real email delivery is not proven because no
-provider is wired yet — and this project never flips a story to `tested` on an
-unmeasured gate (rule 3). The one remaining box waits on a founder input, not on
-code:
+Waves 1, 2, 3, 5 are closed and tested; **wave 4 (digest email in/out) closed
+2026-07-22** ([receipt](receipts/2026-07-22-wave-4-close.md)) — Resend wired via
+django-anymail v15, the ADR-002 delivery-and-bounce matrix measured
+(delivered/bounced/complained + a real inbox), and both halves proven live on the
+running compose stack: outbound through the app's Anymail→Resend path, and a full
+inbound reply-by-email round-trip (Resend receiving → `email.received` webhook →
+comment posted, quoted tail stripped, attributed from the capability). **S-501,
+S-502, S-903 are `tested`.** The one remaining item is a founder input, not code:
 
 1. **Email provider, sending domain, inbound mailbox** (closes wave 4).
    Recommended and researched: create a second **free Resend Team** under the

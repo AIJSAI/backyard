@@ -319,7 +319,7 @@ epics:
           - "Links open the token or web view without a login wall for entitled members"
           - "Multipart delivery with a plain-text fallback for old mail clients"
           - "Unsubscribe requires a confirm step and never severs a member silently; the admin can see per-member delivery status and failures"
-        status: built  # wave 4: full pipeline built + live-repro through the console transport; NOT tested until the provider delivery-and-bounce matrix is MEASURED (ADR-002 gate)
+        status: tested  # wave 4 close 2026-07-22: ADR-002 delivery-and-bounce matrix MEASURED (delivered/bounced/complained + real inbox) + outbound proven live via Anymail->Resend on the compose stack (docs/receipts/2026-07-22-wave-4-close.md)
         v1: true
         security:
           threat_refs:
@@ -341,7 +341,7 @@ epics:
           - "Per-member, per-post reply addresses map inbound mail to the correct thread"
           - "Plain-text reply becomes a comment attributed to the member"
           - "Failures bounce with a gentle, human explanation"
-        status: built  # wave 4: capability addresses + bounded inbound + quoted-strip built against the .eml corpus; NOT tested until a live mailbox round-trip (W4-B2)
+        status: tested  # wave 4 close 2026-07-22: live inbound round-trip through Resend receiving -> email.received webhook -> comment posted (quoted tail stripped, attributed from capability) (docs/receipts/2026-07-22-wave-4-close.md)
         v1: true
         security:
           threat_refs:
@@ -528,7 +528,7 @@ epics:
           - "The digest includes an upcoming-dates section for the next 7 days in my yards"
           - "The feed shows a quiet banner on the day itself; no push notification exists for dates"
           - "Anniversaries work the same way as birthdays"
-        status: built  # wave 4: per-field date visibility, banner, and digest section built and live-repro-d; tested-flip waits on the wave close
+        status: tested  # wave 4 close 2026-07-22: date visibility + banner + digest upcoming-dates section live-repro'd; provider transport now proven live (docs/receipts/2026-07-22-wave-4-close.md)
         v1: true
         security:
           threat_refs:
