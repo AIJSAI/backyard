@@ -23,7 +23,6 @@ from django.utils import timezone
 
 from . import (
     commenting,
-    link_preview,
     media,
     moderation,
     notifications,
@@ -162,10 +161,11 @@ def compose(request: HttpRequest) -> HttpResponse:
     """Create a post. POST only. Enforces TM-3 confirm-on-widen and, through the
     posting service, the audience-integrity invariant.
 
-    Marked non-atomic (the project sets ATOMIC_REQUESTS) so the best-effort link
-    fetch in attach_to_post does not run inside an open request transaction holding a
-    DB connection (security review HIGH-3). create_post wraps its own writes in an
-    explicit transaction, so post creation stays atomic on its own."""
+    Marked non-atomic (the project sets ATOMIC_REQUESTS): create_post wraps its own writes
+    in an explicit transaction, and the best-effort photo/video ingests are independent, so a
+    dropped photo never rolls back the post. The SSRF-sensitive link-preview fetch that
+    originally motivated this (security review HIGH-3) now runs on the worker, not in the
+    request at all (S-725, TS-CO-4)."""
     member = _acting_member(request)
     if request.method != "POST":
         raise Http404
@@ -215,10 +215,13 @@ def compose(request: HttpRequest) -> HttpResponse:
 
     if not errors:
         post = posting.create_post(author=member, pod=pod, audience_yards=audience_yards, body=body)
-        # Best-effort preview for a link in the body. Synchronous for now (bounded by
-        # the fetcher's per-hop timeout); it moves to the worker in wave 3, where the
-        # SSRF-sensitive fetch belongs on its own network segment (TS-CO-4).
-        link_preview.attach_to_post(post)
+        # A link in the body gets a best-effort preview card, fetched on the WORKER (S-725,
+        # TS-CO-4): the SSRF-sensitive outbound fetch runs off the edge-facing web process,
+        # on the worker's own network segment. The card appears once the worker attaches it
+        # (like a video transcode); the post shows the bare link until then.
+        from .tasks import attach_link_preview
+
+        attach_link_preview.defer(post_id=post.id)
         _attach_photos(post, request.FILES.getlist("photos"))
         _attach_videos(post, video_raws)
         return redirect("feed")
