@@ -1,4 +1,4 @@
-{# Backyard weekly digest email (S-501). Renders in mail clients (Gmail, Outlook)
+{% comment %} Backyard weekly digest email (S-501). Renders in mail clients (Gmail, Outlook)
    that strip <style> blocks and CSS custom properties, so EVERYTHING is inline,
    hardcoded literal hex — no CSS variables, no tokens — and table-based, single
    column, ~600px, light-only (safe where dark mode is ignored). Palette is derived
@@ -6,7 +6,7 @@
      text #1f2126 · navy #234a78 · muted #565b64 · faint #8a8f98 · rule #e3e6e9
    The logo is the flat one-colour Homestead mark (inline SVG), with the serif
    wordmark as the robust fallback for clients that drop inline SVG. Every Django
-   variable and every line of copy below is unchanged from the shipped template. #}
+   variable and every line of copy below is unchanged from the shipped template. {% endcomment %}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;padding:0;background-color:#f7f8f9;">
  <tr>
   <td align="center" style="padding:24px 12px;">

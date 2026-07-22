@@ -6,11 +6,11 @@
   <meta name="robots" content="noindex, nofollow">
   <title>{% block title %}Backyard{% endblock %}</title>
   {% if user.is_authenticated %}
-    {# The PWA install surface is for logged-in members only. The /d/ digest
+    {% comment %} The PWA install surface is for logged-in members only. The /d/ digest
        token surface shares this base template but mints no session, so its
        recipients (intermittent, often non-member email-link visitors) never
        get a root-scope worker planted on them — the Safari eviction rule
-       ADR-002 applies to every token surface, not only the elder one. #}
+       ADR-002 applies to every token surface, not only the elder one. {% endcomment %}
     <link rel="manifest" href="{% url 'manifest' %}">
     <meta name="theme-color" content="#234a78">
     <link rel="apple-touch-icon" href="{% url 'icon_192' %}">
@@ -483,8 +483,8 @@
   <header class="site">
     <div class="wrap">
       <a class="brand" href="{% if user.is_authenticated %}{% url 'feed' %}{% else %}{% url 'home' %}{% endif %}">
-        {# Homestead mark — a house with an arched door cut from its centre
-           (negative space). Single currentColor path; reads at 16px flat. #}
+        {% comment %} Homestead mark — a house with an arched door cut from its centre
+           (negative space). Single currentColor path; reads at 16px flat. {% endcomment %}
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path fill-rule="evenodd" clip-rule="evenodd"
                 d="M12 3.4 L20.6 10.8 V20.6 H3.4 V10.8 Z M9.7 20.6 V14.8 A2.3 2.3 0 0 1 14.3 14.8 V20.6 Z"
