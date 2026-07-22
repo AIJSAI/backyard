@@ -18,9 +18,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from django.contrib.sessions.backends.db import SessionStore
+from django.contrib.sessions.models import Session
 
-from core import backups
-from core.models import Member
+from core import backups, elder_tokens, invites
+from core.models import Invite, Member, Pod, PodMembership, Yard
 
 pytestmark = pytest.mark.django_db
 
@@ -127,6 +129,60 @@ def test_restore_proceeds_with_force_over_a_populated_database(
     backups.restore_backup(archive, force=True)  # must not raise
     # The media tar in the archive is empty; restore recreates the media root.
     assert media_root.exists()
+
+
+def _member_with_a_live_elder_link() -> tuple[Member, str, Invite]:
+    yard = Yard.objects.create(name="Y", slug="y")
+    pod = Pod.objects.create(name="P")
+    pod.yards.set([yard])
+    member = Member.objects.create(display_name="Nana")
+    PodMembership.objects.create(member=member, pod=pod)
+    raw = elder_tokens.mint(member)  # a no-login elder link, live
+    invite, _ = invites.mint_invite(pod, created_by=None)  # an outstanding /join credential
+    return member, raw, invite
+
+
+def test_forced_security_replay_kills_every_restored_bearer_credential() -> None:
+    """TM-7 / T-OP-G5: the replay rotates the generation (killing the generation-anchored
+    elder/digest/reply tokens), flushes sessions, and voids outstanding invites."""
+    member, raw, invite = _member_with_a_live_elder_link()
+    assert elder_tokens.resolve(raw)  # live before
+    session = SessionStore()
+    session["k"] = 1
+    session.create()
+    before_gen = member.token_generation
+
+    summary = backups._forced_security_replay()
+
+    member.refresh_from_db()
+    assert member.token_generation == before_gen + 1
+    with pytest.raises(elder_tokens.ElderTokenInvalid):
+        elder_tokens.resolve(raw)  # the restored elder link is DEAD
+    assert not Session.objects.filter(session_key=session.session_key).exists()  # flushed
+    invite.refresh_from_db()
+    assert invite.revoked_at is not None  # voided
+    assert summary == {
+        "members_rotated": 1,
+        "sessions_flushed": 1,
+        "invites_voided": 1,
+        "digest_tokens_cleared": 0,  # no digest subscription seeded here (see drift-guard)
+    }
+
+
+def test_restore_runs_the_security_replay_so_an_expelled_link_cannot_be_resurrected(
+    fake_pg: None, settings: Any, tmp_path: Path
+) -> None:
+    """The load-bearing property (the retro's gap): a full restore ends with the replay, so
+    an ex-partner's elder link that the backup carried is dead after the restore, not live."""
+    settings.MEDIA_ROOT = str(tmp_path / "media")
+    _, raw, _ = _member_with_a_live_elder_link()
+    assert elder_tokens.resolve(raw)  # the backup carries a live link
+
+    summary = backups.restore_backup(_a_valid_archive(), force=True)
+
+    with pytest.raises(elder_tokens.ElderTokenInvalid):
+        elder_tokens.resolve(raw)  # the restore's forced replay killed it
+    assert summary["members_rotated"] >= 1
 
 
 def _a_valid_archive() -> io.BytesIO:
