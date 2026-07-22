@@ -9,35 +9,45 @@
     /* S-601: one big readable column for a grandparent — the hardest-to-serve
        persona, so the READING surface is held at maximum contrast (a deliberate,
        pinned decision: #1a1a1a on #ffffff is 17.4:1, well past AA), NOT tinted for
-       looks. The warm Backyard identity comes from the green accents (buttons,
-       rules, links, focus) and the Georgia serif, never at the cost of legibility.
-       Deliberately a single high-contrast light theme (predictable, not auto-dark);
-       every tap target is at least 48x48 CSS pixels; a clear keyboard focus ring;
-       reduced motion honored. */
+       looks. The Backyard identity comes only from the navy accents (mark,
+       buttons, rules, links, focus) and the Georgia serif — never at the cost of
+       legibility. Deliberately a single high-contrast light theme (predictable,
+       not auto-dark); every tap target is at least 48x48 CSS pixels; a clear
+       keyboard focus ring; reduced motion honored. */
     body { font-family: Georgia, "Iowan Old Style", Palatino, serif;
            background: #ffffff; color: #1a1a1a;
            margin: 0; font-size: {% if big_text %}26px{% else %}21px{% endif %};
-           line-height: 1.6; }
-    main { max-width: 640px; margin: 0 auto; padding: 16px 20px 40px; }
-    .post { border-top: 2px solid #d9d3c3; padding: 22px 0; }
-    .byline { color: #5d5f52; margin: 0 0 10px; }
+           line-height: 1.65; }
+    main { max-width: 640px; margin: 0 auto; padding: 16px 22px 48px; }
+    .top { display: flex; justify-content: space-between; align-items: center; gap: 14px;
+           padding: 16px 0; border-bottom: 3px solid #234a78; }
+    .top strong { font-size: 1.05em; display: inline-flex; align-items: center; gap: 12px; }
+    .top svg { width: 1.4em; height: 1.4em; color: #234a78; flex: none; }
     button { font-size: 1em; font-family: inherit; min-height: 48px; min-width: 48px;
-             padding: 12px 24px; border: 2px solid #2f5d3a; background: #ffffff;
-             color: #1a1a1a; border-radius: 12px; cursor: pointer; }
-    button.on { background: #2f5d3a; color: #ffffff; }
-    button:focus-visible, a:focus-visible { outline: 3px solid #8a5a12; outline-offset: 2px; }
-    .top { display: flex; justify-content: space-between; align-items: center; gap: 12px;
-           padding: 14px 0; border-bottom: 3px solid #2f5d3a; }
-    .top strong { font-size: 1.05em; }
-    article span { color: #5d5f52; }
-    a.back { color: #2f5d3a; font-weight: 600; }
+             padding: 12px 24px; border: 2px solid #234a78; background: #ffffff;
+             color: #1a1a1a; border-radius: 12px; cursor: pointer; font-weight: 600;
+             line-height: 1.2; }
+    button:hover { background: #eaf0f7; }
+    button.on { background: #234a78; color: #ffffff; }
+    button:focus-visible, a:focus-visible { outline: 3px solid #234a78; outline-offset: 3px; }
+    .post { border-top: 2px solid #dcdee1; padding: 24px 0; }
+    .byline { color: #565b64; margin: 0 0 12px; }
+    .post p { margin: 0 0 18px; }
+    form { margin: 0; }
+    article span { display: inline-block; color: #565b64; margin: 10px 14px 0 0; }
+    a.back { color: #234a78; font-weight: 700; }
+    p.back-wrap { margin-top: 28px; }
     @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   </style>
 </head>
 <body>
 <main>
   <div class="top">
-    <strong>Hello, {{ member.kinship_name|default:member.display_name }}</strong>
+    <strong>
+      {# Flat one-colour Homestead mark (navy), decorative. #}
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.4 L20.6 10.8 V20.6 H3.4 V10.8 Z M9.7 20.6 V14.8 A2.3 2.3 0 0 1 14.3 14.8 V20.6 Z" fill="currentColor"/></svg>
+      Hello, {{ member.kinship_name|default:member.display_name }}
+    </strong>
     <form method="post" action="{% url 'elder_text_size' %}">{% csrf_token %}
       <button type="submit">{% if big_text %}Regular text{% else %}Bigger text{% endif %}</button>
     </form>
@@ -59,7 +69,7 @@
   {% empty %}
     <p class="post">Nothing new right now. Your family's posts will appear here.</p>
   {% endfor %}
-  <p><a class="back" href="{% url 'elder_feed' %}">Back to the top of your family's page</a></p>
+  <p class="back-wrap"><a class="back" href="{% url 'elder_feed' %}">Back to the top of your family's page</a></p>
 </main>
 </body>
 </html>

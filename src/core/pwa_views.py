@@ -20,8 +20,8 @@ import io
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from PIL import Image, ImageDraw
 
-_THEME = "#2f5d3a"  # a backyard green
-_BG = "#f4f1ea"
+_THEME = "#234a78"  # Backyard navy (design system v2)
+_BG = "#f7f8f9"  # cool near-white ground
 
 
 def manifest(request: HttpRequest) -> JsonResponse:
@@ -53,22 +53,33 @@ def manifest(request: HttpRequest) -> JsonResponse:
 
 
 def _render_icon(size: int, *, maskable: bool) -> bytes:
-    """A simple, deterministic house glyph on a rounded field. A maskable icon
-    keeps its content inside the center safe zone so a launcher mask cannot clip
-    it."""
+    """The Homestead mark (design system v2): a light house with an arched door on a
+    navy rounded field. Deterministic, no binary in the tree. A maskable icon keeps
+    its content inside the center safe zone so a launcher mask cannot clip it. Traces
+    the handoff app-icon path (§6) in a 24-unit box whose 2..22 field maps to the
+    padded rounded rectangle."""
     image = Image.new("RGB", (size, size), _BG)
     draw = ImageDraw.Draw(image)
     pad = int(size * (0.16 if maskable else 0.08))
-    draw.rounded_rectangle([pad, pad, size - pad, size - pad], radius=int(size * 0.18), fill=_THEME)
-    # A plain white house: a roof triangle over a body square, centered.
-    cx = size / 2
-    body_top = size * 0.5
-    body_half = size * 0.16
-    draw.rectangle([cx - body_half, body_top, cx + body_half, size * 0.72], fill=_BG)
-    draw.polygon(
-        [(cx - body_half * 1.4, body_top), (cx, size * 0.32), (cx + body_half * 1.4, body_top)],
-        fill=_BG,
+    inner = size - 2 * pad
+    draw.rounded_rectangle(
+        [pad, pad, size - pad, size - pad], radius=int(inner * 0.275), fill=_THEME
     )
+
+    def m(x: float, y: float) -> tuple[float, float]:
+        # map the §6 24-box (the rounded field spans 2..22) into the padded field
+        return (pad + (x - 2) / 20 * inner, pad + (y - 2) / 20 * inner)
+
+    # A light house pentagon: apex, right eave, right base, left base, left eave.
+    draw.polygon([m(12, 6), m(17.4, 10.8), m(17.4, 17.6), m(6.6, 17.6), m(6.6, 10.8)], fill=_BG)
+    # An arched door cut back to the navy field: a rectangle body + a half-disc arch.
+    dl, dtop = m(10.6, 14)
+    dr, dbot = m(13.4, 17.6)
+    draw.rectangle([dl, dtop, dr, dbot], fill=_THEME)
+    cx, cy = m(12, 14)
+    r = 1.4 / 20 * inner
+    draw.pieslice([cx - r, cy - r, cx + r, cy + r], start=180, end=360, fill=_THEME)
+
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
     return buffer.getvalue()

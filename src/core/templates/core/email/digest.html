@@ -1,40 +1,66 @@
-<div style="font-family: Georgia, 'Iowan Old Style', Palatino, serif; font-size: 18px; line-height: 1.5; max-width: 600px; color: #23241f;">
-  <p style="color: #8a8676; font-size: 12px;">{{ separator }}</p>
-  <h1 style="font-size: 24px; color: #2f5d3a; margin: 0 0 4px;">{{ header.yard_name }}: your family digest</h1>
-  <p style="color: #5d5f52;">{{ header.window_text }}</p>
+{# Backyard weekly digest email (S-501). Renders in mail clients (Gmail, Outlook)
+   that strip <style> blocks and CSS custom properties, so EVERYTHING is inline,
+   hardcoded literal hex — no CSS variables, no tokens — and table-based, single
+   column, ~600px, light-only (safe where dark mode is ignored). Palette is derived
+   from the light theme but authored as concrete hex:
+     text #1f2126 · navy #234a78 · muted #565b64 · faint #8a8f98 · rule #e3e6e9
+   The logo is the flat one-colour Homestead mark (inline SVG), with the serif
+   wordmark as the robust fallback for clients that drop inline SVG. Every Django
+   variable and every line of copy below is unchanged from the shipped template. #}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;padding:0;background-color:#f7f8f9;">
+ <tr>
+  <td align="center" style="padding:24px 12px;">
+   <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #e3e6e9;border-radius:10px;">
+    <tr>
+     <td style="padding:26px 30px 30px;font-family:Georgia,'Iowan Old Style',Palatino,serif;font-size:18px;line-height:1.5;color:#1f2126;">
 
-  {% for block in post_blocks %}
-    <div style="margin: 24px 0; padding: 12px 0; border-top: 1px solid #ddd6c4;">
-      <p style="margin: 0; color: #5d5f52;">{{ block.author_line }} · {{ block.date_text }}</p>
-      <p style="font-size: 18px;">{{ block.body }}</p>
-      <p>
-        {% if block.photo_count %}{{ block.photo_count }} photo{{ block.photo_count|pluralize }} ·{% endif %}
-        {% if block.reply_count %}{{ block.reply_count }} repl{{ block.reply_count|pluralize:"y,ies" }} ·{% endif %}
-        <a href="{{ block.url }}" style="color: #2f5d3a;">Open this post</a>
-      </p>
-      {% if block.reply_address %}
-        <p style="font-size: 16px;">Reply to this post by email:
-          <a href="mailto:{{ block.reply_address }}" style="color: #2f5d3a;">{{ block.reply_address }}</a>
-          (your reply goes to everyone who can see this post)</p>
+      <div style="margin:0 0 16px;">
+        <span style="display:inline-block;vertical-align:middle;line-height:0;"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.4 L20.6 10.8 V20.6 H3.4 V10.8 Z M9.7 20.6 V14.8 A2.3 2.3 0 0 1 14.3 14.8 V20.6 Z" fill="#234a78"/></svg></span>
+        <span style="display:inline-block;vertical-align:middle;font-family:Georgia,serif;font-weight:700;font-size:20px;color:#234a78;letter-spacing:-0.01em;">&nbsp;Backyard</span>
+      </div>
+
+      <p style="color: #8a8f98; font-size: 12px; margin: 0 0 10px;">{{ separator }}</p>
+      <h1 style="font-size: 24px; color: #234a78; margin: 0 0 4px; font-family: Georgia, 'Iowan Old Style', Palatino, serif; line-height: 1.2;">{{ header.yard_name }}: your family digest</h1>
+      <p style="color: #565b64; margin: 0 0 8px;">{{ header.window_text }}</p>
+
+      {% for block in post_blocks %}
+        <div style="margin: 24px 0; padding: 16px 0 0; border-top: 1px solid #e3e6e9;">
+          <p style="margin: 0 0 6px; color: #565b64;">{{ block.author_line }} · {{ block.date_text }}</p>
+          <p style="font-size: 18px; margin: 0 0 8px;">{{ block.body }}</p>
+          <p style="margin: 0;">
+            {% if block.photo_count %}{{ block.photo_count }} photo{{ block.photo_count|pluralize }} ·{% endif %}
+            {% if block.reply_count %}{{ block.reply_count }} repl{{ block.reply_count|pluralize:"y,ies" }} ·{% endif %}
+            <a href="{{ block.url }}" style="color: #234a78;">Open this post</a>
+          </p>
+          {% if block.reply_address %}
+            <p style="font-size: 16px; margin: 8px 0 0;">Reply to this post by email:
+              <a href="mailto:{{ block.reply_address }}" style="color: #234a78;">{{ block.reply_address }}</a>
+              (your reply goes to everyone who can see this post)</p>
+          {% endif %}
+        </div>
+      {% empty %}
+        <p style="margin: 24px 0;">A quiet stretch; nothing new this time.</p>
+      {% endfor %}
+
+      {% if dates_block %}
+        <div style="margin: 24px 0; padding: 16px 0 0; border-top: 1px solid #e3e6e9;">
+          <p style="margin: 0;"><strong>Coming up in the next week</strong></p>
+          <ul style="margin: 8px 0 0; padding-left: 22px;">
+            {% for entry in dates_block.entries %}
+              <li style="margin: 2px 0;">{{ entry.name_line }}&rsquo;s {{ entry.kind }} ({{ entry.date_text }})</li>
+            {% endfor %}
+          </ul>
+        </div>
       {% endif %}
-    </div>
-  {% empty %}
-    <p>A quiet stretch; nothing new this time.</p>
-  {% endfor %}
 
-  {% if dates_block %}
-    <div style="margin: 24px 0; padding: 12px 0; border-top: 1px solid #ddd6c4;">
-      <p style="margin: 0;"><strong>Coming up in the next week</strong></p>
-      <ul>
-        {% for entry in dates_block.entries %}
-          <li>{{ entry.name_line }}&rsquo;s {{ entry.kind }} ({{ entry.date_text }})</li>
-        {% endfor %}
-      </ul>
-    </div>
-  {% endif %}
+      <p style="margin: 24px 0 0;"><a href="{{ footer.digest_url }}" style="color: #234a78;">See everything in your backyard</a></p>
+      <p style="font-size: 16px; color: #565b64; margin: 10px 0 0;">Too many emails?
+        <a href="{{ footer.unsubscribe_url }}" style="color: #234a78;">Pause them here</a> - you stay in the family.</p>
+      <p style="font-size: 14px; color: #8a8f98; margin: 14px 0 0;">{{ footer.standing_text }}</p>
 
-  <p><a href="{{ footer.digest_url }}" style="color: #2f5d3a;">See everything in your backyard</a></p>
-  <p style="font-size: 16px; color: #5d5f52;">Too many emails?
-    <a href="{{ footer.unsubscribe_url }}" style="color: #2f5d3a;">Pause them here</a> - you stay in the family.</p>
-  <p style="font-size: 14px; color: #77735f;">{{ footer.standing_text }}</p>
-</div>
+     </td>
+    </tr>
+   </table>
+  </td>
+ </tr>
+</table>
