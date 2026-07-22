@@ -296,11 +296,119 @@ def test_revoke_across_scope_404s_like_a_nonexistent_invite(world: World) -> Non
 
 def test_minted_page_carries_the_tm5_headers(world: World) -> None:
     """The page displays the raw invite token in its body once, so it gets the
-    no-store/no-referrer/noindex set, defending a bfcache restore of a walked-away
-    admin screen even though /members/ is not a token-prefix route."""
+    no-store/noindex set defending a bfcache restore of a walked-away admin screen, plus
+    same-origin (not no-referrer): the page hosts the create form, whose browser POST is
+    CSRF-rejected under no-referrer (Origin goes null), and same-origin leaks nothing
+    cross-origin. See handover.apply_token_body_headers."""
     response = _create_household(
         _client_for(world.instance_admin), yard_id=world.maternal.id, name="The Vance family"
     )
     assert response["Cache-Control"] == "no-store"
-    assert response["Referrer-Policy"] == "no-referrer"
+    assert response["Referrer-Policy"] == "same-origin"
     assert response["X-Robots-Tag"] == "noindex, nofollow"
+
+
+# --- S-212: re-hand-over (resend) + copy/share affordances ---
+
+
+def _an_invite(client: Client, world: World, *, yard_id: int, name: str) -> Invite:
+    """Create a household via the real flow and return its invite row."""
+    _create_household(client, yard_id=yard_id, name=name)
+    return Invite.objects.get(pod__name=name)
+
+
+def test_resend_mints_a_fresh_additive_link_for_the_household(world: World) -> None:
+    client = _client_for(world.m_admin)
+    invite = _an_invite(client, world, yard_id=world.maternal.id, name="The Ray family")
+    pod = invite.pod
+
+    response = client.post(reverse("resend_invite", args=[invite.id]))
+    assert response.status_code == 200
+    body = response.content.decode()
+
+    # A second, additive invite exists for the same pod; the original is untouched.
+    invites_for_pod = Invite.objects.filter(pod=pod)
+    assert invites_for_pod.count() == 2
+    invite.refresh_from_db()
+    assert invite.revoked_at is None  # the prior link is NOT killed
+
+    # The fresh link is shown once, with an inline QR, and redeems into the SAME pod but
+    # is a distinct invite from the original.
+    fresh_raw = _raw_token(_join_link_from(body))
+    assert "<svg" in body and "</svg>" in body
+    fresh = invites.peek_invite(fresh_raw)
+    assert fresh.pod_id == pod.id
+    assert fresh.pk != invite.pk
+
+
+def test_resend_carries_the_tm5_headers(world: World) -> None:
+    client = _client_for(world.instance_admin)
+    invite = _an_invite(client, world, yard_id=world.maternal.id, name="The Ono family")
+    response = client.post(reverse("resend_invite", args=[invite.id]))
+    assert response["Cache-Control"] == "no-store"
+    assert response["Referrer-Policy"] == "same-origin"
+    assert response["X-Robots-Tag"] == "noindex, nofollow"
+
+
+def test_resend_works_on_a_revoked_or_expired_invite(world: World) -> None:
+    """The point of resend: re-issue when the old link lapsed. A revoked invite still
+    re-mints a fresh, live link for its household."""
+    client = _client_for(world.m_admin)
+    invite = _an_invite(client, world, yard_id=world.maternal.id, name="The Pike family")
+    client.post(reverse("revoke_invite", args=[invite.id]))  # kill the first link
+    invite.refresh_from_db()
+    assert invite.revoked_at is not None
+
+    body = client.post(reverse("resend_invite", args=[invite.id])).content.decode()
+    fresh_raw = _raw_token(_join_link_from(body))
+    assert invites.peek_invite(fresh_raw).pod_id == invite.pod_id  # a live fresh link
+
+
+def test_resend_is_post_only(world: World) -> None:
+    client = _client_for(world.m_admin)
+    invite = _an_invite(client, world, yard_id=world.maternal.id, name="The Quill family")
+    before = Invite.objects.filter(pod=invite.pod).count()
+    assert client.get(reverse("resend_invite", args=[invite.id])).status_code == 404
+    assert Invite.objects.filter(pod=invite.pod).count() == before  # a GET mints nothing
+
+
+def test_resend_across_scope_404s_like_a_nonexistent_invite(world: World) -> None:
+    """A yard admin resending another yard's invite gets the same 404 as an unknown id,
+    and mints nothing: the other side's invite is never revealed (S-202 parity)."""
+    maternal_invite = _an_invite(
+        _client_for(world.m_admin), world, yard_id=world.maternal.id, name="The Sable family"
+    )
+    p_client = _client_for(world.p_admin)
+    before = Invite.objects.count()
+    cross = p_client.post(reverse("resend_invite", args=[maternal_invite.id]))
+    assert cross.status_code == 404
+    unknown = p_client.post(reverse("resend_invite", args=[maternal_invite.id + 9999]))
+    assert unknown.status_code == 404
+    assert Invite.objects.count() == before  # neither minted anything
+
+
+def test_plain_member_cannot_resend(world: World) -> None:
+    invite = _an_invite(
+        _client_for(world.m_admin), world, yard_id=world.maternal.id, name="The Tran family"
+    )
+    assert (
+        _client_for(world.plain).post(reverse("resend_invite", args=[invite.id])).status_code == 403
+    )
+
+
+def test_the_ledger_offers_a_resend_control(world: World) -> None:
+    client = _client_for(world.m_admin)
+    invite = _an_invite(client, world, yard_id=world.maternal.id, name="The Udall family")
+    ledger = client.get(reverse("member_invites")).content.decode()
+    assert reverse("resend_invite", args=[invite.id]) in ledger
+
+
+def test_the_handover_page_offers_copy_and_share_affordances(world: World) -> None:
+    """The copy/share hand-over enhancement renders on the invite artifact page (the
+    buttons are revealed client-side by capability; the markup is always present)."""
+    body = _create_household(
+        _client_for(world.instance_admin), yard_id=world.maternal.id, name="The Wills family"
+    ).content.decode()
+    assert "data-handover-copy" in body
+    assert "data-handover-share" in body
+    assert "data-handover-link" in body

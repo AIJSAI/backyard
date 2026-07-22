@@ -7,9 +7,13 @@
 #   backyard.example.com {
 #       reverse_proxy web:8000
 #       request_body { max_size 512MB }
-#       header Referrer-Policy no-referrer
 #       header X-Content-Type-Options nosniff
 #   }
+#
+# Do NOT add `header Referrer-Policy no-referrer` here. The app sets Referrer-Policy per
+# surface (same-origin floor + no-referrer on /t/ /d/); a global no-referrer at the edge
+# makes browsers send Origin: null on same-origin form POSTs and Django's CSRF rejects
+# them, silently breaking every form in a real browser.
 #
 # Do NOT add a `log` directive here: request lines carry bearer tokens in their
 # paths (/d/, /join/, /media/, /digest/*, /break-glass/ — threat model
@@ -29,8 +33,15 @@
 	request_body {
 		max_size 512MB
 	}
+	# The app owns Referrer-Policy per surface: Django's SECURE_REFERRER_POLICY=same-origin
+	# is the floor, and TokenSurfaceHeadersMiddleware sets no-referrer on the token-in-URL
+	# surfaces (/t/, /d/) where the token must never ride a same-origin navigation's Referer.
+	# Do NOT force Referrer-Policy here: a global no-referrer at the edge makes browsers send
+	# Origin: null on same-origin form POSTs, which Django's CSRF check rejects — silently
+	# breaking EVERY form in a real browser (join, household invite, new-elder, elder react,
+	# digest confirm/unsubscribe, break-glass). same-origin already leaks nothing cross-origin.
+	# nosniff is a single fixed value, safe to assert at the edge as defense in depth.
 	header {
-		Referrer-Policy no-referrer
 		X-Content-Type-Options nosniff
 		-Server
 	}

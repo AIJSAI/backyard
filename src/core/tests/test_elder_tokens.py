@@ -274,3 +274,27 @@ def test_token_surface_headers_and_log_redaction(world: World) -> None:
     RedactCapabilityPaths().filter(record)
     assert "secret-token-value" not in record.getMessage()
     assert "/t/[redacted]" in record.getMessage()
+
+
+def test_elder_feed_surface_uses_same_origin_but_token_url_keeps_no_referrer(
+    world: World,
+) -> None:
+    """The /e/ elder surface carries no token in its URL but hosts same-origin POST forms
+    (one-tap react, bigger-text). It gets Referrer-Policy: same-origin — NOT the /t/
+    token-URL no-referrer — because under no-referrer a browser sends Origin: null on
+    those POSTs and Django's CSRF check rejects them, so the elder could never react from
+    a real browser. /t/ (token in the URL) keeps no-referrer so the token never rides the
+    /t/ -> /e/ redirect's Referer. The browser-CSRF behaviour itself is proven in the
+    cross-browser e2e (test_onboarding_mobile); this pins the header split so it cannot
+    regress back to a no-referrer that silently breaks the elder's core one-tap react."""
+    client = Client()
+    client.get(reverse("elder_enter", args=[world.raw]))  # exchange the token for a session
+    feed = client.get(reverse("elder_feed"))
+    assert feed.status_code == 200
+    assert feed["Referrer-Policy"] == "same-origin"  # the session surface, no token in URL
+    assert feed["Cache-Control"] == "no-store"  # still never cached
+    assert feed["X-Robots-Tag"] == "noindex, nofollow"
+    # The /t/ token URL, where the token IS in the path, still suppresses the Referer fully.
+    assert (
+        Client().get(reverse("elder_enter", args=[world.raw]))["Referrer-Policy"] == "no-referrer"
+    )

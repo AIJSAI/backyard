@@ -5,6 +5,7 @@
   <p class="muted">Everyone in your yards. Supervised accounts are managed by a parent.</p>
   <p>
     <a href="{% url 'invite_household' %}">Invite a household</a> ·
+    <a href="{% url 'new_elder' %}">Add a grandparent</a> ·
     <a href="{% url 'member_invites' %}">Outstanding invites</a>
     {% if can_create_yard %} · <a href="{% url 'family_sides' %}">Family sides</a>{% endif %}
   </p>

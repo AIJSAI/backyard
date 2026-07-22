@@ -175,14 +175,16 @@ def _link_from(body: str) -> str:
 
 
 def test_the_minted_token_page_carries_the_tm5_headers(world: World) -> None:
-    """#43 review HIGH-1: the one page that displays the master token gets the
-    no-store/no-referrer/noindex set, defending a bfcache restore of a
-    walked-away-from admin screen — even though /members/ is not a token route."""
+    """#43 review HIGH-1: the one page that displays the master token gets the no-store/
+    noindex set, defending a bfcache restore of a walked-away-from admin screen — even
+    though /members/ is not a token route. Referrer-Policy is same-origin (not
+    no-referrer): the token is in the body, the page hosts the regenerate form, and a
+    browser POST under no-referrer is CSRF-rejected on an Origin: null. See handover.py."""
     client = _client_for(world.instance_admin)
     intent = _intent(client, world.nana.id)
     response = client.post(reverse("provision_elder", args=[world.nana.id]), {"intent": intent})
     assert response["Cache-Control"] == "no-store"
-    assert response["Referrer-Policy"] == "no-referrer"
+    assert response["Referrer-Policy"] == "same-origin"
     assert response["X-Robots-Tag"] == "noindex, nofollow"
     # The grant page (no token in the body) carries them too, harmlessly.
     assert (
