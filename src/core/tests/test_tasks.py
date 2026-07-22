@@ -46,6 +46,66 @@ def test_transcode_task_is_registered_but_not_periodic() -> None:
     assert "transcode_video" not in scheduled
 
 
+def test_attach_link_preview_task_is_registered_but_not_periodic() -> None:
+    # S-725: the SSRF-sensitive link fetch is deferred per compose, off the web process.
+    names = {t.name for t in app.tasks.values()}
+    assert "attach_link_preview" in names
+    scheduled = {pt.task.name for pt in app.periodic_registry.periodic_tasks.values()}
+    assert "attach_link_preview" not in scheduled
+
+
+def _post_with_a_link(body: str = "see http://example.com/x", **kwargs: object) -> Post:
+    yard = Yard.objects.create(name="Y", slug="y")
+    pod = Pod.objects.create(name="P")
+    pod.yards.set([yard])
+    author = Member.objects.create(display_name="A")
+    PodMembership.objects.create(member=author, pod=pod)
+    return Post.objects.create(author=author, pod=pod, body=body, **kwargs)
+
+
+def test_attach_link_preview_task_re_resolves_the_post_and_delegates(monkeypatch: object) -> None:
+    """S-725/TS-DJ-11: the task carries only the id, re-resolves the post live, and delegates
+    the fetch to link_preview.attach_to_post (whose SSRF-hardened logic is tested there)."""
+    from core import link_preview
+
+    calls: list[int] = []
+    monkeypatch.setattr(link_preview, "attach_to_post", lambda post: calls.append(post.id))  # type: ignore[attr-defined]
+    post = _post_with_a_link()
+    tasks.attach_link_preview.func(post_id=post.id)
+    assert calls == [post.id]
+
+
+def test_attach_link_preview_task_no_ops_on_a_deleted_post(monkeypatch: object) -> None:
+    from core import link_preview
+
+    calls: list[int] = []
+    monkeypatch.setattr(link_preview, "attach_to_post", lambda post: calls.append(post.id))  # type: ignore[attr-defined]
+    post = _post_with_a_link(deleted_at=timezone.now())
+    tasks.attach_link_preview.func(post_id=post.id)
+    assert calls == []  # a post deleted before the worker ran gets no preview
+
+
+def test_attach_link_preview_task_is_idempotent_on_redelivery(monkeypatch: object) -> None:
+    """S-725 review: the task runs on an at-least-once queue, so a re-delivered job (a worker
+    killed mid-run) must not re-fetch or hit the LinkPreview OneToOne with a second create —
+    the real attach_to_post no-ops when the post already has a card. Only the network fetch is
+    mocked (to None → a bare-link card, no external I/O)."""
+    from core import link_preview
+    from core.models import LinkPreview
+
+    fetches: list[str] = []
+
+    def _record_fetch(url: str, deadline: float | None = None) -> None:
+        fetches.append(url)  # record the outbound fetch; return None → a bare-link card
+
+    monkeypatch.setattr(link_preview, "fetch_preview", _record_fetch)  # type: ignore[attr-defined]
+    post = _post_with_a_link(body="see https://example.com/x")
+    tasks.attach_link_preview.func(post_id=post.id)  # first delivery: creates the bare card
+    tasks.attach_link_preview.func(post_id=post.id)  # re-delivery: must no-op, not raise
+    assert LinkPreview.objects.filter(post=post).count() == 1  # no duplicate, no IntegrityError
+    assert len(fetches) == 1  # the redundant re-fetch is skipped on re-delivery
+
+
 def test_send_task_carries_no_audience_and_re_resolves_live() -> None:
     """TS-DJ-11: the task signature is a bare timestamp — no member, no post, no
     audience — so it CANNOT trust a payload; it re-resolves through the guard."""

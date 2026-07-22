@@ -65,3 +65,22 @@ def transcode_video(asset_id: int) -> None:
     from . import transcoding
 
     transcoding.transcode_asset(asset_id)
+
+
+# The SSRF-sensitive link-preview fetch, moved off the web request path (S-725, TS-CO-4).
+# The edge-facing web process (on the `edge` network) no longer makes the outbound fetch; it
+# runs here on the worker, which is on neither `edge` nor `web-db` — so a hypothetical bug in
+# the (already IP-pinning, non-global-rejecting) fetcher cannot pivot toward the reverse proxy.
+# Carries only the post id and re-resolves live (TS-DJ-11); a deleted post no-ops.
+@app.task(name="attach_link_preview", queue="preview")
+def attach_link_preview(post_id: int) -> None:
+    """Fetch and attach the best-effort link-preview card for a just-composed post (S-301,
+    S-725). Best-effort: a URL with no fetchable preview still stores the cleaned bare link
+    (link_preview.attach_to_post's graceful fallback); no URL means no row."""
+    from . import link_preview
+    from .models import Post
+
+    post = Post.objects.filter(pk=post_id, deleted_at__isnull=True).first()
+    if post is None:
+        return  # deleted, or gone before the worker picked it up
+    link_preview.attach_to_post(post)
