@@ -85,6 +85,11 @@ urlpatterns = [
         admin_views.revoke_invite,
         name="revoke_invite",
     ),
+    # Rollout enablers (S-707 appoint a delegate / grant a second admin; S-708 create the
+    # other family side). The instance admin bootstraps a side then hands it to a per-side
+    # yard-admin, so the family can be onboarded without the founder at a shell.
+    path("members/<int:member_id>/role/", admin_views.assign_role, name="assign_role"),
+    path("members/family-sides/", admin_views.family_sides, name="family_sides"),
     # Elder-token provisioning (S-104): generate/regenerate a member's link + QR.
     path(
         "members/<int:member_id>/elder-link/",

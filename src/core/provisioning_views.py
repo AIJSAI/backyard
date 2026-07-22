@@ -20,7 +20,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpRequest, HttpResponse
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from django.utils.safestring import mark_safe
 
 from . import elder_tokens, permissions, scoping
@@ -34,9 +34,10 @@ def provision_elder(request: HttpRequest, member_id: int) -> HttpResponse:
     actor = _acting_member(request)
     if not permissions.is_admin(actor):
         raise PermissionDenied
-    # require_visible_member 404s a member the actor cannot even see; the manage
-    # check then refuses one they can see but may not administer.
-    target = scoping.require_visible_member(actor, member_id)
+    # The administrable set 404s a member the actor cannot administer (any member for the
+    # instance admin, yard-scoped for a yard admin); the manage check then refuses one they
+    # can see but may not administer (e.g. a yard admin on a bridge or admin member).
+    target = get_object_or_404(permissions.administrable_members(actor), pk=member_id)
     if not permissions.can_manage_member(actor, target):
         raise PermissionDenied
     if target.is_supervised:

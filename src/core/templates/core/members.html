@@ -3,20 +3,36 @@
 {% block body %}
   <h1>Family members</h1>
   <p class="muted">Everyone in your yards. Supervised accounts are managed by a parent.</p>
-  <p><a href="{% url 'invite_household' %}">Invite a household</a> · <a href="{% url 'member_invites' %}">Outstanding invites</a></p>
+  <p>
+    <a href="{% url 'invite_household' %}">Invite a household</a> ·
+    <a href="{% url 'member_invites' %}">Outstanding invites</a>
+    {% if can_create_yard %} · <a href="{% url 'family_sides' %}">Family sides</a>{% endif %}
+  </p>
 
   <ul class="members">
-    {% for member in members %}
+    {% for row in rows %}
       <li>
-        <span>{{ member.display_name }}</span>
-        {% if member.kinship_name %}<span class="muted">({{ member.kinship_name }})</span>{% endif %}
-        <span class="role">{{ member.get_role_display }}</span>
-        {% if member.is_supervised %}<span class="flag">supervised</span>{% endif %}
-        {% if member.id in manageable_ids %}
-          {% if not member.is_supervised %}
-            <a href="{% url 'provision_elder' member.id %}">Elder link</a>
+        <span>{{ row.member.display_name }}</span>
+        {% if row.member.kinship_name %}<span class="muted">({{ row.member.kinship_name }})</span>{% endif %}
+        <span class="role">{{ row.member.get_role_display }}</span>
+        {% if row.member.is_supervised %}<span class="flag">supervised</span>{% endif %}
+        {% if row.manageable %}
+          {% if not row.member.is_supervised %}
+            <a href="{% url 'provision_elder' row.member.id %}">Elder link</a>
           {% endif %}
-          <form method="post" action="{% url 'member_remove' member.id %}" class="inline">
+          {% if row.assignable_roles %}
+            <form method="post" action="{% url 'assign_role' row.member.id %}" class="inline">
+              {% csrf_token %}
+              <label class="visually-hidden" for="role-{{ row.member.id }}">Role for {{ row.member.display_name }}</label>
+              <select id="role-{{ row.member.id }}" name="role">
+                {% for value, label in row.assignable_roles %}
+                  <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit">Set role</button>
+            </form>
+          {% endif %}
+          <form method="post" action="{% url 'member_remove' row.member.id %}" class="inline">
             {% csrf_token %}
             <button type="submit">Remove</button>
           </form>
