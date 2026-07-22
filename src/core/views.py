@@ -98,9 +98,14 @@ def _try_create_admin(
 
 
 def home(request: HttpRequest) -> HttpResponse:
-    """The instance's front door. Until an admin exists, it routes to setup."""
+    """The instance's front door. Until an admin exists, it routes to setup. A
+    signed-in member goes straight to their feed (their landing surface, S-101), so
+    the root is never a dead-end hello-world for someone with an account; only a
+    logged-out visitor to a set-up instance sees the public landing."""
     if not _admin_exists():
         return redirect("setup")
+    if request.user.is_authenticated and Member.objects.filter(user_id=request.user.pk).exists():
+        return redirect("feed")
     return render(request, "core/home.html")
 
 

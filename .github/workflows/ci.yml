@@ -140,6 +140,43 @@ jobs:
           echo "migrator owns $MIGRATOR_ROUTINES routines, 0 SECURITY DEFINER (grant is safe)"
           docker compose down -v
 
+  e2e:
+    # S-101 cross-browser mobile onboarding: the join -> feed flow driven in the real
+    # browser ENGINES iOS Safari (WebKit) and Android Chrome (Chromium) use, under mobile
+    # device emulation, against a live server. Its own job because it needs the Playwright
+    # browsers; excluded from the unit `code` job via the `-m 'not e2e'` default.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: backyard
+          POSTGRES_USER: backyard
+          POSTGRES_PASSWORD: ci-not-a-secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U backyard"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DJANGO_SECRET_KEY: ci-not-a-secret-deadbeef-cafe-1234567890
+      POSTGRES_HOST: localhost
+      POSTGRES_PASSWORD: ci-not-a-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.6"
+      - run: uv sync --frozen
+      - name: Install Playwright browsers (WebKit + Chromium) with system deps
+        run: uv run playwright install --with-deps webkit chromium
+      - name: Mobile onboarding e2e (iOS Safari + Android Chrome)
+        # -m e2e overrides the pyproject default `-m 'not e2e'`, so ONLY the e2e tests run;
+        # they must actually run here (both engines), so the gate is not vacuous.
+        run: uv run pytest -m e2e -v
+
   secrets:
     runs-on: ubuntu-latest
     steps:
