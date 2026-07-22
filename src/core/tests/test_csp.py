@@ -44,6 +44,7 @@ def test_csp_header_is_a_tight_nonce_based_baseline() -> None:
     csp = _logged_in_member().get(reverse("feed"))["Content-Security-Policy"]
     assert _directive(csp, "default-src") == "default-src 'self'"
     assert _directive(csp, "object-src") == "object-src 'none'"
+    assert _directive(csp, "frame-src") == "frame-src 'none'"
     assert _directive(csp, "base-uri") == "base-uri 'self'"
     assert _directive(csp, "form-action") == "form-action 'self'"
     assert _directive(csp, "frame-ancestors") == "frame-ancestors 'none'"

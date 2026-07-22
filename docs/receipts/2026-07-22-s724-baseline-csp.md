@@ -9,7 +9,7 @@ script even if autoescape were somehow bypassed.
 - **`core.middleware.ContentSecurityPolicyMiddleware`** — stamps a baseline CSP on every
   response with a fresh per-request nonce. The policy: `default-src 'self'`,
   **`script-src 'self' 'nonce-…'` (NOT `'unsafe-inline'`)**, `style-src 'self'
-  'unsafe-inline'`, `img-src 'self'`, `object-src 'none'`, `base-uri 'self'`,
+  'unsafe-inline'`, `img-src 'self'`, `object-src 'none'`, `frame-src 'none'`, `base-uri 'self'`,
   `form-action 'self'`, `frame-ancestors 'none'` (the CSP twin of X-Frame-Options DENY),
   `connect-src`/`worker-src`/`manifest-src 'self'`. The nonce is set on the request before
   the view renders and stamped into the header on the way out, so the two always match.

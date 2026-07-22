@@ -67,7 +67,8 @@ class ContentSecurityPolicyMiddleware:
 
     The nonce is set on the request BEFORE the view renders (templates read it as
     request.csp_nonce) and stamped into the header on the way out, so the two always match.
-    setdefault leaves alone any response that already carries its own policy.
+    setdefault leaves alone any response that already carries its own policy — a per-view
+    override may only TIGHTEN the baseline, never weaken it (no view sets one today).
     """
 
     def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
@@ -90,6 +91,7 @@ def _policy(nonce: str) -> str:
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self'",
             "object-src 'none'",
+            "frame-src 'none'",  # the app embeds no iframes; an injected same-origin frame is inert
             "base-uri 'self'",
             "form-action 'self'",
             "frame-ancestors 'none'",
