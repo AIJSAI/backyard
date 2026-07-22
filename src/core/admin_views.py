@@ -11,17 +11,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
+from django.utils import timezone
+from django.utils.safestring import mark_safe
 
-from . import permissions, scoping, supervised
+from . import handover, invites, permissions, scoping, supervised
 from .models import (
     DigestDelivery,
     DigestSubscription,
     InboundQuarantine,
+    Invite,
     Member,
+    Pod,
+    Yard,
     YardWeekMetrics,
 )
 from .removal import remove_member
@@ -166,3 +173,129 @@ def remove(request: HttpRequest, member_id: int) -> HttpResponse:
     permissions.require_can_manage_member(actor, target)  # raises PermissionDenied
     remove_member(target)
     return redirect("members")
+
+
+@login_required
+def invite_household(request: HttpRequest) -> HttpResponse:
+    """Create a household pod and mint its invite in one flow (S-201): an admin
+    names a household and picks a yard they administer, the pod is created in that
+    yard, and a one-time invite link + printable QR is shown once for hand-over.
+    The invitee never sees a community-setup screen; they only redeem at /join and
+    land already inside the pod. Only admins issue invites, scoped by
+    can_issue_invite (a yard admin only within their own yards, T-AUTH-G2)."""
+    actor = _acting_member(request)
+    if not permissions.is_admin(actor):
+        raise PermissionDenied
+    context: dict[str, object] = {"actor": actor, "yards": list(scoping.visible_yards(actor))}
+    errors: list[str] = []
+    # Single-use intent nonce: a browser refresh replays a spent nonce and does NOT
+    # create a duplicate household + invite (the same guard the elder handover uses).
+    if request.method == "POST" and handover.consume_intent(
+        request, "invite_household_intent", request.POST.get("intent")
+    ):
+        # require_visible_yard 404s a yard the actor is not in, so a yard admin can
+        # only stand up a household in a yard they belong to (and thus administer).
+        yard = scoping.require_visible_yard(actor, _int_or_404(request.POST.get("yard_id", "")))
+        name = request.POST.get("household_name", "").strip()
+        if not name or len(name) > 100:
+            errors.append("Give the household a name.")
+        else:
+            with transaction.atomic():
+                pod = Pod.objects.create(name=name, kind=Pod.HOUSEHOLD)
+                pod.yards.set([yard])
+                # Defense in depth: the pod sits in a yard the actor picked through
+                # require_visible_yard, so can_issue_invite passes for an in-scope
+                # yard admin; anything else is refused before a token is minted.
+                if not permissions.can_issue_invite(actor, pod):
+                    raise PermissionDenied
+                invite, raw = invites.mint_invite(pod, created_by=actor)
+            link = f"{settings.BASE_URL}/join/{raw}/"
+            context.update(
+                {
+                    "minted_link": link,
+                    # noqa justified: the SVG is qrcode's own path geometry over our
+                    # CSPRNG token in BASE_URL, never reflected user text.
+                    "qr_svg": mark_safe(handover.qr_svg(link)),  # noqa: S308
+                    "household_name": name,
+                    "yard_name": yard.name,
+                    "expires_at": invite.expires_at,
+                    "max_uses": invite.max_uses,
+                }
+            )
+    context["errors"] = errors
+    context["intent"] = handover.fresh_intent(request, "invite_household_intent")
+    response = render(request, "core/invite_household.html", context)
+    # The page carries the raw invite token in its body once; give it the TM-5
+    # no-store set (like the elder handover page) so a walked-away-from admin screen
+    # is not restored from bfcache or history even though /members/ is not a
+    # token-prefix route.
+    response["Cache-Control"] = "no-store"
+    response["Referrer-Policy"] = "no-referrer"
+    response["X-Robots-Tag"] = "noindex, nofollow"
+    return response
+
+
+@login_required
+def invite_list(request: HttpRequest) -> HttpResponse:
+    """Outstanding invites the actor may see, with per-invite uses-left, expiry, and
+    who redeemed it and when (S-201 hardening). Scoped exactly like the authority to
+    issue: an invite is shown only if the actor can_issue_invite for its pod, so a
+    yard admin never sees another yard's invites (or a bridge pod's spanning outside
+    their scope). Calm surface: no counts of activity, only the invite ledger."""
+    actor = _acting_member(request)
+    if not permissions.is_admin(actor):
+        raise PermissionDenied
+    if permissions.is_instance_admin(actor):
+        candidates = Invite.objects.all()
+    else:
+        # Scope the candidate set EXACTLY in the query, before the [:200] slice, not
+        # just with a superset prefilter cleaned up in Python afterward (security
+        # review LOW). A yard admin may issue only into a pod whose yards are ALL
+        # within their own, so an invite qualifies iff its pod touches the actor's
+        # yards AND has no yard outside them (a bridge pod spanning outside is
+        # excluded, matching can_issue_invite). Filtering after the slice would let a
+        # burst of out-of-scope bridge invites fill the window and push in-scope ones
+        # out of view; filtering before it keeps the window all-issuable.
+        actor_yards = scoping.member_yard_ids(actor)
+        outside_yards = Yard.objects.exclude(id__in=actor_yards)
+        candidates = (
+            Invite.objects.filter(pod__yards__id__in=actor_yards)
+            .exclude(pod__yards__id__in=outside_yards)
+            .distinct()
+        )
+    rows = [
+        invite
+        for invite in candidates.select_related("pod")
+        .prefetch_related("redemptions__member")
+        .order_by("-created_at")[:200]
+        if permissions.can_issue_invite(actor, invite.pod)
+    ]
+    return render(
+        request,
+        "core/members_invites.html",
+        {"actor": actor, "invites": rows, "now": timezone.now()},
+    )
+
+
+@login_required
+def revoke_invite(request: HttpRequest, invite_id: int) -> HttpResponse:
+    """Revoke an invite (S-201 hardening: invites are revocable). POST-only,
+    authorized by can_issue_invite over the invite's pod (whoever may issue may
+    revoke). A revoked invite 404s at /join immediately, the same InviteInvalid
+    parity as an unknown token."""
+    actor = _acting_member(request)
+    if request.method != "POST":
+        raise Http404
+    if not permissions.is_admin(actor):
+        raise PermissionDenied
+    try:
+        invite = Invite.objects.select_related("pod").get(pk=invite_id)
+    except Invite.DoesNotExist:
+        raise Http404 from None
+    # 404 (not 403) an invite outside the actor's issuing scope: never reveal the
+    # existence of another yard's invite.
+    if not permissions.can_issue_invite(actor, invite.pod):
+        raise Http404
+    if invite.revoked_at is None:
+        Invite.objects.filter(pk=invite.pk).update(revoked_at=timezone.now())
+    return redirect("member_invites")

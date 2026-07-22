@@ -108,7 +108,7 @@ epics:
           - "Household invite creates the pod with a name in one flow"
           - "Invitees land already inside their pod and yard"
           - "No invitee ever sees a create-a-community screen"
-        status: built
+        status: tested  # S-201 close 2026-07-21: one-flow create + land-inside-pod + revocable ledger, gate green (462 pass) + live compose round-trip + clean security review (docs/receipts/2026-07-21-s201-household-invite-close.md)
         v1: true
         security:
           threat_refs:

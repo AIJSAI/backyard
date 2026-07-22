@@ -16,11 +16,6 @@ it, and is never stored or logged.
 
 from __future__ import annotations
 
-import io
-import secrets
-
-import qrcode  # type: ignore[import-untyped]  # qrcode ships no stubs
-import qrcode.image.svg  # type: ignore[import-untyped]
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
@@ -30,16 +25,7 @@ from django.utils.safestring import mark_safe
 
 from . import elder_tokens, permissions, scoping
 from .feed_views import _acting_member
-
-
-def _qr_svg(url: str) -> str:
-    """An inline SVG QR for the handover URL. SVG has no raster dependency and
-    embeds directly in the page, so the printable artifact needs no script, no
-    image host, and no round-trip."""
-    image = qrcode.make(url, image_factory=qrcode.image.svg.SvgPathImage, box_size=10)
-    buffer = io.BytesIO()
-    image.save(buffer)
-    return buffer.getvalue().decode()
+from .handover import consume_intent, fresh_intent, qr_svg
 
 
 @login_required
@@ -80,7 +66,9 @@ def provision_elder(request: HttpRequest, member_id: int) -> HttpResponse:
     # link the admin just handed over. Consume BEFORE minting the next nonce,
     # or the fresh one would overwrite the submitted one's match. Kept in the
     # session, never the DB row, so the raw token still appears exactly once.
-    if request.method == "POST" and _consume_intent(request, target.id, request.POST.get("intent")):
+    if request.method == "POST" and consume_intent(
+        request, f"elder_intent:{target.id}", request.POST.get("intent")
+    ):
         raw = elder_tokens.regenerate(target) if has_token else elder_tokens.mint(target)
         link = f"{settings.BASE_URL}/t/{raw}/"
         context.update(
@@ -89,14 +77,14 @@ def provision_elder(request: HttpRequest, member_id: int) -> HttpResponse:
                 # noqa justified: the SVG is qrcode's own path geometry, and the
                 # only input is our CSPRNG token plus the configured BASE_URL —
                 # the URL becomes QR modules, never reflected as SVG text.
-                "qr_svg": mark_safe(_qr_svg(link)),  # noqa: S308
+                "qr_svg": mark_safe(qr_svg(link)),  # noqa: S308
                 "regenerated": has_token,
                 "has_token": True,
             }
         )
     # The nonce for the NEXT action, set after any consume so it never clobbers
     # the one just submitted.
-    context["intent"] = _fresh_intent(request, target.id)
+    context["intent"] = fresh_intent(request, f"elder_intent:{target.id}")
 
     response = render(request, "core/provision_elder.html", context)
     # This page can carry the raw master token in its body, so it gets the full
@@ -107,18 +95,3 @@ def provision_elder(request: HttpRequest, member_id: int) -> HttpResponse:
     response["Referrer-Policy"] = "no-referrer"
     response["X-Robots-Tag"] = "noindex, nofollow"
     return response
-
-
-def _fresh_intent(request: HttpRequest, target_id: int) -> str:
-    intent = secrets.token_urlsafe(16)
-    request.session[f"elder_intent:{target_id}"] = intent
-    return intent
-
-
-def _consume_intent(request: HttpRequest, target_id: int, submitted: str | None) -> bool:
-    key = f"elder_intent:{target_id}"
-    expected = request.session.get(key)
-    if not submitted or submitted != expected:
-        return False
-    del request.session[key]  # single use: a refreshed POST replays a spent nonce
-    return True

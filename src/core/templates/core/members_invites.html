@@ -1,0 +1,45 @@
+{% extends "core/base.html" %}
+{% block title %}Outstanding invites{% endblock %}
+{% block body %}
+  <h1>Outstanding invites</h1>
+  <p><a href="{% url 'members' %}">Back to members</a> · <a href="{% url 'invite_household' %}">Invite a household</a></p>
+  <p class="muted">Every invite you can issue, and who has joined from each. Revoke a link and it
+  stops working immediately.</p>
+
+  <ul class="invites">
+    {% for invite in invites %}
+      <li>
+        <span class="pod">{{ invite.pod.name }}</span>
+        <span class="uses">{{ invite.use_count }}/{{ invite.max_uses }} joined</span>
+        {% if invite.revoked_at %}
+          <span class="flag">revoked</span>
+        {% elif invite.expires_at <= now %}
+          <span class="flag">expired</span>
+        {% elif invite.use_count >= invite.max_uses %}
+          <span class="flag">full</span>
+        {% else %}
+          <span class="expiry">expires {{ invite.expires_at|date:"M j, Y" }}</span>
+        {% endif %}
+        {% with redemptions=invite.redemptions.all %}
+          {% if redemptions %}
+            <ul class="redeemers">
+              {% for redemption in redemptions %}
+                <li>{{ redemption.member.display_name }} joined {{ redemption.created_at|date:"M j, Y" }}</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <span class="muted">no one has joined yet</span>
+          {% endif %}
+        {% endwith %}
+        {% if not invite.revoked_at %}
+          <form method="post" action="{% url 'revoke_invite' invite.id %}" class="inline">
+            {% csrf_token %}
+            <button type="submit">Revoke</button>
+          </form>
+        {% endif %}
+      </li>
+    {% empty %}
+      <li class="empty">No invites yet. <a href="{% url 'invite_household' %}">Invite a household.</a></li>
+    {% endfor %}
+  </ul>
+{% endblock %}

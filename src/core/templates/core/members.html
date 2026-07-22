@@ -3,6 +3,7 @@
 {% block body %}
   <h1>Family members</h1>
   <p class="muted">Everyone in your yards. Supervised accounts are managed by a parent.</p>
+  <p><a href="{% url 'invite_household' %}">Invite a household</a> · <a href="{% url 'member_invites' %}">Outstanding invites</a></p>
 
   <ul class="members">
     {% for member in members %}

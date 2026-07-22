@@ -158,3 +158,53 @@ def test_can_create_supervised_scope(world: dict[str, object]) -> None:
     assert permissions.can_create_supervised(admin, parent)  # instance admin on anyone's behalf
     assert permissions.can_create_supervised(ya, parent)  # yard admin in scope
     assert not permissions.can_create_supervised(ya, b_parent)  # yard admin out of scope
+
+
+def test_can_issue_invite_scope(world: dict[str, object]) -> None:
+    """S-201/S-701 invite authority: the instance admin into any pod; a yard admin
+    only into a pod whose yards are ALL within their own; nobody below an admin."""
+    admin = world["instance_admin"]
+    ya = world["yard_a_admin"]
+    pod_a = world["pod_a"]
+    pod_b = world["pod_b"]
+    bridge = world["bridge"]
+    for obj in (admin, ya, pod_a, pod_b, bridge):
+        assert isinstance(obj, (Member, Pod))
+
+    # The instance admin issues into any pod, including one in a yard they are not in
+    # and the bridge pod that spans two yards.
+    assert permissions.can_issue_invite(admin, pod_a)  # type: ignore[arg-type]
+    assert permissions.can_issue_invite(admin, pod_b)  # type: ignore[arg-type]
+    assert permissions.can_issue_invite(admin, bridge)  # type: ignore[arg-type]
+
+    # A yard-A admin issues into a pod wholly in yard A...
+    assert permissions.can_issue_invite(ya, pod_a)  # type: ignore[arg-type]
+    # ...but NOT into another yard's pod, nor the bridge pod that spills into yard B
+    # (T-AUTH-G2: minting there would seed a member the yard-A admin cannot see).
+    assert not permissions.can_issue_invite(ya, pod_b)  # type: ignore[arg-type]
+    assert not permissions.can_issue_invite(ya, bridge)  # type: ignore[arg-type]
+
+
+def test_pod_owner_and_member_do_not_issue_invites_in_v1(world: dict[str, object]) -> None:
+    """The analysis-loop judge's HIGH finding: an ownership-keyed invite branch would
+    leak a cross-scope invite, so in v1 invite authority is the two admin roles only."""
+    pod_a = world["pod_a"]
+    assert isinstance(pod_a, Pod)
+    pod_owner = _member(pod_a, "Owner", Member.POD_OWNER)
+    plain = world["member_a"]
+    assert isinstance(plain, Member)
+    assert not permissions.can_issue_invite(pod_owner, pod_a)
+    assert not permissions.can_issue_invite(plain, pod_a)
+
+
+def test_yardless_pod_is_never_issuable_by_a_yard_admin(world: dict[str, object]) -> None:
+    """A pod not yet placed in a yard is a non-vacuous empty set: a yard admin cannot
+    issue into it (the same guard as _target_within_actor_scope), though the instance
+    admin still can."""
+    ya = world["yard_a_admin"]
+    admin = world["instance_admin"]
+    assert isinstance(ya, Member)
+    assert isinstance(admin, Member)
+    orphan = Pod.objects.create(name="Not placed yet")  # no .yards.set(...)
+    assert not permissions.can_issue_invite(ya, orphan)
+    assert permissions.can_issue_invite(admin, orphan)
