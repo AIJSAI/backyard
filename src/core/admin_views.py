@@ -16,7 +16,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.http import Http404, HttpRequest, HttpResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.safestring import mark_safe
 
@@ -32,6 +32,19 @@ from .models import (
     YardWeekMetrics,
 )
 from .removal import remove_member
+from .views import _unique_yard_slug
+
+# The roles the roster's appoint control may set (S-707). SUPERVISED is deliberately
+# absent: a supervised child is a created state (create_supervised), not a role a member
+# is promoted into, and unsupervising is a different, parent-scoped act. Authority is
+# still decided per (actor, target, role) by permissions.can_assign_role; this list only
+# bounds which roles the UI ever offers, so a role string outside it is never honored.
+_ASSIGNABLE_ROLES: tuple[str, ...] = (
+    Member.MEMBER,
+    Member.POD_OWNER,
+    Member.YARD_ADMIN,
+    Member.INSTANCE_ADMIN,
+)
 
 
 def _acting_member(request: HttpRequest) -> Member:
@@ -55,19 +68,74 @@ def _int_or_404(value: str) -> int:
         raise Http404 from exc
 
 
+@dataclass
+class RosterRow:
+    """One roster line: the member, whether the actor may administer them, and the
+    roles the actor may set on them (S-707). assignable_roles is empty for a member the
+    actor cannot manage, for a supervised child, and for the member's current role, so
+    the appoint control only ever offers a real, authorized change."""
+
+    member: Member
+    manageable: bool
+    assignable_roles: list[tuple[str, str]]
+
+
 @login_required
 def members(request: HttpRequest) -> HttpResponse:
-    """Roster of members the actor can see, supervised ones flagged. Admins only."""
+    """Roster of members the actor can see, supervised ones flagged, each with the
+    role changes the actor may make (S-701, S-707). Admins only."""
     actor = _acting_member(request)
     if not permissions.is_admin(actor):
         raise PermissionDenied
-    visible = scoping.visible_members(actor).order_by("display_name")
-    manageable_ids = {m.id for m in visible if permissions.can_manage_member(actor, m)}
+    role_labels = dict(Member.ROLE_CHOICES)
+    rows: list[RosterRow] = []
+    for member in permissions.administrable_members(actor).order_by("display_name"):
+        manageable = permissions.can_manage_member(actor, member)
+        # Only offer roles the actor is authorized to grant this target, excluding the
+        # current role (a no-op) and supervised members (re-roled only via their parent).
+        assignable = (
+            [
+                (role, role_labels[role])
+                for role in _ASSIGNABLE_ROLES
+                if role != member.role and permissions.can_assign_role(actor, member, role)
+            ]
+            if manageable and not member.is_supervised
+            else []
+        )
+        rows.append(RosterRow(member=member, manageable=manageable, assignable_roles=assignable))
     return render(
         request,
         "core/members.html",
-        {"actor": actor, "members": visible, "manageable_ids": manageable_ids},
+        {"actor": actor, "rows": rows, "can_create_yard": permissions.is_instance_admin(actor)},
     )
+
+
+@login_required
+def assign_role(request: HttpRequest, member_id: int) -> HttpResponse:
+    """Appoint a delegate or change a member's role (S-707). POST-only. The role must be
+    in the offered whitelist AND authorized by can_assign_role for this (actor, target),
+    so an instance admin can promote a member to yard_admin (a per-side delegate) or to a
+    second instance_admin (succession/bus-factor), and a yard admin can only re-role an
+    in-scope member to a non-admin role. Supervised members are never re-roled here."""
+    actor = _acting_member(request)
+    if request.method != "POST":
+        raise Http404
+    if not permissions.is_admin(actor):
+        raise PermissionDenied
+    # Resolve over the administrable set: any member for the instance admin (they can
+    # promote a delegate on a side they are not in), yard-scoped for a yard admin with the
+    # byte-identical 404 for a cross-yard target (S-202).
+    target = get_object_or_404(permissions.administrable_members(actor), pk=member_id)
+    new_role = request.POST.get("role", "")
+    # Whitelist first: never trust the form's role string (wave-1 review). A value outside
+    # the offered set is treated as an unknown request, not a server error.
+    if new_role not in _ASSIGNABLE_ROLES or target.is_supervised:
+        raise Http404
+    if not permissions.can_assign_role(actor, target, new_role):
+        raise PermissionDenied
+    if new_role != target.role:
+        Member.objects.filter(pk=target.pk).update(role=new_role)
+    return redirect("members")
 
 
 @dataclass
@@ -167,9 +235,9 @@ def remove(request: HttpRequest, member_id: int) -> HttpResponse:
     actor = _acting_member(request)
     if request.method != "POST":
         raise Http404
-    # require_visible_member 404s cross-scope, so a target the actor cannot even see
-    # is indistinguishable from one that does not exist.
-    target = scoping.require_visible_member(actor, member_id)
+    # Administrable set: any member for the instance admin, yard-scoped for a yard admin
+    # (a cross-scope target is a byte-identical 404, same as one that does not exist).
+    target = get_object_or_404(permissions.administrable_members(actor), pk=member_id)
     permissions.require_can_manage_member(actor, target)  # raises PermissionDenied
     remove_member(target)
     return redirect("members")
@@ -186,16 +254,29 @@ def invite_household(request: HttpRequest) -> HttpResponse:
     actor = _acting_member(request)
     if not permissions.is_admin(actor):
         raise PermissionDenied
-    context: dict[str, object] = {"actor": actor, "yards": list(scoping.visible_yards(actor))}
+    # The instance admin owns the whole instance, so they can stand up a household in ANY
+    # yard, including a just-created empty family side they are not yet a member of (S-708
+    # rollout: create the other side, then invite its first household). A yard admin is
+    # confined to their own yards (T-AUTH-G2), matching can_issue_invite exactly.
+    pickable_yards = (
+        Yard.objects.all() if permissions.is_instance_admin(actor) else scoping.visible_yards(actor)
+    )
+    context: dict[str, object] = {"actor": actor, "yards": list(pickable_yards)}
     errors: list[str] = []
     # Single-use intent nonce: a browser refresh replays a spent nonce and does NOT
     # create a duplicate household + invite (the same guard the elder handover uses).
     if request.method == "POST" and handover.consume_intent(
         request, "invite_household_intent", request.POST.get("intent")
     ):
-        # require_visible_yard 404s a yard the actor is not in, so a yard admin can
-        # only stand up a household in a yard they belong to (and thus administer).
-        yard = scoping.require_visible_yard(actor, _int_or_404(request.POST.get("yard_id", "")))
+        # An instance admin may resolve any existing yard; a yard admin only one they are
+        # in (require_visible_yard 404s otherwise). The in-transaction can_issue_invite
+        # check below is the authoritative gate either way.
+        yard_id = _int_or_404(request.POST.get("yard_id", ""))
+        yard = (
+            get_object_or_404(Yard, pk=yard_id)
+            if permissions.is_instance_admin(actor)
+            else scoping.require_visible_yard(actor, yard_id)
+        )
         name = request.POST.get("household_name", "").strip()
         if not name or len(name) > 100:
             errors.append("Give the household a name.")
@@ -299,3 +380,36 @@ def revoke_invite(request: HttpRequest, invite_id: int) -> HttpResponse:
     if invite.revoked_at is None:
         Invite.objects.filter(pk=invite.pk).update(revoked_at=timezone.now())
     return redirect("member_invites")
+
+
+@login_required
+def family_sides(request: HttpRequest) -> HttpResponse:
+    """Create and list the family sides (yards) — S-708. Instance admin ONLY: a new
+    family side is an instance-wide act that widens the isolation topology, so it sits
+    above the per-yard delegates (a yard admin administers within a side, never creates a
+    new one). This unblocks the seed-ally rollout's second move: stand up the other side,
+    then invite its first household (invite_household) and appoint its per-side delegate
+    (assign_role). A refresh replays a spent intent nonce and creates no duplicate side."""
+    actor = _acting_member(request)
+    if not permissions.is_instance_admin(actor):
+        raise PermissionDenied
+    errors: list[str] = []
+    if request.method == "POST" and handover.consume_intent(
+        request, "create_yard_intent", request.POST.get("intent")
+    ):
+        name = request.POST.get("yard_name", "").strip()
+        if not name or len(name) > 100:
+            errors.append("Give the family side a name.")
+        else:
+            Yard.objects.create(name=name, slug=_unique_yard_slug(name))
+            return redirect("family_sides")
+    return render(
+        request,
+        "core/family_sides.html",
+        {
+            "actor": actor,
+            "yards": Yard.objects.order_by("name"),
+            "errors": errors,
+            "intent": handover.fresh_intent(request, "create_yard_intent"),
+        },
+    )

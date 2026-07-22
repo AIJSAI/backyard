@@ -27,6 +27,7 @@ instance_admin. The load-bearing rules from S-701 and TM-10:
 from __future__ import annotations
 
 from django.core.exceptions import PermissionDenied
+from django.db.models import QuerySet
 
 from . import scoping
 from .models import Member, Pod
@@ -41,6 +42,19 @@ def is_instance_admin(member: Member) -> bool:
 
 def is_admin(member: Member) -> bool:
     return member.role in _ADMIN_ROLES
+
+
+def administrable_members(actor: Member) -> QuerySet[Member]:
+    """The members `actor` may administer (S-707). The instance admin owns the whole
+    instance and sits ABOVE yard isolation, so they administer every member — including
+    those on a family side they are not a member of, which the seed-ally rollout requires
+    (create the other side, invite its first household, then promote its delegate). A yard
+    admin administers only the yard-scoped visible set, so resolving a member through here
+    keeps the byte-identical 404 for a cross-yard target (S-202). can_manage_member still
+    gates the actual action; this only bounds who can be looked up."""
+    if is_instance_admin(actor):
+        return Member.objects.all()
+    return scoping.visible_members(actor)
 
 
 def _target_within_actor_scope(actor: Member, target: Member) -> bool:

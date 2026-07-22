@@ -1,0 +1,28 @@
+{% extends "core/base.html" %}
+{% block title %}Family sides{% endblock %}
+{% block body %}
+  <h1>Family sides</h1>
+  <p><a href="{% url 'members' %}">Back to members</a></p>
+  <p class="notice">A family side is one branch of the family with its own private feed
+  (for example, your mom's side and your dad's side). Create the other side here, then
+  invite its first household and hand it to a per-side admin who onboards the rest.</p>
+
+  {% if errors %}<div class="errors">{% for e in errors %}<p>{{ e }}</p>{% endfor %}</div>{% endif %}
+
+  <ul class="yards">
+    {% for yard in yards %}
+      <li>{{ yard.name }}</li>
+    {% empty %}
+      <li class="empty">No family sides yet.</li>
+    {% endfor %}
+  </ul>
+
+  <form method="post" action="{% url 'family_sides' %}">
+    {% csrf_token %}
+    <input type="hidden" name="intent" value="{{ intent }}">
+    <label for="yard_name">Name the new family side</label>
+    <input id="yard_name" type="text" name="yard_name" maxlength="100"
+           placeholder="e.g. Dad's side" required>
+    <button type="submit">Create the family side</button>
+  </form>
+{% endblock %}

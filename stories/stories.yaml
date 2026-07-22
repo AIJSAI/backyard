@@ -498,6 +498,43 @@ epics:
             - TM-1
             - TM-6
           source: docs/security/threat-model.md
+      - id: S-707
+        epic: E7
+        persona: instance-admin
+        story: "As the founder, I can appoint a per-side delegate (and, for succession, a second instance admin) from the roster, so a family side can be onboarded and moderated without me at a shell."
+        acceptance:
+          - "An instance admin can promote a member to yard admin (a per-side delegate) or, for bus-factor, to a second instance admin"
+          - "A yard admin can re-role an in-scope member to a non-admin role but can never grant an admin role or reach another yard's member"
+          - "The offered roles are whitelisted and authorized per (actor, target); supervised members are never re-roled here; no member re-roles themselves"
+          - "The instance admin can administer a member on a family side they are not a member of; a yard admin stays yard-scoped with byte-identical 404 for a cross-yard target"
+        status: tested  # S-707 close 2026-07-22: assign_role + administrable_members (instance-wide admin) + roster control; gate green + live-repro + security review (docs/receipts/2026-07-22-s707-s708-rollout-enablers-close.md)
+        v1: true
+        security:
+          threat_refs:
+            - TM-1
+            - T-AUTH-G2
+            - T-AUTH-G3
+          hardening: |
+            Role assignment routes through the mandatory write-authorization model (can_assign_role): the two admin roles are grantable only by an instance admin, a yard admin is confined to non-admin roles on in-scope members (T-AUTH-G2), no one re-roles themselves, and there is no privilege inversion. The role string is whitelisted before use (never trusted from the form) and supervised members are excluded. The instance admin's instance-wide member reach is above yard isolation by design; a yard admin resolving a member keeps the S-202 byte-identical 404 for a cross-yard target.
+          source: docs/security/threat-model.md
+      - id: S-708
+        epic: E7
+        persona: instance-admin
+        story: "As the founder, I can create the other side of the family (a new yard) after first-run, so I can stand up a second family side and hand it to its delegate."
+        acceptance:
+          - "An instance admin can create a new family side (yard) from the admin surface, named, with a unique slug"
+          - "Creating a side is instance-admin only; a yard admin or member is refused"
+          - "A browser refresh does not create a duplicate side"
+          - "The instance admin can then invite the first household into the new side even though they are not a member of it"
+        status: tested  # S-708 close 2026-07-22: family_sides create-yard (instance-admin only, refresh-safe) + invite_household instance-wide-yard extension; same receipt
+        v1: true
+        security:
+          threat_refs:
+            - TM-8
+            - T-YARD-G1
+          hardening: |
+            Creating a family side is an instance-wide act reserved to the instance admin (a yard admin administers within a side, never creates one). It does not reopen the TM-8 zero-admin first-run wizard path. The create form is refresh-safe (single-use intent nonce); the name is bounded and slugified to a unique slug. The instance admin can invite a household into a yard they are not a member of because they are above yard isolation (can_issue_invite is True for them into any pod); a yard admin is unchanged and confined to their own yards.
+          source: docs/security/threat-model.md
   - id: E9
     title: People and the family directory
     intent: "Profiles as the family's source of truth: who everyone is, how to reach them, and the dates that matter. Per-field, per-yard visibility controlled by the member; surfaced through calm channels (digest and feed banner), never push."

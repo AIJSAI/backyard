@@ -69,7 +69,7 @@ def test_admin_sees_only_their_yards_members(world: dict[str, object]) -> None:
     assert isinstance(member_b, Member)
     response = _client_for(ya).get(reverse("members"))
     assert response.status_code == 200
-    names = {m.display_name for m in response.context["members"]}
+    names = {row.member.display_name for row in response.context["rows"]}
     assert "MemberA" in names
     assert "MemberB" not in names  # the other yard never appears
 
