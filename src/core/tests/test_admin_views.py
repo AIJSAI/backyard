@@ -12,6 +12,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 
+from core import supervised
 from core.models import Member, Pod, PodMembership, Yard
 
 pytestmark = pytest.mark.django_db
@@ -126,3 +127,23 @@ def test_create_supervised_flags_and_parents_the_child(world: dict[str, object])
     assert child.managing_parent_id == parent.id
     assert child.user is None  # no independent login
     assert PodMembership.objects.filter(member=child, pod=pod_a).exists()
+
+
+def test_roster_visibly_flags_supervised_members_to_admins(world: dict[str, object]) -> None:
+    """S-703: a supervised member is visibly flagged on the admin roster, so an
+    admin can tell a managed child from a full member at a glance. Asserts the
+    rendered markup, not just the model flag (the model-level flag is covered by
+    test_create_supervised_flags_and_parents_the_child)."""
+    admin = world["admin"]
+    parent = world["member_a"]
+    pod_a = world["pod_a"]
+    assert isinstance(admin, Member) and isinstance(parent, Member) and isinstance(pod_a, Pod)
+    supervised.create_supervised_member(parent=parent, display_name="Kiddo", pod=pod_a)
+    response = _client_for(admin).get(reverse("members"))
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Kiddo" in content  # the supervised child appears on the roster at all
+    flag = '<span class="flag">supervised</span>'
+    assert flag in content  # and is flagged
+    # exactly one flag: the supervised child, never the full members (MemberA/AAdmin/Admin)
+    assert content.count(flag) == 1
