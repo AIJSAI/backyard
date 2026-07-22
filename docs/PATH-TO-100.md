@@ -8,13 +8,24 @@ The single canonical checklist for Backyard v1.0. Rules:
 
 ## The goal (open until every criterion has receipts)
 
-**BACKYARD v1.0: LEGIT + ALIVE.** Closed only when ALL of:
+**BACKYARD v1.0: LEGIT + POLISHED + FOUNDER-VERIFIED, ready to share.**
+
+Founder refinement (2026-07-22): the bar is **"get it 100% RIGHT the first time, then
+share."** Adoption is instrumented and measured to inform iteration, but it is **NOT a
+gate** and never holds back sharing. **Nothing ships to anyone — not even the founder's
+pod of 6 — until the product is 100% and the founder has personally, manually verified
+it.** Then it goes out pod-first, and adoption is measured and iterated on. This is a
+builder-first / product-market-fit-right-to-begin-with goal, not a measure-then-fix one.
+
+Closed only when ALL of:
 
 1. 100% of v1 stories at status `passing` in [stories/stories.yaml](../stories/stories.yaml), each with test evidence
-2. Seed pod live: at least 4 of 6 household members active in 3 of 4 consecutive weeks, unprompted (server receipts)
-3. This checklist at 100% with evidence links
-4. One-command deploy verified on a clean machine (fresh VM, documented run)
-5. v1.0 tagged; public demo and docs site live
+2. ~~Seed pod live: at least 4 of 6 household members active in 3 of 4 consecutive weeks, unprompted (server receipts)~~ — **SUPERSEDED 2026-07-22 (founder):** adoption is measured to inform iteration, NOT a launch gate. The pod-of-6 seed happens only AFTER the product is 100% right and founder-QA'd; it is then measured and iterated, never held back on the metric.
+3. **Full design system + visual/UX pass across every surface** (feed, compose, onboarding/join, elder path, admin), mobile-first and elder-accessible (WCAG 2.1 AA completed, not just contrast + tap-target) — done via Claude's design tooling, after the flows are finished, before any deploy/share. (Added 2026-07-22.)
+4. **Founder manual, personal QA sign-off** of the whole product before the first share. (Added 2026-07-22.)
+5. This checklist at 100% with evidence links
+6. One-command deploy verified on a clean machine (fresh VM, documented run)
+7. v1.0 tagged; public demo and docs site live (public/OSS launch stays gated on the founder deciding to go public — the family share comes first)
 
 ## Phase 0: Product foundation
 
@@ -103,9 +114,14 @@ S-502, S-903 are `tested`.** The one remaining item is a founder input, not code
 
 ## Phase 4: Seed pod alpha
 
-- [ ] Deployed instance for the founding household of 6
+Founder refinement (2026-07-22): this phase happens AFTER the product is 100% right +
+founder-QA'd (the goal above). The deploy and instrumentation stay — they are how the
+pod-of-6 uses it and how we learn — but the weekly-active number is a **learning signal
+to iterate on, not a completion gate**: shipping to the pod is not held back on it.
+
+- [ ] Deployed instance (a persistent Ubicloud VM + domain + Caddy TLS) for the founding household of 6, shared only after the founder's manual QA
 - [ ] KPI instrumented: weekly active members, unprompted, aggregates only
-- [ ] 3 of 4 consecutive weeks at 4/6 or better
+- [ ] Weekly-active measured and iterated on (target 4/6 in 3 of 4 weeks) — a signal, not a launch gate
 
 ## Phase 5: OSS launch machinery (gated on Phase 4 passing)
 
