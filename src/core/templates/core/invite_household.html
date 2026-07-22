@@ -1,0 +1,38 @@
+{% extends "core/base.html" %}
+{% block title %}Invite a household{% endblock %}
+{% block body %}
+  <h1>Invite a household</h1>
+  <p><a href="{% url 'members' %}">Back to members</a> · <a href="{% url 'member_invites' %}">Outstanding invites</a></p>
+
+  <p class="notice">Name the household and pick which side of the family it joins. This creates the
+  household and a one-time link you hand over. Whoever opens the link just picks a name and a
+  password and lands straight in the family feed, with no setup screens.</p>
+
+  {% if errors %}<div class="errors">{% for e in errors %}<p>{{ e }}</p>{% endfor %}</div>{% endif %}
+
+  {% if minted_link %}
+    <h2>Link ready to hand over</h2>
+    <p>For the <strong>{{ household_name }}</strong> household in <strong>{{ yard_name }}</strong>.
+    It works for up to {{ max_uses }} people and expires {{ expires_at|date:"M j, Y" }}.</p>
+    <p><input type="text" readonly value="{{ minted_link }}" style="width:100%" aria-label="Invite link"></p>
+    <div class="qr">{{ qr_svg }}</div>
+    <p class="muted">Send the link by text or email, or print this page for the QR. It appears only once.</p>
+  {% endif %}
+
+  <form method="post" action="{% url 'invite_household' %}">
+    {% csrf_token %}
+    <input type="hidden" name="intent" value="{{ intent }}">
+    <label for="household_name">Household name</label>
+    <input id="household_name" type="text" name="household_name" maxlength="100"
+           placeholder="e.g. The Davis family" required>
+    <label for="yard_id">Which side of the family</label>
+    <select id="yard_id" name="yard_id" required>
+      {% for yard in yards %}
+        <option value="{{ yard.id }}">{{ yard.name }}</option>
+      {% empty %}
+        <option disabled>No family sides you can invite into yet</option>
+      {% endfor %}
+    </select>
+    <button type="submit">Create the household and get the link</button>
+  </form>
+{% endblock %}

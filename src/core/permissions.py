@@ -29,7 +29,7 @@ from __future__ import annotations
 from django.core.exceptions import PermissionDenied
 
 from . import scoping
-from .models import Member
+from .models import Member, Pod
 
 _ADMIN_ROLES = frozenset({Member.YARD_ADMIN, Member.INSTANCE_ADMIN})
 _GRANTABLE_ONLY_BY_INSTANCE_ADMIN = frozenset({Member.YARD_ADMIN, Member.INSTANCE_ADMIN})
@@ -44,12 +44,15 @@ def is_admin(member: Member) -> bool:
 
 
 def _target_within_actor_scope(actor: Member, target: Member) -> bool:
-    """True iff every yard the target belongs to is one the actor also belongs to.
+    """True iff every yard the target belongs to is one the actor also belongs to,
+    AND the target belongs to at least one yard.
 
     A yard admin acts only inside their own yards; a target whose yards spill
     outside (a bridging member) is out of a yard admin's reach and needs the
-    instance admin (T-AUTH-G2)."""
-    return scoping.member_yard_ids(target) <= scoping.member_yard_ids(actor)
+    instance admin (T-AUTH-G2). A target with NO yards is not a vacuous pass: the
+    empty set requires the instance admin too (analysis-loop judge finding)."""
+    target_yards = scoping.member_yard_ids(target)
+    return bool(target_yards) and target_yards <= scoping.member_yard_ids(actor)
 
 
 def can_manage_member(actor: Member, target: Member) -> bool:
@@ -97,6 +100,22 @@ def can_assign_role(actor: Member, target: Member, new_role: str) -> bool:
     if new_role in _GRANTABLE_ONLY_BY_INSTANCE_ADMIN:
         return is_instance_admin(actor)
     return True
+
+
+def can_issue_invite(actor: Member, pod: Pod) -> bool:
+    """May `actor` mint an invite into `pod`? (S-201/S-701). In v1 only admins
+    issue invites: the instance admin for any pod, a yard admin only for a pod
+    whose yards are ALL within the admin's own yards (T-AUTH-G2). A pod with no
+    yard is never issuable by a yard admin, the same non-vacuous rule as
+    _target_within_actor_scope. Pod owners do NOT issue invites in v1: an
+    ownership-keyed branch would leak a cross-scope invite (analysis-loop judge
+    HIGH finding), so invite authority stays with the two admin roles."""
+    if is_instance_admin(actor):
+        return True
+    if actor.role == Member.YARD_ADMIN:
+        pod_yards = scoping.pod_yard_ids(pod)
+        return bool(pod_yards) and pod_yards <= scoping.member_yard_ids(actor)
+    return False
 
 
 def require_can_manage_member(actor: Member, target: Member) -> None:

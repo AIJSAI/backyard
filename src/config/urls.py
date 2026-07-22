@@ -76,6 +76,15 @@ urlpatterns = [
     path("members/digests/", admin_views.digests, name="member_digests"),
     path("members/quarantine/", admin_views.quarantine, name="member_quarantine"),
     path("members/metrics/", admin_views.metrics, name="member_metrics"),
+    # Delegated onboarding (S-201): an admin creates a household and mints its invite
+    # in one flow, sees the outstanding-invite ledger, and revokes a link.
+    path("members/invite-household/", admin_views.invite_household, name="invite_household"),
+    path("members/invites/", admin_views.invite_list, name="member_invites"),
+    path(
+        "members/invites/<int:invite_id>/revoke/",
+        admin_views.revoke_invite,
+        name="revoke_invite",
+    ),
     # Elder-token provisioning (S-104): generate/regenerate a member's link + QR.
     path(
         "members/<int:member_id>/elder-link/",

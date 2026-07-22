@@ -42,6 +42,12 @@ def member_pod_ids(member: Member) -> set[int]:
     return set(member.pod_memberships.values_list("pod_id", flat=True))
 
 
+def pod_yard_ids(pod: Pod) -> set[int]:
+    """Every yard a pod belongs to. A household pod is in exactly one; the bridge
+    pod is in more than one. Empty only for a pod not yet placed in a yard."""
+    return set(pod.yards.values_list("id", flat=True))
+
+
 def visible_yards(member: Member) -> models.QuerySet[Yard]:
     """Yards the member belongs to, scoped for list endpoints."""
     return Yard.objects.filter(pods__memberships__member=member).distinct()
