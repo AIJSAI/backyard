@@ -127,7 +127,7 @@ epics:
           - "Cross-yard requests return 404, not 403, so nothing leaks existence"
           - "Isolation enforced server-side with automated tests covering feed, members, media, and search"
           - "A pod in both yards sees both; its members' single account switches context cleanly"
-        status: built
+        status: tested  # phase-3 reconcile 2026-07-22: server-side isolation tested across feed/members/media/search + 404-parity (test_isolation.py, verified pass)
         v1: true
         security:
           threat_refs:
@@ -407,7 +407,7 @@ epics:
         acceptance:
           - "Roles limited to instance admin, yard admin, pod owner, member, supervised member"
           - "Permission matrix documented in docs and enforced server-side with tests"
-        status: built
+        status: tested  # phase-3 reconcile 2026-07-22: write/grant model enforced+tested (test_permissions.py, test_admin_views.py); matrix doc docs/security/permission-matrix.md
         v1: true
         security:
           threat_refs:
@@ -447,7 +447,7 @@ epics:
         acceptance:
           - "Supervised accounts need no email; credentials are parent-managed"
           - "Supervised members are visibly flagged to admins"
-        status: built
+        status: tested  # phase-3 reconcile 2026-07-22: supervised create/parent-mgmt + rendered roster-flag test added (test_admin_views.py)
         v1: true
         security:
           threat_refs:
