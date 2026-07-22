@@ -18,7 +18,39 @@ import secrets
 
 import qrcode  # type: ignore[import-untyped]  # qrcode ships no stubs
 import qrcode.image.svg  # type: ignore[import-untyped]
-from django.http import HttpRequest
+from django.http import Http404, HttpRequest, HttpResponse
+from django.utils.safestring import mark_safe
+
+
+def int_or_404(value: str) -> int:
+    """Parse a form/query int or raise the bare 404: a non-numeric id is an unknown
+    resource, not a server error. Shared by the admin surfaces (no existence oracle)."""
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise Http404 from exc
+
+
+def apply_token_body_headers(response: HttpResponse) -> HttpResponse:
+    """The TM-5 hygiene set for an admin hand-over page that carries a raw bearer token
+    in its BODY (not its URL): the household invite (S-201), the elder link (S-104), the
+    new-elder flow (S-213), and the resend result (S-212).
+
+    ``no-store`` defends against a bfcache/history restore of the walked-away-from admin
+    screen. ``Referrer-Policy`` is ``same-origin``, deliberately NOT ``no-referrer``:
+    these pages host a same-origin POST form (create / regenerate / re-mint), and under
+    ``no-referrer`` the browser sends ``Origin: null`` on that POST, which Django's CSRF
+    Origin check rejects — so the hand-over form could never be submitted from a real
+    browser (curl and the test client send no Origin, which is why this stayed latent).
+    ``same-origin`` gives the identical cross-origin guarantee (zero third-party Referer
+    or Origin) while sending the same-origin Origin the CSRF check needs. The token-in-URL
+    surfaces (/t/, /d/, /media/) keep ``no-referrer``: there the token rides the URL and
+    must never leak through a navigation's Referer.
+    """
+    response["Cache-Control"] = "no-store"
+    response["Referrer-Policy"] = "same-origin"
+    response["X-Robots-Tag"] = "noindex, nofollow"
+    return response
 
 
 def qr_svg(url: str) -> str:
@@ -28,6 +60,15 @@ def qr_svg(url: str) -> str:
     buffer = io.BytesIO()
     image.save(buffer)
     return buffer.getvalue().decode()
+
+
+def link_artifacts(link: str) -> dict[str, object]:
+    """The two hand-over values every mint surface shows once — the one-time link and
+    its inline printable QR — so a caller merges them into its template context. The
+    ``mark_safe`` on the QR lives ONLY here: its sole input is our CSPRNG token inside the
+    configured BASE_URL, rendered as qrcode's own path geometry, never reflected user text,
+    so the S308 justification is centralised in one auditable place."""
+    return {"minted_link": link, "qr_svg": mark_safe(qr_svg(link))}  # noqa: S308
 
 
 def fresh_intent(request: HttpRequest, key: str) -> str:

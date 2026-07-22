@@ -296,6 +296,15 @@ SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 X_FRAME_OPTIONS = "DENY"
 SECURE_CONTENT_TYPE_NOSNIFF = True
+# The app is the source of truth for Referrer-Policy (the edge must NOT force it — a global
+# no-referrer makes browsers send Origin: null on same-origin form POSTs, which CSRF then
+# rejects, silently breaking every form in a real browser). same-origin is the floor: it
+# leaks nothing cross-origin, so a token in a URL never reaches a third party, while the
+# same-origin Origin the CSRF check needs is still sent. The token-in-URL surfaces that
+# have no form (/t/, /d/, /media/) tighten this to no-referrer in code
+# (TokenSurfaceHeadersMiddleware, serve_media); SecurityMiddleware's setdefault leaves those
+# overrides intact. Pinned explicitly, not left to the framework default (TS-EDGE-LOG / TM-5).
+SECURE_REFERRER_POLICY = "same-origin"
 CSRF_TRUSTED_ORIGINS = [BASE_URL]
 if _HTTPS:
     SESSION_COOKIE_SECURE = True

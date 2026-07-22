@@ -1,0 +1,55 @@
+{% comment %}
+Shared hand-over block (S-212). One place for the one-time link + copy/native-share
+affordances + inline printable QR, reused by the household invite (S-201), the elder
+link (S-104), the new-elder flow (S-213), and invite resend. The link is a CSPRNG
+bearer credential shown exactly once, so every page that includes this carries the
+TM-5 no-store/no-referrer/noindex headers.
+
+Caller passes: handover_link (the URL), handover_qr (the mark_safe'd inline SVG), and
+optionally handover_label / handover_share_title / handover_note. Copy and Share are a
+progressive enhancement: without JS (or on a browser lacking the APIs) the readonly
+field is still selectable and the QR still scannable, so the flow never depends on them.
+{% endcomment %}
+<div class="handover">
+  <p>
+    <input type="text" readonly value="{{ handover_link }}" style="width:100%"
+           aria-label="{{ handover_label|default:'Link to hand over' }}" data-handover-link>
+  </p>
+  <p class="handover-actions">
+    <button type="button" data-handover-copy hidden>Copy link</button>
+    <button type="button" data-handover-share hidden
+            data-share-title="{{ handover_share_title|default:'Backyard' }}">Share…</button>
+    <span class="muted" data-handover-copied role="status" hidden>Copied to clipboard</span>
+  </p>
+  <div class="qr">{{ handover_qr }}</div>
+  <p class="muted">{{ handover_note|default:'Send the link by text or email, or print this page for the QR. It appears only once.' }}</p>
+</div>
+<script>
+  // Reveal Copy/Share only where the browser supports them (S-212): a no-JS or
+  // unsupported client keeps the selectable link field and the QR, so the hand-over
+  // never relies on this. Scoped to the single hand-over block on the page.
+  (function () {
+    var link = document.querySelector('[data-handover-link]');
+    if (!link) { return; }
+    var copyBtn = document.querySelector('[data-handover-copy]');
+    var shareBtn = document.querySelector('[data-handover-share]');
+    var copied = document.querySelector('[data-handover-copied]');
+    if (copyBtn && navigator.clipboard && navigator.clipboard.writeText) {
+      copyBtn.hidden = false;
+      copyBtn.addEventListener('click', function () {
+        navigator.clipboard.writeText(link.value).then(function () {
+          if (copied) { copied.hidden = false; }
+        });
+      });
+    }
+    if (shareBtn && navigator.share) {
+      shareBtn.hidden = false;
+      shareBtn.addEventListener('click', function () {
+        navigator.share({
+          title: shareBtn.getAttribute('data-share-title') || 'Backyard',
+          url: link.value
+        }).catch(function () { /* the user dismissed the share sheet */ });
+      });
+    }
+  })();
+</script>

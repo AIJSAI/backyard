@@ -1,0 +1,42 @@
+{% extends "core/base.html" %}
+{% block title %}Add a grandparent{% endblock %}
+{% block body %}
+  <h1>Add a grandparent</h1>
+  <p><a href="{% url 'members' %}">Back to members</a></p>
+
+  <p class="notice">Set up a no-login <strong>elder link</strong> for a grandparent who does not use
+  apps. Name them and pick the side of the family they belong to; this creates their household and a
+  link that opens a large-text view of the family feed, where they can read and send love with one
+  tap. Nothing to install, no password. Whoever holds the link can read and react as them, so hand it
+  over in person or by a private message.</p>
+
+  {% if errors %}<div class="errors">{% for e in errors %}<p>{{ e }}</p>{% endfor %}</div>{% endif %}
+
+  {% if minted_link %}
+    <h2>Elder link ready to hand over</h2>
+    <p>For <strong>{{ elder_name }}</strong> in <strong>{{ yard_name }}</strong>.</p>
+    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_label="Elder link" handover_share_title="Your family on Backyard" handover_note="Hand it over in person or by a private message, or print this page for the QR. It appears only once." %}
+  {% endif %}
+
+  <form method="post" action="{% url 'new_elder' %}">
+    {% csrf_token %}
+    <input type="hidden" name="intent" value="{{ intent }}">
+    <label for="elder_name">Their name</label>
+    <input id="elder_name" type="text" name="elder_name" maxlength="100"
+           placeholder="e.g. Rose Davis" required>
+    <label for="kinship_name">What the family calls them (optional)</label>
+    <input id="kinship_name" type="text" name="kinship_name" maxlength="50" placeholder="e.g. Nana">
+    <label for="household_name">Their household</label>
+    <input id="household_name" type="text" name="household_name" maxlength="100"
+           placeholder="e.g. Nana's house" required>
+    <label for="yard_id">Which side of the family</label>
+    <select id="yard_id" name="yard_id" required>
+      {% for yard in yards %}
+        <option value="{{ yard.id }}">{{ yard.name }}</option>
+      {% empty %}
+        <option disabled>No family sides you can add to yet</option>
+      {% endfor %}
+    </select>
+    <button type="submit">Create their household and get the link</button>
+  </form>
+{% endblock %}

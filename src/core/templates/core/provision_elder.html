@@ -19,9 +19,7 @@
 
   {% if minted_link %}
     <h2>{% if regenerated %}New link ready (the old one no longer works){% else %}Link ready to hand over{% endif %}</h2>
-    <p><input type="text" readonly value="{{ minted_link }}" style="width:100%" aria-label="Elder link"></p>
-    <div class="qr">{{ qr_svg }}</div>
-    <p class="muted">Print this page for the QR, or copy the link above to send it.</p>
+    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_label="Elder link" handover_share_title="Your family on Backyard" handover_note="Hand it over in person or by a private message, or print this page for the QR. It appears only once." %}
   {% endif %}
 
   <form method="post" action="{% url 'provision_elder' target.id %}">

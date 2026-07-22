@@ -535,6 +535,48 @@ epics:
           hardening: |
             Creating a family side is an instance-wide act reserved to the instance admin (a yard admin administers within a side, never creates one). It does not reopen the TM-8 zero-admin first-run wizard path. The create form is refresh-safe (single-use intent nonce); the name is bounded and slugified to a unique slug. The instance admin can invite a household into a yard they are not a member of because they are above yard isolation (can_issue_invite is True for them into any pod); a yard admin is unchanged and confined to their own yards.
           source: docs/security/threat-model.md
+      - id: S-213
+        epic: E7
+        persona: yard-admin
+        story: "As a per-side delegate, I can onboard a net-new grandparent onto the no-login elder path myself, so the family's low-tech elders get a link without the founder at a shell."
+        acceptance:
+          - "A delegate names a net-new elder and picks a side; their household pod, a token-only member (no login, non-supervised), and their elder link + printable QR are created in one flow"
+          - "Scoped exactly like a household invite: a yard admin only within their own yards, the instance admin onto any side including one they are not a member of; a cross-yard pick 404s and mints nothing"
+          - "The elder's whole visibility is that household's side, a subset of the acting admin's authority; a browser refresh does not create a duplicate elder"
+          - "The hand-over page carries the raw token once with the TM-5 no-store headers, and the new elder then appears on the roster and can be re-provisioned"
+        status: tested  # S-213 close 2026-07-22: new_elder create-elder+mint-token one flow (delegate-usable), can_issue_invite gate, refresh-safe, TM-5 headers; gate green + live-repro + cross-browser mint->open e2e + security review (docs/receipts/2026-07-22-s212-s213-new-elder-handover-close.md)
+        v1: true
+        security:
+          threat_refs:
+            - TM-1
+            - TM-5
+            - TM-10
+            - T-TOKEN-G1
+            - T-AUTH-G2
+            - T-EDGE-1
+          hardening: |
+            Standing up the elder + household + token is one atomic act, authorized in-transaction by can_issue_invite over the just-created pod (the same authority as a household invite), so a yard admin can never create an elder whose side they do not control and a refusal rolls the whole thing back with no orphan pod, member, or token. The elder is a token-only member (no User, non-supervised), so the master token minting refuses nothing on TM-10 grounds and the elder path's read+react capability ceiling applies unchanged. The token is >=256-bit CSPRNG, stored only as a hash, shown once, and the mint refuses a non-HTTPS production base URL (T-EDGE-1). The create form is refresh-safe (single-use intent nonce), and the hand-over page carries the raw token once under the TM-5 no-store/noindex headers with Referrer-Policy same-origin (the page hosts the create form, so a browser POST under no-referrer would be CSRF-rejected on an Origin: null; same-origin still leaks nothing cross-origin).
+          source: docs/security/threat-model.md
+      - id: S-212
+        epic: E7
+        persona: yard-admin
+        story: "As an admin handing over an invite, I get a fast copy/share hand-over and can re-issue a fresh link when the old one lapses, so a household is never stuck because a link expired or never arrived."
+        acceptance:
+          - "Every hand-over surface (household invite, elder link, new elder) offers a one-tap copy and a native share, degrading to a selectable field and a scannable QR without JS"
+          - "From the outstanding-invite ledger, an admin can mint a fresh one-time link for a household; the new link is additive and the prior invite is left untouched"
+          - "Resend is authorized exactly like issuing and revoking (can_issue_invite over the pod), POST-only, with a byte-identical 404 for an out-of-scope or unknown invite"
+          - "The fresh link is shown once with a printable QR under the TM-5 no-store headers"
+        status: tested  # S-212 close 2026-07-22: shared copy/share/QR hand-over partial across invite+elder+new-elder + resend_invite (additive, scope-parity 404, POST-only, TM-5); gate green + live-repro + e2e (docs/receipts/2026-07-22-s212-s213-new-elder-handover-close.md)
+        v1: true
+        security:
+          threat_refs:
+            - TM-1
+            - TM-5
+            - T-INVITE-1
+            - T-AUTH-G2
+          hardening: |
+            Resend routes through can_issue_invite over the invite's pod, the same gate as minting and revoking, and returns a byte-identical 404 (not 403) for an out-of-scope or unknown invite so another side's invite is never revealed (S-202 parity). The re-minted link is additive, not a silent replacement, so a link already handed over is never killed out from under a household (unbounded but admin-gated, TTL-bounded, use-capped, and independently revocable); stale links are ended by the explicit revoke. The fresh raw token is shown once under the TM-5 no-store/noindex headers with Referrer-Policy same-origin (like the other hand-over pages). The copy/share affordances are a client-side progressive enhancement that touches no new server surface and carries no token in any URL.
+          source: docs/security/threat-model.md
   - id: E9
     title: People and the family directory
     intent: "Profiles as the family's source of truth: who everyone is, how to reach them, and the dates that matter. Per-field, per-yard visibility controlled by the member; surfaced through calm channels (digest and feed banner), never push."

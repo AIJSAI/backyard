@@ -31,6 +31,10 @@
             <span class="muted">no one has joined yet</span>
           {% endif %}
         {% endwith %}
+        <form method="post" action="{% url 'resend_invite' invite.id %}" class="inline">
+          {% csrf_token %}
+          <button type="submit">New link</button>
+        </form>
         {% if not invite.revoked_at %}
           <form method="post" action="{% url 'revoke_invite' invite.id %}" class="inline">
             {% csrf_token %}

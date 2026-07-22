@@ -85,6 +85,13 @@ urlpatterns = [
         admin_views.revoke_invite,
         name="revoke_invite",
     ),
+    # Re-hand-over (S-212): mint a fresh one-time link for a household whose earlier link
+    # expired, filled up, or needs another copy. Additive; the prior invite is untouched.
+    path(
+        "members/invites/<int:invite_id>/resend/",
+        admin_views.resend_invite,
+        name="resend_invite",
+    ),
     # Rollout enablers (S-707 appoint a delegate / grant a second admin; S-708 create the
     # other family side). The instance admin bootstraps a side then hands it to a per-side
     # yard-admin, so the family can be onboarded without the founder at a shell.
@@ -96,6 +103,9 @@ urlpatterns = [
         provisioning_views.provision_elder,
         name="provision_elder",
     ),
+    # New-elder onboarding (S-213): a delegate stands up a net-new grandparent's household
+    # + token in one flow, so the no-login path can be handed out without a shell.
+    path("members/new-elder/", provisioning_views.new_elder, name="new_elder"),
     # The /d/ read surface (TM-5): what a digest deep link opens. The token only
     # authenticates; every render re-resolves through the one audience query.
     # The elder path (S-102): the handed-over link exchanges for a session and

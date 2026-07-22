@@ -18,7 +18,6 @@ from django.db import transaction
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.utils.safestring import mark_safe
 
 from . import handover, invites, permissions, scoping, supervised
 from .models import (
@@ -59,13 +58,6 @@ def _acting_member(request: HttpRequest) -> Member:
     if member is None:
         raise Http404
     return member
-
-
-def _int_or_404(value: str) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError) as exc:
-        raise Http404 from exc
 
 
 @dataclass
@@ -192,7 +184,9 @@ def quarantine(request: HttpRequest) -> HttpResponse:
     if not permissions.is_instance_admin(actor):
         raise PermissionDenied
     if request.method == "POST":
-        InboundQuarantine.objects.filter(pk=_int_or_404(request.POST.get("row_id", ""))).delete()
+        InboundQuarantine.objects.filter(
+            pk=handover.int_or_404(request.POST.get("row_id", ""))
+        ).delete()
         return redirect("member_quarantine")
     rows = InboundQuarantine.objects.select_related("member")[:100]
     return render(request, "core/members_quarantine.html", {"actor": actor, "rows": rows})
@@ -218,10 +212,12 @@ def create_supervised(request: HttpRequest) -> HttpResponse:
     actor = _acting_member(request)
     if request.method != "POST":
         raise Http404
-    parent = scoping.require_visible_member(actor, _int_or_404(request.POST.get("parent_id", "")))
+    parent = scoping.require_visible_member(
+        actor, handover.int_or_404(request.POST.get("parent_id", ""))
+    )
     if not permissions.can_create_supervised(actor, parent):
         raise PermissionDenied
-    pod = scoping.require_visible_pod(actor, _int_or_404(request.POST.get("pod_id", "")))
+    pod = scoping.require_visible_pod(actor, handover.int_or_404(request.POST.get("pod_id", "")))
     display_name = request.POST.get("display_name", "").strip()
     if display_name and len(display_name) <= 100:
         supervised.create_supervised_member(parent=parent, display_name=display_name, pod=pod)
@@ -271,7 +267,7 @@ def invite_household(request: HttpRequest) -> HttpResponse:
         # An instance admin may resolve any existing yard; a yard admin only one they are
         # in (require_visible_yard 404s otherwise). The in-transaction can_issue_invite
         # check below is the authoritative gate either way.
-        yard_id = _int_or_404(request.POST.get("yard_id", ""))
+        yard_id = handover.int_or_404(request.POST.get("yard_id", ""))
         yard = (
             get_object_or_404(Yard, pk=yard_id)
             if permissions.is_instance_admin(actor)
@@ -290,13 +286,9 @@ def invite_household(request: HttpRequest) -> HttpResponse:
                 if not permissions.can_issue_invite(actor, pod):
                     raise PermissionDenied
                 invite, raw = invites.mint_invite(pod, created_by=actor)
-            link = f"{settings.BASE_URL}/join/{raw}/"
+            context.update(handover.link_artifacts(f"{settings.BASE_URL}/join/{raw}/"))
             context.update(
                 {
-                    "minted_link": link,
-                    # noqa justified: the SVG is qrcode's own path geometry over our
-                    # CSPRNG token in BASE_URL, never reflected user text.
-                    "qr_svg": mark_safe(handover.qr_svg(link)),  # noqa: S308
                     "household_name": name,
                     "yard_name": yard.name,
                     "expires_at": invite.expires_at,
@@ -306,14 +298,10 @@ def invite_household(request: HttpRequest) -> HttpResponse:
     context["errors"] = errors
     context["intent"] = handover.fresh_intent(request, "invite_household_intent")
     response = render(request, "core/invite_household.html", context)
-    # The page carries the raw invite token in its body once; give it the TM-5
-    # no-store set (like the elder handover page) so a walked-away-from admin screen
-    # is not restored from bfcache or history even though /members/ is not a
-    # token-prefix route.
-    response["Cache-Control"] = "no-store"
-    response["Referrer-Policy"] = "no-referrer"
-    response["X-Robots-Tag"] = "noindex, nofollow"
-    return response
+    # Carries the raw invite token in its body once and hosts the create form: the shared
+    # hand-over hygiene set (no-store against a bfcache restore of a walked-away-from admin
+    # screen, and same-origin so the form POST is not CSRF-rejected on an Origin: null).
+    return handover.apply_token_body_headers(response)
 
 
 @login_required
@@ -380,6 +368,45 @@ def revoke_invite(request: HttpRequest, invite_id: int) -> HttpResponse:
     if invite.revoked_at is None:
         Invite.objects.filter(pk=invite.pk).update(revoked_at=timezone.now())
     return redirect("member_invites")
+
+
+@login_required
+def resend_invite(request: HttpRequest, invite_id: int) -> HttpResponse:
+    """Mint a FRESH one-time link for a household whose earlier link expired, filled up,
+    was revoked, or simply needs another copy to hand over (S-212). POST-only, authorized
+    exactly like issuing and revoking (can_issue_invite over the invite's pod), with the
+    same byte-identical 404 for an out-of-scope or unknown invite so another side's invite
+    is never revealed (S-202 parity). The new link is ADDITIVE: the prior invite is left
+    untouched (it may still be live in someone's hands), so re-handing-over never silently
+    kills a link already sent. The fresh raw token is shown once, with the TM-5 headers."""
+    actor = _acting_member(request)
+    if request.method != "POST":
+        raise Http404
+    if not permissions.is_admin(actor):
+        raise PermissionDenied
+    try:
+        invite = Invite.objects.select_related("pod").get(pk=invite_id)
+    except Invite.DoesNotExist:
+        raise Http404 from None
+    # 404 (not 403) an invite outside the actor's issuing scope: never reveal that another
+    # yard's invite exists, the same parity as revoke_invite.
+    if not permissions.can_issue_invite(actor, invite.pod):
+        raise Http404
+    fresh, raw = invites.mint_invite(invite.pod, created_by=actor)
+    response = render(
+        request,
+        "core/handover_link.html",
+        {
+            "actor": actor,
+            **handover.link_artifacts(f"{settings.BASE_URL}/join/{raw}/"),
+            "pod_name": invite.pod.name,
+            "expires_at": fresh.expires_at,
+            "max_uses": fresh.max_uses,
+        },
+    )
+    # Carries the raw invite token once: the shared hand-over hygiene set (no-store +
+    # same-origin), like invite_household.
+    return handover.apply_token_body_headers(response)
 
 
 @login_required
