@@ -182,9 +182,10 @@ def test_boot_guard_refuses_missing_host_or_sender_and_tls_ssl_both() -> None:
 _RESEND = "anymail.backends.resend.EmailBackend"
 
 
-def test_boot_guard_accepts_anymail_resend_with_api_key_and_sender() -> None:
+def test_boot_guard_accepts_anymail_resend_fully_configured() -> None:
     """The Resend backend sends over HTTPS, so the cleartext/host checks do not
-    apply; it needs only its API key and the one fixed sender identity."""
+    apply; it needs its API key, the inbound webhook signing secret (TS-PP-8),
+    and the one fixed sender identity."""
     validate_email_transport(
         backend=_RESEND,
         host="",
@@ -192,6 +193,7 @@ def test_boot_guard_accepts_anymail_resend_with_api_key_and_sender() -> None:
         use_ssl=False,
         default_from="digests@mail.backyard.family",
         resend_api_key="re_live_key",
+        resend_inbound_secret="whsec_live",
     )  # must not raise
 
 
@@ -203,6 +205,21 @@ def test_boot_guard_refuses_anymail_resend_without_api_key() -> None:
             use_tls=False,
             use_ssl=False,
             default_from="digests@mail.backyard.family",
+            resend_inbound_secret="whsec_live",
+        )
+
+
+def test_boot_guard_refuses_anymail_resend_without_inbound_secret() -> None:
+    """TS-PP-8: the inbound reply webhook is publicly mounted, so booting the
+    Resend backend without its signing secret would leave a forgeable endpoint."""
+    with pytest.raises(RuntimeError, match="RESEND_INBOUND_SECRET is empty"):
+        validate_email_transport(
+            backend=_RESEND,
+            host="",
+            use_tls=False,
+            use_ssl=False,
+            default_from="digests@mail.backyard.family",
+            resend_api_key="re_live_key",
         )
 
 
@@ -215,4 +232,5 @@ def test_boot_guard_refuses_anymail_resend_without_a_sender() -> None:
             use_ssl=False,
             default_from="",
             resend_api_key="re_live_key",
+            resend_inbound_secret="whsec_live",
         )

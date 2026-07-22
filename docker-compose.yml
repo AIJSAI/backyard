@@ -49,6 +49,13 @@ services:
       DJANGO_DEBUG: ${DJANGO_DEBUG:-0}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
       BACKYARD_BASE_URL: ${BACKYARD_BASE_URL:-http://localhost:8000}
+      # Outbound + inbound email provider (wave 4). Defaults keep the console backend
+      # so an unconfigured compose is unchanged; set these to switch to Anymail/Resend.
+      # RESEND_INBOUND_SECRET is the webhook signing secret Anymail verifies (web only).
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-backyard@localhost}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_INBOUND_SECRET: ${RESEND_INBOUND_SECRET:-}
       POSTGRES_DB: ${POSTGRES_DB:-backyard}
       # Runtime connects as the unprivileged app role (ADR-004, TS-PG-1). The migrator
       # credentials are used for the migrate step only; the entrypoint drops them from
@@ -88,6 +95,11 @@ services:
     environment:
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
       BACKYARD_BASE_URL: ${BACKYARD_BASE_URL:-http://localhost:8000}
+      # The worker runs the periodic digest send, so it needs the outbound provider
+      # too (inbound is web-only, so no RESEND_INBOUND_SECRET here).
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-backyard@localhost}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
       POSTGRES_DB: ${POSTGRES_DB:-backyard}
       POSTGRES_USER: backyard_app
       POSTGRES_PASSWORD: ${POSTGRES_APP_PASSWORD:?set POSTGRES_APP_PASSWORD in .env, see .env.example}

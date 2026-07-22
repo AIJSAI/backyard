@@ -48,9 +48,11 @@ def validate_email_transport(
     use_ssl: bool,
     default_from: str,
     resend_api_key: str = "",
+    resend_inbound_secret: str = "",
 ) -> None:
     """Refuse an unknown transport, a real SMTP one that is unencrypted or
-    under-configured, and the Anymail Resend backend without its API key.
+    under-configured, and the Anymail Resend backend without its API key or the
+    inbound webhook signing secret (TS-PP-8: the reply webhook must be verified).
 
     Non-network backends (console, locmem, file, dummy) pass: they never move a
     capability byte off the host, and console is the compose default until the
@@ -68,6 +70,11 @@ def validate_email_transport(
             missing.append(
                 "RESEND_API_KEY is empty; the Anymail Resend backend cannot send without it"
             )
+        if not resend_inbound_secret:
+            missing.append(
+                "RESEND_INBOUND_SECRET is empty; the inbound reply webhook is mounted and must "
+                "verify Resend's signature (TS-PP-8), or a stranger could POST forged inbound mail"
+            )
         if not default_from:
             missing.append(
                 "DEFAULT_FROM_EMAIL is empty; digests need one fixed sender identity "
@@ -77,7 +84,7 @@ def validate_email_transport(
             raise RuntimeError(
                 "Anymail Resend transport misconfigured: "
                 + "; ".join(missing)
-                + ". See docs/security/threat-model.md TS-PP-9."
+                + ". See docs/security/threat-model.md TS-PP-8 and TS-PP-9."
             )
         return
     if backend != _SMTP_BACKEND:

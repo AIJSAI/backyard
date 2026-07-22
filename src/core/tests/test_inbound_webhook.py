@@ -1,12 +1,15 @@
 """The Resend inbound webhook adapter (core/inbound_webhook, wave 4).
 
-The one bridge from Anymail's inbound signal to the shared pipeline. Properties:
-a valid reply posts a comment attributed from the capability; the capability is
-taken from the TRUSTED envelope recipient, so a forged To header cannot redirect
-attribution (T-EMAIL-1); the From-consistency check still quarantines a spoof;
-and a dead envelope capability bounces without posting. The signature
-verification itself is Anymail's (svix, RESEND_INBOUND_SECRET) and out of scope
-here — this exercises our adapter and its integration with process_inbound.
+The one bridge from Anymail's inbound signal to the shared pipeline. These drive
+the REAL Resend event shape: the message is parsed from raw MIME (so
+``envelope_recipient`` is None, exactly as Anymail's Resend handler leaves it —
+unlike its other ESPs), and the trusted recipient rides in ``esp_event['data']``
+the way Resend sends it. Properties: a valid reply posts a comment attributed
+from the capability; the recipient is taken from Resend's delivery record, so a
+forged To header cannot redirect attribution (T-EMAIL-1); the From-consistency
+check still quarantines a spoof; a dead recipient bounces without posting; and a
+message-less event is dropped (no poison retry). Signature verification itself is
+Anymail's (svix, RESEND_INBOUND_SECRET) and out of scope here.
 """
 
 from __future__ import annotations
@@ -61,29 +64,31 @@ def reply_setup() -> tuple[Member, Post, str]:
     return member, post, local
 
 
-def _message(*, to_header: str, envelope: str, from_addr: str, text: str) -> AnymailInboundMessage:
+def _event(*, to_header: str, recipient: str, from_addr: str, text: str) -> SimpleNamespace:
+    """A realistic Anymail inbound event for Resend: the message parsed from raw
+    MIME (envelope_recipient is None, as Anymail's Resend handler leaves it), and
+    the trusted recipient carried in esp_event['data']['to'] as Resend sends it."""
     raw = (
         f"Message-ID: <wh-1@mail.example>\nFrom: {from_addr}\nTo: {to_header}\n"
         f"Subject: Re: your family digest\nContent-Type: text/plain\n\n"
         f"{text}\n{digest.REPLY_SEPARATOR}\nquoted digest tail below"
     )
     message = AnymailInboundMessage.parse_raw_mime(raw)
-    message.envelope_recipient = envelope
-    return message
+    assert message.envelope_recipient is None  # the exact production shape we adapt around
+    esp_event = {"type": "email.received", "data": {"to": [recipient], "from": from_addr}}
+    return SimpleNamespace(message=message, esp_event=esp_event)
 
 
-def _fire(message: AnymailInboundMessage) -> None:
-    inbound_webhook.handle_inbound(
-        sender=None, event=SimpleNamespace(message=message), esp_name="resend"
-    )
+def _fire(event: SimpleNamespace) -> None:
+    inbound_webhook.handle_inbound(sender=None, event=event, esp_name="resend")
 
 
-def test_webhook_posts_a_reply_from_the_envelope_capability(
+def test_webhook_posts_a_reply_from_the_delivered_recipient(
     reply_setup: tuple[Member, Post, str],
 ) -> None:
     member, post, local = reply_setup
     addr = f"{local}@mail.backyard.family"
-    _fire(_message(to_header=addr, envelope=addr, from_addr="gran@example.com", text="So proud!"))
+    _fire(_event(to_header=addr, recipient=addr, from_addr="gran@example.com", text="So proud!"))
     comment = Comment.objects.get()
     assert comment.post_id == post.id
     assert comment.author_id == member.id
@@ -91,16 +96,17 @@ def test_webhook_posts_a_reply_from_the_envelope_capability(
     assert comment.body == "So proud!"
 
 
-def test_webhook_trusts_the_envelope_not_a_forged_to_header(
+def test_webhook_trusts_the_delivered_recipient_not_a_forged_to_header(
     reply_setup: tuple[Member, Post, str],
 ) -> None:
-    """The To header is attacker-controlled; the ESP envelope is not. A forged To
-    must not change attribution — the real capability rides in the envelope."""
+    """The raw To header is attacker-controlled; Resend's delivery record is not.
+    A forged To must not change attribution — the real capability is the address
+    Resend delivered to (esp_event data), not the header."""
     member, post, local = reply_setup
     _fire(
-        _message(
-            to_header="reply-forged@mail.backyard.family",  # attacker-set header
-            envelope=f"{local}@mail.backyard.family",  # trusted envelope
+        _event(
+            to_header="reply-forged@mail.backyard.family",  # attacker-set raw header
+            recipient=f"{local}@mail.backyard.family",  # Resend's delivery record
             from_addr="gran@example.com",
             text="Real reply.",
         )
@@ -115,20 +121,29 @@ def test_webhook_spoofed_from_still_quarantines(reply_setup: tuple[Member, Post,
     valid capability with a mismatched From never posts."""
     _member, _post, local = reply_setup
     addr = f"{local}@mail.backyard.family"
-    _fire(_message(to_header=addr, envelope=addr, from_addr="attacker@evil.example", text="spoof"))
+    _fire(_event(to_header=addr, recipient=addr, from_addr="attacker@evil.example", text="spoof"))
     assert Comment.objects.count() == 0
 
 
-def test_webhook_dead_envelope_capability_bounces_without_posting(
+def test_webhook_dead_recipient_bounces_without_posting(
     reply_setup: tuple[Member, Post, str],
 ) -> None:
     _member, _post, local = reply_setup
     _fire(
-        _message(
-            to_header=f"{local}@mail.backyard.family",  # valid-looking header
-            envelope="reply-neverwas@mail.backyard.family",  # dead envelope capability
+        _event(
+            to_header=f"{local}@mail.backyard.family",  # valid-looking raw header
+            recipient="reply-neverwas@mail.backyard.family",  # dead delivery recipient
             from_addr="gran@example.com",
             text="Should not post.",
         )
     )
+    assert Comment.objects.count() == 0
+
+
+def test_webhook_message_none_event_is_dropped(reply_setup: tuple[Member, Post, str]) -> None:
+    """Anymail sets message=None for an email.received event with no email_id;
+    the adapter returns without raising, so no poison HTTP-500 retry loop and no
+    post (security review LOW-1)."""
+    event = SimpleNamespace(message=None, esp_event={"type": "email.received", "data": {}})
+    inbound_webhook.handle_inbound(sender=None, event=event, esp_name="resend")
     assert Comment.objects.count() == 0

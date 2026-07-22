@@ -247,6 +247,7 @@ validate_email_transport(
     use_ssl=EMAIL_USE_SSL,
     default_from=DEFAULT_FROM_EMAIL,
     resend_api_key=RESEND_API_KEY,
+    resend_inbound_secret=RESEND_INBOUND_SECRET,
 )
 
 # Request logs would otherwise contain capability URLs: django.request logs the
