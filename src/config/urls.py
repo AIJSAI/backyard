@@ -37,6 +37,14 @@ urlpatterns = [
     path("posts/<int:post_id>/", feed_views.post_detail, name="post_detail"),
     path("posts/<int:post_id>/comment/", feed_views.add_comment, name="add_comment"),
     path("comments/<int:comment_id>/delete/", feed_views.delete_comment, name="delete_comment"),
+    # Moderator takedown (S-713): an admin removes one visible post or comment. Scoped to
+    # what the moderator can see (the guard 404s anything else); distinct from author-delete.
+    path("posts/<int:post_id>/takedown/", feed_views.take_down_post, name="take_down_post"),
+    path(
+        "comments/<int:comment_id>/takedown/",
+        feed_views.take_down_comment,
+        name="take_down_comment",
+    ),
     # Reactions (S-304): who reacted, never a count. Notification prefs (S-305): the
     # single reply opt-in, off by default.
     path("posts/<int:post_id>/react/", feed_views.react, name="react"),

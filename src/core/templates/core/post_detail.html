@@ -37,6 +37,13 @@
     {% endif %}
   </div>
 
+  {% if is_moderator %}
+    <form method="post" action="{% url 'take_down_post' post.id %}" class="inline">
+      {% csrf_token %}
+      <button type="submit">Take down post</button>
+    </form>
+  {% endif %}
+
   <div class="reactions">
     {% for group in reactor_groups %}
       <p><span class="reaction-label">{{ group.label }}</span> {{ group.names|join:", " }}</p>
@@ -60,6 +67,12 @@
           <form method="post" action="{% url 'delete_comment' comment.id %}" class="inline">
             {% csrf_token %}
             <button type="submit">Delete</button>
+          </form>
+        {% endif %}
+        {% if is_moderator %}
+          <form method="post" action="{% url 'take_down_comment' comment.id %}" class="inline">
+            {% csrf_token %}
+            <button type="submit">Take down</button>
           </form>
         {% endif %}
       </li>

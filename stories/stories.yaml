@@ -577,6 +577,26 @@ epics:
           hardening: |
             Resend routes through can_issue_invite over the invite's pod, the same gate as minting and revoking, and returns a byte-identical 404 (not 403) for an out-of-scope or unknown invite so another side's invite is never revealed (S-202 parity). The re-minted link is additive, not a silent replacement, so a link already handed over is never killed out from under a household (unbounded but admin-gated, TTL-bounded, use-capped, and independently revocable); stale links are ended by the explicit revoke. The fresh raw token is shown once under the TM-5 no-store/noindex headers with Referrer-Policy same-origin (like the other hand-over pages). The copy/share affordances are a client-side progressive enhancement that touches no new server surface and carries no token in any URL.
           source: docs/security/threat-model.md
+      - id: S-713
+        epic: E7
+        persona: yard-admin
+        story: "As a per-side moderator, I can take down a single post or comment, so I can remove one bad item without the nuclear option of removing the person."
+        acceptance:
+          - "A yard or instance admin can take down one post or one comment; it soft-deletes so the one audience query treats it as gone in the feed and the digest, and the post's photos are hard-purged"
+          - "The takedown is scoped to what the moderator can SEE: a post or comment on content the admin cannot see is a byte-identical 404, so a yard admin can never take down a pod-private post the guard would not return them (reach-vs-visibility; routing those to the parent/pod is deferred post-v1)"
+          - "Takedown is an admin lever distinct from the author-only self-delete (a plain member is refused), POST-only, idempotent, and records who moderated the item (distinguishable from an author self-delete)"
+          - "The takedown is silent (no member-visible moderation notice in v1); the person-level lever stays remove-only (reversible member-suspend deferred)"
+        status: tested  # S-713 close 2026-07-22: moderation.take_down_post/comment (soft-delete + moderated_by record + media purge), is_admin + guard-scoped-to-visibility 404, POST-only, idempotent; feed+thread affordance admin-only; gate green + live-repro through Caddy + security review (docs/receipts/2026-07-22-s713-takedown-close.md)
+        v1: true
+        security:
+          threat_refs:
+            - TM-1
+            - TM-2
+            - T-YARD-2
+            - T-AUTH-G2
+          hardening: |
+            Takedown routes the item through the SAME read guard (scoping.require_visible_post / require_visible_comment) as every other read, for the MODERATOR, so the lever is structurally bounded to what they may already see: a byte-identical 404 for anything else, identical to a nonexistent id (no existence oracle, S-202 parity). Content visibility is membership-scoped for every role including the instance admin — the founder's instance-wide power is over members and configuration, not content omniscience — so no admin can reach a yard's content they do not belong to. is_admin gates before the item is resolved, so a non-admin learns nothing about the item's existence (uniform 403). Authorization is re-checked in the service (is_admin + visibility), not only at the view guard, as write-side defense in depth for any future non-guard caller, mirroring posting.delete_post and commenting.create_comment. The authority is deliberately VISIBILITY-based (the ratified "scoped to visible" rule), which diverges by design from the person-level lever's subset-scope (can_manage_member / T-AUTH-G2): a member belonging to both yards through a bridge household may moderate content it can see in either, and a both-side post is one object a single-side admin removes from both feeds. That divergence is intentional and recorded for the founder's manual-QA review (a stricter audience-subset rule is a possible refinement, not shipped in v1). The takedown reuses the author path's soft delete (deleted_at removes it from the one audience query everywhere) plus the media hard-purge (T-MEDIA-6), and records moderated_by (SET_NULL) as an accountability trail that a future restore/audit surface can read; it is silent (no member-visible notice, ratified) and idempotent (never revives a tombstone or overwrites who first removed it). The person-level lever stays remove-only; reversible member-suspend is deferred.
+          source: docs/security/threat-model.md
   - id: E9
     title: People and the family directory
     intent: "Profiles as the family's source of truth: who everyone is, how to reach them, and the dates that matter. Per-field, per-yard visibility controlled by the member; surfaced through calm channels (digest and feed banner), never push."

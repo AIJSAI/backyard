@@ -84,6 +84,12 @@
             {% if item.is_editable %}<a href="{% url 'edit_post' item.post.id %}">Edit</a>{% endif %}
             <a href="{% url 'delete_post' item.post.id %}">Delete</a>
           {% endif %}
+          {% if is_moderator %}
+            <form method="post" action="{% url 'take_down_post' item.post.id %}" class="inline">
+              {% csrf_token %}
+              <button type="submit">Take down</button>
+            </form>
+          {% endif %}
         </span>
       </li>
     {% empty %}

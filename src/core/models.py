@@ -262,6 +262,18 @@ class Post(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     edited_at = models.DateTimeField(null=True, blank=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
+    # A moderator takedown (S-713) sets deleted_at like an author self-delete, so the one
+    # audience query treats the post as gone everywhere, AND records who moderated it — the
+    # accountability trail a takedown needs (an author self-delete leaves this null, so the
+    # two are distinguishable and a future restore/audit surface has what it needs).
+    # SET_NULL, not CASCADE: removing the moderator later must not erase the tombstone.
+    moderated_by = models.ForeignKey(
+        Member,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="moderated_posts",
+    )
 
     class Meta:
         ordering = ["-created_at"]
@@ -293,6 +305,16 @@ class Comment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     edited_at = models.DateTimeField(null=True, blank=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
+    # A moderator takedown (S-713) records who moderated the comment, exactly like Post:
+    # deleted_at hides it through the one query, moderated_by is the accountability trail
+    # (null for an author self-delete). SET_NULL keeps the tombstone if the moderator goes.
+    moderated_by = models.ForeignKey(
+        Member,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="moderated_comments",
+    )
 
     class Meta:
         # Oldest first: a comment thread reads top to bottom under its post.
