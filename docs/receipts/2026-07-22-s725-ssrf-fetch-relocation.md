@@ -39,7 +39,32 @@ proxy) was the one making the fetch.
   the media pipeline). This proves the fetch runs on the worker, the worker has the outbound
   egress TS-CO-4 relies on, and the S-301 re-host path works from the worker end to end.
 
+## Review panel (security-reviewer, no CRITICAL/HIGH)
+
+Verdict: sound relocation, SSRF posture preserved (the deferred path delegates to the
+UNCHANGED fetcher, so every guard — validate/resolve-once/pin-IP/NAT64/per-hop — still
+runs), network segmentation a genuine net improvement, task boundary (id-only, live
+re-resolve, deleted→no-op) correct, async timing benign (the template gates rendering on
+the row existing, which only appears after validation), `non_atomic` retention correct.
+
+One MEDIUM, folded: `attach_to_post` did an unguarded `create` on `LinkPreview.post`'s
+OneToOne. Fine in the old synchronous path, but on the at-least-once worker queue a
+re-delivered job (worker killed mid-run) would re-run the outbound fetch and then raise an
+uncaught `IntegrityError` (fails closed — no duplicate — but an unhandled-exception/failed-job
+regression and a latent poison-loop if a retry strategy is ever added; the sibling transcode
+task is idempotent by design). Fixed with an idempotency guard BEFORE the fetch (a post that
+already has a card is done) + a duplicate-delivery test.
+
+Two LOWs accepted as residuals (not regressions): (1) the fuller TS-CO-4 posture would mark
+`worker-db` `internal: true` and give the worker a dedicated egress-only network — the
+relocation delivers the primary goal (egress off `edge`); the segmentation half is a future
+compose refinement. (2) A compose with no link enqueues a cheap no-op task (the task returns
+early with no fetch); gating the `defer` on a URL would re-couple the view to the fetcher, so
+it is left; and the concurrency-1 worker serialization of real link fetches is inherent and
+low at family scale.
+
 ## Files
 
-`src/core/tasks.py` (the task), `src/core/feed_views.py` (defer + import + comment fixes),
-`src/core/tests/test_tasks.py` (3 tests).
+`src/core/link_preview.py` (idempotency guard), `src/core/tasks.py` (the task),
+`src/core/feed_views.py` (defer + import + comment fixes),
+`src/core/tests/test_tasks.py` (4 tests).

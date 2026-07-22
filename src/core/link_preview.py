@@ -478,6 +478,13 @@ def attach_to_post(post: Post) -> LinkPreview | None:
     means no row."""
     from .models import LinkPreview
 
+    # Idempotent (S-725 review): this now runs on the at-least-once worker queue, so a
+    # re-delivered job (a worker killed mid-run, deploy, or OOM) must neither re-run the
+    # outbound SSRF fetch nor hit LinkPreview.post's OneToOne with a second create — a post
+    # that already carries its card is done. Guard BEFORE the fetch.
+    existing = LinkPreview.objects.filter(post=post).first()
+    if existing is not None:
+        return existing
     raw = first_url_in(post.body)
     if not raw:
         return None

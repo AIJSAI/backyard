@@ -85,6 +85,27 @@ def test_attach_link_preview_task_no_ops_on_a_deleted_post(monkeypatch: object) 
     assert calls == []  # a post deleted before the worker ran gets no preview
 
 
+def test_attach_link_preview_task_is_idempotent_on_redelivery(monkeypatch: object) -> None:
+    """S-725 review: the task runs on an at-least-once queue, so a re-delivered job (a worker
+    killed mid-run) must not re-fetch or hit the LinkPreview OneToOne with a second create —
+    the real attach_to_post no-ops when the post already has a card. Only the network fetch is
+    mocked (to None → a bare-link card, no external I/O)."""
+    from core import link_preview
+    from core.models import LinkPreview
+
+    fetches: list[str] = []
+
+    def _record_fetch(url: str, deadline: float | None = None) -> None:
+        fetches.append(url)  # record the outbound fetch; return None → a bare-link card
+
+    monkeypatch.setattr(link_preview, "fetch_preview", _record_fetch)  # type: ignore[attr-defined]
+    post = _post_with_a_link(body="see https://example.com/x")
+    tasks.attach_link_preview.func(post_id=post.id)  # first delivery: creates the bare card
+    tasks.attach_link_preview.func(post_id=post.id)  # re-delivery: must no-op, not raise
+    assert LinkPreview.objects.filter(post=post).count() == 1  # no duplicate, no IntegrityError
+    assert len(fetches) == 1  # the redundant re-fetch is skipped on re-delivery
+
+
 def test_send_task_carries_no_audience_and_re_resolves_live() -> None:
     """TS-DJ-11: the task signature is a bare timestamp — no member, no post, no
     audience — so it CANNOT trust a payload; it re-resolves through the guard."""
