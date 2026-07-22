@@ -38,7 +38,7 @@
         {% if not invite.revoked_at %}
           <form method="post" action="{% url 'revoke_invite' invite.id %}" class="inline">
             {% csrf_token %}
-            <button type="submit">Revoke</button>
+            <button type="submit" class="danger">Revoke</button>
           </form>
         {% endif %}
       </li>

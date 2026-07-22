@@ -1,20 +1,20 @@
-<div style="font-family: Georgia, serif; font-size: 18px; line-height: 1.5; max-width: 600px;">
-  <p style="color: #999; font-size: 12px;">{{ separator }}</p>
-  <h1 style="font-size: 24px;">{{ header.yard_name }}: your family digest</h1>
-  <p style="color: #555;">{{ header.window_text }}</p>
+<div style="font-family: Georgia, 'Iowan Old Style', Palatino, serif; font-size: 18px; line-height: 1.5; max-width: 600px; color: #23241f;">
+  <p style="color: #8a8676; font-size: 12px;">{{ separator }}</p>
+  <h1 style="font-size: 24px; color: #2f5d3a; margin: 0 0 4px;">{{ header.yard_name }}: your family digest</h1>
+  <p style="color: #5d5f52;">{{ header.window_text }}</p>
 
   {% for block in post_blocks %}
-    <div style="margin: 24px 0; padding: 12px 0; border-top: 1px solid #ddd;">
-      <p style="margin: 0; color: #555;">{{ block.author_line }} · {{ block.date_text }}</p>
+    <div style="margin: 24px 0; padding: 12px 0; border-top: 1px solid #ddd6c4;">
+      <p style="margin: 0; color: #5d5f52;">{{ block.author_line }} · {{ block.date_text }}</p>
       <p style="font-size: 18px;">{{ block.body }}</p>
       <p>
         {% if block.photo_count %}{{ block.photo_count }} photo{{ block.photo_count|pluralize }} ·{% endif %}
         {% if block.reply_count %}{{ block.reply_count }} repl{{ block.reply_count|pluralize:"y,ies" }} ·{% endif %}
-        <a href="{{ block.url }}">Open this post</a>
+        <a href="{{ block.url }}" style="color: #2f5d3a;">Open this post</a>
       </p>
       {% if block.reply_address %}
         <p style="font-size: 16px;">Reply to this post by email:
-          <a href="mailto:{{ block.reply_address }}">{{ block.reply_address }}</a>
+          <a href="mailto:{{ block.reply_address }}" style="color: #2f5d3a;">{{ block.reply_address }}</a>
           (your reply goes to everyone who can see this post)</p>
       {% endif %}
     </div>
@@ -23,7 +23,7 @@
   {% endfor %}
 
   {% if dates_block %}
-    <div style="margin: 24px 0; padding: 12px 0; border-top: 1px solid #ddd;">
+    <div style="margin: 24px 0; padding: 12px 0; border-top: 1px solid #ddd6c4;">
       <p style="margin: 0;"><strong>Coming up in the next week</strong></p>
       <ul>
         {% for entry in dates_block.entries %}
@@ -33,8 +33,8 @@
     </div>
   {% endif %}
 
-  <p><a href="{{ footer.digest_url }}">See everything in your backyard</a></p>
-  <p style="font-size: 16px; color: #555;">Too many emails?
-    <a href="{{ footer.unsubscribe_url }}">Pause them here</a> - you stay in the family.</p>
-  <p style="font-size: 14px; color: #777;">{{ footer.standing_text }}</p>
+  <p><a href="{{ footer.digest_url }}" style="color: #2f5d3a;">See everything in your backyard</a></p>
+  <p style="font-size: 16px; color: #5d5f52;">Too many emails?
+    <a href="{{ footer.unsubscribe_url }}" style="color: #2f5d3a;">Pause them here</a> - you stay in the family.</p>
+  <p style="font-size: 14px; color: #77735f;">{{ footer.standing_text }}</p>
 </div>

@@ -9,7 +9,7 @@
   </p>
   <form method="post" action="{% url 'delete_post' post.id %}">
     {% csrf_token %}
-    <button type="submit">Delete</button>
+    <button type="submit" class="danger">Delete</button>
   </form>
   <p><a href="{% url 'feed' %}">Keep it</a></p>
 {% endblock %}

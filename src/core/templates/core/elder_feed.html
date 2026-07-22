@@ -6,21 +6,32 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Your family</title>
   <style>
-    /* S-601: one big readable column. WCAG 2.1 AA: #1a1a1a on #ffffff is 17.4:1
-       contrast; every tap target is at least 48x48 CSS pixels. */
-    body { font-family: Georgia, serif; background: #ffffff; color: #1a1a1a;
+    /* S-601: one big readable column for a grandparent — the hardest-to-serve
+       persona, so the READING surface is held at maximum contrast (a deliberate,
+       pinned decision: #1a1a1a on #ffffff is 17.4:1, well past AA), NOT tinted for
+       looks. The warm Backyard identity comes from the green accents (buttons,
+       rules, links, focus) and the Georgia serif, never at the cost of legibility.
+       Deliberately a single high-contrast light theme (predictable, not auto-dark);
+       every tap target is at least 48x48 CSS pixels; a clear keyboard focus ring;
+       reduced motion honored. */
+    body { font-family: Georgia, "Iowan Old Style", Palatino, serif;
+           background: #ffffff; color: #1a1a1a;
            margin: 0; font-size: {% if big_text %}26px{% else %}21px{% endif %};
            line-height: 1.6; }
-    main { max-width: 640px; margin: 0 auto; padding: 16px; }
-    .post { border-top: 2px solid #dddddd; padding: 20px 0; }
-    .byline { color: #444444; margin: 0 0 8px; }
+    main { max-width: 640px; margin: 0 auto; padding: 16px 20px 40px; }
+    .post { border-top: 2px solid #d9d3c3; padding: 22px 0; }
+    .byline { color: #5d5f52; margin: 0 0 10px; }
     button { font-size: 1em; font-family: inherit; min-height: 48px; min-width: 48px;
-             padding: 10px 22px; border: 2px solid #1a1a1a; background: #ffffff;
-             color: #1a1a1a; border-radius: 10px; cursor: pointer; }
-    button.on { background: #1a1a1a; color: #ffffff; }
-    .top { display: flex; justify-content: space-between; align-items: center;
-           padding: 12px 0; border-bottom: 3px solid #1a1a1a; }
-    a.back { color: #1a1a1a; }
+             padding: 12px 24px; border: 2px solid #2f5d3a; background: #ffffff;
+             color: #1a1a1a; border-radius: 12px; cursor: pointer; }
+    button.on { background: #2f5d3a; color: #ffffff; }
+    button:focus-visible, a:focus-visible { outline: 3px solid #8a5a12; outline-offset: 2px; }
+    .top { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+           padding: 14px 0; border-bottom: 3px solid #2f5d3a; }
+    .top strong { font-size: 1.05em; }
+    article span { color: #5d5f52; }
+    a.back { color: #2f5d3a; font-weight: 600; }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   </style>
 </head>
 <body>
