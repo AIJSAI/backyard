@@ -11,734 +11,773 @@ meta:
   note: "v1 cut from the Phase 0 story map, hardened by the Phase 1 threat model (docs/security/threat-model.md): 18 stories carry a security block; 3 stories added (deceased-member state S-706, handover/shutdown runbook S-804, break-glass admin recovery S-805)."
 
 epics:
-  - id: E1
-    title: Identity and onboarding
-    intent: "Invite-link first. Token-link elder path with no account and no app store step."
-    stories:
-      - id: S-000
-        epic: E1
-        persona: founder-poster
-        story: "As the founding poster, I can share a link at 1am so my family sees it whenever they choose, and nobody gets woken up."
-        acceptance:
-          - "Posting a URL renders a preview card in the household pod feed"
-          - "No push notification is sent by default"
-          - "Members see the post on next visit, in chronological order"
-        status: tested
-        v1: true
-      - id: S-101
-        epic: E1
-        persona: family-member
-        story: "As a family member, I can go from tapping an invite link to standing in my pod's feed in under two minutes on my phone."
-        acceptance:
-          - "Invite link opens signup with pod and yard already assigned; no community-setup screens"
-          - "Account needs only a name plus one auth method (passkey preferred, password fallback); email optional"
-          - "Completing signup lands directly in the pod feed"
-          - "Flow verified on iOS Safari and Android Chrome"
-        status: tested  # S-101 close 2026-07-22: join now redirects to the feed (not home); a real cross-browser mobile e2e (WebKit=iOS Safari + Chromium=Android Chrome, mobile emulation) drives join->feed and passes; gate green (482 + 2 e2e) + compose join->feed live-repro + clean security review (docs/receipts/2026-07-22-s101-onboarding-close.md)
-        v1: true
-        security:
-          threat_refs:
-            - TM-1
-            - T-INVITE-1
-            - T-CRED-1
-            - T-YARD-G1
-          hardening: |
-            Joining from an invite requires an explicit confirm action (POST); loading the invite URL never consumes or grants membership. Password-fallback accounts reject top-common passwords at set time and enforce a sane minimum length; login and recovery endpoints are per-account and per-IP rate limited with backoff, and authentication errors are uniform (no member-enumeration signal).
-          source: docs/security/threat-model.md
-      - id: S-102
-        epic: E1
-        persona: elder
-        story: "As a low-tech elder, I can open my personal token link and see my family's feed with no login, no password, and nothing to install."
-        acceptance:
-          - "Long-lived tokenized URL opens the large-text feed view without credentials"
-          - "Token is scoped to the member, revocable by an admin, with configurable expiry"
-          - "Zero account or app-store steps anywhere on the path"
-        status: tested  # wave 5: elder master token + URL->cookie exchange + capability ceiling; live-repro through Caddy, security review (HIGH shared-login-leak fixed), in the full revocation drill
-        v1: true
-        security:
-          threat_refs:
-            - TM-5
-            - TM-10
-            - T-TOKEN-1
-            - T-TOKEN-3
-            - T-TOKEN-4
-            - T-TOKEN-G2
-            - T-EDGE-1
-          hardening: |
-            The token default is no-expiry (months of use with no re-auth is the requirement; record the default in ADR-003). The token grants read, one-tap react, and email-mediated comment only: no profile edit, no directory contact fields, no member-list browsing, no export, no invite. First open exchanges the URL for an httpOnly session cookie and redirects to a clean URL; Referrer-Policy is no-referrer on every token surface. Tokens are >=128-bit CSPRNG, stored only as a hash, and appear in logs only as a short hash prefix. Token, digest-link, and signed-media routes carry X-Robots-Tag noindex and a robots.txt disallow. Token links cannot be issued to supervised members.
-          source: docs/security/threat-model.md
-      - id: S-103
-        epic: E1
-        persona: family-member
-        story: "As a member, I can install Backyard to my home screen so it feels like an app without an app store."
-        acceptance:
-          - "Passes PWA installability checks on iOS Safari and Android Chrome"
-          - "Standalone display with correct icon and name"
-        status: tested  # wave 5: PWA manifest + deterministic icons + minimal no-cache worker; installability fields verified, elder+/d/ surfaces worker-free
-        v1: true
-      - id: S-104
-        epic: E1
-        persona: tech-helper
-        story: "As the family tech-helper, I can generate an elder's token link, preset their pod, and hand it over in person or by text."
-        acceptance:
-          - "Admin UI generates and displays the token link with a printable QR option"
-          - "Elder's pod and yard membership are preset before first open"
-          - "Regenerating invalidates the previous token"
-        status: tested  # wave 5: provisioning UI + printable QR + regenerate; grant-before-generation, no-store token page, refresh-safe intent nonce; live-repro + review
-        v1: true
+- id: E1
+  title: Identity and onboarding
+  intent: "Invite-link first. Token-link elder path with no account and no app store step."
+  stories:
+  - id: S-000
+    epic: E1
+    persona: founder-poster
+    story: "As the founding poster, I can share a link at 1am so my family sees it whenever they choose, and nobody gets woken up."
+    acceptance:
+    - "Posting a URL renders a preview card in the household pod feed"
+    - "No push notification is sent by default"
+    - "Members see the post on next visit, in chronological order"
+    status: passing
+    v1: true
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-101
+    epic: E1
+    persona: family-member
+    story: "As a family member, I can go from tapping an invite link to standing in my pod's feed in under two minutes on my phone."
+    acceptance:
+    - "Invite link opens signup with pod and yard already assigned; no community-setup screens"
+    - "Account needs only a name plus one auth method (passkey preferred, password fallback); email optional"
+    - "Completing signup lands directly in the pod feed"
+    - "Flow verified on iOS Safari and Android Chrome"
+    status: passing     # S-101 close 2026-07-22: join now redirects to the feed (not home); a real cross-browser mobile e2e (WebKit=iOS Safari + Chromium=Android Chrome, mobile emulation) drives join->feed and passes; gate green (482 + 2 e2e) + compose join->feed live-repro + clean security review (docs/receipts/2026-07-22-s101-onboarding-close.md)
+    v1: true
+    security:
+      threat_refs:
+      - TM-1
+      - T-INVITE-1
+      - T-CRED-1
+      - T-YARD-G1
+      hardening: |
+        Joining from an invite requires an explicit confirm action (POST); loading the invite URL never consumes or grants membership. Password-fallback accounts reject top-common passwords at set time and enforce a sane minimum length; login and recovery endpoints are per-account and per-IP rate limited with backoff, and authentication errors are uniform (no member-enumeration signal).
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-102
+    epic: E1
+    persona: elder
+    story: "As a low-tech elder, I can open my personal token link and see my family's feed with no login, no password, and nothing to install."
+    acceptance:
+    - "Long-lived tokenized URL opens the large-text feed view without credentials"
+    - "Token is scoped to the member, revocable by an admin, with configurable expiry"
+    - "Zero account or app-store steps anywhere on the path"
+    status: passing     # wave 5: elder master token + URL->cookie exchange + capability ceiling; live-repro through Caddy, security review (HIGH shared-login-leak fixed), in the full revocation drill
+    v1: true
+    security:
+      threat_refs:
+      - TM-5
+      - TM-10
+      - T-TOKEN-1
+      - T-TOKEN-3
+      - T-TOKEN-4
+      - T-TOKEN-G2
+      - T-EDGE-1
+      hardening: |
+        The token default is no-expiry (months of use with no re-auth is the requirement; record the default in ADR-003). The token grants read, one-tap react, and email-mediated comment only: no profile edit, no directory contact fields, no member-list browsing, no export, no invite. First open exchanges the URL for an httpOnly session cookie and redirects to a clean URL; Referrer-Policy is no-referrer on every token surface. Tokens are >=128-bit CSPRNG, stored only as a hash, and appear in logs only as a short hash prefix. Token, digest-link, and signed-media routes carry X-Robots-Tag noindex and a robots.txt disallow. Token links cannot be issued to supervised members.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-103
+    epic: E1
+    persona: family-member
+    story: "As a member, I can install Backyard to my home screen so it feels like an app without an app store."
+    acceptance:
+    - "Passes PWA installability checks on iOS Safari and Android Chrome"
+    - "Standalone display with correct icon and name"
+    status: passing     # wave 5: PWA manifest + deterministic icons + minimal no-cache worker; installability fields verified, elder+/d/ surfaces worker-free
+    v1: true
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-104
+    epic: E1
+    persona: tech-helper
+    story: "As the family tech-helper, I can generate an elder's token link, preset their pod, and hand it over in person or by text."
+    acceptance:
+    - "Admin UI generates and displays the token link with a printable QR option"
+    - "Elder's pod and yard membership are preset before first open"
+    - "Regenerating invalidates the previous token"
+    status: passing     # wave 5: provisioning UI + printable QR + regenerate; grant-before-generation, no-store token page, refresh-safe intent nonce; live-repro + review
+    v1: true
 
-        security:
-          threat_refs:
-            - TM-1
-            - TM-10
-            - T-TOKEN-G1
-            - T-YARD-8
-          hardening: |
-            The provisioning UI shows the exact pod and yard the token will grant before generation. Regenerating invalidates the prior token and ends with the re-hand-over artifacts in hand: a fresh link ready to send and a fresh printable QR in the same flow. The UI names the surface as the elder path and cannot issue a token to a supervised member.
-          source: docs/security/threat-model.md
-  - id: E2
-    title: Pods, yards, and privacy layers
-    intent: "Households are pods; each side of a family is a yard with its own shared backyard. A pod can belong to multiple yards. Per-post audience override; no forced all-family surface."
-    stories:
-      - id: S-201
-        epic: E2
-        persona: yard-admin
-        story: "As an admin, when I invite a household, its pod exists automatically so nobody ever configures structure by hand."
-        acceptance:
-          - "Household invite creates the pod with a name in one flow"
-          - "Invitees land already inside their pod and yard"
-          - "No invitee ever sees a create-a-community screen"
-        status: tested  # S-201 close 2026-07-21: one-flow create + land-inside-pod + revocable ledger, gate green (462 pass) + live compose round-trip + clean security review (docs/receipts/2026-07-21-s201-household-invite-close.md)
-        v1: true
-        security:
-          threat_refs:
-            - TM-1
-            - T-INVITE-1
-            - T-YARD-G1
-            - T-AUTH-G3
-          hardening: |
-            Household invites expire by default (days, not never) and carry a use cap sized to the household; they are revocable. The admin can list all outstanding invites and see, per invite, exactly who joined from it and when.
-          source: docs/security/threat-model.md
-      - id: S-202
-        epic: E2
-        persona: family-member
-        story: "As a member of one yard, I can never see or infer the existence of posts, members, or media in a yard I do not belong to."
-        acceptance:
-          - "Cross-yard requests return 404, not 403, so nothing leaks existence"
-          - "Isolation enforced server-side with automated tests covering feed, members, media, and search"
-          - "A pod in both yards sees both; its members' single account switches context cleanly"
-        status: tested  # phase-3 reconcile 2026-07-22: server-side isolation tested across feed/members/media/search + 404-parity (test_isolation.py, verified pass)
-        v1: true
-        security:
-          threat_refs:
-            - TM-1
-            - TM-2
-            - TM-9
-            - T-YARD-2
-            - T-YARD-4
-            - T-YARD-7
-            - T-MEDIA-1
-          hardening: |
-            Every object read (posts, comments, media and all derivatives, profiles, directory entries, reactions) routes through one central authorization guard evaluating shared pod/yard membership at request time against current membership, deny-by-default to a 404. 'Does not exist' and 'exists but not yours' return byte-identical status, body, and headers. The automated isolation test matrix covers single-object fetches of every type, search and mention-autocomplete, reactor and commenter lists, admin endpoints (member lists, digest delivery status, token provisioning), media derivative types (original, thumbnail, rendition, transcode, poster frame), and digest rendering including the upcoming-dates section. A read handler that does not pass through the guard fails the build.
-          source: docs/security/threat-model.md
-      - id: S-203
-        epic: E2
-        persona: founder-poster
-        story: "As the bridging household, our pod belongs to both yards and every post picks its audience: our pod, one yard, or both."
-        acceptance:
-          - "A pod can be a member of multiple yards"
-          - "Composer shows an audience picker defaulting to the pod, remembering last choice"
-          - "Visibility matches the selection exactly, verified by isolation tests"
-        status: tested
-        v1: true
-        security:
-          threat_refs:
-            - TM-3
-            - T-YARD-1
-            - T-MINOR-5
-          hardening: |
-            The composer defaults to the narrowest scope (the poster's own pod) on every new post; the last choice may be offered but is never the committed default, and media posts always default to pod. Any send broader than the poster's pod, or spanning more than one yard, requires an explicit confirmation naming the audience and its member count. Every rendered post shows its own audience.
-          source: docs/security/threat-model.md
-      - id: S-204
-        epic: E2
-        persona: teen
-        story: "As a cousin, I can have a pod that is just us, so posting somewhere never means posting to grandma's whole yard."
-        acceptance:
-          - "Members can create an ad-hoc pod within a yard and invite existing members"
-          - "Pod owner can set a one-sentence house rule shown at the top"
-          - "Ad-hoc pod posts never appear in the yard backyard feed"
-        status: tested
-        v1: true
-      - id: S-205
-        epic: E2
-        persona: family-member
-        story: "As a member, I can mute a pod or leave it without an announcement, because quiet exits keep families calm."
-        acceptance:
-          - "Mute silently hides a pod from my feed; nobody is notified"
-          - "Leaving a pod produces no broadcast to remaining members"
-        status: tested
-        v1: true
+    security:
+      threat_refs:
+      - TM-1
+      - TM-10
+      - T-TOKEN-G1
+      - T-YARD-8
+      hardening: |
+        The provisioning UI shows the exact pod and yard the token will grant before generation. Regenerating invalidates the prior token and ends with the re-hand-over artifacts in hand: a fresh link ready to send and a fresh printable QR in the same flow. The UI names the surface as the elder path and cannot issue a token to a supervised member.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+- id: E2
+  title: Pods, yards, and privacy layers
+  intent: "Households are pods; each side of a family is a yard with its own shared backyard. A pod can belong to multiple yards. Per-post audience override; no forced all-family surface."
+  stories:
+  - id: S-201
+    epic: E2
+    persona: yard-admin
+    story: "As an admin, when I invite a household, its pod exists automatically so nobody ever configures structure by hand."
+    acceptance:
+    - "Household invite creates the pod with a name in one flow"
+    - "Invitees land already inside their pod and yard"
+    - "No invitee ever sees a create-a-community screen"
+    status: passing     # S-201 close 2026-07-21: one-flow create + land-inside-pod + revocable ledger, gate green (462 pass) + live compose round-trip + clean security review (docs/receipts/2026-07-21-s201-household-invite-close.md)
+    v1: true
+    security:
+      threat_refs:
+      - TM-1
+      - T-INVITE-1
+      - T-YARD-G1
+      - T-AUTH-G3
+      hardening: |
+        Household invites expire by default (days, not never) and carry a use cap sized to the household; they are revocable. The admin can list all outstanding invites and see, per invite, exactly who joined from it and when.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-202
+    epic: E2
+    persona: family-member
+    story: "As a member of one yard, I can never see or infer the existence of posts, members, or media in a yard I do not belong to."
+    acceptance:
+    - "Cross-yard requests return 404, not 403, so nothing leaks existence"
+    - "Isolation enforced server-side with automated tests covering feed, members, media, and search"
+    - "A pod in both yards sees both; its members' single account switches context cleanly"
+    status: passing     # phase-3 reconcile 2026-07-22: server-side isolation tested across feed/members/media/search + 404-parity (test_isolation.py, verified pass)
+    v1: true
+    security:
+      threat_refs:
+      - TM-1
+      - TM-2
+      - TM-9
+      - T-YARD-2
+      - T-YARD-4
+      - T-YARD-7
+      - T-MEDIA-1
+      hardening: |
+        Every object read (posts, comments, media and all derivatives, profiles, directory entries, reactions) routes through one central authorization guard evaluating shared pod/yard membership at request time against current membership, deny-by-default to a 404. 'Does not exist' and 'exists but not yours' return byte-identical status, body, and headers. The automated isolation test matrix covers single-object fetches of every type, search and mention-autocomplete, reactor and commenter lists, admin endpoints (member lists, digest delivery status, token provisioning), media derivative types (original, thumbnail, rendition, transcode, poster frame), and digest rendering including the upcoming-dates section. A read handler that does not pass through the guard fails the build.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-203
+    epic: E2
+    persona: founder-poster
+    story: "As the bridging household, our pod belongs to both yards and every post picks its audience: our pod, one yard, or both."
+    acceptance:
+    - "A pod can be a member of multiple yards"
+    - "Composer shows an audience picker defaulting to the pod, remembering last choice"
+    - "Visibility matches the selection exactly, verified by isolation tests"
+    status: passing
+    v1: true
+    security:
+      threat_refs:
+      - TM-3
+      - T-YARD-1
+      - T-MINOR-5
+      hardening: |
+        The composer defaults to the narrowest scope (the poster's own pod) on every new post; the last choice may be offered but is never the committed default, and media posts always default to pod. Any send broader than the poster's pod, or spanning more than one yard, requires an explicit confirmation naming the audience and its member count. Every rendered post shows its own audience.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-204
+    epic: E2
+    persona: teen
+    story: "As a cousin, I can have a pod that is just us, so posting somewhere never means posting to grandma's whole yard."
+    acceptance:
+    - "Members can create an ad-hoc pod within a yard and invite existing members"
+    - "Pod owner can set a one-sentence house rule shown at the top"
+    - "Ad-hoc pod posts never appear in the yard backyard feed"
+    status: passing
+    v1: true
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-205
+    epic: E2
+    persona: family-member
+    story: "As a member, I can mute a pod or leave it without an announcement, because quiet exits keep families calm."
+    acceptance:
+    - "Mute silently hides a pod from my feed; nobody is notified"
+    - "Leaving a pod produces no broadcast to remaining members"
+    status: passing
+    v1: true
 
-  - id: E3
-    title: Feed, posts, and links
-    intent: "Calm chronological feed of links, photos, and short updates. The feed ends."
-    stories:
-      - id: S-301
-        epic: E3
-        persona: founder-poster
-        story: "As a poster, pasting a URL gives my family a rich preview card, not a bare link."
-        acceptance:
-          - "Card shows title, image, and description when the target provides them, with graceful fallback"
-          - "Tracking parameters (utm and friends) are stripped from stored URLs"
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+- id: E3
+  title: Feed, posts, and links
+  intent: "Calm chronological feed of links, photos, and short updates. The feed ends."
+  stories:
+  - id: S-301
+    epic: E3
+    persona: founder-poster
+    story: "As a poster, pasting a URL gives my family a rich preview card, not a bare link."
+    acceptance:
+    - "Card shows title, image, and description when the target provides them, with graceful fallback"
+    - "Tracking parameters (utm and friends) are stripped from stored URLs"
         # S-301 close 2026-07-21: the preview IMAGE now ships. The og:image is re-fetched
         # SSRF-safely through the same hardened path as the HTML, re-encoded through the
         # media store (LINK_PREVIEW kind), and served via the access-checked media view;
         # it is never hotlinked (TS-PP-6). Title/description + tracking-strip stay tested.
         # Gate green (480 pass) + live compose re-host round-trip + clean security review
         # (docs/receipts/2026-07-21-s301-preview-image-rehost-close.md).
-        status: tested
-        v1: true
-      - id: S-302
-        epic: E3
-        persona: family-member
-        story: "As a member, I can post a short text update, edit it briefly, and delete it anytime."
-        acceptance:
-          - "Text post inserts chronologically"
-          - "Edit window of at least 15 minutes; delete available always"
-        status: tested
-        v1: true
-        security:
-          threat_refs:
-            - TM-2
-            - TM-9
-            - T-MEDIA-6
-            - T-MEDIA-1
-          hardening: |
-            Delete purges the original and all derivatives in the same job and invalidates outstanding signed URLs at the serving layer (deletion beats expiry via a per-request liveness check). Delete-time copy states plainly in one sentence that copies in already-sent email digests cannot be recalled. Media responses on interactive surfaces carry no-store or short cache headers.
-          source: docs/security/threat-model.md
-      - id: S-303
-        epic: E3
-        persona: lurker
-        story: "As a lurker, I open the feed, catch up newest-first, hit an explicit end, and leave feeling done."
-        acceptance:
-          - "Feed is strictly chronological per audience with a visible you-are-caught-up end state"
-          - "An unread boundary marks where I left off last visit"
-          - "No infinite recycling, resurfacing, or suggested content of any kind"
-        status: tested
-        v1: true
-      - id: S-304
-        epic: E3
-        persona: teen
-        story: "As a teen, nothing I post ever grows a public number, so posting is safe from scorekeeping."
-        acceptance:
-          - "Reactions display as who reacted, never as tallies or leaderboards"
-          - "No like counts, view counts, read receipts, or online indicators anywhere in the UI"
-        status: tested
-        v1: true
-      - id: S-305
-        epic: E3
-        persona: family-member
-        story: "As a member, Backyard never pushes anything at me unless I explicitly opted in, and even then only for replies to me."
-        acceptance:
-          - "Default notification state is zero push for every event type"
-          - "The only opt-in available is replies-to-my-posts; there is no all-activity firehose option"
-        status: tested
-        v1: true
+    status: passing
+    v1: true
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-302
+    epic: E3
+    persona: family-member
+    story: "As a member, I can post a short text update, edit it briefly, and delete it anytime."
+    acceptance:
+    - "Text post inserts chronologically"
+    - "Edit window of at least 15 minutes; delete available always"
+    status: passing
+    v1: true
+    security:
+      threat_refs:
+      - TM-2
+      - TM-9
+      - T-MEDIA-6
+      - T-MEDIA-1
+      hardening: |
+        Delete purges the original and all derivatives in the same job and invalidates outstanding signed URLs at the serving layer (deletion beats expiry via a per-request liveness check). Delete-time copy states plainly in one sentence that copies in already-sent email digests cannot be recalled. Media responses on interactive surfaces carry no-store or short cache headers.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-303
+    epic: E3
+    persona: lurker
+    story: "As a lurker, I open the feed, catch up newest-first, hit an explicit end, and leave feeling done."
+    acceptance:
+    - "Feed is strictly chronological per audience with a visible you-are-caught-up end state"
+    - "An unread boundary marks where I left off last visit"
+    - "No infinite recycling, resurfacing, or suggested content of any kind"
+    status: passing
+    v1: true
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-304
+    epic: E3
+    persona: teen
+    story: "As a teen, nothing I post ever grows a public number, so posting is safe from scorekeeping."
+    acceptance:
+    - "Reactions display as who reacted, never as tallies or leaderboards"
+    - "No like counts, view counts, read receipts, or online indicators anywhere in the UI"
+    status: passing
+    v1: true
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-305
+    epic: E3
+    persona: family-member
+    story: "As a member, Backyard never pushes anything at me unless I explicitly opted in, and even then only for replies to me."
+    acceptance:
+    - "Default notification state is zero push for every event type"
+    - "The only opt-in available is replies-to-my-posts; there is no all-activity firehose option"
+    status: passing
+    v1: true
 
-  - id: E4
-    title: Photos and media
-    intent: "Media sharing without rebuilding photo infrastructure; integration posture toward Immich-class backends stays post-v1."
-    stories:
-      - id: S-401
-        epic: E4
-        persona: family-member
-        story: "As a member, I can post one or many photos from my phone and they just work."
-        acceptance:
-          - "Multi-photo posts upload with client-side resize for reasonable bandwidth"
-          - "GPS EXIF data is stripped by default before storage"
-          - "EXIF orientation is respected; vertical phone photos display upright everywhere, including email"
-          - "Optional alt text per photo"
-        status: tested  # wave 3 CLOSED 2026-07-21 (docs/receipts/2026-07-21-wave-3-close.md): server strip + client-side Canvas resize live-repro'd (4000x3000/1.44MB -> 2048x1536/213KB in real Chromium)
-        v1: true
-        security:
-          threat_refs:
-            - TM-9
-            - T-MEDIA-3
-          hardening: |
-            Metadata stripping happens server-side at ingest for every path media can enter, regardless of any client-side processing, and covers the whole location and identity class (GPS, embedded EXIF thumbnails, XMP/IPTC owner and serial fields), keeping only orientation and capture timestamp. The strip runs before any derived asset is generated. Uploads are re-encoded at ingest and served with an exact Content-Type, X-Content-Type-Options: nosniff, and Content-Disposition.
-          source: docs/security/threat-model.md
-      - id: S-402
-        epic: E4
-        persona: family-member
-        story: "As a member, I can share a short video clip of the kids without hitting mystery failures."
-        acceptance:
-          - "Clips up to a documented size and duration cap upload and play in-feed"
-          - "Post-to-visible latency is minutes at most on target hardware, never deferred to idle hours"
-          - "Anything over the cap is rejected upfront with a clear message, never a silent failure"
-        status: tested  # wave 3 CLOSED 2026-07-21 (docs/receipts/2026-07-21-wave-3-close.md): ffmpeg latency MEASURED on a 2-vCPU Ubicloud runner (60s 1080p HEVC 14.9s, PASS, run 29873024812); worker transcode + serve live-repro'd through Caddy
-        v1: true
-        security:
-          threat_refs:
-            - TM-9
-            - T-MEDIA-3
-          hardening: |
-            Video metadata stripping at ingest covers container metadata (QuickTime and MP4 location atoms such as com.apple.quicktime.location.ISO6709), mirroring S-401's photo rule, and runs before any transcode or poster frame is generated. An ingest test corpus of real iPhone and Android video with known location is asserted clean post-ingest.
-          source: docs/security/threat-model.md
-      - id: S-403
-        epic: E4
-        persona: yard-admin
-        story: "As a family, our photos are not one guessable URL away from public."
-        acceptance:
-          - "Media URLs are unguessable and access-checked against pod/yard membership"
-          - "Direct fetch without a valid session or token returns 404"
-          - "Digest and token surfaces use signed, expiring media URLs"
-        status: tested  # wave 3 CLOSED 2026-07-21 (docs/receipts/2026-07-21-wave-3-close.md): isolation matrix covers every derivative (photo original/thumbnail + video rendition/poster), cross-yard/unknown/pending all byte-identical 404
-        v1: true
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+- id: E4
+  title: Photos and media
+  intent: "Media sharing without rebuilding photo infrastructure; integration posture toward Immich-class backends stays post-v1."
+  stories:
+  - id: S-401
+    epic: E4
+    persona: family-member
+    story: "As a member, I can post one or many photos from my phone and they just work."
+    acceptance:
+    - "Multi-photo posts upload with client-side resize for reasonable bandwidth"
+    - "GPS EXIF data is stripped by default before storage"
+    - "EXIF orientation is respected; vertical phone photos display upright everywhere, including email"
+    - "Optional alt text per photo"
+    status: passing     # wave 3 CLOSED 2026-07-21 (docs/receipts/2026-07-21-wave-3-close.md): server strip + client-side Canvas resize live-repro'd (4000x3000/1.44MB -> 2048x1536/213KB in real Chromium)
+    v1: true
+    security:
+      threat_refs:
+      - TM-9
+      - T-MEDIA-3
+      hardening: |
+        Metadata stripping happens server-side at ingest for every path media can enter, regardless of any client-side processing, and covers the whole location and identity class (GPS, embedded EXIF thumbnails, XMP/IPTC owner and serial fields), keeping only orientation and capture timestamp. The strip runs before any derived asset is generated. Uploads are re-encoded at ingest and served with an exact Content-Type, X-Content-Type-Options: nosniff, and Content-Disposition.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-402
+    epic: E4
+    persona: family-member
+    story: "As a member, I can share a short video clip of the kids without hitting mystery failures."
+    acceptance:
+    - "Clips up to a documented size and duration cap upload and play in-feed"
+    - "Post-to-visible latency is minutes at most on target hardware, never deferred to idle hours"
+    - "Anything over the cap is rejected upfront with a clear message, never a silent failure"
+    status: passing     # wave 3 CLOSED 2026-07-21 (docs/receipts/2026-07-21-wave-3-close.md): ffmpeg latency MEASURED on a 2-vCPU Ubicloud runner (60s 1080p HEVC 14.9s, PASS, run 29873024812); worker transcode + serve live-repro'd through Caddy
+    v1: true
+    security:
+      threat_refs:
+      - TM-9
+      - T-MEDIA-3
+      hardening: |
+        Video metadata stripping at ingest covers container metadata (QuickTime and MP4 location atoms such as com.apple.quicktime.location.ISO6709), mirroring S-401's photo rule, and runs before any transcode or poster frame is generated. An ingest test corpus of real iPhone and Android video with known location is asserted clean post-ingest.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-403
+    epic: E4
+    persona: yard-admin
+    story: "As a family, our photos are not one guessable URL away from public."
+    acceptance:
+    - "Media URLs are unguessable and access-checked against pod/yard membership"
+    - "Direct fetch without a valid session or token returns 404"
+    - "Digest and token surfaces use signed, expiring media URLs"
+    status: passing     # wave 3 CLOSED 2026-07-21 (docs/receipts/2026-07-21-wave-3-close.md): isolation matrix covers every derivative (photo original/thumbnail + video rendition/poster), cross-yard/unknown/pending all byte-identical 404
+    v1: true
 
-        security:
-          threat_refs:
-            - TM-9
-            - TM-5
-            - TM-1
-            - T-MEDIA-1
-            - T-MEDIA-2
-            - T-TOKEN-6
-          hardening: |
-            Every media fetch, original or derived, passes a server-side pod/yard membership check against the requesting session or token; unguessable ids are defense-in-depth, never the access control. No static-served derivative directory exists; derivative ids are independently unguessable, not derivable from the source id. Signed media URL TTLs are tiered by surface: interactive feed and token surfaces short (hours), digest-embedded URLs matched to the digest-token lifetime; all carry the member's token-generation id so revocation kills them instantly regardless of TTL. Direct fetch without a valid session or token returns 404.
-          source: docs/security/threat-model.md
-  - id: E5
-    title: Email digest, in and out
-    intent: "Digest email for lurkers and elders; reply-by-email posting closes the reciprocity loop with zero new habits."
-    stories:
-      - id: S-501
-        epic: E5
-        persona: elder
-        story: "As an elder or lurker, I get a clean weekly email of what my family posted, and it is 100% family content."
-        acceptance:
-          - "Per-member digest opt-in/out with per-yard sections, large readable text, inline images"
-          - "Per-member cadence choice: daily, weekly, or monthly"
-          - "Digest contains zero promotional content, forever, verified by a test that fails on non-family content blocks"
-          - "Links open the token or web view without a login wall for entitled members"
-          - "Multipart delivery with a plain-text fallback for old mail clients"
-          - "Unsubscribe requires a confirm step and never severs a member silently; the admin can see per-member delivery status and failures"
-        status: tested  # wave 4 close 2026-07-22: ADR-002 delivery-and-bounce matrix MEASURED (delivered/bounced/complained + real inbox) + outbound proven live via Anymail->Resend on the compose stack (docs/receipts/2026-07-22-wave-4-close.md)
-        v1: true
-        security:
-          threat_refs:
-            - TM-1
-            - TM-2
-            - TM-5
-            - T-YARD-9
-            - T-EMAIL-3
-            - T-EMAIL-6
-            - T-MINOR-5
-          hardening: |
-            The digest is built per recipient through the same audience-resolution code path as the web feed, evaluated against live state at send time, so deleted posts, narrowed audiences, and removed members never ship. Multi-yard members receive separate per-yard emails; no single email fuses two yards. Digest deep links carry per-member, per-digest, read-only, expiring tokens, never the master token. A content-free confirmation must be acknowledged before any digest with family content is sent to a new address. Removal, leave, and death immediately drop the member from recipient lists and cancel queued sends. Isolation tests (S-202) cover digest rendering including the upcoming-dates section and every signed media URL.
-          source: docs/security/threat-model.md
-      - id: S-502
-        epic: E5
-        persona: elder
-        story: "As an elder, replying to the digest email posts my reply under the right post, so answering family requires nothing new."
-        acceptance:
-          - "Per-member, per-post reply addresses map inbound mail to the correct thread"
-          - "Plain-text reply becomes a comment attributed to the member"
-          - "Failures bounce with a gentle, human explanation"
-        status: tested  # wave 4 close 2026-07-22: live inbound round-trip through Resend receiving -> email.received webhook -> comment posted (quoted tail stripped, attributed from capability) (docs/receipts/2026-07-22-wave-4-close.md)
-        v1: true
-        security:
-          threat_refs:
-            - TM-4
-            - T-EMAIL-1
-            - T-EMAIL-2
-            - T-EMAIL-G1
-            - T-TOKEN-8
-          hardening: |
-            Reply addresses are >=128-bit-entropy, per-member, per-post bearer capabilities, revoked on any membership change. Attribution comes from the reply address alone; the From: header is only a secondary consistency check that quarantines on mismatch and never attributes. Bounce responses are byte-identical for 'no such thread' and 'not your thread'. Comments created via email carry a visible 'via email' badge. Each per-post reply block in the digest states in plain large text where a reply goes, and a confirmation receipt after posting offers one-tap removal.
-          source: docs/security/threat-model.md
-      - id: S-503
-        epic: E5
-        persona: family-member
-        story: "As a member, I can email photos straight to my pod when the app is not handy."
-        acceptance:
-          - "Per-member pod address turns attachments into a photo post"
-          - "Sender verified by address plus token; strangers bounce"
-        status: spec
-        v1: false
+    security:
+      threat_refs:
+      - TM-9
+      - TM-5
+      - TM-1
+      - T-MEDIA-1
+      - T-MEDIA-2
+      - T-TOKEN-6
+      hardening: |
+        Every media fetch, original or derived, passes a server-side pod/yard membership check against the requesting session or token; unguessable ids are defense-in-depth, never the access control. No static-served derivative directory exists; derivative ids are independently unguessable, not derivable from the source id. Signed media URL TTLs are tiered by surface: interactive feed and token surfaces short (hours), digest-embedded URLs matched to the digest-token lifetime; all carry the member's token-generation id so revocation kills them instantly regardless of TTL. Direct fetch without a valid session or token returns 404.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+- id: E5
+  title: Email digest, in and out
+  intent: "Digest email for lurkers and elders; reply-by-email posting closes the reciprocity loop with zero new habits."
+  stories:
+  - id: S-501
+    epic: E5
+    persona: elder
+    story: "As an elder or lurker, I get a clean weekly email of what my family posted, and it is 100% family content."
+    acceptance:
+    - "Per-member digest opt-in/out with per-yard sections, large readable text, inline images"
+    - "Per-member cadence choice: daily, weekly, or monthly"
+    - "Digest contains zero promotional content, forever, verified by a test that fails on non-family content blocks"
+    - "Links open the token or web view without a login wall for entitled members"
+    - "Multipart delivery with a plain-text fallback for old mail clients"
+    - "Unsubscribe requires a confirm step and never severs a member silently; the admin can see per-member delivery status and failures"
+    status: passing     # wave 4 close 2026-07-22: ADR-002 delivery-and-bounce matrix MEASURED (delivered/bounced/complained + real inbox) + outbound proven live via Anymail->Resend on the compose stack (docs/receipts/2026-07-22-wave-4-close.md)
+    v1: true
+    security:
+      threat_refs:
+      - TM-1
+      - TM-2
+      - TM-5
+      - T-YARD-9
+      - T-EMAIL-3
+      - T-EMAIL-6
+      - T-MINOR-5
+      hardening: |
+        The digest is built per recipient through the same audience-resolution code path as the web feed, evaluated against live state at send time, so deleted posts, narrowed audiences, and removed members never ship. Multi-yard members receive separate per-yard emails; no single email fuses two yards. Digest deep links carry per-member, per-digest, read-only, expiring tokens, never the master token. A content-free confirmation must be acknowledged before any digest with family content is sent to a new address. Removal, leave, and death immediately drop the member from recipient lists and cancel queued sends. Isolation tests (S-202) cover digest rendering including the upcoming-dates section and every signed media URL.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-502
+    epic: E5
+    persona: elder
+    story: "As an elder, replying to the digest email posts my reply under the right post, so answering family requires nothing new."
+    acceptance:
+    - "Per-member, per-post reply addresses map inbound mail to the correct thread"
+    - "Plain-text reply becomes a comment attributed to the member"
+    - "Failures bounce with a gentle, human explanation"
+    status: passing     # wave 4 close 2026-07-22: live inbound round-trip through Resend receiving -> email.received webhook -> comment posted (quoted tail stripped, attributed from capability) (docs/receipts/2026-07-22-wave-4-close.md)
+    v1: true
+    security:
+      threat_refs:
+      - TM-4
+      - T-EMAIL-1
+      - T-EMAIL-2
+      - T-EMAIL-G1
+      - T-TOKEN-8
+      hardening: |
+        Reply addresses are >=128-bit-entropy, per-member, per-post bearer capabilities, revoked on any membership change. Attribution comes from the reply address alone; the From: header is only a secondary consistency check that quarantines on mismatch and never attributes. Bounce responses are byte-identical for 'no such thread' and 'not your thread'. Comments created via email carry a visible 'via email' badge. Each per-post reply block in the digest states in plain large text where a reply goes, and a confirmation receipt after posting offers one-tap removal.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-503
+    epic: E5
+    persona: family-member
+    story: "As a member, I can email photos straight to my pod when the app is not handy."
+    acceptance:
+    - "Per-member pod address turns attachments into a photo post"
+    - "Sender verified by address plus token; strangers bounce"
+    status: spec
+    v1: false
 
-  - id: E6
-    title: Elder surfaces
-    intent: "Token links, a large-text view, one-tap responses. Reciprocity built in; the frame display follows post-v1."
-    stories:
-      - id: S-601
-        epic: E6
-        persona: elder
-        story: "As an elder on my token link, the feed is one big readable column I cannot get lost in."
-        acceptance:
-          - "Single-column layout, large type with a bigger-text toggle, giant tap targets"
-          - "Meets WCAG 2.1 AA for contrast and touch target size"
-          - "No navigation dead ends; every screen has one obvious way back to the feed"
-        status: tested  # wave 5: large-type single-column elder view, bigger-text toggle, no dead ends; WCAG AA contrast + tap-target checks pass
-        v1: true
-      - id: S-602
-        epic: E6
-        persona: elder
-        story: "As an elder, I can respond to any post with one tap and my family actually sees it was me."
-        acceptance:
-          - "Token surface offers one-tap reactions attributed to the elder by name"
-          - "Reactions from the token surface count in reciprocity metrics"
-        status: tested  # wave 5: one-tap named reactions on the token surface, counted in reciprocity; proven live and in the metrics rollup
-        v1: true
-      - id: S-603
-        epic: E6
-        persona: household
-        story: "As a household, we can point an old tablet or photo frame at a display URL that quietly rotates the family's recent photos."
-        acceptance:
-          - "Signed display URL rotates recent media for its assigned pods/yards with zero interaction"
-          - "Display heartbeat counts as an elder touch when assigned to an elder"
-        status: spec
-        v1: false
+- id: E6
+  title: Elder surfaces
+  intent: "Token links, a large-text view, one-tap responses. Reciprocity built in; the frame display follows post-v1."
+  stories:
+  - id: S-601
+    epic: E6
+    persona: elder
+    story: "As an elder on my token link, the feed is one big readable column I cannot get lost in."
+    acceptance:
+    - "Single-column layout, large type with a bigger-text toggle, giant tap targets"
+    - "Meets WCAG 2.1 AA for contrast and touch target size"
+    - "No navigation dead ends; every screen has one obvious way back to the feed"
+    status: passing     # wave 5: large-type single-column elder view, bigger-text toggle, no dead ends; WCAG AA contrast + tap-target checks pass
+    v1: true
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-602
+    epic: E6
+    persona: elder
+    story: "As an elder, I can respond to any post with one tap and my family actually sees it was me."
+    acceptance:
+    - "Token surface offers one-tap reactions attributed to the elder by name"
+    - "Reactions from the token surface count in reciprocity metrics"
+    status: passing     # wave 5: one-tap named reactions on the token surface, counted in reciprocity; proven live and in the metrics rollup
+    v1: true
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-603
+    epic: E6
+    persona: household
+    story: "As a household, we can point an old tablet or photo frame at a display URL that quietly rotates the family's recent photos."
+    acceptance:
+    - "Signed display URL rotates recent media for its assigned pods/yards with zero interaction"
+    - "Display heartbeat counts as an elder touch when assigned to an elder"
+    status: spec
+    v1: false
 
-  - id: E7
-    title: Admin, membership, and data export
-    intent: "Pod owner roles, invites, removal, supervised kids' accounts, first-class full export."
-    stories:
-      - id: S-701
-        epic: E7
-        persona: yard-admin
-        story: "As the family admin, a small, documented set of roles covers everything, and nothing depends on me being technical."
-        acceptance:
-          - "Roles limited to instance admin, yard admin, pod owner, member, supervised member"
-          - "Permission matrix documented in docs and enforced server-side with tests"
-        status: tested  # phase-3 reconcile 2026-07-22: write/grant model enforced+tested (test_permissions.py, test_admin_views.py); matrix doc docs/security/permission-matrix.md
-        v1: true
-        security:
-          threat_refs:
-            - TM-1
-            - TM-10
-            - T-YARD-2
-            - T-AUTH-G2
-            - T-MINOR-4
-          hardening: |
-            The central authorization guard is the mandatory path for every read, write, and grant, including batch and email paths. The permission matrix documents the full credential and channel inventory that removal must clear, names the managing parent as exclusive controller of a supervised account's credentials and conversion (with a notifying instance-admin break-glass), and requires the instance admin to initiate recovery, token minting, or removal for any member whose yard set exceeds the acting admin's scope.
-          source: docs/security/threat-model.md
-      - id: S-702
-        epic: E7
-        persona: yard-admin
-        story: "As an admin, I can remove a member cleanly, with an explicit, humane decision about their content."
-        acceptance:
-          - "Removal revokes sessions and token links immediately"
-          - "Admin explicitly chooses: keep content attributed, anonymize, or delete"
-        status: tested
-        v1: true
-        security:
-          threat_refs:
-            - TM-1
-            - T-REMOVE-1
-            - T-REMOVE-2
-            - T-YARD-7
-            - T-MINOR-1
-            - T-AUTH-G3
-            - T-EMAIL-2
-          hardening: |
-            Removal is one atomic server-side revocation over an explicit channel inventory, each with an automated test: revoke all sessions; disable all credentials including passkeys; revoke elder and display tokens; cancel the digest subscription and any queued sends; deactivate every inbound reply and pod address; void all invites reaching the member's pods and yards; stop issuing signed URLs for them. A revocation-completeness test asserts old token, old session, old digest link, old media URL, and reply address each 404 or bounce on the next request. The same revocation runs on voluntary leave and pod-leaves-yard. Removal enumerates supervised accounts and elder-helper roles the member manages, forces credential rotation, and reassigns custody before it completes.
-          source: docs/security/threat-model.md
-      - id: S-703
-        epic: E7
-        persona: parent
-        story: "As a parent, I can create a supervised account for my kid that I control."
-        acceptance:
-          - "Supervised accounts need no email; credentials are parent-managed"
-          - "Supervised members are visibly flagged to admins"
-        status: tested  # phase-3 reconcile 2026-07-22: supervised create/parent-mgmt + rendered roster-flag test added (test_admin_views.py)
-        v1: true
-        security:
-          threat_refs:
-            - TM-10
-            - T-MINOR-2
-            - T-MINOR-3
-            - T-MINOR-4
-          hardening: |
-            Supervised status is visible to everyone in a shared pod roster, not admins only. Supervised surfaces carry no 'private' framing and tell the member plainly that the managing parent can see everything on the account. Supervised accounts cannot attach an email or new auth method and are excluded from self-service credential recovery; recovery flows only through the managing parent. Supervised members cannot be issued token links. Adding a supervised member to a pod, or a supervised member creating one, generates a quiet non-push notice to the managing parent.
-          source: docs/security/threat-model.md
-      - id: S-704
-        epic: E7
-        persona: family-member
-        story: "As any member, I can take my whole history with me; as the admin, I can take the whole instance."
-        acceptance:
-          - "Member export produces a zip of their posts, comments, and media with a documented JSON format"
-          - "Instance export covers everything; a documented restore path exists and is exercised"
-          - "Export is available from v0.1 onward, never gated"
-        status: tested  # wave 3 CLOSED 2026-07-21 (docs/receipts/2026-07-21-wave-3-close.md): instance + member export; encrypted-path restore drill live (backup -> age encrypt/decrypt byte-identical -> restore -> canary survived)
-        v1: true
-      - id: S-705
-        epic: E7
-        persona: instance-admin
-        story: "As the instance admin, I can see the weekly connection health of each yard without surveilling anyone."
-        acceptance:
-          - "Weekly WCM plus the four input metrics from docs/metrics.md, as aggregates per pod and yard"
-          - "The only per-person datum is the KPI yes/no weekly presence, and the measured family is told about it in the docs"
-          - "No time-on-site, session counts, or per-person activity feeds exist anywhere"
-        status: tested  # wave 4 close 2026-07-22: counts-only rollup + instance-admin panel live-repro'd; family disclosure (docs/family-privacy-note.md) written in the founder's voice + judge-passed (fuller deployer-facing privacy doc deferred to the OSS docs site, founder's call)
-        v1: true
+- id: E7
+  title: Admin, membership, and data export
+  intent: "Pod owner roles, invites, removal, supervised kids' accounts, first-class full export."
+  stories:
+  - id: S-701
+    epic: E7
+    persona: yard-admin
+    story: "As the family admin, a small, documented set of roles covers everything, and nothing depends on me being technical."
+    acceptance:
+    - "Roles limited to instance admin, yard admin, pod owner, member, supervised member"
+    - "Permission matrix documented in docs and enforced server-side with tests"
+    status: passing     # phase-3 reconcile 2026-07-22: write/grant model enforced+tested (test_permissions.py, test_admin_views.py); matrix doc docs/security/permission-matrix.md
+    v1: true
+    security:
+      threat_refs:
+      - TM-1
+      - TM-10
+      - T-YARD-2
+      - T-AUTH-G2
+      - T-MINOR-4
+      hardening: |
+        The central authorization guard is the mandatory path for every read, write, and grant, including batch and email paths. The permission matrix documents the full credential and channel inventory that removal must clear, names the managing parent as exclusive controller of a supervised account's credentials and conversion (with a notifying instance-admin break-glass), and requires the instance admin to initiate recovery, token minting, or removal for any member whose yard set exceeds the acting admin's scope.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-702
+    epic: E7
+    persona: yard-admin
+    story: "As an admin, I can remove a member cleanly, with an explicit, humane decision about their content."
+    acceptance:
+    - "Removal revokes sessions and token links immediately"
+    - "Admin explicitly chooses: keep content attributed, anonymize, or delete"
+    status: passing
+    v1: true
+    security:
+      threat_refs:
+      - TM-1
+      - T-REMOVE-1
+      - T-REMOVE-2
+      - T-YARD-7
+      - T-MINOR-1
+      - T-AUTH-G3
+      - T-EMAIL-2
+      hardening: |
+        Removal is one atomic server-side revocation over an explicit channel inventory, each with an automated test: revoke all sessions; disable all credentials including passkeys; revoke elder and display tokens; cancel the digest subscription and any queued sends; deactivate every inbound reply and pod address; void all invites reaching the member's pods and yards; stop issuing signed URLs for them. A revocation-completeness test asserts old token, old session, old digest link, old media URL, and reply address each 404 or bounce on the next request. The same revocation runs on voluntary leave and pod-leaves-yard. Removal enumerates supervised accounts and elder-helper roles the member manages, forces credential rotation, and reassigns custody before it completes.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-703
+    epic: E7
+    persona: parent
+    story: "As a parent, I can create a supervised account for my kid that I control."
+    acceptance:
+    - "Supervised accounts need no email; credentials are parent-managed"
+    - "Supervised members are visibly flagged to admins"
+    status: passing     # phase-3 reconcile 2026-07-22: supervised create/parent-mgmt + rendered roster-flag test added (test_admin_views.py)
+    v1: true
+    security:
+      threat_refs:
+      - TM-10
+      - T-MINOR-2
+      - T-MINOR-3
+      - T-MINOR-4
+      hardening: |
+        Supervised status is visible to everyone in a shared pod roster, not admins only. Supervised surfaces carry no 'private' framing and tell the member plainly that the managing parent can see everything on the account. Supervised accounts cannot attach an email or new auth method and are excluded from self-service credential recovery; recovery flows only through the managing parent. Supervised members cannot be issued token links. Adding a supervised member to a pod, or a supervised member creating one, generates a quiet non-push notice to the managing parent.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-704
+    epic: E7
+    persona: family-member
+    story: "As any member, I can take my whole history with me; as the admin, I can take the whole instance."
+    acceptance:
+    - "Member export produces a zip of their posts, comments, and media with a documented JSON format"
+    - "Instance export covers everything; a documented restore path exists and is exercised"
+    - "Export is available from v0.1 onward, never gated"
+    status: passing     # wave 3 CLOSED 2026-07-21 (docs/receipts/2026-07-21-wave-3-close.md): instance + member export; encrypted-path restore drill live (backup -> age encrypt/decrypt byte-identical -> restore -> canary survived)
+    v1: true
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-705
+    epic: E7
+    persona: instance-admin
+    story: "As the instance admin, I can see the weekly connection health of each yard without surveilling anyone."
+    acceptance:
+    - "Weekly WCM plus the four input metrics from docs/metrics.md, as aggregates per pod and yard"
+    - "The only per-person datum is the KPI yes/no weekly presence, and the measured family is told about it in the docs"
+    - "No time-on-site, session counts, or per-person activity feeds exist anywhere"
+    status: passing     # wave 4 close 2026-07-22: counts-only rollup + instance-admin panel live-repro'd; family disclosure (docs/family-privacy-note.md) written in the founder's voice + judge-passed (fuller deployer-facing privacy doc deferred to the OSS docs site, founder's call)
+    v1: true
 
-      - id: S-706
-        epic: E7
-        persona: yard-admin
-        story: As the family admin, I can mark a member as passed away, a humane action distinct from removal, so their credentials stop without erasing them.
-        acceptance:
-          - marking a member deceased runs the full revocation inventory (token, sessions, digest, reply addresses) immediately
-          - the digest stops
-          - the profile is frozen out of birthday and anniversary surfaces
-          - content and attribution are preserved with remembrance framing, and the content-disposition choice (keep attributed or memorialize) is made explicitly
-          - the admin runbook names the action
-        status: spec
-        v1: false
-        security:
-          threat_refs:
-            - TM-1
-            - TM-6
-          source: docs/security/threat-model.md
-      - id: S-707
-        epic: E7
-        persona: instance-admin
-        story: "As the founder, I can appoint a per-side delegate (and, for succession, a second instance admin) from the roster, so a family side can be onboarded and moderated without me at a shell."
-        acceptance:
-          - "An instance admin can promote a member to yard admin (a per-side delegate) or, for bus-factor, to a second instance admin"
-          - "A yard admin can re-role an in-scope member to a non-admin role but can never grant an admin role or reach another yard's member"
-          - "The offered roles are whitelisted and authorized per (actor, target); supervised members are never re-roled here; no member re-roles themselves"
-          - "The instance admin can administer a member on a family side they are not a member of; a yard admin stays yard-scoped with byte-identical 404 for a cross-yard target"
-        status: tested  # S-707 close 2026-07-22: assign_role + administrable_members (instance-wide admin) + roster control; gate green + live-repro + security review (docs/receipts/2026-07-22-s707-s708-rollout-enablers-close.md)
-        v1: true
-        security:
-          threat_refs:
-            - TM-1
-            - T-AUTH-G2
-            - T-AUTH-G3
-          hardening: |
-            Role assignment routes through the mandatory write-authorization model (can_assign_role): the two admin roles are grantable only by an instance admin, a yard admin is confined to non-admin roles on in-scope members (T-AUTH-G2), no one re-roles themselves, and there is no privilege inversion. The role string is whitelisted before use (never trusted from the form) and supervised members are excluded. The instance admin's instance-wide member reach is above yard isolation by design; a yard admin resolving a member keeps the S-202 byte-identical 404 for a cross-yard target.
-          source: docs/security/threat-model.md
-      - id: S-708
-        epic: E7
-        persona: instance-admin
-        story: "As the founder, I can create the other side of the family (a new yard) after first-run, so I can stand up a second family side and hand it to its delegate."
-        acceptance:
-          - "An instance admin can create a new family side (yard) from the admin surface, named, with a unique slug"
-          - "Creating a side is instance-admin only; a yard admin or member is refused"
-          - "A browser refresh does not create a duplicate side"
-          - "The instance admin can then invite the first household into the new side even though they are not a member of it"
-        status: tested  # S-708 close 2026-07-22: family_sides create-yard (instance-admin only, refresh-safe) + invite_household instance-wide-yard extension; same receipt
-        v1: true
-        security:
-          threat_refs:
-            - TM-8
-            - T-YARD-G1
-          hardening: |
-            Creating a family side is an instance-wide act reserved to the instance admin (a yard admin administers within a side, never creates one). It does not reopen the TM-8 zero-admin first-run wizard path. The create form is refresh-safe (single-use intent nonce); the name is bounded and slugified to a unique slug. The instance admin can invite a household into a yard they are not a member of because they are above yard isolation (can_issue_invite is True for them into any pod); a yard admin is unchanged and confined to their own yards.
-          source: docs/security/threat-model.md
-      - id: S-213
-        epic: E7
-        persona: yard-admin
-        story: "As a per-side delegate, I can onboard a net-new grandparent onto the no-login elder path myself, so the family's low-tech elders get a link without the founder at a shell."
-        acceptance:
-          - "A delegate names a net-new elder and picks a side; their household pod, a token-only member (no login, non-supervised), and their elder link + printable QR are created in one flow"
-          - "Scoped exactly like a household invite: a yard admin only within their own yards, the instance admin onto any side including one they are not a member of; a cross-yard pick 404s and mints nothing"
-          - "The elder's whole visibility is that household's side, a subset of the acting admin's authority; a browser refresh does not create a duplicate elder"
-          - "The hand-over page carries the raw token once with the TM-5 no-store headers, and the new elder then appears on the roster and can be re-provisioned"
-        status: tested  # S-213 close 2026-07-22: new_elder create-elder+mint-token one flow (delegate-usable), can_issue_invite gate, refresh-safe, TM-5 headers; gate green + live-repro + cross-browser mint->open e2e + security review (docs/receipts/2026-07-22-s212-s213-new-elder-handover-close.md)
-        v1: true
-        security:
-          threat_refs:
-            - TM-1
-            - TM-5
-            - TM-10
-            - T-TOKEN-G1
-            - T-AUTH-G2
-            - T-EDGE-1
-          hardening: |
-            Standing up the elder + household + token is one atomic act, authorized in-transaction by can_issue_invite over the just-created pod (the same authority as a household invite), so a yard admin can never create an elder whose side they do not control and a refusal rolls the whole thing back with no orphan pod, member, or token. The elder is a token-only member (no User, non-supervised), so the master token minting refuses nothing on TM-10 grounds and the elder path's read+react capability ceiling applies unchanged. The token is >=256-bit CSPRNG, stored only as a hash, shown once, and the mint refuses a non-HTTPS production base URL (T-EDGE-1). The create form is refresh-safe (single-use intent nonce), and the hand-over page carries the raw token once under the TM-5 no-store/noindex headers with Referrer-Policy same-origin (the page hosts the create form, so a browser POST under no-referrer would be CSRF-rejected on an Origin: null; same-origin still leaks nothing cross-origin).
-          source: docs/security/threat-model.md
-      - id: S-212
-        epic: E7
-        persona: yard-admin
-        story: "As an admin handing over an invite, I get a fast copy/share hand-over and can re-issue a fresh link when the old one lapses, so a household is never stuck because a link expired or never arrived."
-        acceptance:
-          - "Every hand-over surface (household invite, elder link, new elder) offers a one-tap copy and a native share, degrading to a selectable field and a scannable QR without JS"
-          - "From the outstanding-invite ledger, an admin can mint a fresh one-time link for a household; the new link is additive and the prior invite is left untouched"
-          - "Resend is authorized exactly like issuing and revoking (can_issue_invite over the pod), POST-only, with a byte-identical 404 for an out-of-scope or unknown invite"
-          - "The fresh link is shown once with a printable QR under the TM-5 no-store headers"
-        status: tested  # S-212 close 2026-07-22: shared copy/share/QR hand-over partial across invite+elder+new-elder + resend_invite (additive, scope-parity 404, POST-only, TM-5); gate green + live-repro + e2e (docs/receipts/2026-07-22-s212-s213-new-elder-handover-close.md)
-        v1: true
-        security:
-          threat_refs:
-            - TM-1
-            - TM-5
-            - T-INVITE-1
-            - T-AUTH-G2
-          hardening: |
-            Resend routes through can_issue_invite over the invite's pod, the same gate as minting and revoking, and returns a byte-identical 404 (not 403) for an out-of-scope or unknown invite so another side's invite is never revealed (S-202 parity). The re-minted link is additive, not a silent replacement, so a link already handed over is never killed out from under a household (unbounded but admin-gated, TTL-bounded, use-capped, and independently revocable); stale links are ended by the explicit revoke. The fresh raw token is shown once under the TM-5 no-store/noindex headers with Referrer-Policy same-origin (like the other hand-over pages). The copy/share affordances are a client-side progressive enhancement that touches no new server surface and carries no token in any URL.
-          source: docs/security/threat-model.md
-      - id: S-713
-        epic: E7
-        persona: yard-admin
-        story: "As a per-side moderator, I can take down a single post or comment, so I can remove one bad item without the nuclear option of removing the person."
-        acceptance:
-          - "A yard or instance admin can take down one post or one comment; it soft-deletes so the one audience query treats it as gone in the feed and the digest, and the post's photos are hard-purged"
-          - "The takedown is scoped to what the moderator can SEE: a post or comment on content the admin cannot see is a byte-identical 404, so a yard admin can never take down a pod-private post the guard would not return them (reach-vs-visibility; routing those to the parent/pod is deferred post-v1)"
-          - "Takedown is an admin lever distinct from the author-only self-delete (a plain member is refused), POST-only, idempotent, and records who moderated the item (distinguishable from an author self-delete)"
-          - "The takedown is silent (no member-visible moderation notice in v1); the person-level lever stays remove-only (reversible member-suspend deferred)"
-        status: tested  # S-713 close 2026-07-22: moderation.take_down_post/comment (soft-delete + moderated_by record + media purge), is_admin + guard-scoped-to-visibility 404, POST-only, idempotent; feed+thread affordance admin-only; gate green + live-repro through Caddy + security review (docs/receipts/2026-07-22-s713-takedown-close.md)
-        v1: true
-        security:
-          threat_refs:
-            - TM-1
-            - TM-2
-            - T-YARD-2
-            - T-AUTH-G2
-          hardening: |
-            Takedown routes the item through the SAME read guard (scoping.require_visible_post / require_visible_comment) as every other read, for the MODERATOR, so the lever is structurally bounded to what they may already see: a byte-identical 404 for anything else, identical to a nonexistent id (no existence oracle, S-202 parity). Content visibility is membership-scoped for every role including the instance admin — the founder's instance-wide power is over members and configuration, not content omniscience — so no admin can reach a yard's content they do not belong to. is_admin gates before the item is resolved, so a non-admin learns nothing about the item's existence (uniform 403). Authorization is re-checked in the service (is_admin + visibility), not only at the view guard, as write-side defense in depth for any future non-guard caller, mirroring posting.delete_post and commenting.create_comment. The authority is deliberately VISIBILITY-based (the ratified "scoped to visible" rule), which diverges by design from the person-level lever's subset-scope (can_manage_member / T-AUTH-G2): a member belonging to both yards through a bridge household may moderate content it can see in either, and a both-side post is one object a single-side admin removes from both feeds. That divergence is intentional and recorded for the founder's manual-QA review (a stricter audience-subset rule is a possible refinement, not shipped in v1). The takedown reuses the author path's soft delete (deleted_at removes it from the one audience query everywhere) plus the media hard-purge (T-MEDIA-6), and records moderated_by (SET_NULL) as an accountability trail that a future restore/audit surface can read; it is silent (no member-visible notice, ratified) and idempotent (never revives a tombstone or overwrites who first removed it). The person-level lever stays remove-only; reversible member-suspend is deferred.
-          source: docs/security/threat-model.md
-  - id: E9
-    title: People and the family directory
-    intent: "Profiles as the family's source of truth: who everyone is, how to reach them, and the dates that matter. Per-field, per-yard visibility controlled by the member; surfaced through calm channels (digest and feed banner), never push."
-    stories:
-      - id: S-901
-        epic: E9
-        persona: family-member
-        story: "As a member, my profile says who I am in family terms: name, photo, the name the kids actually call me, my birthday, and optional school or work lines I control."
-        acceptance:
-          - "Kinship display name (Nana, Uncle Jim) is shown alongside the legal name in feed, comments, and directory"
-          - "Birthday stores month and day required, year optional; age is never displayed"
-          - "Owners edit their own profiles; supervised and elder profiles are manageable by the parent or designated helper"
-        status: tested
-        v1: true
-      - id: S-902
-        epic: E9
-        persona: family-member
-        story: "As a member, I can look up a relative's phone, email, or address in one place instead of texting three people to ask."
-        acceptance:
-          - "Contact fields (phone, email, address) are optional, with per-field visibility scoped to pods or yards the member belongs to"
-          - "Directory is searchable within my yards and never leaks across a yard boundary (same 404 rule as posts)"
-          - "Every member can see and change exactly who sees each of their fields"
-        status: tested
-        v1: true
-      - id: S-903
-        epic: E9
-        persona: lurker
-        story: "As a member, I find out about upcoming birthdays and anniversaries without being pinged."
-        acceptance:
-          - "The digest includes an upcoming-dates section for the next 7 days in my yards"
-          - "The feed shows a quiet banner on the day itself; no push notification exists for dates"
-          - "Anniversaries work the same way as birthdays"
-        status: tested  # wave 4 close 2026-07-22: date visibility + banner + digest upcoming-dates section live-repro'd; provider transport now proven live (docs/receipts/2026-07-22-wave-4-close.md)
-        v1: true
-        security:
-          threat_refs:
-            - TM-3
-            - T-MINOR-6
-          hardening: |
-            Birthday and anniversary visibility is per-field like contact data (S-902), not auto-broadcast to the whole yard; supervised and minor profiles default their dates to pod-only. Year and age are never shown. Digest upcoming-dates sections honor each date's visibility scope.
-          source: docs/security/threat-model.md
-      - id: S-904
-        epic: E9
-        persona: family-member
-        story: "As a member, I can export the directory to vCard so the family's numbers in my phone stop being five years stale."
-        acceptance:
-          - "Per-member and whole-visible-directory vCard downloads honoring field visibility"
-        status: spec
-        v1: false
-      - id: S-905
-        epic: E9
-        persona: family-member
-        story: "As a new member, a quiet intro card in my pod tells the family who just arrived, without a fanfare."
-        acceptance:
-          - "Joining generates a pod-scoped profile card post; no notification, no yard-wide broadcast"
-        status: spec
-        v1: false
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-706
+    epic: E7
+    persona: yard-admin
+    story: As the family admin, I can mark a member as passed away, a humane action distinct from removal, so their credentials stop without erasing them.
+    acceptance:
+    - marking a member deceased runs the full revocation inventory (token, sessions, digest, reply addresses) immediately
+    - the digest stops
+    - the profile is frozen out of birthday and anniversary surfaces
+    - content and attribution are preserved with remembrance framing, and the content-disposition choice (keep attributed or memorialize) is made explicitly
+    - the admin runbook names the action
+    status: spec
+    v1: false
+    security:
+      threat_refs:
+      - TM-1
+      - TM-6
+      source: docs/security/threat-model.md
+  - id: S-707
+    epic: E7
+    persona: instance-admin
+    story: "As the founder, I can appoint a per-side delegate (and, for succession, a second instance admin) from the roster, so a family side can be onboarded and moderated without me at a shell."
+    acceptance:
+    - "An instance admin can promote a member to yard admin (a per-side delegate) or, for bus-factor, to a second instance admin"
+    - "A yard admin can re-role an in-scope member to a non-admin role but can never grant an admin role or reach another yard's member"
+    - "The offered roles are whitelisted and authorized per (actor, target); supervised members are never re-roled here; no member re-roles themselves"
+    - "The instance admin can administer a member on a family side they are not a member of; a yard admin stays yard-scoped with byte-identical 404 for a cross-yard target"
+    status: passing     # S-707 close 2026-07-22: assign_role + administrable_members (instance-wide admin) + roster control; gate green + live-repro + security review (docs/receipts/2026-07-22-s707-s708-rollout-enablers-close.md)
+    v1: true
+    security:
+      threat_refs:
+      - TM-1
+      - T-AUTH-G2
+      - T-AUTH-G3
+      hardening: |
+        Role assignment routes through the mandatory write-authorization model (can_assign_role): the two admin roles are grantable only by an instance admin, a yard admin is confined to non-admin roles on in-scope members (T-AUTH-G2), no one re-roles themselves, and there is no privilege inversion. The role string is whitelisted before use (never trusted from the form) and supervised members are excluded. The instance admin's instance-wide member reach is above yard isolation by design; a yard admin resolving a member keeps the S-202 byte-identical 404 for a cross-yard target.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-708
+    epic: E7
+    persona: instance-admin
+    story: "As the founder, I can create the other side of the family (a new yard) after first-run, so I can stand up a second family side and hand it to its delegate."
+    acceptance:
+    - "An instance admin can create a new family side (yard) from the admin surface, named, with a unique slug"
+    - "Creating a side is instance-admin only; a yard admin or member is refused"
+    - "A browser refresh does not create a duplicate side"
+    - "The instance admin can then invite the first household into the new side even though they are not a member of it"
+    status: passing     # S-708 close 2026-07-22: family_sides create-yard (instance-admin only, refresh-safe) + invite_household instance-wide-yard extension; same receipt
+    v1: true
+    security:
+      threat_refs:
+      - TM-8
+      - T-YARD-G1
+      hardening: |
+        Creating a family side is an instance-wide act reserved to the instance admin (a yard admin administers within a side, never creates one). It does not reopen the TM-8 zero-admin first-run wizard path. The create form is refresh-safe (single-use intent nonce); the name is bounded and slugified to a unique slug. The instance admin can invite a household into a yard they are not a member of because they are above yard isolation (can_issue_invite is True for them into any pod); a yard admin is unchanged and confined to their own yards.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-213
+    epic: E7
+    persona: yard-admin
+    story: "As a per-side delegate, I can onboard a net-new grandparent onto the no-login elder path myself, so the family's low-tech elders get a link without the founder at a shell."
+    acceptance:
+    - "A delegate names a net-new elder and picks a side; their household pod, a token-only member (no login, non-supervised), and their elder link + printable QR are created in one flow"
+    - "Scoped exactly like a household invite: a yard admin only within their own yards, the instance admin onto any side including one they are not a member of; a cross-yard pick 404s and mints nothing"
+    - "The elder's whole visibility is that household's side, a subset of the acting admin's authority; a browser refresh does not create a duplicate elder"
+    - "The hand-over page carries the raw token once with the TM-5 no-store headers, and the new elder then appears on the roster and can be re-provisioned"
+    status: passing     # S-213 close 2026-07-22: new_elder create-elder+mint-token one flow (delegate-usable), can_issue_invite gate, refresh-safe, TM-5 headers; gate green + live-repro + cross-browser mint->open e2e + security review (docs/receipts/2026-07-22-s212-s213-new-elder-handover-close.md)
+    v1: true
+    security:
+      threat_refs:
+      - TM-1
+      - TM-5
+      - TM-10
+      - T-TOKEN-G1
+      - T-AUTH-G2
+      - T-EDGE-1
+      hardening: |
+        Standing up the elder + household + token is one atomic act, authorized in-transaction by can_issue_invite over the just-created pod (the same authority as a household invite), so a yard admin can never create an elder whose side they do not control and a refusal rolls the whole thing back with no orphan pod, member, or token. The elder is a token-only member (no User, non-supervised), so the master token minting refuses nothing on TM-10 grounds and the elder path's read+react capability ceiling applies unchanged. The token is >=256-bit CSPRNG, stored only as a hash, shown once, and the mint refuses a non-HTTPS production base URL (T-EDGE-1). The create form is refresh-safe (single-use intent nonce), and the hand-over page carries the raw token once under the TM-5 no-store/noindex headers with Referrer-Policy same-origin (the page hosts the create form, so a browser POST under no-referrer would be CSRF-rejected on an Origin: null; same-origin still leaks nothing cross-origin).
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-212
+    epic: E7
+    persona: yard-admin
+    story: "As an admin handing over an invite, I get a fast copy/share hand-over and can re-issue a fresh link when the old one lapses, so a household is never stuck because a link expired or never arrived."
+    acceptance:
+    - "Every hand-over surface (household invite, elder link, new elder) offers a one-tap copy and a native share, degrading to a selectable field and a scannable QR without JS"
+    - "From the outstanding-invite ledger, an admin can mint a fresh one-time link for a household; the new link is additive and the prior invite is left untouched"
+    - "Resend is authorized exactly like issuing and revoking (can_issue_invite over the pod), POST-only, with a byte-identical 404 for an out-of-scope or unknown invite"
+    - "The fresh link is shown once with a printable QR under the TM-5 no-store headers"
+    status: passing     # S-212 close 2026-07-22: shared copy/share/QR hand-over partial across invite+elder+new-elder + resend_invite (additive, scope-parity 404, POST-only, TM-5); gate green + live-repro + e2e (docs/receipts/2026-07-22-s212-s213-new-elder-handover-close.md)
+    v1: true
+    security:
+      threat_refs:
+      - TM-1
+      - TM-5
+      - T-INVITE-1
+      - T-AUTH-G2
+      hardening: |
+        Resend routes through can_issue_invite over the invite's pod, the same gate as minting and revoking, and returns a byte-identical 404 (not 403) for an out-of-scope or unknown invite so another side's invite is never revealed (S-202 parity). The re-minted link is additive, not a silent replacement, so a link already handed over is never killed out from under a household (unbounded but admin-gated, TTL-bounded, use-capped, and independently revocable); stale links are ended by the explicit revoke. The fresh raw token is shown once under the TM-5 no-store/noindex headers with Referrer-Policy same-origin (like the other hand-over pages). The copy/share affordances are a client-side progressive enhancement that touches no new server surface and carries no token in any URL.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-713
+    epic: E7
+    persona: yard-admin
+    story: "As a per-side moderator, I can take down a single post or comment, so I can remove one bad item without the nuclear option of removing the person."
+    acceptance:
+    - "A yard or instance admin can take down one post or one comment; it soft-deletes so the one audience query treats it as gone in the feed and the digest, and the post's photos are hard-purged"
+    - "The takedown is scoped to what the moderator can SEE: a post or comment on content the admin cannot see is a byte-identical 404, so a yard admin can never take down a pod-private post the guard would not return them (reach-vs-visibility; routing those to the parent/pod is deferred post-v1)"
+    - "Takedown is an admin lever distinct from the author-only self-delete (a plain member is refused), POST-only, idempotent, and records who moderated the item (distinguishable from an author self-delete)"
+    - "The takedown is silent (no member-visible moderation notice in v1); the person-level lever stays remove-only (reversible member-suspend deferred)"
+    status: passing     # S-713 close 2026-07-22: moderation.take_down_post/comment (soft-delete + moderated_by record + media purge), is_admin + guard-scoped-to-visibility 404, POST-only, idempotent; feed+thread affordance admin-only; gate green + live-repro through Caddy + security review (docs/receipts/2026-07-22-s713-takedown-close.md)
+    v1: true
+    security:
+      threat_refs:
+      - TM-1
+      - TM-2
+      - T-YARD-2
+      - T-AUTH-G2
+      hardening: |
+        Takedown routes the item through the SAME read guard (scoping.require_visible_post / require_visible_comment) as every other read, for the MODERATOR, so the lever is structurally bounded to what they may already see: a byte-identical 404 for anything else, identical to a nonexistent id (no existence oracle, S-202 parity). Content visibility is membership-scoped for every role including the instance admin — the founder's instance-wide power is over members and configuration, not content omniscience — so no admin can reach a yard's content they do not belong to. is_admin gates before the item is resolved, so a non-admin learns nothing about the item's existence (uniform 403). Authorization is re-checked in the service (is_admin + visibility), not only at the view guard, as write-side defense in depth for any future non-guard caller, mirroring posting.delete_post and commenting.create_comment. The authority is deliberately VISIBILITY-based (the ratified "scoped to visible" rule), which diverges by design from the person-level lever's subset-scope (can_manage_member / T-AUTH-G2): a member belonging to both yards through a bridge household may moderate content it can see in either, and a both-side post is one object a single-side admin removes from both feeds. That divergence is intentional and recorded for the founder's manual-QA review (a stricter audience-subset rule is a possible refinement, not shipped in v1). The takedown reuses the author path's soft delete (deleted_at removes it from the one audience query everywhere) plus the media hard-purge (T-MEDIA-6), and records moderated_by (SET_NULL) as an accountability trail that a future restore/audit surface can read; it is silent (no member-visible notice, ratified) and idempotent (never revives a tombstone or overwrites who first removed it). The person-level lever stays remove-only; reversible member-suspend is deferred.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+- id: E9
+  title: People and the family directory
+  intent: "Profiles as the family's source of truth: who everyone is, how to reach them, and the dates that matter. Per-field, per-yard visibility controlled by the member; surfaced through calm channels (digest and feed banner), never push."
+  stories:
+  - id: S-901
+    epic: E9
+    persona: family-member
+    story: "As a member, my profile says who I am in family terms: name, photo, the name the kids actually call me, my birthday, and optional school or work lines I control."
+    acceptance:
+    - "Kinship display name (Nana, Uncle Jim) is shown alongside the legal name in feed, comments, and directory"
+    - "Birthday stores month and day required, year optional; age is never displayed"
+    - "Owners edit their own profiles; supervised and elder profiles are manageable by the parent or designated helper"
+    status: passing
+    v1: true
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-902
+    epic: E9
+    persona: family-member
+    story: "As a member, I can look up a relative's phone, email, or address in one place instead of texting three people to ask."
+    acceptance:
+    - "Contact fields (phone, email, address) are optional, with per-field visibility scoped to pods or yards the member belongs to"
+    - "Directory is searchable within my yards and never leaks across a yard boundary (same 404 rule as posts)"
+    - "Every member can see and change exactly who sees each of their fields"
+    status: passing
+    v1: true
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-903
+    epic: E9
+    persona: lurker
+    story: "As a member, I find out about upcoming birthdays and anniversaries without being pinged."
+    acceptance:
+    - "The digest includes an upcoming-dates section for the next 7 days in my yards"
+    - "The feed shows a quiet banner on the day itself; no push notification exists for dates"
+    - "Anniversaries work the same way as birthdays"
+    status: passing     # wave 4 close 2026-07-22: date visibility + banner + digest upcoming-dates section live-repro'd; provider transport now proven live (docs/receipts/2026-07-22-wave-4-close.md)
+    v1: true
+    security:
+      threat_refs:
+      - TM-3
+      - T-MINOR-6
+      hardening: |
+        Birthday and anniversary visibility is per-field like contact data (S-902), not auto-broadcast to the whole yard; supervised and minor profiles default their dates to pod-only. Year and age are never shown. Digest upcoming-dates sections honor each date's visibility scope.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-904
+    epic: E9
+    persona: family-member
+    story: "As a member, I can export the directory to vCard so the family's numbers in my phone stop being five years stale."
+    acceptance:
+    - "Per-member and whole-visible-directory vCard downloads honoring field visibility"
+    status: spec
+    v1: false
+  - id: S-905
+    epic: E9
+    persona: family-member
+    story: "As a new member, a quiet intro card in my pod tells the family who just arrived, without a fanfare."
+    acceptance:
+    - "Joining generates a pod-scoped profile card post; no notification, no yard-wide broadcast"
+    status: spec
+    v1: false
 
-  - id: E8
-    title: Deploy and operations
-    intent: "One-command self-host, migrations that never break the archive, backups, upgrade guide."
-    stories:
-      - id: S-801
-        epic: E8
-        persona: self-hoster
-        story: "As the family's tech person, I can go from a fresh VM to a working Backyard in fifteen minutes with one compose file."
-        acceptance:
-          - "docker compose up with documented defaults yields a working instance"
-          - "First-run wizard creates the admin, the first yard, and the first pod with no config-file editing"
-          - "Clean-machine run documented with timings as the release evidence"
-        status: tested
-        v1: true
-        security:
-          threat_refs:
-            - TM-7
-            - TM-8
-            - T-BOOT-1
-            - T-COMPOSE-1
-            - T-EDGE-1
-            - T-ADMIN-1
-          hardening: |
-            The first-run wizard is gated by a one-time setup secret printed only to the server console, and is hard-disabled whenever an instance admin exists, including after restores and upgrades (the enabling condition is 'zero admins exist', never a config flag). There are zero default credentials; all internal secrets are generated randomly at first boot and the app hard-fails on an empty or placeholder secret. The shipped compose publishes only the reverse proxy port, with DB, cache, and queue on an internal network. The bundled auto-TLS proxy makes HTTPS the zero-config default, and the app refuses to mint token links for a non-HTTPS base URL in production. Instance-admin and yard-admin accounts require a passkey or TOTP, enforced in the wizard. The wizard generates a backup passphrase and a printable recovery and succession sheet.
-          source: docs/security/threat-model.md
-      - id: S-802
-        epic: E8
-        persona: self-hoster
-        story: "As the family's tech person, backing up and restoring the whole instance is one documented command each, and I have proof it works."
-        acceptance:
-          - "Single backup command captures database and media"
-          - "Restore drill documented and exercised before each release"
-        status: tested  # wave 3 CLOSED 2026-07-21: one-command backup+restore, encrypted round-trip drilled live + tar-escape guard (crafted-archive rejection). S-727 2026-07-22: the TM-7/T-OP-G5 forced security-replay is now IMPLEMENTED (backups._forced_security_replay bumps every member's token_generation so every restored elder/digest/reply token is dead, flushes sessions, voids invites; restore_instance prints the post-backup-removal checklist) — a restore can no longer resurrect an expelled ex-partner's elder link (test_backups). This closes the retro-flagged gap where the earlier "security replay" was really the tar-escape guard, not the revocation replay (docs/receipts/2026-07-22-s727-restore-security-replay-close.md)
-        v1: true
-        security:
-          threat_refs:
-            - TM-1
-            - TM-7
-            - T-BACKUP-1
-            - T-MEDIA-5
-            - T-OP-G3
-            - T-OP-G5
-          hardening: |
-            The one backup command encrypts by default with a wizard-established passphrase or keyfile and a printable recovery sheet; plaintext output requires an explicit --no-encrypt flag with a loud warning. The restore drill exercises the encrypted path before each release. Restore ends with a forced security-replay: rotate the token-signing material (with one-click re-issue as recovery) and surface a checklist of removals and revocations that postdate the backup, so restore never resurrects revoked access. The documented flow ends with copying the encrypted file off the server, and backup filenames and manifests carry no secrets.
-          source: docs/security/threat-model.md
-      - id: S-803
-        epic: E8
-        persona: self-hoster
-        story: "As the family's tech person, upgrades never eat the archive."
-        acceptance:
-          - "Migrations run automatically on upgrade with a pre-flight backup prompt"
-          - "An archive-compatibility test upgrades a seeded old-version database in CI from v0.1 onward"
-        status: tested
-        v1: true
-      - id: S-804
-        epic: E8
-        persona: self-hoster
-        story: As the family tech person, I have documented handover, shutdown, and domain-lapse procedures.
-        acceptance:
-          - a one-command decommission revokes all tokens, sessions, and inbound addresses and delivers a final instance export to at least two named members before destroying volumes and provider snapshots
-          - a handover runbook rotates every secret, regenerates all tokens, and transfers registrar and host accounts
-          - the wizard's recovery sheet is a succession sheet naming a second admin, registrar and VPS accounts, and the backup passphrase location
-          - deploy docs treat the domain as a family asset (auto-renew, multi-year, registrar lock) and the health email reports domain days-remaining
-        status: spec
-        v1: false
-        security:
-          threat_refs:
-            - TM-7
-            - T-OP-G1
-            - T-OP-G4
-          source: docs/security/threat-model.md
-      - id: S-805
-        epic: E8
-        persona: self-hoster
-        story: As the family tech person, if I lose my admin second factor I can recover admin access only through server shell.
-        acceptance:
-          - break-glass admin recovery is a one-time console command that prints a short-lived reset URL (the same trust anchor as the first-run setup secret), never a web flow
-          - no email or web 'recover admin' path exists
-          - deploy docs recommend configuring a second instance admin
-        status: tested
-        v1: true
-        security:
-          threat_refs:
-            - T-AUTH-G1
-            - TM-7
-            - TM-8
-          source: docs/security/threat-model.md
+- id: E8
+  title: Deploy and operations
+  intent: "One-command self-host, migrations that never break the archive, backups, upgrade guide."
+  stories:
+  - id: S-801
+    epic: E8
+    persona: self-hoster
+    story: "As the family's tech person, I can go from a fresh VM to a working Backyard in fifteen minutes with one compose file."
+    acceptance:
+    - "docker compose up with documented defaults yields a working instance"
+    - "First-run wizard creates the admin, the first yard, and the first pod with no config-file editing"
+    - "Clean-machine run documented with timings as the release evidence"
+    status: passing
+    v1: true
+    security:
+      threat_refs:
+      - TM-7
+      - TM-8
+      - T-BOOT-1
+      - T-COMPOSE-1
+      - T-EDGE-1
+      - T-ADMIN-1
+      hardening: |
+        The first-run wizard is gated by a one-time setup secret printed only to the server console, and is hard-disabled whenever an instance admin exists, including after restores and upgrades (the enabling condition is 'zero admins exist', never a config flag). There are zero default credentials; all internal secrets are generated randomly at first boot and the app hard-fails on an empty or placeholder secret. The shipped compose publishes only the reverse proxy port, with DB, cache, and queue on an internal network. The bundled auto-TLS proxy makes HTTPS the zero-config default, and the app refuses to mint token links for a non-HTTPS base URL in production. Instance-admin and yard-admin accounts require a passkey or TOTP, enforced in the wizard. The wizard generates a backup passphrase and a printable recovery and succession sheet.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-802
+    epic: E8
+    persona: self-hoster
+    story: "As the family's tech person, backing up and restoring the whole instance is one documented command each, and I have proof it works."
+    acceptance:
+    - "Single backup command captures database and media"
+    - "Restore drill documented and exercised before each release"
+    status: passing     # wave 3 CLOSED 2026-07-21: one-command backup+restore, encrypted round-trip drilled live + tar-escape guard (crafted-archive rejection). S-727 2026-07-22: the TM-7/T-OP-G5 forced security-replay is now IMPLEMENTED (backups._forced_security_replay bumps every member's token_generation so every restored elder/digest/reply token is dead, flushes sessions, voids invites; restore_instance prints the post-backup-removal checklist) — a restore can no longer resurrect an expelled ex-partner's elder link (test_backups). This closes the retro-flagged gap where the earlier "security replay" was really the tar-escape guard, not the revocation replay (docs/receipts/2026-07-22-s727-restore-security-replay-close.md)
+    v1: true
+    security:
+      threat_refs:
+      - TM-1
+      - TM-7
+      - T-BACKUP-1
+      - T-MEDIA-5
+      - T-OP-G3
+      - T-OP-G5
+      hardening: |
+        The one backup command encrypts by default with a wizard-established passphrase or keyfile and a printable recovery sheet; plaintext output requires an explicit --no-encrypt flag with a loud warning. The restore drill exercises the encrypted path before each release. Restore ends with a forced security-replay: rotate the token-signing material (with one-click re-issue as recovery) and surface a checklist of removals and revocations that postdate the backup, so restore never resurrects revoked access. The documented flow ends with copying the encrypted file off the server, and backup filenames and manifests carry no secrets.
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-803
+    epic: E8
+    persona: self-hoster
+    story: "As the family's tech person, upgrades never eat the archive."
+    acceptance:
+    - "Migrations run automatically on upgrade with a pre-flight backup prompt"
+    - "An archive-compatibility test upgrades a seeded old-version database in CI from v0.1 onward"
+    status: passing
+    v1: true
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-804
+    epic: E8
+    persona: self-hoster
+    story: As the family tech person, I have documented handover, shutdown, and domain-lapse procedures.
+    acceptance:
+    - a one-command decommission revokes all tokens, sessions, and inbound addresses and delivers a final instance export to at least two named members before destroying volumes and provider snapshots
+    - a handover runbook rotates every secret, regenerates all tokens, and transfers registrar and host accounts
+    - the wizard's recovery sheet is a succession sheet naming a second admin, registrar and VPS accounts, and the backup passphrase location
+    - deploy docs treat the domain as a family asset (auto-renew, multi-year, registrar lock) and the health email reports domain days-remaining
+    status: spec
+    v1: false
+    security:
+      threat_refs:
+      - TM-7
+      - T-OP-G1
+      - T-OP-G4
+      source: docs/security/threat-model.md
+  - id: S-805
+    epic: E8
+    persona: self-hoster
+    story: As the family tech person, if I lose my admin second factor I can recover admin access only through server shell.
+    acceptance:
+    - break-glass admin recovery is a one-time console command that prints a short-lived reset URL (the same trust anchor as the first-run setup secret), never a web flow
+    - no email or web 'recover admin' path exists
+    - deploy docs recommend configuring a second instance admin
+    status: passing
+    v1: true
+    security:
+      threat_refs:
+      - T-AUTH-G1
+      - TM-7
+      - TM-8
+      source: docs/security/threat-model.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
