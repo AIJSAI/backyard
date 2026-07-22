@@ -18,10 +18,11 @@ review" ADR-002 flagged. The controls, straight from TS-PP-5/6:
   expansion (no billion-laughs), extracting only a fixed, length-capped allowlist
   of meta tags.
 
-Deferred honestly to wave 3 (media): the og:image is captured but not rendered,
-because rendering it means either hotlinking (the tracking-beacon and IP-disclosure
-leak TS-PP-6 forbids) or re-hosting, and re-hosting needs the media store wave 3
-builds. Until then a card shows the title, the description, and the source domain.
+The og:image is RE-HOSTED, never hotlinked (S-301, TS-PP-6): hotlinking a remote image
+would beacon every viewer's IP and load time to the target, so the image is re-fetched
+through this same SSRF-hardened path, re-encoded through the media store (which strips
+its metadata and defuses any polyglot), and served only through the access-checked media
+view. A card with no fetchable/decodable image degrades to title + description + domain.
 
 No third-party HTTP client or HTML parser is added: the stdlib gives the redirect
 and IP-pinning control these controls require and keeps the supply chain small.
@@ -35,6 +36,7 @@ import re
 import socket
 import ssl
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from typing import TYPE_CHECKING
@@ -47,6 +49,10 @@ _TIMEOUT = 3.0  # seconds, per connect and per recv
 _TOTAL_BUDGET = 8.0  # seconds, whole fetch across all hops; the per-recv timeout
 # resets on every chunk, so a slow trickle needs a wall-clock ceiling too (HIGH-3)
 _MAX_BYTES = 512 * 1024  # only the head matters; cap the whole read anyway
+# The re-hosted preview image (S-301) can be larger than a document head, but is still
+# bounded so a hostile server cannot stream an unbounded body into the web tier; Pillow's
+# decompression-bomb limit (media._MAX_PIXELS) is the second, decode-time ceiling.
+_MAX_IMAGE_BYTES = 5 * 1024 * 1024
 _MAX_REDIRECTS = 3
 _ALLOWED_SCHEMES = {"http", "https"}
 _ALLOWED_PORTS = {80, 443}
@@ -230,16 +236,16 @@ def _validate_url(url: str) -> tuple[str, str, int, str]:
     return parts.scheme, host, port, path
 
 
-def _read_capped(resp: http.client.HTTPResponse, deadline: float) -> bytes:
-    """Read at most _MAX_BYTES, giving up if the total deadline passes. The socket
+def _read_capped(resp: http.client.HTTPResponse, deadline: float, max_bytes: int) -> bytes:
+    """Read at most max_bytes, giving up if the total deadline passes. The socket
     timeout bounds each recv but resets on every chunk, so a slow trickle needs this
     wall-clock ceiling (security review HIGH-3)."""
     chunks: list[bytes] = []
     total = 0
-    while total < _MAX_BYTES:
+    while total < max_bytes:
         if time.monotonic() > deadline:
             raise PreviewUnavailable("read deadline exceeded")
-        chunk = resp.read(min(65536, _MAX_BYTES - total))
+        chunk = resp.read(min(65536, max_bytes - total))
         if not chunk:
             break
         chunks.append(chunk)
@@ -247,9 +253,19 @@ def _read_capped(resp: http.client.HTTPResponse, deadline: float) -> bytes:
     return b"".join(chunks)
 
 
-def _fetch_once(url: str, deadline: float) -> tuple[int, str | None, bytes]:
+def _fetch_once(
+    url: str,
+    deadline: float,
+    *,
+    accept: str,
+    content_type_ok: Callable[[str], bool],
+    max_bytes: int,
+) -> tuple[int, str | None, bytes]:
     """One validated, IP-pinned, non-redirecting GET. Returns (status, location,
-    body). Body is empty unless the response is 2xx text/html within the size cap."""
+    body). Body is empty unless the response is 2xx with an accepted content type
+    within the size cap. The SSRF controls (scheme/port/userinfo validation and the
+    resolve-then-pin) are identical for every caller; only the accepted content type
+    and byte cap differ between the HTML head and the re-hosted image (S-301)."""
     if time.monotonic() > deadline:
         raise PreviewUnavailable("deadline exceeded")
     scheme, host, port, path = _validate_url(url)
@@ -268,7 +284,7 @@ def _fetch_once(url: str, deadline: float) -> tuple[int, str | None, bytes]:
         conn = _PinnedHTTPConnection(host, pinned_ip=pinned_ip, port=port, timeout=_TIMEOUT)
 
     try:
-        conn.request("GET", path, headers={"User-Agent": _USER_AGENT, "Accept": "text/html"})
+        conn.request("GET", path, headers={"User-Agent": _USER_AGENT, "Accept": accept})
         resp = conn.getresponse()
         status = resp.status
         location = resp.getheader("Location")
@@ -276,9 +292,9 @@ def _fetch_once(url: str, deadline: float) -> tuple[int, str | None, bytes]:
             resp.read(0)
             return status, location, b""
         content_type = (resp.getheader("Content-Type") or "").split(";", 1)[0].strip().lower()
-        if content_type != "text/html":
-            raise PreviewUnavailable(f"content type {content_type!r} not html")
-        body = _read_capped(resp, deadline)
+        if not content_type_ok(content_type):
+            raise PreviewUnavailable(f"content type {content_type!r} not accepted")
+        body = _read_capped(resp, deadline, max_bytes)
         return status, None, body
     except (OSError, http.client.HTTPException, ssl.SSLError) as exc:
         raise PreviewUnavailable(str(exc)) from exc
@@ -286,26 +302,75 @@ def _fetch_once(url: str, deadline: float) -> tuple[int, str | None, bytes]:
         conn.close()
 
 
-def fetch_preview(url: str) -> Preview | None:
-    """Fetch and parse a link preview for a member-supplied URL, or None on any
-    failure (graceful fallback). Follows up to a few redirects, re-validating every
-    hop from scratch so no hop can reach an internal address."""
+def _fetch_following(
+    url: str,
+    *,
+    accept: str,
+    content_type_ok: Callable[[str], bool],
+    max_bytes: int,
+    deadline: float | None = None,
+) -> tuple[str, bytes] | None:
+    """Follow up to a few redirects, re-validating EVERY hop from scratch (a public
+    URL can 302 to http://169.254.169.254), and return (final_url, body) of the first
+    non-redirect response, or None. Every hop runs the same SSRF gate through
+    _fetch_once, so a redirect can no more reach an internal address than the first
+    request could. An explicit deadline lets a caller share ONE wall-clock budget
+    across the page fetch and the follow-up image fetch, so the two together cannot
+    block the request tier for more than _TOTAL_BUDGET (security review, S-301)."""
     current = url
-    deadline = time.monotonic() + _TOTAL_BUDGET
+    if deadline is None:
+        deadline = time.monotonic() + _TOTAL_BUDGET
     try:
         for _hop in range(_MAX_REDIRECTS + 1):
             if time.monotonic() > deadline:
                 return None
-            status, location, body = _fetch_once(current, deadline)
+            status, location, body = _fetch_once(
+                current,
+                deadline,
+                accept=accept,
+                content_type_ok=content_type_ok,
+                max_bytes=max_bytes,
+            )
             if status >= 300:
                 if not location:
                     return None
                 current = urljoin(current, location)
                 continue
-            return _parse(body, final_url=current)
+            return current, body
         return None  # too many redirects
     except PreviewUnavailable:
         return None
+
+
+def fetch_preview(url: str, *, deadline: float | None = None) -> Preview | None:
+    """Fetch and parse a link preview for a member-supplied URL, or None on any
+    failure (graceful fallback)."""
+    got = _fetch_following(
+        url,
+        accept="text/html",
+        content_type_ok=lambda ct: ct == "text/html",
+        max_bytes=_MAX_BYTES,
+        deadline=deadline,
+    )
+    if got is None:
+        return None
+    final_url, body = got
+    return _parse(body, final_url=final_url)
+
+
+def fetch_image_bytes(url: str, *, deadline: float | None = None) -> bytes | None:
+    """Fetch a preview's og:image through the same SSRF-hardened, IP-pinned,
+    redirect-revalidating path as the HTML (S-301), or None. Accepts only an image
+    content type and a larger-but-bounded body; the caller re-encodes the bytes
+    through the media store, so what is fetched here is never served as-is."""
+    got = _fetch_following(
+        url,
+        accept="image/*",
+        content_type_ok=lambda ct: ct.startswith("image/"),
+        max_bytes=_MAX_IMAGE_BYTES,
+        deadline=deadline,
+    )
+    return got[1] if got is not None else None
 
 
 class _HeadParser(HTMLParser):
@@ -380,12 +445,37 @@ def _parse(body: bytes, *, final_url: str) -> Preview | None:
     return Preview(url=final_url, title=title, description=description, image_url=image_url)
 
 
+def _rehost_preview_image(
+    post: Post, row: LinkPreview, image_url: str, *, deadline: float | None = None
+) -> None:
+    """Best-effort re-host of a preview's og:image (S-301). Fetch it through the same
+    SSRF gate as the HTML, re-encode it through the media store (metadata stripped,
+    polyglot defused, content type pinned), attach it as the preview's image_asset.
+    Any failure (unreachable, wrong type, oversize, undecodable, a storage/DB error)
+    leaves the card with no image rather than raising: this runs AFTER the post is
+    already committed, so a broken image must never 500 the compose or duplicate the
+    post (security review LOW). The catch is deliberately broad for that reason."""
+    from . import media
+
+    try:
+        raw_image = fetch_image_bytes(image_url, deadline=deadline)
+        if not raw_image:
+            return
+        asset = media.ingest_link_preview_image(post=post, raw=raw_image)
+        if asset is not None:
+            row.image_asset = asset
+            row.save(update_fields=["image_asset"])
+    except Exception:  # noqa: BLE001 — best-effort post-commit enrichment; never break the post
+        return
+
+
 def attach_to_post(post: Post) -> LinkPreview | None:
     """Best-effort: if the post body contains a URL, store its tracking-stripped form
-    and, when one can be safely fetched, a title/description card. Called by the
-    compose view after the post is created, so the write service stays pure and free
-    of network I/O. A URL with no fetchable preview still stores the cleaned link, so
-    the card degrades to a bare link (graceful fallback); no URL means no row."""
+    and, when one can be safely fetched, a title/description card with a re-hosted
+    image. Called by the compose view after the post is created, so the write service
+    stays pure and free of network I/O. A URL with no fetchable preview still stores
+    the cleaned link, so the card degrades to a bare link (graceful fallback); no URL
+    means no row."""
     from .models import LinkPreview
 
     raw = first_url_in(post.body)
@@ -394,12 +484,20 @@ def attach_to_post(post: Post) -> LinkPreview | None:
     clean = strip_tracking_params(raw)
     if len(clean) > _MAX_URL_LEN:
         return None  # a URL past the column width gets no card, never a 500
-    preview = fetch_preview(clean)
-    return LinkPreview.objects.create(
+    # ONE wall-clock budget shared across the page fetch and the follow-up image fetch,
+    # so a member's compose cannot be blocked for more than _TOTAL_BUDGET total by a slow
+    # or hostile target, even though it is two sequential network fetches (S-301).
+    deadline = time.monotonic() + _TOTAL_BUDGET
+    preview = fetch_preview(clean, deadline=deadline)
+    row = LinkPreview.objects.create(
         post=post,
         url=clean,
         title=preview.title if preview else "",
         description=preview.description if preview else "",
-        # og:image is captured for wave 3 only; cap it to the column width defensively.
+        # The remote og:image URL is stored as the record + re-host source, capped to the
+        # column width defensively; it is re-hosted below, never rendered directly.
         image_url=(preview.image_url[:_MAX_URL_LEN] if preview else ""),
     )
+    if preview and preview.image_url:
+        _rehost_preview_image(post, row, preview.image_url, deadline=deadline)
+    return row

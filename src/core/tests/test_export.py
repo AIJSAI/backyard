@@ -140,3 +140,20 @@ def test_export_skips_a_missing_media_file(world: dict[str, object]) -> None:
     asset.image.storage.delete(asset.image.name)  # remove the file, leave the DB row
     files = _read_zip(export.build_member_export(author))  # must not raise
     assert json.loads(files["media.json"]) == []  # the missing file was skipped
+
+
+def test_export_excludes_rehosted_link_preview_images(world: dict[str, object]) -> None:
+    """A re-hosted link-preview og:image is a copy of a third party's image, not the
+    member's own content, so it never appears in their personal data export (S-301)."""
+    author = world["author"]
+    m_pod = world["m_pod"]
+    assert isinstance(author, Member)
+    assert isinstance(m_pod, Pod)
+    post = Post.objects.create(author=author, pod=m_pod, body="a post with a link card")
+    media.ingest_photo(post=post, raw=_jpeg())  # the member's own photo: exported
+    link_asset = media.ingest_link_preview_image(post=post, raw=_jpeg())  # re-hosted: not
+    assert link_asset is not None
+    files = _read_zip(export.build_member_export(author))
+    media_index = json.loads(files["media.json"])
+    assert len(media_index) == 1  # only the member's own photo
+    assert f"media/{link_asset.token}.jpg" not in files  # the re-hosted image is absent

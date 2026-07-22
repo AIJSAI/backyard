@@ -190,11 +190,13 @@ epics:
         acceptance:
           - "Card shows title, image, and description when the target provides them, with graceful fallback"
           - "Tracking parameters (utm and friends) are stripped from stored URLs"
-        # Card title/description and tracking-strip are tested (SSRF-hardened fetcher,
-        # its own review). The preview IMAGE is deferred to wave 3, where the media
-        # store re-hosts it: hotlinking a remote image is the beacon/IP leak TS-PP-6
-        # forbids, so the image cannot ship before the media pipeline exists.
-        status: built
+        # S-301 close 2026-07-21: the preview IMAGE now ships. The og:image is re-fetched
+        # SSRF-safely through the same hardened path as the HTML, re-encoded through the
+        # media store (LINK_PREVIEW kind), and served via the access-checked media view;
+        # it is never hotlinked (TS-PP-6). Title/description + tracking-strip stay tested.
+        # Gate green (480 pass) + live compose re-host round-trip + clean security review
+        # (docs/receipts/2026-07-21-s301-preview-image-rehost-close.md).
+        status: tested
         v1: true
       - id: S-302
         epic: E3

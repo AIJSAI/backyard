@@ -317,7 +317,21 @@ class LinkPreview(models.Model):
     url = models.URLField(max_length=2000)
     title = models.CharField(max_length=300, blank=True)
     description = models.CharField(max_length=600, blank=True)
+    # The remote og:image URL, captured for the record and as the re-host source. It is
+    # NEVER rendered (hotlinking is the TS-PP-6 beacon/IP-disclosure leak); the card shows
+    # image_asset instead, a copy re-fetched SSRF-safely and re-encoded through the media
+    # store, served only through the access-checked media view.
     image_url = models.URLField(max_length=2000, blank=True)
+    # The re-hosted preview image (S-301): a LINK_PREVIEW-kind MediaAsset on the same post,
+    # so it inherits the post's audience and rides purge_post_media on delete. Null when the
+    # target had no og:image, or it could not be safely fetched/decoded (graceful fallback).
+    image_asset = models.OneToOneField(
+        "MediaAsset",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="link_preview_image_of",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self) -> str:
@@ -347,7 +361,11 @@ class MediaAsset(models.Model):
 
     PHOTO = "photo"
     VIDEO = "video"
-    MEDIA_KIND_CHOICES = [(PHOTO, "Photo"), (VIDEO, "Video")]
+    # A re-hosted link-preview og:image (S-301). Stored and served exactly like a PHOTO
+    # (token -> image, image/jpeg) so it rides the one access-checked media path, but it
+    # is NOT part of the post's own gallery, so the feed and post views exclude it.
+    LINK_PREVIEW = "link"
+    MEDIA_KIND_CHOICES = [(PHOTO, "Photo"), (VIDEO, "Video"), (LINK_PREVIEW, "Link preview")]
 
     # A photo has nothing to transcode, so it is born DONE; only a video walks
     # PENDING -> DONE|FAILED. The template reads this to render the clip's state.

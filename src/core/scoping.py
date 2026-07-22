@@ -112,10 +112,22 @@ def visible_media(member: Member) -> models.QuerySet[MediaAsset]:
     """Every media asset a member may see: the non-deleted media on posts they can
     see. Media inherits its post's audience through the same one query (S-403,
     T-MEDIA-1), so every byte, original or thumbnail, is access-checked against the
-    post and never reaches a member in a yard the post is not addressed to."""
+    post and never reaches a member in a yard the post is not addressed to. This
+    INCLUDES re-hosted link-preview card images (they must be access-checked and
+    served through the one media path); for a post's own gallery, use
+    visible_attached_media."""
     return MediaAsset.objects.filter(
         post__in=visible_posts(member), deleted_at__isnull=True
     ).distinct()
+
+
+def visible_attached_media(member: Member) -> models.QuerySet[MediaAsset]:
+    """A member's visible POST-gallery media: the photos and videos attached to posts
+    they can see, EXCLUDING re-hosted link-preview card images (S-301). A LINK_PREVIEW
+    asset is the card's picture, not a photo on the post, so counting or rendering a
+    post's own gallery goes through here, while visible_media stays the broader
+    access-check set that also covers the card image's own serving."""
+    return visible_media(member).exclude(media_kind=MediaAsset.LINK_PREVIEW)
 
 
 def visible_pods_of(viewer: Member, target: Member) -> models.QuerySet[Pod]:

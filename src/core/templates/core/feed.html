@@ -72,6 +72,7 @@
         {% endif %}
         {% if item.post.link_preview %}
           <a class="preview" href="{{ item.post.link_preview.url }}" target="_blank" rel="noopener noreferrer nofollow">
+            {% if item.post.link_preview.image_asset %}<img class="preview-image" src="{% url 'serve_media' item.post.link_preview.image_asset.token %}" alt="" loading="lazy">{% endif %}
             {% if item.post.link_preview.title %}<span class="preview-title">{{ item.post.link_preview.title }}</span>{% endif %}
             {% if item.post.link_preview.description %}<span class="preview-desc">{{ item.post.link_preview.description }}</span>{% endif %}
             <span class="preview-url">{{ item.post.link_preview.url }}</span>

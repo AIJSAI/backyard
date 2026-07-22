@@ -106,11 +106,15 @@ def _render_feed(
     feed_posts = (
         scoping.visible_posts(member)
         .exclude(pod_id__in=pods.muted_pod_ids(member))
-        .select_related("author", "pod", "link_preview")
+        .select_related("author", "pod", "link_preview", "link_preview__image_asset")
         .prefetch_related(
             Prefetch(
                 "media",
-                queryset=MediaAsset.objects.filter(deleted_at__isnull=True),
+                # The post's own gallery only: a LINK_PREVIEW asset is a re-hosted card
+                # image, rendered by the preview card, not as an uploaded photo (S-301).
+                queryset=MediaAsset.objects.filter(deleted_at__isnull=True).exclude(
+                    media_kind=MediaAsset.LINK_PREVIEW
+                ),
                 to_attr="live_media",
             )
         )[:100]
@@ -382,7 +386,9 @@ def _render_post_detail(
             "reactor_groups": reactor_groups,
             "my_reaction": my_reaction,
             "reaction_kinds": Reaction.KIND_CHOICES,
-            "media_list": post.media.filter(deleted_at__isnull=True),
+            "media_list": post.media.filter(deleted_at__isnull=True).exclude(
+                media_kind=MediaAsset.LINK_PREVIEW
+            ),
         },
     )
 
