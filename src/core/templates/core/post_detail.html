@@ -40,7 +40,7 @@
   {% if is_moderator %}
     <form method="post" action="{% url 'take_down_post' post.id %}" class="inline">
       {% csrf_token %}
-      <button type="submit">Take down post</button>
+      <button type="submit" class="danger">Take down post</button>
     </form>
   {% endif %}
 
@@ -66,13 +66,13 @@
         {% if comment.author_id == member.id %}
           <form method="post" action="{% url 'delete_comment' comment.id %}" class="inline">
             {% csrf_token %}
-            <button type="submit">Delete</button>
+            <button type="submit" class="danger">Delete</button>
           </form>
         {% endif %}
         {% if is_moderator %}
           <form method="post" action="{% url 'take_down_comment' comment.id %}" class="inline">
             {% csrf_token %}
-            <button type="submit">Take down</button>
+            <button type="submit" class="danger">Take down</button>
           </form>
         {% endif %}
       </li>

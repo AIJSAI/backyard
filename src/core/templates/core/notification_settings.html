@@ -9,7 +9,7 @@
   </p>
   <form method="post" action="{% url 'notification_settings' %}">
     {% csrf_token %}
-    <label>
+    <label class="inline-check">
       <input type="checkbox" name="notify_on_reply"{% if pref.notify_on_reply %} checked{% endif %}>
       Tell me when someone replies to my post
     </label>

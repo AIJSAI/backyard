@@ -18,22 +18,445 @@
     <meta name="apple-mobile-web-app-title" content="Backyard">
   {% endif %}
   <style>
-    :root { color-scheme: light dark; }
-    body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      max-width: 34rem; margin: 4rem auto; padding: 0 1.25rem; line-height: 1.55;
+    /* ==========================================================================
+       Backyard design system (v1). One warm, calm, elder-first identity, shared
+       by every surface that extends this base (the member app + the token/digest
+       pages). The elder feed and the digest email stand alone by design and carry
+       their own, heightened-contrast styles.
+
+       Grounded in the product principles: calm over engagement (quiet color, the
+       feed ends, nothing shouts), separate-is-a-feature (yards/pods read as
+       gentle boundaries, never walls), reciprocity (every post-back affordance is
+       inviting and large), never-assume-a-smartphone (system fonts for fast loads
+       on any device, AA contrast, 44px targets, visible focus).
+
+       No webfonts: font-src is 'self' only (CSP S-724), and the app ships no
+       static dir (ManifestStaticFilesStorage), so the type is a deliberately
+       chosen system stack — a warm serif for headings (echoing the elder feed's
+       Georgia), a humanist sans for the interface.
+       ========================================================================== */
+
+    :root {
+      color-scheme: light dark;
+
+      /* Warm-paper daytime palette — the backyard in open light. */
+      --paper:        #f7f4ec;  /* page ground: warm paper, biased green-neutral  */
+      --surface:      #fffdf7;  /* raised cards                                    */
+      --surface-sunk: #efe9da;  /* insets, table stripes, readonly fields         */
+      --ink:          #23241f;  /* primary text: warm near-black                   */
+      --ink-soft:     #5d5f52;  /* secondary text (AA on paper)                    */
+      --line:         #ddd6c4;  /* hairline borders, like garden-bed edging        */
+      --line-strong:  #c9c0a8;
+
+      --green:        #2f5d3a;  /* brand: deep garden green (the PWA theme color)  */
+      --green-deep:   #274c30;  /* hover / pressed                                 */
+      --green-tint:   #e7efe1;  /* soft wash for notices and gentle highlights     */
+      --amber:        #8a5512;  /* golden-hour accent (AA on its own tint), sparing */
+      --amber-tint:   #f6ecd9;
+
+      --danger:       #a23a2e;  /* muted brick red for destructive + errors        */
+      --danger-tint:  #f6e5e0;
+
+      /* Filled-button tokens (kept semantic so both themes stay legible). */
+      --btn-bg:       var(--green);
+      --btn-bg-hover: var(--green-deep);
+      --btn-ink:      #ffffff;
+
+      --ring:         #8a5a12;  /* focus ring: warm, high-contrast on every ground */
+
+      --radius:       12px;
+      --radius-sm:    8px;
+      --shadow:       0 1px 2px rgba(40, 34, 20, 0.06),
+                      0 3px 10px rgba(40, 34, 20, 0.05);
+
+      --font-display: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino,
+                      "Times New Roman", serif;
+      --font-body:    system-ui, -apple-system, "Segoe UI", Roboto,
+                      "Helvetica Neue", Arial, sans-serif;
+      --font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+      --measure:      40rem;    /* the reading column                              */
+      --step:         1rem;     /* base vertical rhythm                            */
     }
-    h1 { font-size: 1.6rem; margin-bottom: 0.25rem; }
-    .muted { opacity: 0.7; }
-    label { display: block; margin: 1rem 0 0.25rem; font-weight: 600; }
-    input { width: 100%; padding: 0.6rem; font-size: 1rem; box-sizing: border-box; }
-    button { margin-top: 1.5rem; padding: 0.7rem 1.2rem; font-size: 1rem; cursor: pointer; }
-    .errors { border-left: 3px solid #c0392b; padding: 0.5rem 1rem; margin: 1rem 0; }
-    code { background: rgba(127,127,127,0.15); padding: 0.1rem 0.3rem; border-radius: 3px; }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        /* Dusk in the yard — warm charcoal with a green cast. */
+        --paper:        #141611;
+        --surface:      #1e211a;
+        --surface-sunk: #0f120c;
+        --ink:          #ece7d8;
+        --ink-soft:     #aaab95;
+        --line:         #343829;
+        --line-strong:  #454a38;
+
+        --green:        #85ba90;  /* foliage, lightened for text/links on dark     */
+        --green-deep:   #9dcaa6;
+        --green-tint:   #21301f;
+        --amber:        #d6a25a;
+        --amber-tint:   #2a2416;
+
+        --danger:       #e79488;
+        --danger-tint:  #2e1a16;
+
+        --btn-bg:       #3a744a;
+        --btn-bg-hover: #47895a;
+        --btn-ink:      #f5faf1;
+
+        --ring:         #e2b878;
+        --shadow:       0 1px 2px rgba(0, 0, 0, 0.35),
+                        0 3px 12px rgba(0, 0, 0, 0.30);
+      }
+    }
+
+    /* ---- reset & base ------------------------------------------------------- */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      font-family: var(--font-body);
+      font-size: 1.0625rem;          /* 17px: comfortable across generations       */
+      line-height: 1.6;
+      color: var(--ink);
+      background: var(--paper);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-wrap: break-word;
+    }
+
+    h1, h2, h3 {
+      font-family: var(--font-display);
+      line-height: 1.2;
+      text-wrap: balance;
+      color: var(--ink);
+      margin: 0 0 0.4em;
+    }
+    h1 { font-size: 1.85rem; letter-spacing: -0.01em; }
+    h2 { font-size: 1.3rem; margin-top: 1.6em; }
+    h3 { font-size: 1.1rem; }
+    p  { margin: 0 0 var(--step); }
+    p:last-child { margin-bottom: 0; }
+
+    a { color: var(--green); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+    a:hover { color: var(--green-deep); }
+
+    .muted { color: var(--ink-soft); }
+    strong { font-weight: 650; }
+    code {
+      font-family: var(--font-mono); font-size: 0.9em;
+      background: var(--surface-sunk); padding: 0.12em 0.4em; border-radius: 5px;
+    }
+    hr { border: 0; border-top: 1px solid var(--line); margin: 1.5rem 0; }
+
+    /* ---- focus: one clear, warm ring on every interactive element ----------- */
+    :focus-visible {
+      outline: 3px solid var(--ring);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+    a:focus-visible { border-radius: 4px; }
+
+    /* ---- page frame: header / main / footer --------------------------------- */
+    .skip-link {
+      position: absolute; left: 0.5rem; top: -3rem;
+      background: var(--surface); color: var(--ink);
+      padding: 0.6rem 1rem; border-radius: var(--radius-sm);
+      border: 1px solid var(--line-strong); z-index: 10;
+      transition: top 120ms ease;
+    }
+    .skip-link:focus { top: 0.5rem; }
+
+    header.site {
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--paper) 85%, var(--surface));
+    }
+    header.site .wrap,
+    main.wrap,
+    footer.site .wrap { width: 100%; max-width: var(--measure); margin: 0 auto; padding: 0 1.25rem; }
+    header.site .wrap { display: flex; align-items: center; min-height: 3.5rem; }
+
+    .brand {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      font-family: var(--font-display); font-size: 1.2rem; font-weight: 700;
+      color: var(--ink); text-decoration: none; letter-spacing: -0.01em;
+    }
+    .brand:hover { color: var(--green-deep); }
+    .brand svg { width: 1.4rem; height: 1.4rem; color: var(--green); flex: none; }
+
+    main.wrap {
+      flex: 1 0 auto;
+      padding-top: 2rem; padding-bottom: 3rem;
+    }
+    /* Keep running prose to a readable measure without narrowing cards/media. */
+    main.wrap > p,
+    main.wrap > h1 + p,
+    .notice, .post > p, .empty { max-width: 34rem; }
+
+    footer.site {
+      border-top: 1px solid var(--line);
+      color: var(--ink-soft); font-size: 0.85rem;
+    }
+    footer.site .wrap { padding-top: 1.25rem; padding-bottom: 1.25rem; }
+    footer.site a { color: var(--ink-soft); }
+
+    /* ---- forms -------------------------------------------------------------- */
+    label {
+      display: block; margin: 1.1rem 0 0.35rem; font-weight: 600; color: var(--ink);
+    }
+    label.inline-check {
+      display: flex; align-items: center; gap: 0.55rem; font-weight: 500; margin: 0.5rem 0;
+    }
+    input, select, textarea {
+      width: 100%; font: inherit; color: var(--ink);
+      background: var(--surface);
+      padding: 0.65rem 0.7rem;
+      border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+    }
+    input[type=checkbox], input[type=radio] { width: auto; min-width: 1.15rem; min-height: 1.15rem; accent-color: var(--green); }
+    input[type=file] { padding: 0.5rem; background: var(--surface-sunk); }
+    input::placeholder, textarea::placeholder { color: var(--ink-soft); opacity: 0.8; }
+    input:focus, select:focus, textarea:focus { border-color: var(--green); }
+    textarea { resize: vertical; min-height: 3.2rem; }
+    select { appearance: none; -webkit-appearance: none;
+      background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
+                        linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+      background-position: right 1rem center, right 0.75rem center;
+      background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 2rem; }
+
+    fieldset {
+      border: 1px solid var(--line); border-radius: var(--radius-sm);
+      margin: 1.1rem 0 0; padding: 0.5rem 0.9rem 0.9rem;
+    }
+    legend { font-weight: 600; padding: 0 0.4rem; color: var(--ink); }
+
+    /* ---- buttons ------------------------------------------------------------ */
+    button, input[type=submit], .btn {
+      font: inherit; font-weight: 600; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+      min-height: 44px; padding: 0.6rem 1.25rem;
+      color: var(--btn-ink); background: var(--btn-bg);
+      border: 1px solid transparent; border-radius: var(--radius-sm);
+      text-decoration: none; line-height: 1.2;
+      transition: background-color 120ms ease, border-color 120ms ease;
+    }
+    button:hover, input[type=submit]:hover, .btn:hover { background: var(--btn-bg-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Secondary / destructive live inside .inline action forms and .actions. */
+    .inline { display: inline; margin: 0; }
+    .inline button, .btn-secondary, .handover-actions button {
+      background: transparent; color: var(--green);
+      border-color: var(--line-strong); font-weight: 600;
+    }
+    .inline button:hover, .btn-secondary:hover, .handover-actions button:hover {
+      background: var(--green-tint); color: var(--green-deep);
+    }
+    button.danger, .inline button.danger, .btn-danger {
+      background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+    }
+    button.danger:hover, .btn-danger:hover { background: var(--danger-tint); color: var(--danger); }
+
+    /* ---- notices, errors, flags -------------------------------------------- */
+    .notice, .errors {
+      border-radius: var(--radius-sm); padding: 0.85rem 1rem;
+      border-left: 4px solid var(--green); background: var(--green-tint);
+      margin: 1.25rem 0;
+    }
+    .notice p, .errors p { margin: 0 0 0.4rem; }
+    .notice p:last-child, .errors p:last-child { margin: 0; }
+    .errors { border-left-color: var(--danger); background: var(--danger-tint); color: var(--ink); }
+
+    .flag, .role, .via-email {
+      display: inline-block; font-size: 0.75rem; font-weight: 600;
+      line-height: 1.4; padding: 0.1rem 0.5rem; border-radius: 999px;
+      background: var(--surface-sunk); color: var(--ink-soft);
+      letter-spacing: 0.02em; vertical-align: middle;
+    }
+    .flag { background: var(--amber-tint); color: var(--amber); }
+    .role { background: var(--green-tint); color: var(--green); }
+
+    /* ---- the feed & post cards --------------------------------------------- */
+    .composer {
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+      padding: 1.1rem; margin: 1.5rem 0 2rem;
+    }
+    .composer textarea { border-color: var(--line); }
+    .composer > label:first-of-type { margin-top: 0.75rem; }
+
+    ul.feed, ul.comments, ul.members, ul.pods, ul.directory,
+    ul.invites, ul.digests, ul.redeemers, ul.uses { list-style: none; margin: 0; padding: 0; }
+    ul.feed { display: flex; flex-direction: column; gap: 1rem; }
+
+    ul.feed > li, .post {
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+      padding: 1.1rem 1.2rem;
+    }
+    .post { margin: 1.25rem 0; }
+    .author, .byline strong, .byline { font-weight: 650; color: var(--ink); }
+    .byline { margin: 0 0 0.5rem; color: var(--ink-soft); font-size: 0.92rem; }
+    .byline strong, .author { font-size: 1rem; }
+    .when, .edited {
+      color: var(--ink-soft); font-size: 0.85rem; font-weight: 400; margin-left: 0.5rem;
+    }
+    ul.feed > li > p, .post > p, .comments p { margin: 0.5rem 0 0.75rem; }
+
+    /* The new-since divider — a quiet boundary between fresh and already-seen, not an alert. */
+    li.boundary {
+      background: none !important; border: 0 !important; box-shadow: none !important;
+      padding: 0.25rem 0 !important; text-align: center;
+      display: flex; align-items: center; gap: 0.75rem; color: var(--amber);
+    }
+    li.boundary::before, li.boundary::after {
+      content: ""; flex: 1; height: 1px; background: var(--line-strong);
+    }
+    li.boundary span { font-size: 0.82rem; font-weight: 600; letter-spacing: 0.03em; white-space: nowrap; }
+
+    /* The feed ends — principle 1, calm over engagement. */
+    .caught-up {
+      text-align: center; color: var(--ink-soft); font-style: italic;
+      margin: 2rem 0 0.5rem; padding-top: 1.25rem;
+    }
+    .caught-up::before {
+      content: "❧"; display: block; font-style: normal; font-size: 1.3rem;
+      color: var(--green); opacity: 0.7; margin-bottom: 0.35rem;
+    }
+    .empty {
+      color: var(--ink-soft); text-align: center; padding: 1.5rem 1rem;
+      background: var(--surface-sunk); border-radius: var(--radius); border: 1px dashed var(--line-strong);
+    }
+    ul.feed > li.empty, .comments > li.empty { box-shadow: none; }
+
+    .date-banner {
+      background: var(--amber-tint); border: 1px solid color-mix(in srgb, var(--amber) 25%, transparent);
+      border-radius: var(--radius); padding: 0.75rem 1rem; margin: 1.25rem 0;
+    }
+    .date-banner p { margin: 0.15rem 0; color: var(--amber); font-weight: 600; }
+
+    /* ---- row of quiet post actions ----------------------------------------- */
+    .actions {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1rem;
+      margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px solid var(--line);
+      font-size: 0.9rem;
+    }
+    .actions a { text-decoration: none; font-weight: 600; }
+    .actions a:hover { text-decoration: underline; }
+    .actions .inline button {
+      min-height: auto; padding: 0.2rem 0.6rem; font-size: 0.85rem; border-radius: 999px;
+    }
+
+    /* ---- media & link previews --------------------------------------------- */
+    .photos { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.75rem 0; }
+    .photos img, .clip {
+      max-width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--line);
+      background: var(--surface-sunk);
+    }
+    .photos img { max-height: 22rem; object-fit: cover; cursor: zoom-in; }
+    .clip { width: 100%; }
+    .clip-status {
+      color: var(--ink-soft); font-style: italic; font-size: 0.9rem;
+      background: var(--surface-sunk); border-radius: var(--radius-sm); padding: 0.6rem 0.8rem;
+    }
+    a.preview {
+      display: block; margin: 0.75rem 0; text-decoration: none; color: var(--ink);
+      border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
+      background: var(--surface-sunk); transition: border-color 120ms ease;
+    }
+    a.preview:hover { border-color: var(--line-strong); }
+    .preview-image { display: block; width: 100%; max-height: 15rem; object-fit: cover; }
+    .preview-title { display: block; font-weight: 650; padding: 0.7rem 0.9rem 0.2rem; }
+    .preview-desc  { display: block; color: var(--ink-soft); padding: 0 0.9rem 0.3rem; font-size: 0.92rem; }
+    .preview-url   { display: block; color: var(--green); padding: 0.2rem 0.9rem 0.75rem; font-size: 0.82rem; }
+
+    /* ---- reactions ---------------------------------------------------------- */
+    .reactions { margin: 1rem 0; }
+    .reaction-label { font-weight: 650; }
+    .react-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+    .react-buttons button {
+      background: var(--surface); color: var(--ink); border-color: var(--line-strong);
+      min-height: 40px; padding: 0.4rem 0.9rem; border-radius: 999px; font-weight: 600;
+    }
+    .react-buttons button:hover { background: var(--green-tint); border-color: var(--green); }
+    .react-buttons button.reacted { background: var(--green); color: var(--btn-ink); border-color: var(--green); }
+
+    /* ---- admin lists & tables ---------------------------------------------- */
+    ul.members > li, ul.pods > li, ul.directory > li, ul.invites > li,
+    ul.digests > li, ul.redeemers > li, ul.uses > li {
+      padding: 0.85rem 0; border-bottom: 1px solid var(--line);
+      display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+    }
+    ul.members .inline, ul.pods .inline, ul.invites .inline { margin-left: auto; }
+
+    table {
+      width: 100%; border-collapse: collapse; margin: 1.25rem 0;
+      font-variant-numeric: tabular-nums;
+    }
+    caption { text-align: left; color: var(--ink-soft); margin-bottom: 0.5rem; }
+    th, td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--line); }
+    thead th { border-bottom: 2px solid var(--line-strong); font-size: 0.85rem;
+      text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); }
+    tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-sunk) 45%, transparent); }
+    td.delivery, .delivery { font-variant-numeric: tabular-nums; }
+
+    /* ---- hand-over block & printable QR ------------------------------------ */
+    .handover {
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.1rem; margin: 1rem 0 1.5rem;
+    }
+    .handover input[readonly] { background: var(--surface-sunk); font-family: var(--font-mono); font-size: 0.9rem; }
+    .handover-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.75rem 0; }
+    .qr {
+      display: flex; justify-content: center; padding: 1rem;
+      background: #ffffff; border-radius: var(--radius-sm); border: 1px solid var(--line); margin: 0.75rem 0;
+    }
+    .qr svg { width: 100%; max-width: 220px; height: auto; }
+
+    /* ---- misc surfaces ------------------------------------------------------ */
+    .house-rule { background: var(--green-tint); border-radius: var(--radius-sm);
+      padding: 0.75rem 1rem; border-left: 4px solid var(--green); margin: 1rem 0; }
+    .contacts, .contact { color: var(--ink-soft); }
+    .kinship { color: var(--ink-soft); font-weight: 500; }
+
+    .visually-hidden {
+      position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+    }
+
+    /* ---- respect reduced-motion & print ------------------------------------ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+    }
+    @media print {
+      header.site, footer.site, .actions, .composer, .handover-actions, .skip-link { display: none !important; }
+      body { background: #fff; color: #000; }
+      .qr { border: 0; }
+      a { color: #000; text-decoration: underline; }
+    }
   </style>
 </head>
 <body>
-  {% block body %}{% endblock %}
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site">
+    <div class="wrap">
+      <a class="brand" href="{% if user.is_authenticated %}{% url 'feed' %}{% else %}{% url 'home' %}{% endif %}">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 21c0-5 0-8 0-8m0 0c0-3.5 2.8-6.3 6.3-6.3.2 0 .3.1.3.3C18.6 10.8 15.8 13 12.3 13H12Zm0 0C12 10 9.7 7.7 6.7 7.7c-.2 0-.3.1-.3.3C6.4 11 8.7 13.3 11.7 13.3H12Z"
+                stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Backyard
+      </a>
+    </div>
+  </header>
+  <main class="wrap" id="main">
+    {% block body %}{% endblock %}
+  </main>
+  <footer class="site">
+    <div class="wrap">
+      <span class="muted">A quiet place for family. Your history stays yours — export it any time.</span>
+    </div>
+  </footer>
   {% if user.is_authenticated %}
     <script nonce="{{ request.csp_nonce }}">
       // Register the minimal service worker so member pages are installable

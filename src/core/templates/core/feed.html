@@ -34,7 +34,7 @@
     <fieldset>
       <legend>Also share with a whole side of the family (optional)</legend>
       {% for yard in yards %}
-        <label><input type="checkbox" name="audience_yards" value="{{ yard.id }}"> {{ yard.name }}</label>
+        <label class="inline-check"><input type="checkbox" name="audience_yards" value="{{ yard.id }}"> {{ yard.name }}</label>
       {% endfor %}
     </fieldset>
 
@@ -87,7 +87,7 @@
           {% if is_moderator %}
             <form method="post" action="{% url 'take_down_post' item.post.id %}" class="inline">
               {% csrf_token %}
-              <button type="submit">Take down</button>
+              <button type="submit" class="danger">Take down</button>
             </form>
           {% endif %}
         </span>
