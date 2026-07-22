@@ -77,6 +77,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Baseline CSP with a per-request nonce (S-724, TS-DJ-9). Early so request.csp_nonce is
+    # set before any view renders; the header is stamped on the way out.
+    "core.middleware.ContentSecurityPolicyMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -104,6 +107,8 @@ TEMPLATES = [
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
+                # Exposes `request` in templates — needed for the CSP nonce (S-724).
+                "django.template.context_processors.request",
                 "django.contrib.messages.context_processors.messages",
                 "django.contrib.auth.context_processors.auth",
             ],

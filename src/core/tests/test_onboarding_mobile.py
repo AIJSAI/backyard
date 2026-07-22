@@ -285,3 +285,55 @@ def test_new_elder_mint_and_open_on_android_chrome(
         yard_id=yard_id,
         welcome_body=welcome,
     )
+
+
+# --- the baseline CSP does not break the inline scripts (S-724) ---------------------
+#
+# A unit test proves the nonce is in the header and on the <script> tags; only a real
+# browser proves the browser then EXECUTES those scripts under the enforced policy. If a
+# nonce were missing or mismatched, the browser refuses the inline script and logs a CSP
+# violation to the console — which this captures and fails on.
+
+
+def _drive_csp_inline_script_check(
+    playwright: Playwright, *, engine: str, device: str, base_url: str, cookie: str
+) -> None:
+    device_args: dict[str, Any] = dict(playwright.devices[device])
+    browser = getattr(playwright, engine).launch()
+    try:
+        page = _admin_context(browser, device_args, base_url, cookie).new_page()
+        violations: list[str] = []
+        page.on(
+            "console",
+            lambda m: (
+                violations.append(m.text)
+                if ("Content Security Policy" in m.text or "Refused to" in m.text)
+                else None
+            ),
+        )
+        # The feed carries two nonce'd inline scripts (service-worker registration, the
+        # client-side resize); if the CSP blocked either, the console records it.
+        page.goto(f"{base_url}/feed/")
+        expect(page.get_by_placeholder("Share something with your family")).to_be_visible()
+        page.wait_for_timeout(400)  # give the inline scripts a beat to run (or be refused)
+        assert not violations, (
+            f"CSP refused an inline script under the enforced policy: {violations}"
+        )
+    finally:
+        browser.close()
+
+
+def test_csp_allows_inline_scripts_on_ios_safari(live_server: Any, playwright: Playwright) -> None:
+    cookie, _, _ = _seed_admin_yard_and_welcome()
+    _drive_csp_inline_script_check(
+        playwright, engine="webkit", device="iPhone 13", base_url=live_server.url, cookie=cookie
+    )
+
+
+def test_csp_allows_inline_scripts_on_android_chrome(
+    live_server: Any, playwright: Playwright
+) -> None:
+    cookie, _, _ = _seed_admin_yard_and_welcome()
+    _drive_csp_inline_script_check(
+        playwright, engine="chromium", device="Pixel 5", base_url=live_server.url, cookie=cookie
+    )
