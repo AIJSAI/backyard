@@ -1,0 +1,33 @@
+# Production Caddyfile: HTTPS for $BACKYARD_DOMAIN with an automatically-fetched
+# Let's Encrypt certificate (auto_https is on by default when a domain block exists).
+# Used by docker-compose.prod.yml, which publishes Caddy on 0.0.0.0:80/443. The local
+# Caddyfile (plain HTTP on :8000, loopback) is unchanged for the clean-machine repro.
+#
+# Do NOT add `header Referrer-Policy no-referrer` here. The app sets Referrer-Policy per
+# surface (same-origin floor + no-referrer on /t/ /d/); a global no-referrer at the edge
+# makes browsers send Origin: null on same-origin form POSTs and Django's CSRF rejects
+# them, silently breaking every form in a real browser.
+#
+# Do NOT add a `log` directive here: request lines carry bearer tokens in their paths
+# (/d/, /join/, /media/, /digest/*, /break-glass/ — threat model TS-EDGE-LOG).
+
+{
+	admin off
+	email {$ACME_EMAIL}
+}
+
+{$BACKYARD_DOMAIN} {
+	reverse_proxy web:8000
+	# Hard edge ceiling on the request body (TS-CA-4): rejects an oversized or many-file
+	# POST with a 413 before the multipart parser writes temp files, above the largest
+	# legitimate post (4 clips at 100MB + photos). The per-file app caps are the fine control.
+	request_body {
+		max_size 512MB
+	}
+	# The app owns Referrer-Policy per surface (see the caution above); only nosniff is
+	# asserted at the edge as defense in depth, and the Server header is stripped.
+	header {
+		X-Content-Type-Options nosniff
+		-Server
+	}
+}
