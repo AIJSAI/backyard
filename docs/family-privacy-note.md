@@ -1,44 +1,28 @@
-# A note on whether Backyard keeps tabs on you
+# A note for the family about Backyard
 
-> **Status: DRAFT — pending the founder's own voice.** This satisfies S-705's
-> requirement that the family be told, in plain language, about the one
-> per-person datum Backyard keeps. Everything it describes is already true in the
-> code (see [ADR-005](adr/ADR-005-batched-defaults.md) §8 and
-> [metrics](metrics.md)); only the wording awaits sign-off. A judge panel's
-> factual and audience fixes are folded in (the earlier draft overclaimed by
-> implying nothing else is stored). Written to be read aloud or pasted into the
-> family's first invitation.
+<!--
+Deliberately light (founder's call, 2026-07-22): the family trusts James and does
+not need a privacy treatise. The full technical data-handling documentation (for
+the OPEN-SOURCE audience who self-host Backyard for their own families) belongs in
+the deployer docs (Phase 5 docs site), not here. This still satisfies S-705: the
+family is plainly told, in James's voice, about the one per-person datum Backyard
+keeps (a weekly yes/no of whether you showed up). Nothing is overclaimed: this is
+about usage, not the posts and photos you choose to share, which are of course kept.
+-->
 
----
+A quick note from me:
 
-Backyard is built to bring us together, not to keep tabs on anyone. So here is
-exactly what it does and doesn't notice about how you use it.
+Backyard is just for us: a calm place to keep up with each other. It isn't here to
+keep tabs on anyone.
 
-First, the obvious part: the things you choose to put here, your posts, your
-photos, your profile, are of course saved. That is the whole point of sharing
-them with family. This note is about something narrower: whether the app quietly
-watches your comings and goings behind the scenes. It does not.
+The one thing it quietly notices is this: once a week, whether each of us stopped
+by. Just a yes or no. It's so I can tell our backyard is still alive and we're
+staying in touch. Nothing more. It doesn't watch what you read, how long you stay,
+or what you tap, and there's no per-person activity feed anywhere in it. The only
+numbers anyone sees are totals for the whole family, never any one of us on our own.
 
-Once a week, for each person, Backyard notes one thing: whether you showed up
-that week. A simple yes or no. That one yes-or-no is the only thing it notices
-about how you use it. It is there so I can tell, at a glance, whether the family
-as a whole is staying in touch, whether the backyard is still alive. That is the
-only reason.
+If even that ever feels like too much, tell me and we'll sort it out together. This
+is ours.
 
-Here is what Backyard does not do, anywhere:
-
-- It does not keep track of what you looked at, or how long you stayed.
-- It does not count how often you visit or how many times you tap.
-- There are no little "seen" or "read" marks, and no running list of what each
-  person has been up to. There is no screen anywhere in Backyard that shows what
-  you, in particular, have been doing.
-
-The only numbers anyone can see are totals for a whole pod or a whole side of the
-family: how many of us checked in this week. Your own yes-or-no is never shown on
-its own. It only ever shows up as part of those totals.
-
-If that one weekly yes-or-no still feels like more than you are comfortable with,
-tell me and we will sort it out together. This is our backyard. I want every one
-of us glad to be in it.
-
-— *[the founder signs here]*
+Love,
+James

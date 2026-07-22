@@ -476,7 +476,7 @@ epics:
           - "Weekly WCM plus the four input metrics from docs/metrics.md, as aggregates per pod and yard"
           - "The only per-person datum is the KPI yes/no weekly presence, and the measured family is told about it in the docs"
           - "No time-on-site, session counts, or per-person activity feeds exist anywhere"
-        status: built  # wave 4: counts-only rollup + instance-admin panel built and live-repro-d; tested-flip waits on the wave close
+        status: tested  # wave 4 close 2026-07-22: counts-only rollup + instance-admin panel live-repro'd; family disclosure (docs/family-privacy-note.md) written in the founder's voice + judge-passed (fuller deployer-facing privacy doc deferred to the OSS docs site, founder's call)
         v1: true
 
       - id: S-706

@@ -48,7 +48,7 @@ The single canonical checklist for Backyard v1.0. Rules:
 - [x] Wave 1 (pods+auth) closed: full gate + live repro receipt (S-101 feed-landing and S-201 household-onboarding carried into wave 2 per the wave plan) evidence: docs/receipts/2026-07-20-wave-1-close.md
 - [x] Wave 2 (feed+links) closed: full gate + live repro receipt evidence: docs/receipts/2026-07-20-wave-2-close.md
 - [x] Wave 3 (media) closed: full gate + live repro receipt; ffmpeg latency measured (2-vCPU Ubicloud, 60s 1080p 14.9s) and pillow-heif decided evidence: docs/receipts/2026-07-21-wave-3-close.md
-- [x] Wave 4 (digest in/out) closed: full gate + live repro receipt; Anymail delivery-status matrix measured (delivered/bounced/complained + real inbox); S-501/502/903 tested via live Resend send + inbound round-trip, S-705 wording pending founder voice evidence: docs/receipts/2026-07-22-wave-4-close.md
+- [x] Wave 4 (digest in/out) closed: full gate + live repro receipt; Anymail delivery-status matrix measured (delivered/bounced/complained + real inbox); S-501/502/903/705 all tested (live Resend send + inbound round-trip; S-705 family disclosure kept light + judge-passed) evidence: docs/receipts/2026-07-22-wave-4-close.md
 - [x] Wave 5 (PWA + elder path) closed: full gate + live repro receipt; RAM footprint measured (four containers, ~294 MiB); full revocation drill (six credential classes, live) evidence: docs/receipts/2026-07-21-wave-5-close.md
 - [x] Every wave closes on the full verification gate plus a live repro, never subset tests evidence: docs/receipts/
 
@@ -90,11 +90,12 @@ S-502, S-903 are `tested`.** The one remaining item is a founder input, not code
    fields HIDDEN); a bridge household's pod-only posts in both sides' digests
    (yes — the pod spans, the yard never fuses); top-quoting clients (quarantine,
    never recover); digest enrollment (opt-in with double-confirm) and timing
-   (rolling per-member weekly anchor, not a global send-time). The **only** item
-   still open is the S-705 family disclosure *wording* — drafted and
-   judge-reviewed in [the family privacy note](family-privacy-note.md), pending
-   the founder's own voice. The privacy posture it describes is already ratified
-   and enforced in code.
+   (rolling per-member weekly anchor, not a global send-time). The S-705 family
+   disclosure *wording* is RESOLVED (2026-07-22): the founder chose a deliberately
+   light family note ([family-privacy-note.md](family-privacy-note.md)),
+   judge-passed, with the fuller technical privacy documentation deferred to the OSS
+   deployer docs (Phase 5). S-705 is now `tested`. The privacy posture it describes
+   is already ratified and enforced in code.
 
 ## Phase 3: Story loop
 
