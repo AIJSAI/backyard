@@ -7,8 +7,9 @@ member's own authored content, never anyone else's: it reads their reverse relat
 contain what they wrote. It is available from the first release and never gated.
 
 The archive is written into a caller-provided file so the view can spill it to disk
-and stream it, keeping peak memory to about one image plus the zip buffers rather than
-the whole archive at once (security review of #32).
+and stream it, keeping peak memory to about one media file at a time (a photo, or a
+video's <=100MB source) plus the zip buffers, rather than the whole archive at once
+(security review of #32).
 """
 
 from __future__ import annotations
