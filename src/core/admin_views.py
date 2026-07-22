@@ -18,7 +18,6 @@ from django.db import transaction
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.utils.safestring import mark_safe
 
 from . import handover, invites, permissions, scoping, supervised
 from .models import (
@@ -59,13 +58,6 @@ def _acting_member(request: HttpRequest) -> Member:
     if member is None:
         raise Http404
     return member
-
-
-def _int_or_404(value: str) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError) as exc:
-        raise Http404 from exc
 
 
 @dataclass
@@ -192,7 +184,9 @@ def quarantine(request: HttpRequest) -> HttpResponse:
     if not permissions.is_instance_admin(actor):
         raise PermissionDenied
     if request.method == "POST":
-        InboundQuarantine.objects.filter(pk=_int_or_404(request.POST.get("row_id", ""))).delete()
+        InboundQuarantine.objects.filter(
+            pk=handover.int_or_404(request.POST.get("row_id", ""))
+        ).delete()
         return redirect("member_quarantine")
     rows = InboundQuarantine.objects.select_related("member")[:100]
     return render(request, "core/members_quarantine.html", {"actor": actor, "rows": rows})
@@ -218,10 +212,12 @@ def create_supervised(request: HttpRequest) -> HttpResponse:
     actor = _acting_member(request)
     if request.method != "POST":
         raise Http404
-    parent = scoping.require_visible_member(actor, _int_or_404(request.POST.get("parent_id", "")))
+    parent = scoping.require_visible_member(
+        actor, handover.int_or_404(request.POST.get("parent_id", ""))
+    )
     if not permissions.can_create_supervised(actor, parent):
         raise PermissionDenied
-    pod = scoping.require_visible_pod(actor, _int_or_404(request.POST.get("pod_id", "")))
+    pod = scoping.require_visible_pod(actor, handover.int_or_404(request.POST.get("pod_id", "")))
     display_name = request.POST.get("display_name", "").strip()
     if display_name and len(display_name) <= 100:
         supervised.create_supervised_member(parent=parent, display_name=display_name, pod=pod)
@@ -271,7 +267,7 @@ def invite_household(request: HttpRequest) -> HttpResponse:
         # An instance admin may resolve any existing yard; a yard admin only one they are
         # in (require_visible_yard 404s otherwise). The in-transaction can_issue_invite
         # check below is the authoritative gate either way.
-        yard_id = _int_or_404(request.POST.get("yard_id", ""))
+        yard_id = handover.int_or_404(request.POST.get("yard_id", ""))
         yard = (
             get_object_or_404(Yard, pk=yard_id)
             if permissions.is_instance_admin(actor)
@@ -290,13 +286,9 @@ def invite_household(request: HttpRequest) -> HttpResponse:
                 if not permissions.can_issue_invite(actor, pod):
                     raise PermissionDenied
                 invite, raw = invites.mint_invite(pod, created_by=actor)
-            link = f"{settings.BASE_URL}/join/{raw}/"
+            context.update(handover.link_artifacts(f"{settings.BASE_URL}/join/{raw}/"))
             context.update(
                 {
-                    "minted_link": link,
-                    # noqa justified: the SVG is qrcode's own path geometry over our
-                    # CSPRNG token in BASE_URL, never reflected user text.
-                    "qr_svg": mark_safe(handover.qr_svg(link)),  # noqa: S308
                     "household_name": name,
                     "yard_name": yard.name,
                     "expires_at": invite.expires_at,
@@ -401,16 +393,12 @@ def resend_invite(request: HttpRequest, invite_id: int) -> HttpResponse:
     if not permissions.can_issue_invite(actor, invite.pod):
         raise Http404
     fresh, raw = invites.mint_invite(invite.pod, created_by=actor)
-    link = f"{settings.BASE_URL}/join/{raw}/"
     response = render(
         request,
         "core/handover_link.html",
         {
             "actor": actor,
-            "minted_link": link,
-            # noqa justified: the SVG is qrcode's own path geometry over our CSPRNG token
-            # in BASE_URL, never reflected user text.
-            "qr_svg": mark_safe(handover.qr_svg(link)),  # noqa: S308
+            **handover.link_artifacts(f"{settings.BASE_URL}/join/{raw}/"),
             "pod_name": invite.pod.name,
             "expires_at": fresh.expires_at,
             "max_uses": fresh.max_uses,

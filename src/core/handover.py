@@ -18,7 +18,17 @@ import secrets
 
 import qrcode  # type: ignore[import-untyped]  # qrcode ships no stubs
 import qrcode.image.svg  # type: ignore[import-untyped]
-from django.http import HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse
+from django.utils.safestring import mark_safe
+
+
+def int_or_404(value: str) -> int:
+    """Parse a form/query int or raise the bare 404: a non-numeric id is an unknown
+    resource, not a server error. Shared by the admin surfaces (no existence oracle)."""
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise Http404 from exc
 
 
 def apply_token_body_headers(response: HttpResponse) -> HttpResponse:
@@ -50,6 +60,15 @@ def qr_svg(url: str) -> str:
     buffer = io.BytesIO()
     image.save(buffer)
     return buffer.getvalue().decode()
+
+
+def link_artifacts(link: str) -> dict[str, object]:
+    """The two hand-over values every mint surface shows once — the one-time link and
+    its inline printable QR — so a caller merges them into its template context. The
+    ``mark_safe`` on the QR lives ONLY here: its sole input is our CSPRNG token inside the
+    configured BASE_URL, rendered as qrcode's own path geometry, never reflected user text,
+    so the S308 justification is centralised in one auditable place."""
+    return {"minted_link": link, "qr_svg": mark_safe(qr_svg(link))}  # noqa: S308
 
 
 def fresh_intent(request: HttpRequest, key: str) -> str:

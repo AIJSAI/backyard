@@ -22,19 +22,17 @@ from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
-from django.utils.safestring import mark_safe
 
 from . import elder_tokens, permissions, scoping
 from .feed_views import _acting_member
-from .handover import apply_token_body_headers, consume_intent, fresh_intent, qr_svg
+from .handover import (
+    apply_token_body_headers,
+    consume_intent,
+    fresh_intent,
+    int_or_404,
+    link_artifacts,
+)
 from .models import Member, Pod, PodMembership, Yard
-
-
-def _int_or_404(value: str) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError) as exc:
-        raise Http404 from exc
 
 
 @login_required
@@ -80,18 +78,8 @@ def provision_elder(request: HttpRequest, member_id: int) -> HttpResponse:
         request, f"elder_intent:{target.id}", request.POST.get("intent")
     ):
         raw = elder_tokens.regenerate(target) if has_token else elder_tokens.mint(target)
-        link = f"{settings.BASE_URL}/t/{raw}/"
-        context.update(
-            {
-                "minted_link": link,
-                # noqa justified: the SVG is qrcode's own path geometry, and the
-                # only input is our CSPRNG token plus the configured BASE_URL —
-                # the URL becomes QR modules, never reflected as SVG text.
-                "qr_svg": mark_safe(qr_svg(link)),  # noqa: S308
-                "regenerated": has_token,
-                "has_token": True,
-            }
-        )
+        context.update(link_artifacts(f"{settings.BASE_URL}/t/{raw}/"))
+        context.update({"regenerated": has_token, "has_token": True})
     # The nonce for the NEXT action, set after any consume so it never clobbers
     # the one just submitted.
     context["intent"] = fresh_intent(request, f"elder_intent:{target.id}")
@@ -138,7 +126,7 @@ def new_elder(request: HttpRequest) -> HttpResponse:
     if request.method == "POST" and consume_intent(
         request, "new_elder_intent", request.POST.get("intent")
     ):
-        yard_id = _int_or_404(request.POST.get("yard_id", ""))
+        yard_id = int_or_404(request.POST.get("yard_id", ""))
         # An instance admin may resolve any yard; a yard admin only one they are in
         # (require_visible_yard 404s otherwise). can_issue_invite below is authoritative.
         yard = (
@@ -171,17 +159,8 @@ def new_elder(request: HttpRequest) -> HttpResponse:
                 # mint refuses a supervised member (elder is not) and an insecure base
                 # URL; inside the transaction so a refusal orphans nothing.
                 raw = elder_tokens.mint(elder)
-            link = f"{settings.BASE_URL}/t/{raw}/"
-            context.update(
-                {
-                    "minted_link": link,
-                    # noqa justified: the SVG is qrcode's own path geometry over our
-                    # CSPRNG token in BASE_URL, never reflected user text.
-                    "qr_svg": mark_safe(qr_svg(link)),  # noqa: S308
-                    "elder_name": elder_name,
-                    "yard_name": yard.name,
-                }
-            )
+            context.update(link_artifacts(f"{settings.BASE_URL}/t/{raw}/"))
+            context.update({"elder_name": elder_name, "yard_name": yard.name})
     context["errors"] = errors
     context["intent"] = fresh_intent(request, "new_elder_intent")
     response = render(request, "core/new_elder.html", context)
