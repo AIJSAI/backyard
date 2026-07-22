@@ -99,8 +99,9 @@ make setup-secret  # prints the one-time first-admin secret from the web logs
    Cloudflare API, zone `90a11296ca7850a5dd56df4239328644`.
 4. **Deploy:** SSH in (`~/.ssh/backyard_vm`, user `ubuntu`); install Docker (`curl -fsSL get.docker.com | sudo sh`
    + `usermod -aG docker ubuntu`); copy the tree (`tar czf - … | ssh … tar xzf -`); write `.env` (three
-   postgres passwords + `DJANGO_DEBUG=0`, `DJANGO_ALLOWED_HOSTS=backyard.family,…`, `BACKYARD_BASE_URL`,
-   `BACKYARD_DOMAIN`, `ACME_EMAIL`); then
+   postgres passwords + `BACKYARD_DOMAIN` + `ACME_EMAIL` — the prod overlay derives
+   `DJANGO_DEBUG=0` / `DJANGO_ALLOWED_HOSTS` / `BACKYARD_BASE_URL` from the domain, so the HTTPS
+   posture can't hinge on a forgotten var); then
    `docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d`. Caddy auto-fetches the
    Let's Encrypt cert on first hit. First-admin secret: `docker compose logs --no-log-prefix web | awk '/paste this one-time secret/{getline;gsub(/^ +/,"");print}'`.
 5. **Wire email on the box:** set the Resend env (`op read "op://Backyard/Backyard Resend API/credential"`),
