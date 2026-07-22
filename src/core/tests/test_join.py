@@ -40,13 +40,30 @@ def _post(raw: str, **overrides: str) -> HttpResponse:
 def test_valid_invite_creates_member_in_pod_and_logs_in(invite_to_pod: tuple[Pod, str]) -> None:
     pod, raw = invite_to_pod
     response = _post(raw)
-    assert response.status_code == 302  # lands somewhere (home) logged in
+    # S-101 acceptance: completing signup lands DIRECTLY in the pod feed, not the bare
+    # root or a community-setup screen.
+    assert response.status_code == 302
+    assert response.headers["Location"] == reverse("feed")
     member = Member.objects.get(display_name="New Cousin")
     assert PodMembership.objects.filter(member=member, pod=pod).exists()
     assert member.user is not None
     assert UserModel.objects.filter(username="newcousin").exists()
     Invite.objects.get().refresh_from_db()
     assert Invite.objects.get().use_count == 1
+
+
+def test_signup_then_following_the_redirect_shows_the_pod_feed(
+    invite_to_pod: tuple[Pod, str],
+) -> None:
+    """The whole S-101 promise end to end at the view layer: redeem, then the very next
+    page IS the feed (no setup screen in between), and it renders the member's pod."""
+    pod, raw = invite_to_pod
+    client = Client()
+    data = {"display_name": "New Cousin", "username": "newcousin", "password": "aX9!mnpq2ffz"}
+    response = client.post(reverse("join", args=[raw]), data, follow=True)
+    assert response.status_code == 200
+    assert response.request["PATH_INFO"] == reverse("feed")  # landed on the feed itself
+    assert b"community" not in response.content.lower()  # never a create-a-community screen
 
 
 def test_get_shows_form_for_live_invite(invite_to_pod: tuple[Pod, str]) -> None:
@@ -104,8 +121,11 @@ def test_authenticated_member_does_not_burn_the_invite(invite_to_pod: tuple[Pod,
     data = {"display_name": "New Cousin", "username": "newcousin", "password": "aX9!mnpq2ffz"}
     assert client.post(reverse("join", args=[raw]), data).status_code == 302  # logs the member in
     used = Invite.objects.get().use_count
-    # The same, now-authenticated client hits the link again: redirected home, no burn.
-    assert client.get(reverse("join", args=[raw])).status_code == 302
+    # The same, now-authenticated client hits the link again: redirected to their feed,
+    # no burn.
+    rehit = client.get(reverse("join", args=[raw]))
+    assert rehit.status_code == 302
+    assert rehit.headers["Location"] == reverse("feed")
     assert Invite.objects.get().use_count == used
 
 

@@ -71,9 +71,10 @@ def _create_account(token: str, display_name: str, username: str, password: str)
 
 
 def join(request: HttpRequest, token: str) -> HttpResponse:
-    # An already-signed-in member does not burn an invite by re-hitting the link.
+    # An already-signed-in member does not burn an invite by re-hitting the link; send
+    # them to their feed, the member's landing surface (S-101), not the bare root.
     if request.user.is_authenticated:
-        return redirect("home")
+        return redirect("feed")
 
     # Property 2: a non-redeemable invite is a 404, identical to an unknown route.
     try:
@@ -101,5 +102,7 @@ def join(request: HttpRequest, token: str) -> HttpResponse:
                 errors.append("That username is already taken. Pick another.")
             else:
                 login(request, member.user, backend=_MODEL_BACKEND)
-                return redirect("home")
+                # S-101 acceptance: completing signup lands DIRECTLY in the pod feed, the
+                # member's home surface, never a community-setup screen or a bare root.
+                return redirect("feed")
     return render(request, "core/join.html", {"errors": errors})

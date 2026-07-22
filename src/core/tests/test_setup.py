@@ -17,6 +17,7 @@ from core.models import Member, Pod, PodMembership, SetupToken, Yard
 
 User = get_user_model()
 SECRET = "correct-horse-battery-staple-42"
+_PW = "a-Strong-passphrase-9"  # a throwaway test passphrase, not a credential
 
 
 def _valid_data(**overrides: str) -> dict[str, str]:
@@ -136,11 +137,30 @@ def test_setup_enforces_csrf(token: SetupToken) -> None:
     assert not User.objects.filter(is_superuser=True).exists()
 
 
-def test_home_shows_admin_after_setup(db: None) -> None:
-    User.objects.create_superuser(username="nana", password="a-Strong-passphrase-9")
-    resp = Client().get(reverse("home"))
+def test_home_shows_landing_to_a_logged_out_visitor(db: None) -> None:
+    User.objects.create_superuser(username="nana", password=_PW)
+    resp = Client().get(reverse("home"))  # anonymous visitor to a set-up instance
     assert resp.status_code == 200
     assert b"Backyard is running" in resp.content
+
+
+def test_home_routes_a_signed_in_member_to_their_feed(db: None) -> None:
+    """S-101: the root is never a dead-end hello-world for someone with an account; a
+    signed-in member is taken straight to their feed."""
+    user = User.objects.create_user(username="cousin", password=_PW)
+    yard = Yard.objects.create(name="Maternal", slug="maternal")
+    pod = Pod.objects.create(name="Household")
+    pod.yards.set([yard])
+    member = Member.objects.create(display_name="Cousin", user=user)
+    PodMembership.objects.create(member=member, pod=pod)
+    # An admin must exist for the root not to route to setup.
+    User.objects.create_superuser(username="nana", password=_PW)
+
+    client = Client()
+    client.force_login(user, backend="django.contrib.auth.backends.ModelBackend")
+    resp = client.get(reverse("home"))
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == reverse("feed")
 
 
 def test_healthz_ok(db: None) -> None:

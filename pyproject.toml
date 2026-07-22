@@ -23,6 +23,7 @@ dev = [
   "mypy>=1.15,<2",
   "pytest>=8.4,<9",
   "pytest-django>=4.11,<5",
+  "pytest-playwright>=0.7,<1", # S-101 cross-browser mobile onboarding e2e (WebKit=iOS Safari, Chromium=Android Chrome)
   "ruff>=0.14,<1",
 ]
 
@@ -60,6 +61,10 @@ DJANGO_SETTINGS_MODULE = "config.settings"
 pythonpath = ["src"]
 testpaths = ["src"]
 python_files = ["test_*.py", "tests.py"]
+# The mobile onboarding e2e (S-101) drives real browser engines and is excluded from the
+# default unit run (which has no browsers); it runs in its own CI job via `pytest -m e2e`.
+addopts = "-m 'not e2e'"
+markers = ["e2e: real-browser end-to-end test (needs Playwright browsers + a live server)"]
 
 [tool.uv]
 package = false

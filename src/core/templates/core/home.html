@@ -2,9 +2,10 @@
 {% block title %}Backyard{% endblock %}
 {% block body %}
   <h1>Backyard is running</h1>
-  <p>Your instance is up and an admin is set up.</p>
+  <p>Your family's private instance is up.</p>
   <p class="muted">
-    This is the pre-alpha hello-world. There is no feed yet. The next waves build
-    the pods, yards, and the calm feed. Follow along in the repo.
+    This is a private, invite-only family network. If someone in the family sent you a
+    link, open it to join. Members are taken straight to the family feed after signing in.
   </p>
+  <p><a href="{% url 'account_login' %}">Sign in</a></p>
 {% endblock %}

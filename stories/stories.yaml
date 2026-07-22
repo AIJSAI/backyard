@@ -34,7 +34,7 @@ epics:
           - "Account needs only a name plus one auth method (passkey preferred, password fallback); email optional"
           - "Completing signup lands directly in the pod feed"
           - "Flow verified on iOS Safari and Android Chrome"
-        status: built
+        status: tested  # S-101 close 2026-07-22: join now redirects to the feed (not home); a real cross-browser mobile e2e (WebKit=iOS Safari + Chromium=Android Chrome, mobile emulation) drives join->feed and passes; gate green (482 + 2 e2e) + compose join->feed live-repro + clean security review (docs/receipts/2026-07-22-s101-onboarding-close.md)
         v1: true
         security:
           threat_refs:
