@@ -1,0 +1,28 @@
+<!doctype html>
+{% comment %} 500 — deliberately self-contained: it inherits nothing, resolves no
+   URLs and touches no database, so it still renders when everything else is
+   broken. Light-only. Keep it that way; a dependency here is a page that fails
+   exactly when it is needed. {% endcomment %}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Something went wrong — Backyard</title>
+  <style>
+    body { margin:0; background:#fbfcfb; color:#1c211e; min-height:100vh;
+           display:flex; align-items:center; justify-content:center; text-align:center;
+           font-family:"Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width:26rem; padding:2rem 1.5rem; }
+    svg { width:38px; height:38px; color:#8a5a12; }
+    h1 { font-size:1.5rem; line-height:1.25; margin:0.9rem 0 0.5rem; }
+    p { color:#4c5a52; line-height:1.6; margin:0; }
+  </style>
+</head>
+<body>
+  <main>
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.4 L20.6 10.8 V20.6 H3.4 V10.8 Z M9.7 20.6 V14.8 A2.3 2.3 0 0 1 14.3 14.8 V20.6 Z" fill="currentColor"/></svg>
+    <h1>Something went wrong on our side</h1>
+    <p>Your family&rsquo;s Backyard hit an error. Nothing you did — try again in a minute, and tell whoever runs your instance if it keeps up.</p>
+  </main>
+</body>
+</html>

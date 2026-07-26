@@ -1,0 +1,12 @@
+{% extends "core/base.html" %}
+{% comment %} 403_csrf.html — shown when the CSRF check fails, typically a form
+   left open a long while. Set CSRF_FAILURE_VIEW or place this as 403_csrf.html
+   per Django docs. Reassure: nothing was posted. {% endcomment %}
+{% block title %}That didn&rsquo;t send — Backyard{% endblock %}
+{% block body %}
+  <div style="text-align:center;padding:2.5rem 0">
+    <h1>That didn&rsquo;t send safely</h1>
+    <p class="muted" style="margin:0 auto 1.4rem">The form&rsquo;s safety check failed — this happens when a page sits open a long while. Go back, reload the page, and try again; nothing was posted.</p>
+    <p><a class="btn-secondary btn" href="/">Go back to your backyard</a></p>
+  </div>
+{% endblock %}

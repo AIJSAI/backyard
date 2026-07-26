@@ -103,7 +103,14 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        # A project-level template root, searched BEFORE any app's own templates.
+        # It carries two things the app must own rather than inherit: the
+        # allauth/layouts/* overrides that pull ~30 credential surfaces into the
+        # design system (allauth ships its own unstyled versions, and `core` sits
+        # after `allauth` in INSTALLED_APPS, so the app-dirs loader would find the
+        # library's first), and the 404/403_csrf/500 error pages Django looks up
+        # at the template root.
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [

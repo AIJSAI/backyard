@@ -1,0 +1,11 @@
+{% extends "allauth/layouts/base.html" %}
+{% comment %} Manage layout: email addresses, password change, passkeys and MFA —
+   the account pages a signed-in member reaches from inside the app, so they keep
+   the site chrome and gain one obvious way back.
+
+   Wraps `auth_shell`, not `content`: every allauth leaf defines `content`, so a
+   wrapper around it is discarded. See the note in base.html. {% endcomment %}
+{% block auth_shell %}
+  <p><a href="{% url 'feed' %}">&larr; Back to the feed</a></p>
+  {% block content %}{% endblock %}
+{% endblock %}

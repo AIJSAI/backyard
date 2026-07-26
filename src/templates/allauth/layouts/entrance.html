@@ -1,0 +1,20 @@
+{% extends "allauth/layouts/base.html" %}
+{% comment %} Entrance layout: sign-in, the blocked signup, password reset, and the
+   MFA challenges — everything a member sees before they are signed in. A single
+   centred column with no site nav, because there is nowhere to navigate to yet.
+
+   Wraps `auth_shell`, not `content`: every allauth leaf defines `content`, so a
+   wrapper around it is discarded. See the note in base.html. {% endcomment %}
+{% comment %} No site header here: the entrance carries its own centred brand lockup,
+   and rendering both showed the wordmark twice. {% endcomment %}
+{% block site_header %}{% endblock %}
+{% block auth_shell %}
+  <div class="entrance">
+    <a class="brand-inline" href="/">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.4 L20.6 10.8 V20.6 H3.4 V10.8 Z M9.7 20.6 V14.8 A2.3 2.3 0 0 1 14.3 14.8 V20.6 Z" fill="currentColor"/></svg>
+      Backyard
+    </a>
+    <p class="lede">This Backyard is invite-only. If someone in the family sent you a link, open it to join.</p>
+    {% block content %}{% endblock %}
+  </div>
+{% endblock %}

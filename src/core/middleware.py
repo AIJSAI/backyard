@@ -4,8 +4,13 @@ The /d/ views set their own hygiene headers on the pages they render, but a
 token URL also produces guard 404s, 405s, and APPEND_SLASH redirects, and those
 must carry the same no-store/noindex set (security review of #36 LOW-2): a
 cached or referrer-leaked failure response still names a token-bearing URL.
-Stamping by path prefix keeps 404 byte-identity intact — the body stays the
-guard's bare 404; only path-derived headers differ.
+Stamping by path prefix keeps 404 byte-identity intact; only path-derived headers
+differ. The body is no longer the framework's bare 404: since the v3 design pass it
+is the branded 404.html, which is worth doing because a 404 IS a normal surface here
+(denials answer 404 by design). Byte-identity across token surfaces still holds — the
+page renders neither the request path nor the exception — but each probe now costs
+~26 KB rather than ~180 bytes on the unauthenticated /d/ and /t/ paths, which are
+rate-limited nowhere. There is no reflection, so a prober pays for their own request.
 
 The Referrer-Policy differs by surface class. /t/ and /d/ carry the token IN the
 URL, so they get no-referrer: the token must never ride a navigation's Referer —

@@ -1,4 +1,4 @@
-<!doctype html>
+{% load static %}<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -18,468 +18,533 @@
     <meta name="apple-mobile-web-app-title" content="Backyard">
   {% endif %}
   <style>
-    /* ==========================================================================
-       Backyard design system (v2) — "the backyard at dusk". One warm,
-       calm, elder-first identity shared by every surface that extends this base
-       (the member app + the token/digest pages). The elder feed and the digest
-       email stand alone by design and carry their own heightened-contrast styles.
+/* ==========================================================================
+   Backyard design system v3 — "Signage" (Claude Design, 2026-07-26).
+   Replaces the entire <style> block in src/core/templates/core/base.html.
 
-       Grounded in the product principles: calm over engagement (quiet colour, the
-       feed ends, nothing shouts), separate-is-a-feature (yards/pods read as gentle
-       boundaries, never walls), reciprocity (every post-back affordance is inviting
-       and large), never-assume-a-smartphone (system fonts for fast loads on any
-       device, AA contrast, 44px targets, visible focus).
+   Contract kept verbatim: every token name and class hook from v2 is present
+   (test_design_system_wcag.py parses these). Every text/background pair is
+   proven >= 4.5:1 in BOTH themes; control borders >= 3:1 (fixes SC 1.4.11 on
+   the composer textarea). See design_handoff_backyard_v3/README.md for the
+   full computed contrast table.
 
-       No webfonts: font-src is 'self' only (CSP S-724) and the app ships no static
-       dir (ManifestStaticFilesStorage), so the type is a deliberately chosen system
-       stack — a warm serif for headings (echoing the elder feed's Georgia), a
-       humanist sans for the interface. No CSP or Python change is required.
+   Type: Atkinson Hyperlegible, self-hosted woff2 (font-src 'self' — the CSP
+   has no font-src directive, so same-origin fonts are already allowed; the
+   project must ship static/fonts/ and run collectstatic). Falls back to the
+   system humanist stack; no data: URIs, no CDN, no build step.
+   ========================================================================== */
 
-       Both themes are hand-designed (not a naive invert). Every colour token is a
-       6-digit hex (or var()->hex) and every text/background pair is proven >=4.5:1
-       in BOTH themes; test_design_system_wcag.py parses these tokens and fails the
-       build on any regression. A manual :root[data-theme] override wins over the OS
-       preference in either direction.
-       ========================================================================== */
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  src: url("{% static 'backyard/fonts/atkinson-hyperlegible-regular.woff2' %}") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  src: url("{% static 'backyard/fonts/atkinson-hyperlegible-bold.woff2' %}") format("woff2");
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  src: url("{% static 'backyard/fonts/atkinson-hyperlegible-italic.woff2' %}") format("woff2");
+  font-weight: 400; font-style: italic; font-display: swap;
+}
 
-    :root {
-      color-scheme: light dark;
+:root {
+  color-scheme: light dark;
 
-      /* Clean, cool near-white grounds — calm, modern, generous space. */
-      --paper:        #f7f8f9;  /* page ground: cool near-white   */
-      --surface:      #ffffff;  /* raised cards: clean white                       */
-      --surface-sunk: #eef0f2;  /* insets, table stripes, readonly fields          */
-      --ink:          #1a1c22;  /* primary text: warm near-black                   */
-      --ink-soft:     #565b64;  /* secondary text (AA on every ground)             */
-      --line:         #e4e7ea;  /* hairline borders        */
-      --line-strong:  #cdd1d6;
+  /* Light — "the lawn at noon": clean whites, sign green, one warm amber. */
+  --paper:        #fbfcfb;  /* page ground: near-white, faint green cast     */
+  --surface:      #ffffff;  /* raised cards                                   */
+  --surface-sunk: #eef3ef;  /* insets, readonly fields, table stripes         */
+  --ink:          #1c211e;  /* primary text                                   */
+  --ink-soft:     #4c5a52;  /* secondary text (7.06:1 on paper)               */
+  --line:         #dde4df;  /* hairline borders (decorative)                  */
+  --line-strong:  #7f8f85;  /* CONTROL borders: 3.40:1 on surface (SC 1.4.11) */
 
-      --green:        #234a78;  /* brand: deep navy (the PWA theme colour) */
-      --green-deep:   #17335c;  /* hover / pressed                                 */
-      --green-tint:   #e8edf4;  /* soft wash for notices and gentle highlights     */
-      --amber:        #55585f;  /* neutral accent token — retired to a quiet neutral; palette is navy + neutrals + red*/
-      --amber-tint:   #eef0f2;
+  --green:        #1e5c46;  /* brand: sign green (7.63:1 on paper)            */
+  --green-deep:   #174534;  /* hover / pressed                                */
+  --green-tint:   #eef4f0;  /* soft wash: notices, role pills, banners        */
+  --amber:        #8a5a12;  /* warm accent: boundary, flags (5.75:1)          */
+  --amber-tint:   #f6efe0;
 
-      --danger:       #b23b2e;  /* muted brick red for destructive + errors        */
-      --danger-tint:  #f7e7e3;
+  --danger:       #b23b2e;  /* destructive + errors (5.74:1 on paper)         */
+  --danger-tint:  #f9e9e6;
 
-      --btn-bg:       var(--green);
-      --btn-bg-hover: var(--green-deep);
-      --btn-ink:      #ffffff;
+  --btn-bg:       var(--green);
+  --btn-bg-hover: var(--green-deep);
+  --btn-ink:      #ffffff;  /* 7.85:1 on btn-bg                               */
 
-      --ring:         #234a78;  /* focus ring: warm, high-contrast on every ground */
+  --ring:         #8a5a12;  /* warm focus ring, distinct from the green fills */
 
-      --radius:       14px;
-      --radius-sm:    9px;
-      --shadow:       0 1px 2px rgba(38, 34, 20, 0.05),
-                      0 6px 18px rgba(38, 34, 20, 0.045);
+  --radius:       12px;
+  --radius-sm:    9px;
+  --shadow:       0 1px 3px rgba(20, 40, 30, 0.05);
 
-      --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
-                      "Times New Roman", serif;
-      --font-body:    system-ui, -apple-system, "Segoe UI", Roboto,
-                      "Helvetica Neue", Arial, sans-serif;
-      --font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-display: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI",
+                  Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-body:    "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI",
+                  Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
-      --measure:      40rem;
-      --step:         1rem;
-    }
+  --measure:      40rem;
+  --step:         1rem;
+}
 
-    @media (prefers-color-scheme: dark) {
-      :root {
-        /* Dusk in the yard — deep charcoal with a navy cast (hand-tuned). */
-        --paper:        #101319;
-        --surface:      #191d24;
-        --surface-sunk: #0b0e13;
-        --ink:          #e6e8ec;
-        --ink-soft:     #a2a7b0;
-        --line:         #292e37;
-        --line-strong:  #3b414c;
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Dark — "dusk on the lawn": deep green-cast charcoal, hand-tuned. */
+    --paper:        #121714;
+    --surface:      #1a211c;
+    --surface-sunk: #0d110f;
+    --ink:          #e8ece9;
+    --ink-soft:     #a8b3ab;
+    --line:         #2a332d;
+    --line-strong:  #6b7a71;  /* 3.64:1 on surface */
 
-        --green:        #8bb2e6;  /* navy, lightened for text/links on dark      */
-        --green-deep:   #a6c6ef;
-        --green-tint:   #16202f;
-        --amber:        #a2a7b0;
-        --amber-tint:   #0b0e13;
+    --green:        #7fc9a4;  /* foliage green, lightened for text/links */
+    --green-deep:   #9ad8b8;
+    --green-tint:   #16281f;
+    --amber:        #e2b878;
+    --amber-tint:   #241c10;
 
-        --danger:       #e89488;
-        --danger-tint:  #2a1a19;
+    --danger:       #eb9a8d;
+    --danger-tint:  #2a1815;
 
-        --btn-bg:       #2f5488;  /* filled-button green, separate from link green   */
-        --btn-bg-hover: #3a6199;
-        --btn-ink:      #ffffff;
+    --btn-bg:       #2c7a5c;  /* filled-button green, separate from link green */
+    --btn-bg-hover: #35906d;
+    --btn-ink:      #ffffff;  /* 5.19:1 on btn-bg */
 
-        --ring:         #8bb2e6;
-        --shadow:       0 1px 2px rgba(0, 0, 0, 0.42),
-                        0 6px 20px rgba(0, 0, 0, 0.34);
-      }
-    }
+    --ring:         #e2b878;
+    --shadow:       0 1px 3px rgba(0, 0, 0, 0.45);
+  }
+}
 
-    /* A manual theme choice wins over the OS preference, in both directions. */
-    :root[data-theme="light"] {
-      --paper:#f7f8f9; --surface:#ffffff; --surface-sunk:#eef0f2;
-      --ink:#1a1c22; --ink-soft:#565b64; --line:#e4e7ea; --line-strong:#cdd1d6;
-      --green:#234a78; --green-deep:#17335c; --green-tint:#e8edf4;
-      --amber:#55585f; --amber-tint:#eef0f2; --danger:#b23b2e; --danger-tint:#f7e7e3;
-      --btn-bg:var(--green); --btn-bg-hover:var(--green-deep); --btn-ink:#ffffff;
-      --ring:#234a78;
-      --shadow:0 1px 2px rgba(38,34,20,.05), 0 6px 18px rgba(38,34,20,.045);
-    }
-    :root[data-theme="dark"] {
-      --paper:#101319; --surface:#191d24; --surface-sunk:#0b0e13;
-      --ink:#e6e8ec; --ink-soft:#a2a7b0; --line:#292e37; --line-strong:#3b414c;
-      --green:#8bb2e6; --green-deep:#a6c6ef; --green-tint:#16202f;
-      --amber:#a2a7b0; --amber-tint:#0b0e13; --danger:#e89488; --danger-tint:#2a1a19;
-      --btn-bg:#2f5488; --btn-bg-hover:#3a6199; --btn-ink:#ffffff;
-      --ring:#8bb2e6;
-      --shadow:0 1px 2px rgba(0,0,0,.42), 0 6px 20px rgba(0,0,0,.34);
-    }
+/* A manual theme choice wins over the OS preference, in both directions. */
+:root[data-theme="light"] {
+  --paper:#fbfcfb; --surface:#ffffff; --surface-sunk:#eef3ef;
+  --ink:#1c211e; --ink-soft:#4c5a52; --line:#dde4df; --line-strong:#7f8f85;
+  --green:#1e5c46; --green-deep:#174534; --green-tint:#eef4f0;
+  --amber:#8a5a12; --amber-tint:#f6efe0; --danger:#b23b2e; --danger-tint:#f9e9e6;
+  --btn-bg:var(--green); --btn-bg-hover:var(--green-deep); --btn-ink:#ffffff;
+  --ring:#8a5a12;
+  --shadow:0 1px 3px rgba(20,40,30,0.05);
+}
+:root[data-theme="dark"] {
+  --paper:#121714; --surface:#1a211c; --surface-sunk:#0d110f;
+  --ink:#e8ece9; --ink-soft:#a8b3ab; --line:#2a332d; --line-strong:#6b7a71;
+  --green:#7fc9a4; --green-deep:#9ad8b8; --green-tint:#16281f;
+  --amber:#e2b878; --amber-tint:#241c10; --danger:#eb9a8d; --danger-tint:#2a1815;
+  --btn-bg:#2c7a5c; --btn-bg-hover:#35906d; --btn-ink:#ffffff;
+  --ring:#e2b878;
+  --shadow:0 1px 3px rgba(0,0,0,0.45);
+}
 
-    /* ---- reset & base ------------------------------------------------------- */
-    *, *::before, *::after { box-sizing: border-box; }
-    html { -webkit-text-size-adjust: 100%; }
-    body {
-      margin: 0;
-      font-family: var(--font-body);
-      font-size: 1.0625rem;          /* 17px: comfortable across generations       */
-      line-height: 1.62;
-      color: var(--ink);
-      background: var(--paper);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow-wrap: break-word;
-      -webkit-font-smoothing: antialiased;
-    }
+/* ---- reset & base --------------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--paper);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: break-word;
+  -webkit-font-smoothing: antialiased;
+}
 
-    h1, h2, h3 {
-      font-family: var(--font-display);
-      line-height: 1.2;
-      text-wrap: balance;
-      color: var(--ink);
-      margin: 0 0 0.4em;
-    }
-    h1 { font-size: 1.9rem; letter-spacing: -0.015em; }
-    h2 { font-size: 1.32rem; margin-top: 1.6em; }
-    h3 { font-size: 1.08rem; }
-    p  { margin: 0 0 var(--step); }
-    p:last-child { margin-bottom: 0; }
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.25;
+  text-wrap: balance;
+  color: var(--ink);
+  margin: 0 0 0.35em;
+}
+h1 { font-size: 1.55rem; }
+h2 { font-size: 1.18rem; margin-top: 1.5em; }
+h3 { font-size: 1.04rem; }
+p  { margin: 0 0 var(--step); }
+p:last-child { margin-bottom: 0; }
 
-    a { color: var(--green); text-decoration-thickness: 1px; text-underline-offset: 2px; }
-    a:hover { color: var(--green-deep); }
+a { color: var(--green); font-weight: 700; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { color: var(--green-deep); }
 
-    .muted { color: var(--ink-soft); }
-    strong { font-weight: 650; }
-    code {
-      font-family: var(--font-mono); font-size: 0.9em;
-      background: var(--surface-sunk); padding: 0.12em 0.4em; border-radius: 5px;
-    }
-    hr { border: 0; border-top: 1px solid var(--line); margin: 1.5rem 0; }
+.muted { color: var(--ink-soft); }
+strong { font-weight: 700; }
+code {
+  font-family: var(--font-mono); font-size: 0.9em;
+  background: var(--surface-sunk); padding: 0.12em 0.4em; border-radius: 5px;
+}
+hr { border: 0; border-top: 1px solid var(--line); margin: 1.5rem 0; }
 
-    /* ---- focus: one clear, warm ring on every interactive element ----------- */
-    :focus-visible {
-      outline: 3px solid var(--ring);
-      outline-offset: 2px;
-      border-radius: 4px;
-    }
-    a:focus-visible { border-radius: 4px; }
+/* ---- focus: one warm ring on every interactive element -------------------- */
+:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+a:focus-visible { border-radius: 4px; }
 
-    /* ---- page frame: header / main / footer --------------------------------- */
-    .skip-link {
-      position: absolute; left: 0.5rem; top: -3rem;
-      background: var(--surface); color: var(--ink);
-      padding: 0.6rem 1rem; border-radius: var(--radius-sm);
-      border: 1px solid var(--line-strong); z-index: 10;
-      transition: top 120ms ease;
-    }
-    .skip-link:focus { top: 0.5rem; }
+/* ---- page frame ------------------------------------------------------------ */
+.skip-link {
+  position: absolute; left: 0.5rem; top: -3rem;
+  background: var(--surface); color: var(--ink);
+  padding: 0.6rem 1rem; border-radius: var(--radius-sm);
+  border: 1.5px solid var(--line-strong); z-index: 10;
+  transition: top 120ms ease;
+}
+.skip-link:focus { top: 0.5rem; }
 
-    header.site {
-      border-bottom: 1px solid var(--line);
-      background: color-mix(in srgb, var(--paper) 82%, var(--surface));
-    }
-    header.site .wrap,
-    main.wrap,
-    footer.site .wrap { width: 100%; max-width: var(--measure); margin: 0 auto; padding: 0 1.25rem; }
-    header.site .wrap { display: flex; align-items: center; min-height: 3.75rem; }
+/* The one bold move: a sign-green header band. Everything below stays quiet.
+   In dark it becomes a deep green-tinted band (green-tint ground). */
+header.site { background: var(--green); border-bottom: 1px solid var(--green-deep); }
+@media (prefers-color-scheme: dark) {
+  header.site { background: var(--green-tint); border-bottom: 1px solid var(--line); }
+}
+:root[data-theme="light"] header.site { background: var(--green); border-bottom: 1px solid var(--green-deep); }
+:root[data-theme="dark"] header.site { background: var(--green-tint); border-bottom: 1px solid var(--line); }
 
-    /* The brand lockup is the one bold, crafted move; every content surface
-       downstream stays quiet. */
-    .brand {
-      display: inline-flex; align-items: baseline; gap: 0.5rem;
-      font-family: var(--font-display); font-size: 1.28rem; font-weight: 700;
-      color: var(--ink); text-decoration: none; letter-spacing: -0.02em;
-    }
-    .brand:hover { color: var(--green-deep); }
-    .brand svg { width: 1.6rem; height: 1.6rem; color: var(--green); flex: none; transform: translateY(14.2%); }
-    .brand:hover svg { color: var(--green-deep); }
+header.site .wrap,
+main.wrap,
+footer.site .wrap { width: 100%; max-width: var(--measure); margin: 0 auto; padding: 0 1.25rem; }
+header.site .wrap { display: flex; align-items: center; min-height: 3.6rem; }
 
-    main.wrap {
-      flex: 1 0 auto;
-      padding-top: 2rem; padding-bottom: 3rem;
-    }
-    /* Keep running prose to a readable measure without narrowing cards/media. */
-    main.wrap > p,
-    main.wrap > h1 + p,
-    .notice, .post > p, .empty { max-width: 34rem; }
+.brand {
+  display: inline-flex; align-items: baseline; gap: 0.55rem;
+  font-family: var(--font-display); font-size: 1.22rem; font-weight: 700;
+  color: #ffffff; text-decoration: none;
+}
+.brand:hover { color: #ffffff; }
+.brand svg { width: 1.3em; height: 1.3em; color: #ffffff; flex: none; transform: translateY(0.16em); }
+@media (prefers-color-scheme: dark) {
+  .brand, .brand:hover { color: var(--green); }
+  .brand svg { color: var(--green); }
+}
+:root[data-theme="light"] .brand, :root[data-theme="light"] .brand:hover,
+:root[data-theme="light"] .brand svg { color: #ffffff; }
+:root[data-theme="dark"] .brand, :root[data-theme="dark"] .brand:hover,
+:root[data-theme="dark"] .brand svg { color: var(--green); }
 
-    footer.site {
-      border-top: 1px solid var(--line);
-      color: var(--ink-soft); font-size: 0.85rem;
-    }
-    footer.site .wrap { padding-top: 1.25rem; padding-bottom: 1.25rem; }
-    footer.site a { color: var(--ink-soft); }
+main.wrap { flex: 1 0 auto; padding-top: 1.5rem; padding-bottom: 3rem; }
+main.wrap > p, main.wrap > h1 + p,
+.notice, .post > p, .empty { max-width: 34rem; }
 
-    /* ---- forms -------------------------------------------------------------- */
-    label {
-      display: block; margin: 1.1rem 0 0.35rem; font-weight: 600; color: var(--ink);
-    }
-    label.inline-check {
-      display: flex; align-items: baseline; gap: 0.5rem; font-weight: 500; margin: 0.5rem 0;
-    }
-    input, select, textarea {
-      width: 100%; font: inherit; color: var(--ink);
-      background: var(--surface);
-      padding: 0.65rem 0.7rem;
-      border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
-    }
-    input[type=checkbox], input[type=radio] { width: auto; min-width: 1.15rem; min-height: 1.15rem; accent-color: var(--green); }
-    input[type=file] { padding: 0.5rem; background: var(--surface-sunk); }
-    input::placeholder, textarea::placeholder { color: var(--ink-soft); opacity: 0.85; }
-    input:focus, select:focus, textarea:focus { border-color: var(--green); }
-    textarea { resize: vertical; min-height: 3.2rem; }
-    select { appearance: none; -webkit-appearance: none;
-      background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
-                        linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
-      background-position: right 1rem center, right 0.75rem center;
-      background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 2rem; }
+footer.site { border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 0.8rem; }
+footer.site .wrap { padding-top: 1rem; padding-bottom: 1rem; }
+footer.site a { color: var(--ink-soft); }
 
-    fieldset {
-      border: 1px solid var(--line); border-radius: var(--radius-sm);
-      margin: 1.1rem 0 0; padding: 0.5rem 0.9rem 0.9rem;
-    }
-    legend { font-weight: 600; padding: 0 0.4rem; color: var(--ink); }
+/* ---- forms ------------------------------------------------------------------
+   Control borders use --line-strong (>=3:1) — the SC 1.4.11 fix. */
+label { display: block; margin: 1rem 0 0.35rem; font-weight: 700; color: var(--ink); font-size: 0.92rem; }
+label.inline-check { display: flex; align-items: baseline; gap: 0.55rem; font-weight: 400; margin: 0.5rem 0; font-size: 1rem; }
+input, select, textarea {
+  width: 100%; font: inherit; color: var(--ink);
+  background: var(--surface);
+  padding: 0.7rem 0.75rem;
+  min-height: 48px;
+  border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm);
+}
+input[type=checkbox], input[type=radio] { width: auto; min-width: 1.2rem; min-height: 1.2rem; accent-color: var(--green); }
+input[type=file] { padding: 0.55rem; background: var(--surface-sunk); }
+input::placeholder, textarea::placeholder { color: var(--ink-soft); opacity: 1; }
+input:focus, select:focus, textarea:focus { border-color: var(--green); }
+textarea { resize: vertical; min-height: 3.2rem; }
+select { appearance: none; -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
+                    linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+  background-position: right 1rem center, right 0.75rem center;
+  background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 2rem; }
 
-    /* ---- buttons ------------------------------------------------------------ */
-    button, input[type=submit], .btn {
-      font: inherit; font-weight: 600; cursor: pointer;
-      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
-      min-height: 44px; padding: 0.6rem 1.25rem;
-      color: var(--btn-ink); background: var(--btn-bg);
-      border: 1px solid transparent; border-radius: var(--radius-sm);
-      text-decoration: none; line-height: 1.2;
-      transition: background-color 120ms ease, border-color 120ms ease;
-    }
-    button:hover, input[type=submit]:hover, .btn:hover { background: var(--btn-bg-hover); }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
+fieldset { border: 1.5px solid var(--line); border-radius: var(--radius-sm); margin: 1rem 0 0; padding: 0.5rem 0.9rem 0.9rem; }
+legend { font-weight: 700; padding: 0 0.4rem; color: var(--ink); font-size: 0.92rem; }
 
-    /* Secondary / destructive live inside .inline action forms and .actions. */
-    .inline { display: inline; margin: 0; }
-    .inline button, .btn-secondary, .handover-actions button {
-      background: transparent; color: var(--green);
-      border-color: var(--line-strong); font-weight: 600;
-    }
-    .inline button:hover, .btn-secondary:hover, .handover-actions button:hover {
-      background: var(--green-tint); color: var(--green-deep); border-color: var(--green);
-    }
-    button.danger, .inline button.danger, .btn-danger {
-      background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent);
-    }
-    button.danger:hover, .btn-danger:hover { background: var(--danger-tint); color: var(--danger); border-color: var(--danger); }
-    /* Non-colour cue: destructive carries a leading × in addition to colour + wording. */
-    button.danger::before, .btn-danger::before { content: "\00d7"; font-weight: 700; font-size: 1.05em; line-height: 1; }
+/* ---- buttons ---------------------------------------------------------------- */
+button, input[type=submit], .btn {
+  font: inherit; font-weight: 700; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  min-height: 46px; padding: 0.55rem 1.2rem;
+  color: var(--btn-ink); background: var(--btn-bg);
+  border: 1.5px solid transparent; border-radius: var(--radius-sm);
+  text-decoration: none; line-height: 1.2;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+button:hover, input[type=submit]:hover, .btn:hover { background: var(--btn-bg-hover); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    /* ---- notices, errors, flags -------------------------------------------- */
-    .notice, .errors {
-      border-radius: var(--radius-sm); padding: 0.85rem 1rem 0.85rem 1.1rem;
-      border-left: 4px solid var(--green); background: var(--green-tint);
-      margin: 1.25rem 0;
-    }
-    .notice p, .errors p { margin: 0 0 0.4rem; }
-    .notice p:last-child, .errors p:last-child { margin: 0; }
-    .errors { border-left-color: var(--danger); background: var(--danger-tint); color: var(--ink); }
+.inline { display: inline; margin: 0; }
+.inline button, .btn-secondary, .handover-actions button {
+  background: var(--surface); color: var(--green);
+  border-color: var(--green); font-weight: 700;
+}
+.inline button:hover, .btn-secondary:hover, .handover-actions button:hover {
+  background: var(--green-tint); color: var(--green-deep); border-color: var(--green-deep);
+}
+button.danger, .inline button.danger, .btn-danger {
+  background: var(--surface); color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+}
+button.danger:hover, .btn-danger:hover { background: var(--danger-tint); color: var(--danger); border-color: var(--danger); }
+/* Non-colour cue: destructive carries a leading x beyond colour + wording. */
+button.danger::before, .btn-danger::before { content: "\00d7"; font-weight: 700; font-size: 1.05em; line-height: 1; }
 
-    .flag, .role, .via-email {
-      display: inline-flex; align-items: center; gap: 0.34em;
-      font-size: 0.75rem; font-weight: 600;
-      line-height: 1.4; padding: 0.12rem 0.55rem; border-radius: 999px;
-      background: var(--surface-sunk); color: var(--ink-soft);
-      letter-spacing: 0.02em; vertical-align: middle;
-    }
-    .role { background: var(--green-tint); color: var(--green); }
-    .flag { background: var(--amber-tint); color: var(--amber); border: 1px solid color-mix(in srgb, var(--amber) 38%, transparent); }
-    /* Non-colour cue: a flag carries a small tag-diamond so it reads apart from a
-       role pill even in grayscale; via-email carries a small envelope glyph. */
-    .flag::before { content: ""; width: 0.44em; height: 0.44em; background: currentColor; border-radius: 1px; transform: rotate(45deg); flex: none; }
-    .via-email::before { content: ""; width: 0.7em; height: 0.5em; border: 1px solid currentColor; border-radius: 1px; flex: none; }
+/* ---- notices, errors, flags ------------------------------------------------- */
+.notice, .errors {
+  border-radius: var(--radius-sm); padding: 0.8rem 1rem;
+  border: 1.5px solid color-mix(in srgb, var(--green) 25%, transparent);
+  background: var(--green-tint);
+  margin: 1.25rem 0;
+}
+.notice p, .errors p { margin: 0 0 0.4rem; }
+.notice p:last-child, .errors p:last-child { margin: 0; }
+.errors { border-color: color-mix(in srgb, var(--danger) 40%, transparent); background: var(--danger-tint); color: var(--ink); }
 
-    /* ---- the feed & post cards --------------------------------------------- */
-    .composer {
-      background: var(--surface); border: 1px solid var(--line);
-      border-radius: var(--radius); box-shadow: var(--shadow);
-      padding: 1.2rem 1.25rem; margin: 1.5rem 0 2rem;
-    }
-    .composer textarea { border-color: var(--line); }
-    .composer > label:first-of-type { margin-top: 0.75rem; }
+/* Framework messages. django-allauth raises these on every credential change —
+   password set, second factor added or REMOVED, verification link expired — and
+   for two paths they are the ONLY feedback that exists, so a page with no messages
+   region turns a failure into silence. Styled as .notice; error/warning tags borrow
+   the .errors treatment so severity is not carried by colour alone. */
+.messages { list-style: none; margin: 1.25rem 0; padding: 0; }
+.messages .msg {
+  border-radius: var(--radius-sm); padding: 0.8rem 1rem;
+  border: 1.5px solid color-mix(in srgb, var(--green) 25%, transparent);
+  background: var(--green-tint);
+}
+.messages .msg + .msg { margin-top: 0.6rem; }
+.messages .msg::before { content: "\2713\00a0\00a0"; font-weight: 700; color: var(--green); }
+.messages .msg.error, .messages .msg.warning {
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent); background: var(--danger-tint);
+}
+.messages .msg.error::before, .messages .msg.warning::before { content: "\26a0\00a0\00a0"; color: var(--danger); }
 
-    ul.feed, ul.comments, ul.members, ul.pods, ul.directory,
-    ul.invites, ul.digests, ul.redeemers, ul.uses, ul.quarantine, ul.yards, ul.contacts { list-style: none; margin: 0; padding: 0; }
-    ul.feed { display: flex; flex-direction: column; gap: 1rem; }
+.flag, .role, .via-email {
+  display: inline-flex; align-items: center; gap: 0.34em;
+  font-size: 0.73rem; font-weight: 700;
+  line-height: 1.4; padding: 0.16rem 0.6rem; border-radius: 999px;
+  background: var(--surface-sunk); color: var(--ink-soft);
+  letter-spacing: 0.02em; vertical-align: middle;
+}
+.role { background: var(--green-tint); color: var(--green-deep); }
+@media (prefers-color-scheme: dark) { .role { color: var(--green); } }
+:root[data-theme="light"] .role { color: var(--green-deep); }
+:root[data-theme="dark"] .role { color: var(--green); }
+.flag { background: var(--amber-tint); color: var(--amber); }
+/* Non-colour cues: flag = tag-diamond; via-email = envelope. */
+.flag::before { content: ""; width: 0.44em; height: 0.44em; background: currentColor; border-radius: 1px; transform: rotate(45deg); flex: none; }
+.via-email::before { content: ""; width: 0.7em; height: 0.5em; border: 1px solid currentColor; border-radius: 1px; flex: none; }
 
-    ul.feed > li, .post {
-      background: var(--surface); border: 1px solid var(--line);
-      border-radius: var(--radius); box-shadow: var(--shadow);
-      padding: 1.15rem 1.25rem;
-    }
-    .post { margin: 1.25rem 0; }
-    .author, .byline strong, .byline { font-weight: 650; color: var(--ink); }
-    .byline { margin: 0 0 0.5rem; color: var(--ink-soft); font-size: 0.92rem; font-weight: 400; }
-    .byline strong, .author { font-size: 1rem; }
-    .when, .edited {
-      color: var(--ink-soft); font-size: 0.85rem; font-weight: 400; margin-left: 0.5rem;
-    }
-    ul.feed > li > p, .post > p, .comments p { margin: 0.5rem 0 0.75rem; }
+/* ---- the feed & post cards --------------------------------------------------- */
+.composer {
+  background: var(--surface); border: 1.5px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 1rem 1.1rem; margin: 1.25rem 0 1.75rem;
+}
+.composer textarea { border-color: var(--line-strong); }  /* was --line at 1.24:1 */
+.composer > label:first-of-type { margin-top: 0.75rem; }
 
-    /* The new-since divider — a quiet threshold between fresh and already-seen,
-       never an alert. The text label + centred rules are the non-colour cue. */
-    li.boundary {
-      background: none !important; border: 0 !important; box-shadow: none !important;
-      padding: 0.35rem 0 !important; text-align: center;
-      display: flex; align-items: center; gap: 0.85rem; color: var(--amber);
-    }
-    li.boundary::before, li.boundary::after {
-      content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--amber) 40%, var(--line));
-    }
-    li.boundary span { font-size: 0.82rem; font-weight: 600; letter-spacing: 0.04em; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.45em; }
-    li.boundary span::before { content: ""; width: 0.5em; height: 0.5em; border: 1.5px solid currentColor; border-radius: 50%; flex: none; }
+ul.feed, ul.comments, ul.members, ul.pods, ul.directory,
+ul.invites, ul.digests, ul.redeemers, ul.uses, ul.quarantine, ul.yards, ul.contacts { list-style: none; margin: 0; padding: 0; }
+ul.feed { display: flex; flex-direction: column; gap: 0.9rem; }
 
-    /* The feed ends — principle 1, calm over engagement. */
-    .caught-up {
-      text-align: center; color: var(--ink-soft); font-style: italic;
-      margin: 2.25rem 0 0.5rem; padding-top: 1.25rem;
-    }
-    .caught-up::before {
-      content: ""; display: block; width: 30px; height: 2px;
-      margin: 0 auto 0.8rem; background: color-mix(in srgb, var(--green) 55%, transparent); border-radius: 2px;
-    }
-    .empty {
-      color: var(--ink-soft); text-align: center; padding: 1.6rem 1rem;
-      background: var(--surface-sunk); border-radius: var(--radius); border: 1px dashed var(--line-strong);
-    }
-    ul.feed > li.empty, .comments > li.empty { box-shadow: none; background: var(--surface-sunk); border: 1px dashed var(--line-strong); }
+ul.feed > li, .post {
+  background: var(--surface); border: 1.5px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 1rem 1.1rem;
+}
+.post { margin: 1.1rem 0; }
+.author, .byline strong, .byline { font-weight: 700; color: var(--ink); }
+.byline { margin: 0 0 0.5rem; color: var(--ink-soft); font-size: 0.86rem; font-weight: 400; }
+.byline strong, .author { font-size: 1rem; }
+.when, .edited { color: var(--ink-soft); font-size: 0.82rem; font-weight: 400; margin-left: 0.5rem; }
+ul.feed > li > p, .post > p, .comments p { margin: 0.5rem 0 0.75rem; }
 
-    .date-banner {
-      background: var(--green-tint); border: 1px solid color-mix(in srgb, var(--green) 22%, transparent);
-      border-radius: var(--radius); padding: 0.8rem 1rem; margin: 1.25rem 0;
-    }
-    .date-banner p { margin: 0.15rem 0; color: var(--green); font-weight: 600; }
+/* The new-since divider: a labelled sign, not an alert. */
+li.boundary {
+  background: none !important; border: 0 !important; box-shadow: none !important;
+  padding: 0.2rem 0 !important; text-align: center;
+  display: flex; align-items: center; gap: 0.8rem; color: var(--amber);
+}
+li.boundary::before, li.boundary::after {
+  content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--amber) 40%, var(--line));
+}
+li.boundary span {
+  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 0.45em;
+  border: 1.5px solid currentColor; border-radius: 999px; padding: 0.32rem 0.9rem;
+}
+li.boundary span::before { content: ""; width: 0.5em; height: 0.5em; border: 2px solid currentColor; border-radius: 50%; flex: none; }
 
-    /* ---- row of quiet post actions ----------------------------------------- */
-    .actions {
-      display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1rem;
-      margin-top: 0.9rem; padding-top: 0.8rem; border-top: 1px solid var(--line);
-      font-size: 0.9rem;
-    }
-    .actions a { text-decoration: none; font-weight: 600; }
-    .actions a:hover { text-decoration: underline; }
-    .actions .inline button {
-      min-height: auto; padding: 0.2rem 0.6rem; font-size: 0.85rem; border-radius: 999px;
-    }
+/* The feed ends. */
+.caught-up { text-align: center; color: var(--green-deep); font-weight: 700; margin: 2rem 0 0.5rem; padding-top: 1.1rem; }
+@media (prefers-color-scheme: dark) { .caught-up { color: var(--green); } }
+:root[data-theme="light"] .caught-up { color: var(--green-deep); }
+:root[data-theme="dark"] .caught-up { color: var(--green); }
+.caught-up::after { content: " \2713"; }
+.caught-up::before {
+  content: ""; display: block; width: 30px; height: 2px;
+  margin: 0 auto 0.8rem; background: color-mix(in srgb, var(--green) 55%, transparent); border-radius: 2px;
+}
+.empty {
+  color: var(--ink-soft); text-align: center; padding: 1.5rem 1rem;
+  background: var(--surface-sunk); border-radius: var(--radius); border: 1.5px dashed var(--line-strong);
+}
+ul.feed > li.empty, .comments > li.empty { box-shadow: none; background: var(--surface-sunk); border: 1.5px dashed var(--line-strong); }
 
-    /* ---- media & link previews --------------------------------------------- */
-    .photos { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.75rem 0; }
-    .photos img, .clip {
-      max-width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--line);
-      background: var(--surface-sunk);
-    }
-    .photos img { max-height: 22rem; object-fit: cover; cursor: zoom-in; }
-    .clip { width: 100%; }
-    .clip-status {
-      color: var(--ink-soft); font-style: italic; font-size: 0.9rem;
-      background: var(--surface-sunk); border-radius: var(--radius-sm); padding: 0.6rem 0.8rem;
-    }
-    a.preview {
-      display: block; margin: 0.75rem 0; text-decoration: none; color: var(--ink);
-      border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
-      background: var(--surface-sunk); transition: border-color 120ms ease;
-    }
-    a.preview:hover { border-color: var(--line-strong); }
-    .preview-image { display: block; width: 100%; max-height: 15rem; object-fit: cover; }
-    .preview-title { display: block; font-weight: 650; padding: 0.7rem 0.9rem 0.2rem; }
-    .preview-desc  { display: block; color: var(--ink-soft); padding: 0 0.9rem 0.3rem; font-size: 0.92rem; }
-    .preview-url   { display: block; color: var(--green); padding: 0.2rem 0.9rem 0.75rem; font-size: 0.82rem; }
+.date-banner {
+  background: var(--green-tint); border: 1px solid color-mix(in srgb, var(--green) 18%, transparent);
+  border-radius: 10px; padding: 0.7rem 0.95rem; margin: 1.1rem 0;
+}
+.date-banner p { margin: 0.15rem 0; color: var(--green-deep); font-weight: 700; }
+@media (prefers-color-scheme: dark) { .date-banner p { color: var(--green); } }
+:root[data-theme="light"] .date-banner p { color: var(--green-deep); }
+:root[data-theme="dark"] .date-banner p { color: var(--green); }
 
-    /* ---- reactions ---------------------------------------------------------- */
-    .reactions { margin: 1rem 0; }
-    .reaction-label { font-weight: 650; }
-    .react-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
-    .react-buttons button {
-      background: var(--surface); color: var(--ink); border-color: var(--line-strong);
-      min-height: 40px; padding: 0.4rem 0.95rem; border-radius: 999px; font-weight: 600;
-    }
-    .react-buttons button:hover { background: var(--green-tint); border-color: var(--green); color: var(--green-deep); }
-    .react-buttons button.reacted { background: var(--green); color: var(--btn-ink); border-color: var(--green); }
-    /* Non-colour cue: a chosen reaction carries a leading check beyond its fill. */
-    .react-buttons button.reacted::before { content: "\2713"; font-weight: 700; }
+/* ---- post actions: every target >= 44px -------------------------------------- */
+.actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem;
+  margin-top: 0.8rem; padding-top: 0.55rem; border-top: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+.actions a { text-decoration: none; font-weight: 700; padding: 0.6rem 0.45rem; }
+.actions a:hover { text-decoration: underline; }
+.actions .inline button {
+  min-height: 44px;                      /* was min-height:auto (~28px) */
+  padding: 0.35rem 1rem; font-size: 0.84rem; border-radius: 999px;
+}
 
-    /* ---- admin lists & tables ---------------------------------------------- */
-    ul.members > li, ul.pods > li, ul.directory > li, ul.invites > li,
-    ul.digests > li, ul.redeemers > li, ul.uses > li, ul.quarantine > li, ul.yards > li {
-      padding: 0.9rem 0; border-bottom: 1px solid var(--line);
-      display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
-    }
-    ul.members .inline, ul.pods .inline, ul.invites .inline { margin-left: auto; }
-    ul.redeemers { flex-basis: 100%; padding-left: 1rem; }
-    ul.redeemers > li { border: 0; padding: 0.15rem 0; font-size: 0.9rem; color: var(--ink-soft); }
+/* ---- media & link previews ---------------------------------------------------- */
+.photos { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0; }
+.photos img, .clip { max-width: 100%; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-sunk); }
+.photos img { max-height: 22rem; object-fit: cover; cursor: zoom-in; }
+.clip { width: 100%; }
+.clip-status {
+  color: var(--ink-soft); font-style: italic; font-size: 0.88rem;
+  background: var(--surface-sunk); border-radius: var(--radius-sm); padding: 0.6rem 0.8rem;
+}
+a.preview {
+  display: block; margin: 0.75rem 0; text-decoration: none; color: var(--ink); font-weight: 400;
+  border: 1.5px solid var(--line); border-radius: 10px; overflow: hidden;
+  background: var(--surface-sunk); transition: border-color 120ms ease;
+}
+a.preview:hover { border-color: var(--line-strong); }
+.preview-image { display: block; width: 100%; max-height: 15rem; object-fit: cover; }
+.preview-title { display: block; font-weight: 700; padding: 0.65rem 0.85rem 0.15rem; font-size: 0.95rem; }
+.preview-desc  { display: block; color: var(--ink-soft); padding: 0 0.85rem 0.3rem; font-size: 0.86rem; }
+.preview-url   { display: block; color: var(--green); font-weight: 700; padding: 0.15rem 0.85rem 0.7rem; font-size: 0.78rem; }
 
-    table {
-      width: 100%; border-collapse: collapse; margin: 1.25rem 0;
-      font-variant-numeric: tabular-nums;
-    }
-    caption { text-align: left; color: var(--ink-soft); margin-bottom: 0.5rem; }
-    th, td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--line); }
-    thead th { border-bottom: 2px solid var(--line-strong); font-size: 0.8rem;
-      text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); }
-    tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-sunk) 55%, transparent); }
-    td.delivery, .delivery { font-variant-numeric: tabular-nums; }
+/* ---- reactions ----------------------------------------------------------------- */
+.reactions { margin: 0.9rem 0; }
+.reaction-label { font-weight: 700; color: var(--green-deep); }
+@media (prefers-color-scheme: dark) { .reaction-label { color: var(--green); } }
+:root[data-theme="light"] .reaction-label { color: var(--green-deep); }
+:root[data-theme="dark"] .reaction-label { color: var(--green); }
+.react-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.55rem; }
+.react-buttons button {
+  background: var(--surface); color: var(--ink); border-color: var(--line-strong);
+  min-height: 44px; padding: 0.4rem 1rem; border-radius: 999px; font-weight: 700;
+}
+.react-buttons button:hover { background: var(--green-tint); border-color: var(--green); color: var(--green-deep); }
+.react-buttons button.reacted { background: var(--btn-bg); color: var(--btn-ink); border-color: var(--btn-bg); }
+.react-buttons button.reacted::before { content: "\2713"; font-weight: 700; }
 
-    /* ---- hand-over block & printable QR ------------------------------------ */
-    .handover {
-      background: var(--surface); border: 1px solid var(--line);
-      border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.2rem; margin: 1rem 0 1.5rem;
-    }
-    .handover input[readonly] { background: var(--surface-sunk); font-family: var(--font-mono); font-size: 0.9rem; }
-    .handover-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.75rem 0; }
-    .qr {
-      display: flex; justify-content: center; padding: 1rem;
-      background: #ffffff; border-radius: var(--radius-sm); border: 1px solid var(--line); margin: 0.75rem 0;
-    }
-    .qr svg { width: 100%; max-width: 220px; height: auto; }
+/* ---- admin lists & tables -------------------------------------------------------- */
+ul.members > li, ul.pods > li, ul.directory > li, ul.invites > li,
+ul.digests > li, ul.redeemers > li, ul.uses > li, ul.quarantine > li, ul.yards > li {
+  padding: 0.8rem 0; border-bottom: 1px solid var(--line);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+}
+ul.members .inline, ul.pods .inline, ul.invites .inline { margin-left: auto; }
+ul.redeemers { flex-basis: 100%; border-left: 2px solid color-mix(in srgb, var(--green) 30%, var(--line)); padding-left: 0.9rem; margin-left: 0.2rem; }
+ul.redeemers > li { border: 0; padding: 0.15rem 0; font-size: 0.88rem; color: var(--ink-soft); }
 
-    /* ---- misc surfaces ------------------------------------------------------ */
-    .house-rule { background: var(--green-tint); border-radius: var(--radius-sm);
-      padding: 0.75rem 1rem; border-left: 4px solid var(--green); margin: 1rem 0; }
-    .contacts, .contact { color: var(--ink-soft); }
-    .kinship { color: var(--ink-soft); font-weight: 500; }
+table { width: 100%; border-collapse: collapse; margin: 1.1rem 0; font-variant-numeric: tabular-nums; }
+caption { text-align: left; color: var(--ink-soft); margin-bottom: 0.5rem; }
+th, td { text-align: left; padding: 0.6rem 0.6rem; border-bottom: 1px solid var(--line); }
+/* Style the FIRST row's th too: members_metrics.html has no <thead> today
+   (fix recommended in the handoff README), so this selector pair covers both. */
+thead th, table tr:first-child th {
+  border-bottom: 2px solid var(--green); font-size: 0.72rem;
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--green-deep); background: none;
+}
+@media (prefers-color-scheme: dark) { thead th, table tr:first-child th { color: var(--green); } }
+:root[data-theme="light"] thead th, :root[data-theme="light"] table tr:first-child th { color: var(--green-deep); }
+:root[data-theme="dark"] thead th, :root[data-theme="dark"] table tr:first-child th { color: var(--green); }
+tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-sunk) 55%, transparent); }
+td.delivery, .delivery { font-variant-numeric: tabular-nums; }
 
-    .visually-hidden {
-      position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
-      overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
-    }
+/* ---- hand-over block & printable QR ------------------------------------------------ */
+.handover {
+  background: var(--surface); border: 1.5px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.1rem; margin: 1rem 0 1.4rem;
+}
+.handover::before {
+  content: "Shown once — anyone with this link can act as its holder";
+  display: inline-flex; align-items: center;
+  font-size: 0.78rem; font-weight: 700; color: var(--amber);
+  background: var(--amber-tint); border-radius: var(--radius-sm);
+  padding: 0.45rem 0.8rem; margin-bottom: 0.75rem;
+}
+.handover input[readonly] { background: var(--surface-sunk); font-family: var(--font-mono); font-size: 0.86rem; }
+.handover-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; margin: 0.7rem 0; }
+.qr {
+  display: flex; justify-content: center; padding: 1rem;
+  background: #ffffff; border-radius: var(--radius-sm); border: 1px solid var(--line); margin: 0.7rem 0;
+}
+.qr svg { width: 100%; max-width: 200px; height: auto; }
 
-    /* ---- respect reduced-motion & print ------------------------------------ */
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
-    }
-    @media print {
-      header.site, footer.site, .actions, .composer, .handover-actions, .skip-link { display: none !important; }
-      body { background: #fff; color: #000; }
-      .qr { border: 0; }
-      a { color: #000; text-decoration: underline; }
-    }
+/* ---- misc surfaces ------------------------------------------------------------------ */
+.house-rule { background: var(--green-tint); border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--green) 18%, transparent);
+  padding: 0.7rem 0.95rem; margin: 1rem 0; }
+.contacts, .contact { color: var(--ink-soft); }
+.kinship { color: var(--ink-soft); font-weight: 400; }
+
+.visually-hidden {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---- allauth layout hooks (new; used by templates/allauth/layouts/*) -------------- */
+.entrance { max-width: 26rem; margin: 0 auto; padding: 2.2rem 0 2.5rem; }
+.entrance .brand-inline { display: inline-flex; align-items: baseline; gap: 0.5rem;
+  font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; color: var(--green); text-decoration: none; }
+.entrance .brand-inline svg { width: 1.35em; height: 1.35em; transform: translateY(0.18em); color: var(--green); }
+.entrance h1 { margin-top: 1rem; }
+.entrance .lede { color: var(--ink-soft); font-size: 0.92rem; }
+.entrance button, .entrance input[type=submit] { width: 100%; margin-top: 0.6rem; min-height: 50px; }
+.manage-card { background: var(--surface); border: 1.5px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 0.3rem 1.1rem 1rem; margin: 0.9rem 0; }
+
+/* ---- reduced motion & print ---------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
+@media print {
+  header.site, footer.site, .actions, .composer, .handover-actions, .skip-link { display: none !important; }
+  body { background: #fff; color: #000; }
+  .qr { border: 0; }
+  a { color: #000; text-decoration: underline; }
+}
+
   </style>
+  {% comment %} Declared, not decorative: django-allauth leaf pages define
+     `extra_head` and `extra_body`, and Django SILENTLY DISCARDS a child block whose
+     name no ancestor declares. Dropping them cost account/login.html its
+     `<form id="mfa_login">` and its WebAuthn scripts — so the passkey button
+     submitted to a form that did not exist, with no error, while every test passed.
+     Do not remove these. {% endcomment %}
+  {% block extra_head %}{% endblock %}
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
+  {% comment %} The site header is a block so the signed-out entrance surfaces can drop
+     it: those pages carry their own centred brand lockup, and rendering both put the
+     wordmark on screen twice. {% endcomment %}
+  {% block site_header %}
   <header class="site">
     <div class="wrap">
       <a class="brand" href="{% if user.is_authenticated %}{% url 'feed' %}{% else %}{% url 'home' %}{% endif %}">
@@ -494,7 +559,13 @@
       </a>
     </div>
   </header>
+  {% endblock %}
   <main class="wrap" id="main">
+    {% if messages %}
+      <ul class="messages" role="status">
+        {% for message in messages %}<li class="msg {{ message.tags }}">{{ message }}</li>{% endfor %}
+      </ul>
+    {% endif %}
     {% block body %}{% endblock %}
   </main>
   <footer class="site">
@@ -515,5 +586,6 @@
       }
     </script>
   {% endif %}
+  {% block extra_body %}{% endblock %}
 </body>
 </html>
