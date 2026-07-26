@@ -4,39 +4,24 @@ The v1 pass was rejected ("not sophisticated, not production enterprise grade").
 built from live-sourced research on how Claude Design actually responds, plus a full capture of every
 user-facing surface in the product.
 
-## What is in the package
+## How to run it
 
-`~/Downloads/backyard-design-package/`
+Claude Design already has the repository, so this is **one paste and nothing else**.
 
-| Item | What it is |
-|---|---|
-| `00-KICKOFF-PROMPT.md` | The prompt. Identical to `docs/design/claude-design-kickoff-v2.md`. |
-| `UPLOAD-PLAN.md` | The label line to paste before each image, message by message. |
-| `message-01 … message-08` | 117 screenshot tiles, pre-sized and pre-ordered. One folder = one message. |
-| `source/` | The three files being replaced: the current `<style>` block, `elder_feed.html`, `email-digest.html`. Attach these in message 1 — Claude Design cannot hand back a verbatim replacement for a file it has never seen. |
-| `manifest.json` | Machine-readable index of file → label. |
+1. Open `~/Downloads/backyard-design-package/PASTE-THIS.md` (same file as
+   `docs/design/claude-design-kickoff-v2.md`). Optional, two minutes, high leverage: find the
+   *Founder note* in §2.0 and drop in two or three visual references you actually like — ideally
+   not software.
+2. Select all, copy, paste into Claude Design. Send. No attachments.
+3. It returns a defect table for twelve surfaces, then **10 direction concepts of the feed**, each on
+   an assigned thesis so they cannot collapse into one look. Pick **two**.
+4. It returns **5 riffs**, each showing the feed, sign-in and the members table. Pick **one**.
+5. Only then does it build every surface and write the handoff bundle.
+6. Export via **Hand off to Claude Code** and give me the bundle.
 
-The images are already sized so Claude never downscales them. **Do not merge folders and do not
-exceed 20 images in a message** — past that the API applies a stricter per-image size limit.
-
-## Run it
-
-1. **Optional but worth 60 seconds:** open `00-KICKOFF-PROMPT.md`, find the *Founder note* in §2.0,
-   and paste in two or three visual references you actually like. This is the single highest-leverage
-   thing you can add — with it, the ten Phase-1 directions are aimed; without it they are a fair
-   sample of the space.
-2. Open Claude Design. Drag in **message-01** (18 images), pasting each label line from
-   `UPLOAD-PLAN.md` immediately before its image, then the three files from `source/`, then
-   paste the whole kickoff prompt last.
-   Images first, instructions last — that ordering measurably improves how the images are used.
-3. Send **message-02** through **message-08** as follow-ups, same labelling.
-4. It will produce a **defect table** (the twelve message-01 surfaces) and then **10 flat direction
-   concepts of the feed**, each on an assigned thesis so they genuinely differ. Do not let it build
-   more than that. Pick **two**.
-5. It returns **5 riffs**, each showing the feed, the sign-in screen and the members table.
-   Pick **one**.
-6. Only then does it build every surface and write the handoff bundle.
-7. Export via **Hand off to Claude Code** and give me the bundle.
+`optional-screenshot-route/` holds the 117-tile screenshot package and its per-message paste blocks.
+It is a fallback only — use it if Claude Design turns out not to read the repo well, or if you want
+it to see the current rendering rather than infer it from the templates.
 
 ## What I do with the handoff
 

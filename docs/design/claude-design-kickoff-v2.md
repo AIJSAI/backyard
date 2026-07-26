@@ -1,17 +1,23 @@
 # Backyard — Claude Design kickoff (v2)
 
-> **Message 1** = the 18 images of `message-01`, then the three source files from `source/`, then
-> this whole document last. Images first, instructions last — that ordering applies **within every
-> message**. Messages 2–8 are additional reference images and arrive after this brief; that is
-> deliberate and they are labelled so you can slot them in.
+> **You have this repository. Read it — there are no attachments and none are coming.**
 >
-> The three files in `source/` are the artifacts you are replacing and must hand back:
-> `base-style.css` (the current single `<style>` block, verbatim), `elder_feed.html` and
-> `email-digest.html`. You cannot produce a byte-for-byte replacement for a file you have never
-> seen, so read them before Phase 3.
+> Start with these, in this order, before you write anything:
 >
-> See `UPLOAD-PLAN.md` for the label lines, and `docs/design/README-design-pass-v2.md` for the
-> full procedure.
+> | Path | Why |
+> |---|---|
+> | `src/core/templates/core/base.html` | The entire application stylesheet, in one `<style>` block (lines 20–479). This is the file you are replacing. |
+> | `src/core/templates/core/elder_feed.html` | A standalone document with its **own** stylesheet. Nothing in `base.html` reaches it. A second, separate design job. |
+> | `src/core/templates/core/email/digest.html` | The weekly digest email. Table-based, inline hex, its own rules. A third. |
+> | `src/core/templates/core/*.html` | The other 31 surfaces. Read the real DOM; design onto real content. |
+> | `src/core/tests/test_design_system_wcag.py` | Guard 1. Read the regexes — they are a hard contract, described in §6. |
+> | `src/core/tests/test_elder_wcag.py` | Guard 2. Same. |
+> | `src/config/urls.py` | Every route, and therefore every surface. |
+> | `src/core/middleware.py` | The Content-Security-Policy you must design inside. |
+> | `docs/principles.md` | The product principles. Treat each as a design constraint. |
+>
+> You cannot run the app, so you cannot see it rendered. §3 is my measured account of what it looks
+> like today — take those numbers as given.
 
 ---
 
@@ -65,10 +71,6 @@ Then stop.
 
 Build only the surfaces the current phase names — one in Phase 1, the three named in Phase 2,
 everything in Phase 3. If you find yourself producing final CSS in Phase 1, you have misread this.
-
-**More image messages follow this one.** When you read this you have seen the first eighteen images
-only. Do the §3 defect table now — it is scoped to exactly those — then wait: I will say "all images
-sent" before you begin Phase 1.
 
 Ask me clarifying questions before Phase 1 if you have them. I will answer specifically; do not
 accept "you decide" from me on art direction.
@@ -307,21 +309,23 @@ fintech dashboard?* If yes, it is wrong — this is one family's shared room, no
 
 ## 3. What is actually wrong today
 
-Observed directly on a running instance. The screenshots are labelled `BY-01` … `BY-74`; refer to
-surfaces by those handles.
+Measured directly on a running instance with real seeded family data, at 1440×900 and 390×844, in
+both themes. You cannot reproduce these observations from the source alone, so take them as given
+and refer to surfaces by their template path.
 
 1. **Roughly half the application has no design at all.** 34 templates carry the design system.
    **Thirty django-allauth surfaces render the library's raw defaults** — no CSS whatsoever, Times
    New Roman, a literal `Menu:` bulleted list, and a live "Sign Up" link on an invite-only site
-   (`BY-01`). **Sign-in is the first surface every family member sees and the one they see most.**
-   Plus Django's unbranded `404` (179 bytes, `BY-02`), `500` (145 bytes) and `403 CSRF`.
-2. **No desktop design.** ~600px of content in a 1440px viewport (`BY-05`).
-3. **The front door reads "Backyard is running / Your family's private instance is up"** (`BY-03`) —
+   (`allauth/templates/account/login.html`). **Sign-in is the first surface every family member sees and the one they see most.**
+   Plus Django's unbranded `404` (179 bytes), `500` (145 bytes) and `403 CSRF`.
+2. **No desktop design.** ~600px of content in a 1440px viewport — `main.wrap` is capped at `--measure: 40rem` and there is
+   not one width breakpoint in the entire app.
+3. **The front door reads "Backyard is running / Your family's private instance is up"** (`core/home.html`) —
    a health check, shown to an invited relative.
-4. **A red "Take down" pill renders on every post** at equal weight to "Open thread" (`BY-05`). A
+4. **A red "Take down" pill renders on every post** at equal weight to "Open thread" (`core/feed.html`). A
    destructive moderator action is competing with the primary read action, forever.
 5. **No media layout system.** A 4:3, a 3:4 portrait and a 21:9 panorama each render at natural ratio
-   at full column width, so a five-photo post is a ragged vertical stack (`BY-07`).
+   at full column width, so a five-photo post is a ragged vertical stack (`core/feed.html`, `core/post_detail.html`).
 6. **Form controls are browser defaults** — raw `Choose Files / No file chosen`, unstyled selects and
    checkboxes, inside otherwise-styled cards.
 7. **Tables are half-styled and the header rule never fires.** Zebra striping, row rules and
@@ -335,21 +339,24 @@ surfaces by those handles.
    744 CSS px wide, so the page scrolls sideways at roughly 1.9×. That is a live WCAG 2.2 SC 1.4.10
    failure**, not a nicety.
 8. **Dark theme is a near-black IDE ground**, not a designed dusk.
-9. **The app icon is illegible at 16px** (`BY-44`).
+9. **The app icon is illegible at 16px.** It is drawn in Pillow by `src/core/pwa_views.py`; downsample
+   it yourself mentally from that code — a navy rounded square with a light house glyph, which at
+   16px is an indistinct blob.
 10. **The weekly digest email is the best-looking surface in the product.** The app does not live up
     to its own email.
 
-**Before you propose any direction**, output a defect table for the **twelve `BY-01`–`BY-12` handles
-only** (the first upload message): three specific defects per handle, each with a position in the
-frame, and — *where the surface has a stylesheet at all* — the custom property or class hook
-responsible. `BY-01` and `BY-02` have no CSS whatsoever, so name the missing decision instead of a
-property. Twelve rows, none skipped, none merged. That is the gate; do not design until it exists.
-Do not table the other fifty-two handles — they are reference for the build, and forensics on a
-design being thrown away is not where your effort belongs.
+**Before you propose any direction**, output a defect table with one row for each of these twelve
+surfaces: `account/login.html` (the raw allauth default), the missing `404`, `core/home.html`,
+`core/join.html`, `core/feed.html`, `core/post_detail.html`, `core/edit_post.html`,
+`core/directory.html`, `core/member_profile.html`, `core/members.html`, `core/members_metrics.html`,
+`core/elder_feed.html`. Three specific defects each, and — *where the surface has a stylesheet at
+all* — the custom property or class hook responsible, cited from `base.html`. The two unstyled ones
+have no CSS, so name the missing decision instead of a property. Twelve rows, none skipped, none
+merged. That is the gate; do not design until it exists.
 
-**The screenshots are the artifact being replaced.** Read them for structure, content inventory and
-state coverage. Replicate the structural layout where it is sound, but do **not** carry over the
-current palette, typography, spacing or hierarchy.
+**The current stylesheet is the artifact being replaced.** Read it for structure, class hooks and
+state coverage — never as a style reference. Keep the structural layout where it is sound and keep
+every name in §9, but do **not** carry over the current palette, typography, spacing or hierarchy.
 
 ---
 
@@ -395,7 +402,7 @@ one prominent route back, at most two secondary destinations. No error code as a
   card per credential with a human label ("James's iPhone, added March 2026"), never a credential ID.
   Keep a visible non-biometric path on every screen that offers biometrics. Never prompt to create a
   passkey during sign-in — prompt at join, in settings, and after a password reset.
-- A 79-year-old is expected to transcribe a TOTP secret today (`BY-64`). Never require anyone to
+- A 79-year-old is expected to transcribe a TOTP secret today. Never require anyone to
   remember, manipulate or transcribe anything; never block paste or a password manager.
 
 **Also in scope, and easy to miss:**
@@ -640,8 +647,7 @@ wordmark beside an empty box. Ship a type-only lockup, or a hosted PNG authored 
 at 1× with styled alt text. Deliver the images-off state as a named comp.
 
 **Identity assets.** The mark must survive four rungs: 16px favicon → header wordmark → flat
-one-colour on the elder page → flat one-colour in email and print. It fails the first rung today
-(`BY-44`). Ship the full icon set — 192 and 512 "any", 192 and 512 maskable, and a 512 **monochrome
+one-colour on the elder page → flat one-colour in email and print. It fails the first rung today. Ship the full icon set — 192 and 512 "any", 192 and 512 maskable, and a 512 **monochrome
 alpha silhouette** for Android notification badging — with the maskable mark drawn to a circular safe
 zone of 80% of the icon's minimum dimension over an opaque bleed, proved against circle, squircle and
 rounded-square masks. `apple-touch-icon` is a separate 180×180 opaque pre-padded PNG. Give
@@ -740,8 +746,9 @@ Finally, self-grade every surface and every variant as **bad** (fails the spec),
 report the counts. Any non-zero count blocks handoff. In Phase 1 this is the anti-clone gate: if the
 ten concepts share a palette or a type system they are `variantsIdentical` and must be regenerated.
 
-I will re-capture every surface at the identical handles, viewports and DPR after applying this.
-Structure each recommendation so it is verifiable from the same-handle screenshot.
+After I apply this I re-run an automated capture of every surface at 390×844 and 1440×900 in both
+themes, plus 320px reflow, 200% text zoom and forced-colors, and diff it against the current set.
+Structure each recommendation so it is verifiable from that screenshot.
 
 **Say explicitly whether the wordmark changes.** The mark appears in three places — the app chrome,
 the email lockup, and the PWA icon set. If it changes, deliver all three. If you are leaving it
