@@ -124,3 +124,66 @@ def test_the_elder_surface_never_depends_on_the_service_worker() -> None:
     assert "serviceWorker" not in body
     assert "service-worker.js" not in body
     assert "manifest" not in body  # neither the link nor the word
+
+
+def test_the_installed_identity_matches_the_shipped_design_system() -> None:
+    """S-103: the PWA's colours must be the app's colours.
+
+    They were not. The manifest kept the design-v2 navy (#234a78) and its cool near-white
+    ground after the founder REJECTED v2 and every surface moved to sign green — so the
+    one artefact a member sees every day WITHOUT opening the app, the home-screen icon and
+    its splash screen, matched nothing in the product.
+
+    Read out of base.html rather than hardcoded here, so this fails when the two drift
+    again rather than pinning a second copy of the palette that can rot independently.
+    """
+    import json
+    import re
+    from pathlib import Path
+
+    from django.test import Client
+    from django.urls import reverse
+
+    base = (Path(__file__).resolve().parents[1] / "templates" / "core" / "base.html").read_text()
+    light = base[base.index(":root") :]
+    green = re.search(r"--green:\s*(#[0-9a-fA-F]{6})", light)
+    paper = re.search(r"--paper:\s*(#[0-9a-fA-F]{6})", light)
+    assert green and paper, "could not read --green/--paper out of the design system"
+
+    manifest = json.loads(Client().get(reverse("manifest")).content)
+    assert manifest["theme_color"] == green.group(1), (
+        f"the PWA theme colour {manifest['theme_color']} is not the app's brand green "
+        f"{green.group(1)} — an installed icon that matches nothing in the product"
+    )
+    assert manifest["background_color"] == paper.group(1)
+
+
+def test_no_surface_still_carries_the_rejected_v2_navy() -> None:
+    """The founder rejected design v2 by name. A stray #234a78 anywhere is a piece of the
+    rejected identity still shipping, and the PWA is where one survived the v3 pass."""
+    import re as _re
+    from pathlib import Path
+
+    def _strip_comments(text: str, suffix: str) -> str:
+        """Prose is allowed to NAME the old colour — several comments record the v2->v3
+        migration deliberately. Only a live value is a defect, so comments come out first
+        rather than the guard being weakened with a file allowlist that would rot."""
+        text = _re.sub(r"<!--.*?-->", "", text, flags=_re.S)
+        text = _re.sub(r"/\*.*?\*/", "", text, flags=_re.S)
+        text = _re.sub(r"\{#.*?#\}", "", text, flags=_re.S)
+        text = _re.sub(r"\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}", "", text, flags=_re.S)
+        if suffix == ".py":
+            text = _re.sub(r'"""(?:.|\n)*?"""', "", text)
+            text = "\n".join(
+                line for line in text.splitlines() if not line.lstrip().startswith("#")
+            )
+        return text
+
+    src = Path(__file__).resolve().parents[2]
+    offenders = []
+    for path in list(src.rglob("*.py")) + list(src.rglob("*.html")):
+        if "__pycache__" in str(path) or path.name == "test_pwa.py":
+            continue
+        if "234a78" in _strip_comments(path.read_text(errors="ignore"), path.suffix):
+            offenders.append(str(path.relative_to(src)))
+    assert not offenders, f"design-v2 navy still shipping as a LIVE colour in: {offenders}"
