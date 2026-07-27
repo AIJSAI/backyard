@@ -66,6 +66,12 @@ services:
       EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
       EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
       EMAIL_USE_SSL: ${EMAIL_USE_SSL:-0}
+      # The backup passphrase (S-802). Documented in .env.example and the self-host
+      # guide, and — like the EMAIL_* set before it — it did NOTHING until it was named
+      # here: compose's .env is substitution-only. A keyfile is still the tighter option
+      # (this value is visible to `docker inspect`), which is what the guide recommends;
+      # this exists so the documented .env path is actually true.
+      BACKYARD_BACKUP_PASSPHRASE: ${BACKYARD_BACKUP_PASSPHRASE:-}
       POSTGRES_DB: ${POSTGRES_DB:-backyard}
       # Runtime connects as the unprivileged app role (ADR-004, TS-PG-1). The migrator
       # credentials are used for the migrate step only; the entrypoint drops them from
