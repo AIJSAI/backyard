@@ -7,12 +7,14 @@ point at a fresh box or a drill scratch DB and hard to fire by accident.
 
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 from typing import Any
 
 from django.core.management.base import BaseCommand, CommandError
 
-from core import backups
+from core import backup_crypto, backups
+from core.management.commands.backup_instance import resolve_passphrase
 
 
 class Command(BaseCommand):
@@ -20,6 +22,14 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser: Any) -> None:
         parser.add_argument("archive", help="Path to the backup archive to restore.")
+        parser.add_argument(
+            "--passphrase-file",
+            help=(
+                "File holding the decryption passphrase. Defaults to the "
+                "BACKYARD_BACKUP_PASSPHRASE environment variable. Only needed for an "
+                "encrypted archive; a plaintext one restores without it."
+            ),
+        )
         parser.add_argument(
             "--force",
             action="store_true",
@@ -32,8 +42,24 @@ class Command(BaseCommand):
             raise CommandError(f"backup archive not found: {archive}")
         try:
             with archive.open("rb") as source:
-                replay = backups.restore_backup(source, force=bool(options["force"]))
-        except backups.BackupError as exc:
+                head = source.read(len(backup_crypto.MAGIC))
+                source.seek(0)
+                if backup_crypto.is_encrypted(head):
+                    passphrase = resolve_passphrase(options)
+                    if passphrase is None:
+                        raise CommandError(
+                            "this archive is encrypted; set BACKYARD_BACKUP_PASSPHRASE or "
+                            "pass --passphrase-file to restore it."
+                        )
+                    # Decrypted to a temp file rather than memory: a family instance's
+                    # media does not have to fit in RAM to be restorable.
+                    with tempfile.TemporaryFile() as plain:
+                        backup_crypto.decrypt(source, plain, passphrase)
+                        plain.seek(0)
+                        replay = backups.restore_backup(plain, force=bool(options["force"]))
+                else:
+                    replay = backups.restore_backup(source, force=bool(options["force"]))
+        except (backups.BackupError, backup_crypto.BackupCryptoError) as exc:
             raise CommandError(str(exc)) from exc
         self.stdout.write(f"instance restored from {archive}")
         self._print_security_replay(replay)

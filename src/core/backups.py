@@ -24,6 +24,7 @@ not authentication, so it does not make an untrusted archive safe.
 from __future__ import annotations
 
 import datetime
+import errno
 import json
 import os
 import shutil
@@ -118,6 +119,24 @@ def write_backup(destination: IO[bytes]) -> None:
             archive.add(media_path, arcname=MEDIA_TAR_NAME)
 
 
+def _restore_workdir() -> tempfile.TemporaryDirectory[str]:
+    """A scratch directory on the SAME filesystem as MEDIA_ROOT where possible.
+
+    The media tree is promoted into place with rename(2), which cannot cross a filesystem
+    boundary — and in the container the default temp dir is on the image root while
+    MEDIA_ROOT is a mounted volume. Staging beside MEDIA_ROOT keeps the promote atomic and
+    avoids copying a family's entire media library twice.
+    """
+    parent = Path(settings.MEDIA_ROOT).parent
+    try:
+        parent.mkdir(parents=True, exist_ok=True)
+        return tempfile.TemporaryDirectory(dir=parent, prefix=".restore-")
+    except OSError:
+        # Unwritable or missing: fall back to the default location. The cross-device
+        # fallback in _restore_media covers the promote.
+        return tempfile.TemporaryDirectory()
+
+
 def restore_backup(source: IO[bytes], *, force: bool) -> dict[str, int]:
     """Restore an instance from a backup archive. DESTRUCTIVE: it clean-restores
     the database (dropping existing objects) and replaces the media tree. Refuses
@@ -130,7 +149,7 @@ def restore_backup(source: IO[bytes], *, force: bool) -> dict[str, int]:
             "for a fresh instance or a drill; pass force=True to override."
         )
     dsn = _dsn()
-    with tempfile.TemporaryDirectory() as workdir:
+    with _restore_workdir() as workdir:
         with tarfile.open(fileobj=source, mode="r") as archive:
             _verify_manifest(archive)
             archive.extract(DB_DUMP_NAME, path=workdir, filter="data")
@@ -244,7 +263,19 @@ def _restore_media(media_tar_path: Path, workdir: Path) -> None:
     if media_root.exists():
         shutil.rmtree(media_root)
     media_root.parent.mkdir(parents=True, exist_ok=True)
-    restored.replace(media_root)  # only the media/ subtree lands in place
+    try:
+        restored.replace(media_root)  # only the media/ subtree lands in place
+    except OSError as exc:
+        if exc.errno != errno.EXDEV:
+            raise
+        # The staging dir landed on a different filesystem from MEDIA_ROOT, which is the
+        # NORMAL case in the container: the default temp dir is on the image's root fs
+        # while MEDIA_ROOT is a mounted volume, and rename(2) cannot cross that boundary.
+        # This failed every containerised restore with "Invalid cross-device link" AFTER
+        # the old media tree had already been removed. restore_backup now stages beside
+        # MEDIA_ROOT so the atomic path is the one normally taken; this is the fallback
+        # for an operator who has pointed TMPDIR somewhere else again.
+        shutil.move(str(restored), str(media_root))
 
 
 def _has_members() -> bool:
