@@ -28,6 +28,42 @@ Closed only when ALL of:
 6. One-command deploy verified on a clean machine (fresh VM, documented run) — **MET 2026-07-22** (S-801: a bare Ubicloud VM → one-command compose deploy → serving over TLS at backyard.family; docs/receipts/2026-07-22-s728-persistent-instance.md + docs/runbooks/live-repro.md §B)
 7. v1.0 tagged; public demo and docs site live (public/OSS launch stays gated on the founder deciding to go public — the family share comes first)
 
+## Phase 3 sequence — where each item actually stands (verified 2026-07-27)
+
+The kickoff sequence is written as six ordered items. Several are tracked as *hardening*
+rather than as stories, so they do not appear in `stories.yaml` — and their absence there
+has repeatedly been read as "not built". Each was therefore re-verified by running the
+check, not by reading a status field.
+
+| # | Item | Verified how | State |
+|---|------|--------------|-------|
+| 1 | S-213 new-elder, S-212 hand-over, S-101 mobile e2e | `stories.yaml` status | `passing` |
+| 2 | S-713 single-item takedown | `stories.yaml` status | `passing` |
+| 3 | S-722 e2e as a required check | `gh api .../branches/main/protection` → contexts `["gates","secrets","code","e2e","deps"]` | **armed** |
+| 3 | S-723 ADR-004 isolation-fixture guard | `src/core/tests/test_isolation_registry.py`, 2 tests, non-vacuity proven in-file | present |
+| 3 | S-724 baseline CSP | `ContentSecurityPolicyMiddleware` defined and wired in `settings.MIDDLEWARE` | present |
+| 3 | S-725 SSRF fetch off the edge process | `attach_link_preview` runs on the worker (`tasks.py`) | present |
+| 3 | S-726 dep-CVE + SAST | CI runs `pip-audit`, `bandit`, `gitleaks` | present |
+| 3 | S-727 TM-7 forced security replay | `_forced_security_replay` in `backups.py`; **watched fire on a live restore** 2026-07-27 — 17 members' tokens rotated, 136 sessions flushed, 5 invites voided | present + live |
+| 4 | Full design system + WCAG AA pass | criterion 3 below: design v3 "Signage" + v3.1, axe 138 renders on PROD = 0 violations | **MET** |
+| 5 | One persistent instance, domain + Caddy TLS | `https://backyard.family` → HTTP 200, valid certificate, HSTS `max-age=31536000; includeSubDomains; preload` | **live** |
+| 6 | Founder personal manual QA | — | **NOT DONE — founder-gated, and the gate** |
+
+**So the honest position is:** items 1–5 are done and verifiable; item 6 has not happened
+and cannot happen without the founder. What remains besides it is also founder-owned:
+registering the S-502 inbound webhook (until then a reply is accepted with a 250 and
+silently never arrives), the S-601 decision on whether an elder may follow a link off her
+page, and whether digest emails may embed capability-token image URLs.
+
+The engineering blockers from
+[the self-audit](audits/2026-07-26-honest-100-audit.md) that could be closed without the
+founder have been: see the receipts for waves A and B, S-802, S-103, S-901 and S-702.
+
+> A caution for anyone reading the tracker: during this work, **five stories sat at
+> `passing` while failing their own acceptance text** — including S-802, which claimed
+> "encrypts by default" and shipped a plain tar. A status field is not evidence. Read the
+> acceptance and run the thing.
+
 ## Phase 0: Product foundation
 
 - [x] Research brief with verified findings evidence: docs/research/2026-07-19-research-brief.md
