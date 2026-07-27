@@ -15,14 +15,17 @@ implementation, only a second driver over one implementation.
 from __future__ import annotations
 
 import datetime
+import logging
 
 from django.core.management import call_command
 from django.utils import timezone
 from procrastinate.contrib.django import app
 
-from . import digest_send
+from . import digest_send, staged_uploads
 from .metrics import rollup_week
 from .models import Yard
+
+logger = logging.getLogger(__name__)
 
 
 @app.periodic(cron="0 * * * *")  # hourly; the per-member cadence clock decides who is due
@@ -50,6 +53,21 @@ def clear_sessions_task(timestamp: int) -> None:
     """Purge expired db-session rows (threat model TS-DJ-1): db sessions never
     self-purge, so removed-member rows would otherwise accumulate."""
     call_command("clearsessions")
+
+
+@app.periodic(cron="45 4 * * *")  # daily 04:45, just after the session purge
+@app.task(name="sweep_staged_uploads")
+def sweep_staged_uploads_task(timestamp: int) -> None:
+    """Delete uploads abandoned at the confirm-on-widen step (TM-3).
+
+    Photos are staged server-side so a wide post cannot lose them across the confirmation
+    hop. A member who then closes the tab leaves family photographs on disk, and the
+    session purge above does not touch files — so this walks the staging directory by
+    mtime and collects anything past the TTL, including orphans whose session is long
+    gone."""
+    removed = staged_uploads.sweep()
+    if removed:
+        logger.info("swept %s abandoned staged upload(s)", removed)
 
 
 # The first enqueued (non-periodic) task: a video upload defers one of these with its

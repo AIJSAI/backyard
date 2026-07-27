@@ -220,7 +220,14 @@ STORAGES = {
 MEDIA_ROOT = os.environ.get("MEDIA_ROOT", "/data/media")
 # Belt for TS-CA-4 at the application layer (the Caddy body cap is the edge control):
 # bound the number of files in one upload. Per-file size is checked in the upload view.
-DATA_UPLOAD_MAX_NUMBER_FILES = 20
+#
+# Deliberately ABOVE the composer's own caps (20 photos + 4 videos = 24). At exactly 20
+# this framework limit fired first and Django answered a bare 400 — so someone picking 25
+# birthday photos got an unexplained error page instead of the composer's "5 of your 25
+# photos could not be added — 20 is the limit for one post." The application must be the
+# thing that explains itself; this stays a backstop against an absurd request, not the
+# everyday ceiling.
+DATA_UPLOAD_MAX_NUMBER_FILES = 40
 
 # --- Outbound email (wave 4 substrate, S-501) --------------------------------
 # Everything product-facing sends through core/emailing.py, which mints links from

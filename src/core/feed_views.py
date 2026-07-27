@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.files.uploadedfile import UploadedFile
@@ -32,6 +33,7 @@ from . import (
     profiles,
     reacting,
     scoping,
+    staged_uploads,
     transcoding,
 )
 from .models import MediaAsset, Member, Pod, Post, Reaction
@@ -92,6 +94,7 @@ def _render_feed(
     *,
     advance_seen: bool,
     errors: list[str] | None = None,
+    staged_handle: str | None = None,
 ) -> HttpResponse:
     """Render the feed: the member's visible posts newest-first, each marked as their
     own (and still editable) and as new-since-last-visit, with one unread boundary
@@ -151,6 +154,9 @@ def _render_feed(
             # exactly scoped to what they may act on.
             "is_moderator": permissions.is_admin(member),
             "errors": errors or [],
+            # Carried so a compose that bounced for correction keeps its uploads (the
+            # files themselves cannot survive the round trip; the handle can).
+            "staged_handle": staged_handle,
         },
     )
 
@@ -194,6 +200,17 @@ def compose(request: HttpRequest) -> HttpResponse:
     # are best-effort and attached after creation.
     video_raws, video_errors = _validate_videos(request.FILES.getlist("videos"))
     errors.extend(video_errors)
+    photo_raws, media_notices = _read_photos(request.FILES.getlist("photos"))
+
+    # A second pass through the composer (the TM-3 confirmation) arrives with an EMPTY
+    # request.FILES — a plain form cannot carry files — so the bytes come back from
+    # staging instead. Claiming here, before the widening branch, means the cancel path
+    # below also releases them.
+    staged_handle = request.POST.get("staged_uploads") or None
+    if staged_handle:
+        claimed_photos, claimed_videos = staged_uploads.claim(request, staged_handle)
+        photo_raws = claimed_photos + photo_raws
+        video_raws = claimed_videos + video_raws
 
     # TM-3: any audience broader than the poster's own pod (a yard send, or more
     # than one yard) must be explicitly confirmed with its name and member count.
@@ -201,6 +218,9 @@ def compose(request: HttpRequest) -> HttpResponse:
     confirmed = request.POST.get("confirm_wide") == "yes"
     if widening and not confirmed and not errors:
         reach = scoping.visible_members(member).filter(pods__yards__in=audience_yards).distinct()
+        # Hold the media server-side across the hop. Without this the confirmation page
+        # was where photos went to die: it is an ordinary form with no file inputs, so
+        # the re-POST carried nothing and the post was created empty.
         return render(
             request,
             "core/compose_confirm.html",
@@ -210,24 +230,41 @@ def compose(request: HttpRequest) -> HttpResponse:
                 "audience_yards": audience_yards,
                 "audience_names": ", ".join(y.name for y in audience_yards),
                 "member_count": reach.count(),
+                "staged_handle": staged_uploads.stage(
+                    request, photos=photo_raws, videos=video_raws
+                ),
+                "staged_photo_count": len(photo_raws),
+                "staged_video_count": len(video_raws),
             },
         )
 
-    if not errors:
-        post = posting.create_post(author=member, pod=pod, audience_yards=audience_yards, body=body)
-        # A link in the body gets a best-effort preview card, fetched on the WORKER (S-725,
-        # TS-CO-4): the SSRF-sensitive outbound fetch runs off the edge-facing web process,
-        # on the worker's own network segment. The card appears once the worker attaches it
-        # (like a video transcode); the post shows the bare link until then.
-        from .tasks import attach_link_preview
+    if errors:
+        # The compose is going back for correction and the bytes must not be lost in the
+        # meantime, so re-stage them and carry the handle through the re-rendered form.
+        return _render_feed(
+            request,
+            member,
+            advance_seen=False,
+            errors=errors,
+            staged_handle=staged_uploads.stage(request, photos=photo_raws, videos=video_raws),
+        )
 
-        attach_link_preview.defer(post_id=post.id)
-        _attach_photos(post, request.FILES.getlist("photos"))
-        _attach_videos(post, video_raws)
-        return redirect("feed")
+    post = posting.create_post(author=member, pod=pod, audience_yards=audience_yards, body=body)
+    # A link in the body gets a best-effort preview card, fetched on the WORKER (S-725,
+    # TS-CO-4): the SSRF-sensitive outbound fetch runs off the edge-facing web process,
+    # on the worker's own network segment. The card appears once the worker attaches it
+    # (like a video transcode); the post shows the bare link until then.
+    from .tasks import attach_link_preview
 
-    # Re-render the feed with the error (rare; the composer requires a body client-side).
-    return _render_feed(request, member, advance_seen=False, errors=errors)
+    attach_link_preview.defer(post_id=post.id)
+    media_notices.extend(_attach_photos(post, photo_raws))
+    _attach_videos(post, video_raws)
+    # Anything the post did NOT get is said out loud on the feed the member lands on.
+    # Silence here is the failure mode: a post appears, looks fine, and is missing photos
+    # nobody will ever mention.
+    for notice in media_notices:
+        messages.warning(request, notice)
+    return redirect("feed")
 
 
 @login_required
@@ -274,21 +311,65 @@ def delete_post(request: HttpRequest, post_id: int) -> HttpResponse:
     return render(request, "core/delete_confirm.html", {"post": post})
 
 
-def _attach_photos(post: Post, files: list[UploadedFile]) -> None:
-    """Re-encode and attach uploaded photos to a just-created post (S-401). Each file
-    is size-bounded and passed through the ingest gate (media.ingest_photo), which
-    strips metadata and rejects anything that does not decode to an allowed image. A
-    file too large or one that will not decode is dropped, not fatal to the post."""
+def _read_photos(files: list[UploadedFile]) -> tuple[list[bytes], list[str]]:
+    """Read uploaded photos into bounded raw bytes, and SAY what was dropped.
+
+    Every drop here used to be a silent `continue`: over the 20-per-post cap, over the
+    size ceiling, or undecodable. Someone selected 40 photos from a birthday, tapped
+    Post, watched the post appear, and 20 of them were simply gone — real family data
+    loss with a success message on top. HEIC makes it worse: the browser-canvas
+    conversion falls through to "let the server decide" when `createImageBitmap` fails,
+    and the server's decision was that same silent drop.
+
+    Reading happens BEFORE any post exists so the same bytes can be staged across the
+    TM-3 confirmation hop; the ingest gate still runs at attach time.
+    """
+    notices: list[str] = []
+    submitted = len(files)
+    if submitted > _MAX_PHOTOS:
+        dropped = submitted - _MAX_PHOTOS
+        notices.append(
+            f"{dropped} of your {submitted} photos could not be added — "
+            f"{_MAX_PHOTOS} is the limit for one post."
+        )
+    raws: list[bytes] = []
+    too_large = 0
     for uploaded in files[:_MAX_PHOTOS]:
         if uploaded.size is not None and uploaded.size > _MAX_PHOTO_BYTES:
-            continue  # fast path when the size is known
+            too_large += 1  # fast path when the size is known
+            continue
         raw = uploaded.read()
         if len(raw) > _MAX_PHOTO_BYTES:
-            continue  # backstop for an unknown size (security review LOW-2)
+            too_large += 1  # backstop for an unknown size (security review LOW-2)
+            continue
+        raws.append(raw)
+    if too_large:
+        notices.append(
+            f"{too_large} photo{'s were' if too_large > 1 else ' was'} too large to add "
+            f"({_MAX_PHOTO_BYTES // (1024 * 1024)} MB is the limit each)."
+        )
+    return raws, notices
+
+
+def _attach_photos(post: Post, raws: list[bytes]) -> list[str]:
+    """Re-encode and attach staged photo bytes to a just-created post (S-401).
+
+    Each passes the ingest gate (media.ingest_photo), which strips metadata and rejects
+    anything that does not decode to an allowed image. A rejection is not fatal to the
+    post — but it is now reported rather than dropped in silence.
+    """
+    rejected = 0
+    for raw in raws:
         try:
             media.ingest_photo(post=post, raw=raw)
         except media.MediaRejected:
-            continue
+            rejected += 1
+    if not rejected:
+        return []
+    return [
+        f"{rejected} photo{'s' if rejected > 1 else ''} could not be added — "
+        "the file was not a picture Backyard could read."
+    ]
 
 
 def _validate_videos(files: list[UploadedFile]) -> tuple[list[bytes], list[str]]:

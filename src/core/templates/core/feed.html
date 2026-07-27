@@ -25,6 +25,13 @@
   {% endif %}
 
   <form method="post" action="{% url 'compose' %}" class="composer" enctype="multipart/form-data">
+    {% if staged_handle %}
+      {% comment %} A compose that bounced back for correction: the uploaded bytes are held
+         server-side and this handle re-claims them, so fixing a typo does not cost the
+         member their photos. {% endcomment %}
+      <input type="hidden" name="staged_uploads" value="{{ staged_handle }}">
+      <p class="notice">Your uploaded photos are still attached — fix the note above and post again.</p>
+    {% endif %}
     {% csrf_token %}
     <textarea name="body" rows="3" placeholder="Share something with your family" required></textarea>
 
