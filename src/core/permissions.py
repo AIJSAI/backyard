@@ -89,6 +89,28 @@ def can_manage_member(actor: Member, target: Member) -> bool:
     return False
 
 
+def can_edit_profile_of(actor: Member, target: Member) -> bool:
+    """May `actor` edit `target`'s profile fields (S-901 acceptance 3)?
+
+    Deliberately NOT `can_manage_member`, which is about removal and roles and forbids
+    self-administration on purpose. Editing your own name and birthday is the opposite:
+    it is the thing you should never need an admin for, and until now you did — the
+    self-edit form covered every field EXCEPT display_name, so a member who married,
+    changed their name, or was simply entered wrong had to ask someone with a role.
+
+    Beyond yourself: a supervised child's managing parent, and an instance admin. An
+    elder has no login of her own by design (TM-10), so the admin who provisions her
+    link is the "designated helper" the story names — the model has no separate helper
+    concept, and inventing one here would be a new authorization surface rather than a
+    profile edit.
+    """
+    if actor.pk == target.pk:
+        return True
+    if target.is_supervised and target.managing_parent_id == actor.pk:
+        return True
+    return is_instance_admin(actor)
+
+
 def can_create_supervised(actor: Member, parent: Member) -> bool:
     """May `actor` create a supervised account managed by `parent`?
 
