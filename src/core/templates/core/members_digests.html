@@ -3,22 +3,29 @@
 {% block body %}
   <h1>Digest delivery</h1>
   <p><a href="{% url 'members' %}">Back to members</a></p>
+  {% comment %} thead/tbody + data-label: same reasons as members_metrics.html — the
+     header rule needs a real thead, and the sub-40rem card reflow prints data-label
+     as each value's name. {% endcomment %}
   <table class="digests">
-    <tr><th>Member</th><th>Address</th><th>Cadence</th><th>State</th><th>Latest deliveries</th></tr>
-    {% for row in rows %}
-      <tr>
-        <td>{{ row.subscription.member.display_name }}</td>
-        <td>{{ row.subscription.address }}</td>
-        <td>{{ row.subscription.get_cadence_display }}</td>
-        <td>
-          {% if not row.subscription.enabled %}off{% elif not row.subscription.confirmed_at %}awaiting confirmation{% else %}on{% endif %}
-        </td>
-        <td>
-          {% for d in row.deliveries %}<span class="delivery">{{ d.get_status_display }}{% if d.detail %} ({{ d.detail }}){% endif %}</span>{% empty %}<span class="muted">none yet</span>{% endfor %}
-        </td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="5" class="empty">No digest subscriptions.</td></tr>
-    {% endfor %}
+    <thead>
+      <tr><th>Member</th><th>Address</th><th>Cadence</th><th>State</th><th>Latest deliveries</th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td data-label="Member">{{ row.subscription.member.display_name }}</td>
+          <td data-label="Address">{{ row.subscription.address }}</td>
+          <td data-label="Cadence">{{ row.subscription.get_cadence_display }}</td>
+          <td data-label="State">
+            {% if not row.subscription.enabled %}off{% elif not row.subscription.confirmed_at %}awaiting confirmation{% else %}on{% endif %}
+          </td>
+          <td data-label="Latest deliveries">
+            {% for d in row.deliveries %}<span class="delivery">{{ d.get_status_display }}{% if d.detail %} ({{ d.detail }}){% endif %}</span>{% empty %}<span class="muted">none yet</span>{% endfor %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="empty">No digest subscriptions.</td></tr>
+      {% endfor %}
+    </tbody>
   </table>
 {% endblock %}

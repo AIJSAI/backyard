@@ -85,10 +85,17 @@ def test_the_view_has_no_dead_end_shape(elder_page: str) -> None:
     # back to the feed (S-601, no navigation dead ends).
     assert elder_page.count("<main") == 1
     assert reverse("elder_feed") in elder_page  # the back-to-the-top link
-    # No links off the surface: the only hrefs are the elder feed itself.
-    hrefs = re.findall(r'href="([^"]+)"', elder_page)
+    # No links off the surface: the only hrefs are the elder feed itself. Match BOTH
+    # quoting styles — a single-quoted href slipped this guard entirely, so the
+    # invariant was being enforced by quoting style rather than by content.
+    hrefs = re.findall(r'href=["\']([^"\']+)["\']', elder_page)
     assert hrefs, "the page should carry its back link"
     assert all(href == reverse("elder_feed") for href in hrefs), hrefs
+    # An href is not the only way off a page: `formaction` navigates exactly like one,
+    # and a meta refresh leaves without either. Neither is ever legitimate here, and
+    # this is the surface where a stray outbound link would carry an elder's session.
+    assert "formaction" not in elder_page
+    assert "http-equiv" not in elder_page
 
 
 def test_the_bigger_text_control_is_present(elder_page: str) -> None:

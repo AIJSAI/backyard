@@ -68,7 +68,97 @@ A fifth was cosmetic: a CSS comment in the elder sheet contained the literal `26
   forced-colors, and diffed against the pre-v3 set.
 - **SC 1.4.11 closed**: the composer textarea border moves 1.24:1 → 3.40:1 light / 3.64:1 dark.
 
-## What the brief asked for and did NOT arrive
+## v3.1 layout addendum — the gaps above, closed
+
+A scoped follow-up round delivered the layout work the first bundle omitted. Applied on top,
+with the `.messages` styling from the HIGH-2 fix **re-grafted** (the addendum is a full-file
+replacement authored against v3.0, so it would otherwise have silently dropped it) and the font
+URLs routed back through `{% static %}`.
+
+- **Desktop information design now exists.** Four breakpoints (37.5 / 64 / 75rem plus a sub-40rem
+  reflow), all placed *after* the guarded token blocks. At ≥64rem `main.wrap` becomes a two-region
+  grid: a reading well plus a sticky `aside.rail`. Measured on the live stack: at 1440px the shell
+  is 1280 wide with a 736px well and a 336px rail — **~74% of the viewport in use, against 41.7%
+  before**. At 1920px the same composition centres rather than stretching. Below 64rem the rail
+  drops into normal flow and the phone layout is unchanged.
+- **The designer explicitly rejected a persistent left app-rail** and said why: five quiet links
+  cannot honestly fill one, and a fixed rail reads as a dashboard, against the product principles.
+  The margin rail is wayfinding beside a path — secondary, sticky, absent where a page has nothing
+  to say. That is the brief's "do not default to the SaaS shell" instruction being answered rather
+  than ignored.
+- **SC 1.4.10 CLOSED.** Both admin tables now fit exactly 390 CSS px (from 744 and 636 in v2).
+  Below 40rem they collapse to stacked cards, with `td::before` printing each column name from
+  `data-label`. 320px reflow measures 320px.
+- **Photo layout is now a system.** One photo keeps its natural ratio, height-capped at 26rem;
+  2-up and 3-up are square grids; 4+ (to the 20-photo cap) is an auto-fill square tile grid; video
+  posters are pinned 16/9. Counting is pure CSS (`:has` + `:nth-last-child`) — no JS, no template
+  change. The desktop feed is **28% shorter** (8088 → 5804 px) purely from fixed vertical rhythm.
+
+**Template edits this required** (small, server-rendered, no JS): `aside.rail` wrappers in
+`feed.html`, `members.html` and `directory.html`; real `<thead>`/`<tbody>` plus `data-label` on
+every cell in `members_metrics.html` and `members_digests.html`. The `<thead>` addition also closes
+the v3.0 defect where the header rule never matched and the zebra striped the wrong rows.
+
+Re-gated after the addendum: ruff + format + mypy(138) clean, **pytest 558 passed**, both WCAG
+guards still pass unmodified, 259 surfaces re-captured.
+
+## Accessibility modes and landmarks — closed 2026-07-26
+
+The three items left open after v3.1 are now done, and two guards were found to be
+enforcing less than they appeared.
+
+- **`@media (forced-colors: active)`** added; the repo had none. In Windows High Contrast
+  the UA computes `box-shadow` and non-`url()` `background-image` to `none`, and this
+  design carried feed/comment/composer/handover card boundaries in `--shadow` **alone**,
+  the select arrow in two gradients, and both the unread divider and the feed end-cap in
+  `color-mix()` pseudo-elements — all of it silently gone. Repaired with real borders and
+  system colour keywords, and **verified live rather than asserted**: with forced colours
+  active a feed card computes `box-shadow: none` and `border: 1px solid`, and the select's
+  `background-image` is `none`. The outline focus ring is deliberately untouched —
+  `outline-color` is force-*adjusted* rather than stripped, so an outline survives where a
+  `box-shadow` ring would be deleted for exactly these users.
+- **`@media (prefers-contrast: more)`** tightens the ramp: `--line` takes `--line-strong`,
+  `--ink-soft` collapses to `--ink`, hairlines double.
+- **`<nav>` landmarks** — there were none in any of the 34 templates. On directory and
+  members the rail element *is* the `<nav>`; on the feed the `<nav>` sits inside the
+  `<aside>`, because that aside also carries the date banner, which is genuinely
+  complementary rather than navigation.
+- **SC 3.2.6 Consistent Help** — there is no help route in this app and none is being
+  added, because a link to a page that does not exist is worse than no link. The mechanism
+  is a sentence in the shared footer naming the person who can actually act; for a family
+  instance that is the honest answer. A test pins that it is **not** a link.
+
+**Two guards hardened, each proven non-vacuous by probe:**
+
+1. `test_elder_wcag` was enforcing "no links off this surface" **by quoting style** — its
+   regex matched only double-quoted `href`, so a single-quoted one passed untouched. It
+   also missed `formaction`, which navigates exactly like an `href`, and a meta refresh,
+   which leaves without either. On the one surface where a stray outbound link would carry
+   an elder's session. All three now fail the build; the clean page still passes.
+2. The messages region shipped `role="status"` on the `<ul>`, which overrides the implicit
+   list role and orphans every `<li>`. axe flagged it **serious** on the MFA pages —
+   surfaces the earlier 8-surface sweep never reached because they had no design then.
+
+**axe-in-browser sweep, broadened from 8 surfaces to 138 renders** — 35 surfaces including
+every allauth credential page and the three error pages, at desktop **and** mobile, in
+light **and** dark, plus the elder path, against `wcag2a`/`wcag2aa`/`wcag21a`/`wcag21aa`/
+`wcag22aa`: **0 violations at any severity.** Raw report:
+`docs/receipts/2026-07-26-axe-v31-sweep.json`.
+
+Gate: ruff + format + mypy(139) clean; **pytest 565 passed**.
+
+## Still open
+
+Nothing engineer-actionable on the design pass. What remains is founder-gated:
+**criterion 4** (his personal manual QA) and **criterion 7** (the go-public decision;
+the family share comes first).
+
+Container queries were deliberately not used — the designer's stated reason is that every
+adaptive region tracks the viewport-driven well directly, so `@media` is sufficient and
+cheaper to audit. Recorded as a decision, not a gap.
+
+## What the first bundle (v3.0) asked for and did NOT arrive — now historical
+
 
 Stated plainly because the founder's headline complaint is in this list:
 

@@ -2,15 +2,23 @@
 {% block title %}Your backyard{% endblock %}
 {% block body %}
   <h1>Your backyard</h1>
-  <p><a href="{% url 'pod_list' %}">Your pods</a> · <a href="{% url 'directory' %}">Family directory</a></p>
+  {% comment %} Wayfinding moves into the margin rail at >=64rem so the reading well
+     keeps a prose measure while the wide viewport carries the secondary links. Below
+     that breakpoint the rail is just markup in flow and reads exactly as before.
+     A page with no aside.rail automatically gets the single centred well. {% endcomment %}
+  <aside class="rail">
+    <nav aria-label="Elsewhere in your backyard">
+      <p><a href="{% url 'pod_list' %}">Your pods</a> · <a href="{% url 'directory' %}">Family directory</a></p>
+    </nav>
 
-  {% if todays_dates %}
-    <div class="date-banner">
-      {% for d in todays_dates %}
-        <p>Today is {{ d.display_name }}{% if d.kinship_name %} ({{ d.kinship_name }}){% endif %}&rsquo;s {{ d.kind }}.</p>
-      {% endfor %}
-    </div>
-  {% endif %}
+    {% if todays_dates %}
+      <div class="date-banner">
+        {% for d in todays_dates %}
+          <p>Today is {{ d.display_name }}{% if d.kinship_name %} ({{ d.kinship_name }}){% endif %}&rsquo;s {{ d.kind }}.</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </aside>
 
   {% if errors %}
     <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
