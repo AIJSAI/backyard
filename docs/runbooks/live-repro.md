@@ -103,7 +103,12 @@ make setup-secret  # prints the one-time first-admin secret from the web logs
    `DJANGO_DEBUG=0` / `DJANGO_ALLOWED_HOSTS` / `BACKYARD_BASE_URL` from the domain, so the HTTPS
    posture can't hinge on a forgotten var); then
    `docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d`. Caddy auto-fetches the
-   Let's Encrypt cert on first hit. First-admin secret: `docker compose logs --no-log-prefix web | awk '/paste this one-time secret/{getline;gsub(/^ +/,"");print}'`.
+   Let's Encrypt cert on first hit. **Since the v3 design pass the image ships a static directory for
+   the first time** (`src/core/static/backyard/fonts/*.woff2`, the self-hosted Atkinson Hyperlegible
+   faces): `entrypoint.sh` already runs `collectstatic`, and WhiteNoise serves the content-hashed
+   names, so a plain rebuild is enough — but a stale `staticfiles/` volume would serve the old
+   manifest, and `base.html` resolves the fonts through `{% static %}`, so it would 500 rather than
+   fall back. Rebuild the image, do not just restart the container. First-admin secret: `docker compose logs --no-log-prefix web | awk '/paste this one-time secret/{getline;gsub(/^ +/,"");print}'`.
 5. **Wire email on the box:** set the Resend env (`op read "op://Backyard/Backyard Resend API/credential"`),
    confirm the health email sends (T-MON-1) and re-measure the delivery/bounce matrix on a **real** elder
    subscription (⚠️ Resend sits behind Cloudflare WAF — a `Python-urllib` UA gets HTTP 403 `error code: 1010`;
