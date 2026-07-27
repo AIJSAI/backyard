@@ -147,6 +147,28 @@ light **and** dark, plus the elder path, against `wcag2a`/`wcag2aa`/`wcag21a`/`w
 
 Gate: ruff + format + mypy(139) clean; **pytest 565 passed**.
 
+## Deployed and re-verified live — 2026-07-26
+
+`main` @ `577504b` deployed to **https://backyard.family** (the same Ubicloud VM; tree synced,
+`web` + `worker` rebuilt, Caddy untouched). The image ships a static directory for the first time,
+so this was the first deploy where `collectstatic` mattered — it worked, and the runbook now says
+to rebuild rather than restart.
+
+Verified against the LIVE instance, not localhost:
+
+| Check | Result |
+|---|---|
+| `/healthz` | 200 |
+| Sign-in inherits the design system | `.entrance` present, invite-only lede present, `Menu:` **gone** |
+| Passkey sign-in | `id="mfa_login"` present — the form the button submits to |
+| Self-hosted font | `atkinson-hyperlegible-regular.d444e1815a3a.woff2` → **200 `font/woff2`**, 11,208 b |
+| Brand colour | `#1e5c46` on the page (navy retired) |
+| SC 3.2.6 help affordance | present |
+| Branded 404 | `<title>Not here — Backyard</title>`, "There's nothing at this address" |
+| **axe WCAG 2 A/AA + 2.2 AA** | **138 renders, 35 surfaces, desktop + mobile, light + dark — 0 violations at ANY severity** |
+
+Raw production report: `docs/receipts/2026-07-26-axe-v31-sweep-PROD.json`.
+
 ## Still open
 
 Nothing engineer-actionable on the design pass. What remains is founder-gated:
