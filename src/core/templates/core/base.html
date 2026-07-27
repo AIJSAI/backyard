@@ -19,7 +19,10 @@
   {% endif %}
   <style>
 /* ==========================================================================
-   Backyard design system v3 — "Signage" (Claude Design, 2026-07-26).
+   Backyard design system v3.1 — "Signage" (Claude Design, 2026-07-26).
+   v3.1 adds the layout addendum at the END of this file: desktop two-region
+   information design, mixed-aspect photo grids, sub-640px table reflow.
+   Zero appearance changes — same tokens, palette, type, component look.
    Replaces the entire <style> block in src/core/templates/core/base.html.
 
    Contract kept verbatim: every token name and class hook from v2 is present
@@ -307,7 +310,8 @@ button.danger::before, .btn-danger::before { content: "\00d7"; font-weight: 700;
    password set, second factor added or REMOVED, verification link expired — and
    for two paths they are the ONLY feedback that exists, so a page with no messages
    region turns a failure into silence. Styled as .notice; error/warning tags borrow
-   the .errors treatment so severity is not carried by colour alone. */
+   the .errors treatment so severity is not carried by colour alone.
+   RE-GRAFTED after the v3.1 layout addendum, which was authored against v3.0. */
 .messages { list-style: none; margin: 1.25rem 0; padding: 0; }
 .messages .msg {
   border-radius: var(--radius-sm); padding: 0.8rem 1rem;
@@ -320,6 +324,7 @@ button.danger::before, .btn-danger::before { content: "\00d7"; font-weight: 700;
   border-color: color-mix(in srgb, var(--danger) 40%, transparent); background: var(--danger-tint);
 }
 .messages .msg.error::before, .messages .msg.warning::before { content: "\26a0\00a0\00a0"; color: var(--danger); }
+
 
 .flag, .role, .via-email {
   display: inline-flex; align-items: center; gap: 0.34em;
@@ -417,10 +422,30 @@ ul.feed > li.empty, .comments > li.empty { box-shadow: none; background: var(--s
 }
 
 /* ---- media & link previews ---------------------------------------------------- */
-.photos { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0; }
-.photos img, .clip { max-width: 100%; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-sunk); }
-.photos img { max-height: 22rem; object-fit: cover; cursor: zoom-in; }
-.clip { width: 100%; }
+/* Galleries: fixed-aspect cells so uncropped phone photos never break the
+   feed's rhythm. Cells are SQUARE and cover-cropped in every multi-photo
+   layout — a 21:9 panorama and a 3:4 portrait in the same post render as
+   identical tiles, centre-cropped, with the full image one tap away (each
+   img is already wrapped in its serve_media <a>). Only a photo standing
+   ALONE keeps its natural ratio, height-capped so a portrait cannot blow
+   out the column. Counts are read in CSS via :has()/:nth-last-child —
+   no JS, no template change. */
+.photos { display: grid; gap: 0.5rem; margin: 0.75rem 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr)); }         /* 2-up + default */
+.photos a { display: block; min-width: 0; }
+.photos img { display: block; width: 100%; height: 100%;
+  aspect-ratio: 1 / 1; object-fit: cover;
+  border-radius: 8px; border: 1px solid var(--line);
+  background: var(--surface-sunk); cursor: zoom-in; }
+.photos:has(a:only-child) { display: block; }                  /* 1: natural ratio */
+.photos a:only-child img { width: auto; max-width: 100%; height: auto;
+  aspect-ratio: auto; max-height: 26rem; margin-inline: auto; }
+.photos:has(a:first-child:nth-last-child(3)) {                 /* 3: square row */
+  grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.photos:has(a:first-child:nth-last-child(n+4)) {               /* 4+ and the 20-cap */
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); }
+.clip { width: 100%; max-width: 100%; aspect-ratio: 16 / 9; object-fit: cover;
+  border-radius: 8px; border: 1px solid var(--line); background: var(--surface-sunk); }
 .clip-status {
   color: var(--ink-soft); font-style: italic; font-size: 0.88rem;
   background: var(--surface-sunk); border-radius: var(--radius-sm); padding: 0.6rem 0.8rem;
@@ -528,6 +553,107 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
   body { background: #fff; color: #000; }
   .qr { border: 0; }
   a { color: #000; text-decoration: underline; }
+}
+
+/* ==========================================================================
+   v3.1 LAYOUT ADDENDUM. Every @media block below sits AFTER the two guarded
+   :root token blocks (the WCAG guard's block regexes are lazy — nothing may
+   be inserted above or inside them). No colour, type, radius or component
+   appearance changes here: layout only.
+
+   Breakpoints (mobile-first, named):
+     base                 one column, 40rem well — the phone layout
+     sm   37.5rem (600px) breathing room: wider gutters, larger h1,
+                          2-column directory cards
+     md   64rem  (1024px) THE SHAPE CHANGE: two-region "path + signpost" —
+                          a 44rem reading well plus a sticky 19rem margin
+                          rail (aside.rail); rail-less pages get a single
+                          centred 56rem well
+     lg   75rem  (1200px) well 46rem, rail 21rem, wider gutters,
+                          3-column directory
+   The shell caps at 80rem: 1440 and 1920 render the SAME composition,
+   centred. Backyard is a family archive read like a book, not a dashboard
+   that stretches to fill — and the nav inventory (five quiet links) cannot
+   honestly fill a persistent app rail, so it does not get one.
+   ========================================================================== */
+
+/* ---- sm: 37.5rem ----------------------------------------------------------- */
+@media (min-width: 37.5rem) {
+  header.site .wrap, main.wrap, footer.site .wrap { padding-left: 2rem; padding-right: 2rem; }
+  main.wrap { padding-top: 2rem; }
+  h1 { font-size: 1.8rem; }
+  ul.directory { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
+  ul.directory > li { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem;
+    border: 1.5px solid var(--line); border-bottom: 1.5px solid var(--line);
+    border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow);
+    padding: 0.9rem 1rem; }
+}
+
+/* ---- md: 64rem — the two-region information design ------------------------- */
+@media (min-width: 64rem) {
+  header.site .wrap, footer.site .wrap { max-width: 72rem; }
+  main.wrap {
+    max-width: 72rem;
+    display: grid;
+    grid-template-columns: minmax(0, 44rem) 19rem;   /* reading well + rail */
+    column-gap: 4rem;
+    justify-content: center;
+    align-items: start;
+  }
+  main.wrap > * { grid-column: 1; min-width: 0; }
+  /* The signpost rail: server-rendered <aside class="rail"> holding the
+     page's wayfinding (date banner, quiet links, page actions). Sticky, so
+     "today" stays in the margin while the feed scrolls. */
+  main.wrap > aside.rail {
+    grid-column: 2; grid-row: 1 / span 99;
+    position: sticky; top: 1.25rem;
+    display: flex; flex-direction: column; gap: 1rem;
+    font-size: 0.92rem;
+  }
+  main.wrap > aside.rail .date-banner { margin: 0; }
+  /* Pages that render no rail (thread, digests, entrance forms already have
+     their own narrow layout) fall back to one centred well. */
+  main.wrap:not(:has(> aside.rail)) { display: block; max-width: 56rem; }
+  /* Prose keeps its ch-based measure inside whichever region it lands in;
+     feeds, galleries and tables take their region's full width. */
+  main.wrap > p, main.wrap > h1 + p, .notice, .post > p, .empty { max-width: 34rem; }
+}
+
+/* ---- lg: 75rem -------------------------------------------------------------- */
+@media (min-width: 75rem) {
+  header.site .wrap, footer.site .wrap { max-width: 80rem; }
+  main.wrap { max-width: 80rem; grid-template-columns: minmax(0, 46rem) 21rem; column-gap: 5rem; }
+  main.wrap:not(:has(> aside.rail)) { max-width: 60rem; }
+  ul.directory { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ---- table + admin-list reflow below 40rem (WCAG 2.2 SC 1.4.10) -------------
+   Tables become stacked cards; each cell shows its column name from a
+   data-label attribute (template edit listed in 06-layout-notes.md). Applies
+   to every table — the app's only tables are the admin panels
+   (members_metrics, members_digests). Pure CSS, no JS. */
+@media (max-width: 39.9375rem) {
+  table, caption, tbody, tr, th, td { display: block; }
+  thead { position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap; }
+  table { margin: 1rem 0; }
+  tbody tr {
+    border: 1.5px solid var(--line); border-radius: var(--radius-sm);
+    background: var(--surface); box-shadow: var(--shadow);
+    padding: 0.35rem 0.9rem; margin: 0 0 0.75rem;
+  }
+  tbody tr:nth-child(even) { background: var(--surface); }  /* stripe off in card mode */
+  td { display: flex; justify-content: space-between; align-items: baseline;
+    gap: 1rem; border-bottom: 1px solid var(--line); padding: 0.45rem 0; text-align: right; }
+  tr > td:last-child { border-bottom: 0; }
+  td::before { content: attr(data-label); font-weight: 700; font-size: 0.74rem;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); text-align: left; }
+  /* Admin lists: rows become stacked blocks; action forms stop right-floating. */
+  ul.members > li, ul.pods > li, ul.invites > li,
+  ul.digests > li, ul.quarantine > li, ul.yards > li { display: block; }
+  ul.members .inline, ul.pods .inline, ul.invites .inline {
+    margin-left: 0; display: inline-block; margin-top: 0.5rem; margin-right: 0.4rem; }
+  ul.redeemers { margin-top: 0.5rem; }
 }
 
   </style>

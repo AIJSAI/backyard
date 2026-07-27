@@ -6,21 +6,31 @@
   <p class="muted">Weekly aggregates per yard (docs/metrics.md). Counts only; the one
   per-person datum is a yes/no weekly presence, disclosed to the family in the docs
   and not shown here.</p>
+  {% comment %} A real thead/tbody, and data-label on every cell. Both are load-bearing,
+     not tidiness: without <thead> the stylesheet's `thead th` rule never matched, so the
+     header rendered as an ordinary cell AND the zebra counted it and striped the wrong
+     rows; and below 40rem the table collapses to stacked cards where data-label is the
+     only thing naming each value. Eight columns at 390px scrolled the whole page
+     sideways — a WCAG 2.2 SC 1.4.10 failure. {% endcomment %}
   <table class="metrics">
-    <tr><th>Week</th><th>Yard</th><th>Connected</th><th>Posting breadth</th><th>Responded</th><th>Catch-up</th><th>Digest opens</th><th>Email replies</th></tr>
-    {% for row in rows %}
-      <tr>
-        <td>{{ row.week_start }}</td>
-        <td>{{ row.yard.name }}</td>
-        <td>{{ row.wcm }} of {{ row.member_count }}</td>
-        <td>{{ row.posting_breadth }}</td>
-        <td>{{ row.posts_responded }} of {{ row.posts_in_week }}</td>
-        <td>{{ row.catch_up_members }}</td>
-        <td>{{ row.digest_opens }}</td>
-        <td>{{ row.email_replies }}</td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="8" class="empty">No weeks rolled up yet.</td></tr>
-    {% endfor %}
+    <thead>
+      <tr><th>Week</th><th>Yard</th><th>Connected</th><th>Posting breadth</th><th>Responded</th><th>Catch-up</th><th>Digest opens</th><th>Email replies</th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td data-label="Week">{{ row.week_start }}</td>
+          <td data-label="Yard">{{ row.yard.name }}</td>
+          <td data-label="Connected">{{ row.wcm }} of {{ row.member_count }}</td>
+          <td data-label="Posting breadth">{{ row.posting_breadth }}</td>
+          <td data-label="Responded">{{ row.posts_responded }} of {{ row.posts_in_week }}</td>
+          <td data-label="Catch-up">{{ row.catch_up_members }}</td>
+          <td data-label="Digest opens">{{ row.digest_opens }}</td>
+          <td data-label="Email replies">{{ row.email_replies }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="empty">No weeks rolled up yet.</td></tr>
+      {% endfor %}
+    </tbody>
   </table>
 {% endblock %}
