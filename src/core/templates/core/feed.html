@@ -112,7 +112,17 @@
     {% endfor %}
   </ul>
 
-  <p class="caught-up">You are all caught up.</p>
+  {% if has_older %}
+    {% comment %} The feed ends (P1) — but at the real end, not at an arbitrary slice.
+       Before this the page cut off silently and still claimed "all caught up", so the
+       family archive was unreachable from every surface. {% endcomment %}
+    <p class="older"><a href="{% url 'feed' %}?before={{ older_cursor|urlencode }}">Show older posts</a></p>
+  {% else %}
+    <p class="caught-up">You are all caught up.</p>
+  {% endif %}
+  {% if is_archive_page %}
+    <p class="older"><a href="{% url 'feed' %}">Back to the newest posts</a></p>
+  {% endif %}
 
   <script nonce="{{ request.csp_nonce }}">
     // Client-side pre-upload resize (S-401 acceptance 1). Shrinks large phone photos to

@@ -10,6 +10,7 @@ requires an explicit confirmation that names the audience and its member count.
 
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass
 
 from django.contrib import messages
@@ -17,7 +18,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
@@ -57,6 +58,11 @@ _MAX_COMMENT = 2000
 # co-viewer's page (security review LOW-1). A real family thread never approaches
 # this; if one ever did, the newest replies within the cap still render.
 _MAX_THREAD = 500
+# One screenful of history at a time. The feed is chronological and it ENDS (P1) — but it
+# must end at the actual end, not at an arbitrary slice. Before this, the feed cut off at
+# 100 posts and still said "You are all caught up", so a family past that count lost every
+# earlier photograph from the UI while being told they had seen everything.
+_PAGE_SIZE = 100
 
 
 @dataclass
@@ -83,9 +89,38 @@ def _acting_member(request: HttpRequest) -> Member:
 @login_required
 def feed(request: HttpRequest) -> HttpResponse:
     """The chronological feed that ends, plus the composer form. Opening the feed
-    advances the member's unread boundary (S-303)."""
+    advances the member's unread boundary (S-303).
+
+    Paging back through the archive is NOT "opening the feed", so a cursor request
+    leaves the unread boundary where it is: reading history must never silently mark
+    the new posts above it as seen.
+    """
     member = _acting_member(request)
-    return _render_feed(request, member, advance_seen=True)
+    cursor = _parse_cursor(request.GET.get("before"))
+    return _render_feed(request, member, advance_seen=cursor is None, cursor=cursor)
+
+
+def _parse_cursor(raw: str | None) -> tuple[datetime.datetime, int] | None:
+    """Decode a `before=<iso>_<id>` keyset cursor, or None for anything malformed.
+
+    Leniently: a mangled cursor shows page one rather than erroring. The cursor names
+    only a position in time, never an audience — the audience query below is unchanged,
+    so a forged cursor can reorder nothing and reveal nothing.
+    """
+    if not raw or "_" not in raw:
+        return None
+    stamp, _, post_id = raw.rpartition("_")
+    try:
+        moment = datetime.datetime.fromisoformat(stamp)
+    except ValueError:
+        return None
+    if timezone.is_naive(moment):
+        return None
+    # Parsed here rather than through _int, which raises Http404 on a bad value: a mangled
+    # cursor must degrade to page one, not 404 the member's own feed.
+    if not post_id.isdigit():
+        return None
+    return (moment, int(post_id))
 
 
 def _render_feed(
@@ -95,6 +130,7 @@ def _render_feed(
     advance_seen: bool,
     errors: list[str] | None = None,
     staged_handle: str | None = None,
+    cursor: tuple[datetime.datetime, int] | None = None,
 ) -> HttpResponse:
     """Render the feed: the member's visible posts newest-first, each marked as their
     own (and still editable) and as new-since-last-visit, with one unread boundary
@@ -107,10 +143,14 @@ def _render_feed(
 
     # Muted pods drop out of this member's feed only (S-205); the posts stay reachable
     # by direct link, so mute is a display choice, not an authorization change.
-    feed_posts = (
-        scoping.visible_posts(member)
-        .exclude(pod_id__in=pods.muted_pod_ids(member))
-        .select_related("author", "pod", "link_preview", "link_preview__image_asset")
+    visible = scoping.visible_posts(member).exclude(pod_id__in=pods.muted_pod_ids(member))
+    if cursor is not None:
+        # Keyset, not OFFSET: (created_at, id) strictly older than the cursor, so paging
+        # stays cheap and cannot skip or repeat a post when a new one lands mid-read.
+        moment, last_id = cursor
+        visible = visible.filter(Q(created_at__lt=moment) | Q(created_at=moment, id__lt=last_id))
+    page_query = (
+        visible.select_related("author", "pod", "link_preview", "link_preview__image_asset")
         .prefetch_related(
             Prefetch(
                 "media",
@@ -121,8 +161,13 @@ def _render_feed(
                 ),
                 to_attr="live_media",
             )
-        )[:100]
+        )
+        .order_by("-created_at", "-id")[: _PAGE_SIZE + 1]
     )
+    # One extra row is fetched purely to answer "is there more?" without a COUNT.
+    page = list(page_query)
+    has_older = len(page) > _PAGE_SIZE
+    feed_posts = page[:_PAGE_SIZE]
     items = [
         FeedItem(
             post=post,
@@ -154,6 +199,15 @@ def _render_feed(
             # exactly scoped to what they may act on.
             "is_moderator": permissions.is_admin(member),
             "errors": errors or [],
+            # The end-cap is only honest when the tail is genuinely reached; otherwise the
+            # member gets a way back into the archive instead of a false "all caught up".
+            "has_older": has_older,
+            "older_cursor": (
+                f"{feed_posts[-1].created_at.isoformat()}_{feed_posts[-1].id}"
+                if has_older and feed_posts
+                else None
+            ),
+            "is_archive_page": cursor is not None,
             # Carried so a compose that bounced for correction keeps its uploads (the
             # files themselves cannot survive the round trip; the handle can).
             "staged_handle": staged_handle,
