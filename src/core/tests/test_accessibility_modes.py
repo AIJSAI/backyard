@@ -71,9 +71,13 @@ def test_forced_colors_never_redraws_the_focus_ring_with_a_shadow() -> None:
     # outline-color is force-ADJUSTED in forced colours; box-shadow computes to none.
     # Swapping the ring to a shadow — a common "modern" refactor — deletes the focus
     # indicator for exactly the users who most need it.
+    # Anchor BOTH assertions on the rule body. Reading the whole stylesheet was a
+    # false green: `_style()` includes comments, and the comment beside the
+    # forced-colors block quotes this exact declaration, so the test passed on prose
+    # while the only focus indicator in the app could be deleted outright.
     css = _style()
-    assert "outline: 3px solid var(--ring)" in css, "the outline focus ring is gone"
     ring_rule = css[css.index(":focus-visible") : css.index(":focus-visible") + 200]
+    assert "outline: 3px solid var(--ring)" in ring_rule, "the outline focus ring is gone"
     assert "box-shadow" not in ring_rule, "focus ring must not be drawn with box-shadow"
 
 
@@ -95,7 +99,7 @@ def test_the_help_affordance_is_present_and_is_not_a_broken_link(client: Client)
     html = client.get(reverse("account_login")).content.decode()
     assert "Ask whoever in the family set this up" in html, "no help affordance"
     footer = html[html.index("<footer") : html.index("</footer>")]
-    assert "<a " not in footer.split("help")[-1], "the help affordance must not link anywhere"
+    assert "<a " not in footer, "the footer carries no links; the help affordance must not add one"
 
 
 def test_the_help_affordance_is_in_the_same_place_on_every_surface(client: Client) -> None:
@@ -144,3 +148,41 @@ def test_the_rail_refactor_did_not_hoist_a_gated_link_out_of_its_condition() -> 
     assert re.findall(r'href="([^"]+)"', on.split("</nav>")[1]) == re.findall(
         r'href="([^"]+)"', off.split("</nav>")[1]
     ), "the gate changed something outside the rail"
+
+
+def test_error_blocks_are_distinguishable_from_notices_without_colour() -> None:
+    """`.errors` and `.notice` share a shape and differ only by tint — and forced colours
+    erase the tint, which made a failure block pixel-identical to a neutral one on the
+    break-glass, first-run-setup and invite-redemption surfaces. Severity must survive
+    without colour, so `.errors` carries a glyph in EVERY mode plus a heavier border in
+    forced colours."""
+    css = _style()
+    assert ".errors::before" in css, "an error block must carry a non-colour severity cue"
+    body = _block("@media (forced-colors: active)")
+    assert ".errors { border: 2px solid CanvasText; }" in body, "errors must outweigh a notice"
+
+
+def test_the_handover_qr_opts_out_of_forced_colours() -> None:
+    """The QR encodes an access token and the operator is told to print the page. Chromium
+    forces the plate to Canvas but does NOT force the SVG fill, so in a dark forced-colours
+    theme the code went black-on-black and unscannable. A QR is data, not decoration."""
+    css = _style()
+    assert "forced-color-adjust: none" in css, "the QR must opt out of forced colours"
+    assert ".qr svg path { fill: #000000; }" in css, "the QR modules need an explicit fill"
+
+
+def test_the_select_keeps_an_arrow_in_forced_colours() -> None:
+    # The gradient-drawn arrow is erased in forced colours; suppressing `appearance` as
+    # well would leave the control with no dropdown indicator at all. Hand it back.
+    body = _block("@media (forced-colors: active)")
+    assert "appearance: auto" in body, "the select loses its arrow entirely in forced colours"
+
+
+def test_prefers_contrast_beats_a_manual_theme_choice() -> None:
+    """A media query adds NO specificity. `:root` is (0,0,1); the `:root[data-theme=…]`
+    blocks are (0,1,1) and redefine the same two tokens — so the tightening died the
+    moment someone picked a theme by hand. Latent today (nothing sets data-theme yet),
+    which is exactly why it needed pinning before the toggle ships."""
+    body = _block("@media (prefers-contrast: more)")
+    for selector in (':root[data-theme="light"]', ':root[data-theme="dark"]'):
+        assert selector in body, f"{selector} outranks :root here and would win"

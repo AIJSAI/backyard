@@ -315,6 +315,11 @@ button.danger::before, .btn-danger::before { content: "\00d7"; font-weight: 700;
 .notice p, .errors p { margin: 0 0 0.4rem; }
 .notice p:last-child, .errors p:last-child { margin: 0; }
 .errors { border-color: color-mix(in srgb, var(--danger) 40%, transparent); background: var(--danger-tint); color: var(--ink); }
+/* Severity must not be carried by colour alone — and in forced colours the tint is
+   erased, which made an error block pixel-identical to a neutral notice on the
+   break-glass, setup and invite-redemption surfaces. The glyph lives outside any
+   media block so it works in every mode. */
+.errors::before { content: "\26a0\00a0\00a0"; font-weight: 700; color: var(--danger); }
 
 /* Framework messages. django-allauth raises these on every credential change —
    password set, second factor added or REMOVED, verification link expired — and
@@ -530,6 +535,12 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
   background: #ffffff; border-radius: var(--radius-sm); border: 1px solid var(--line); margin: 0.7rem 0;
 }
 .qr svg { width: 100%; max-width: 200px; height: auto; }
+/* The QR encodes an access token and the operator is told to print this page. In a dark
+   forced-colours theme the plate is forced to Canvas (black) while the SVG path keeps
+   its default black fill, so the code becomes unscannable. This is the canonical use
+   for the forced-color-adjust opt-out: a QR is not decoration, it is data. */
+.qr { forced-color-adjust: none; }
+.qr svg path { fill: #000000; }
 
 /* ---- misc surfaces ------------------------------------------------------------------ */
 .house-rule { background: var(--green-tint); border-radius: var(--radius-sm);
@@ -680,11 +691,17 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
   /* Cards carry their boundary in --shadow alone; without a border they merge
      into the page. */
   ul.feed > li, .comments > li, .composer, .handover, .post, .preview,
-  main.wrap > .rail .date-banner, .notice, .errors, .messages .msg, .empty {
+  main.wrap > .rail .date-banner, .notice, .messages .msg, .empty {
     border: 1px solid ButtonBorder;
   }
+  /* Heavier than a notice: in forced colours both lose their tint, and this one is the
+     failure surface for break-glass, setup and invite redemption. */
+  .errors { border: 2px solid CanvasText; }
   /* The select arrow is drawn with two gradients and disappears entirely. */
-  select { background-image: none; padding-right: 0.9rem; border: 1px solid ButtonBorder; }
+  /* The gradient arrow is erased; suppressing `appearance` too would leave the select
+     with NO indicator, so hand drawing back to the UA, which draws a safe one. */
+  select { background-image: none; appearance: auto; -webkit-appearance: auto;
+           padding-right: 0.9rem; border: 1px solid ButtonBorder; }
   /* Tint-only pills collapse into plain text: give them an outline so the
      distinction survives without relying on background colour. */
   .role, .flag, .via-email { border: 1px solid CanvasText; }
@@ -704,7 +721,12 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
    Distinct from forced-colors: the palette still applies, the user has simply asked
    for more separation. Thicken hairlines and pull secondary text toward the ink. */
 @media (prefers-contrast: more) {
-  :root { --line: var(--line-strong); --ink-soft: var(--ink); }
+  /* All three selectors, because a media query adds NO specificity: the
+     :root[data-theme=…] blocks are (0,1,1) and would otherwise win, silently killing
+     the tightening for anyone who picks a theme manually. */
+  :root, :root[data-theme="light"], :root[data-theme="dark"] {
+    --line: var(--line-strong); --ink-soft: var(--ink);
+  }
   ul.feed > li, .comments > li, .composer, .handover, .preview, .empty,
   .notice, .errors, .messages .msg { border-width: 2px; }
   a { text-decoration-thickness: 2px; }

@@ -88,7 +88,14 @@ def test_the_view_has_no_dead_end_shape(elder_page: str) -> None:
     # No links off the surface: the only hrefs are the elder feed itself. Match BOTH
     # quoting styles — a single-quoted href slipped this guard entirely, so the
     # invariant was being enforced by quoting style rather than by content.
-    hrefs = re.findall(r'href=["\']([^"\']+)["\']', elder_page)
+    # Match each quoting style as its own alternative rather than one class of both:
+    # `[^"\']+` stops at EITHER quote, so `href="/e/…'…"` would capture only the prefix
+    # before the apostrophe — and since the elder feed URL is just `/e/`, a truncated
+    # capture can equal it and pass. Alternation captures the whole value.
+    hrefs = [
+        m.group(1) if m.group(1) is not None else m.group(2)
+        for m in re.finditer(r'href=(?:"([^"]*)"|\'([^\']*)\')', elder_page)
+    ]
     assert hrefs, "the page should carry its back link"
     assert all(href == reverse("elder_feed") for href in hrefs), hrefs
     # An href is not the only way off a page: `formaction` navigates exactly like one,
