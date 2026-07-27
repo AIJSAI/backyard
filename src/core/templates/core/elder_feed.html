@@ -39,6 +39,16 @@ form { margin: 0; }
 article span { display: inline-block; color: #4c5a52; margin: 10px 14px 0 0; }
 a.back { color: #1e5c46; font-weight: 700; }
 p.back-wrap { margin-top: 28px; }
+/* Photos: full column width, never cropped, generous gap. A grandparent holds the
+   phone close, so bigger is simply better here. */
+img.photo, video.photo { display: block; width: 100%; height: auto; margin: 18px 0;
+  border-radius: 8px; background: #eeeeee; }
+/* Replies, so the conversation reaches her. Indented and quieter than the post, but
+   still well above the AA floor against the same white. */
+p.reply { margin: 12px 0 0 16px; color: #333333; }
+p.reply.more { color: #4c5a52; }
+/* A clip that is still transcoding, or failed: she gets a sentence instead of silence. */
+p.clip-status { margin: 18px 0; color: #4c5a52; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
   </style>
@@ -60,6 +70,42 @@ p.back-wrap { margin-top: 28px; }
     <article class="post">
       <p class="byline">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %} &middot; {{ post.created_at|date }}</p>
       <p>{{ post.body }}</p>
+      {% comment %} Photos, at last. Deliberately <img src> and NOT wrapped in a link:
+         test_elder_wcag asserts every href on this page is the elder feed itself
+         (S-601, no dead ends), so a full-size link would red the build. She sees the
+         picture; tapping it does nothing, which is the correct trade until the
+         no-off-surface-links rule is revisited. {% endcomment %}
+      {% for m in post.media.all %}
+        {% if m.media_kind == 'photo' %}
+          {% comment %} alt_text has no writer anywhere in the product yet, so it is ALWAYS
+             "". A bare alt="" tells a screen reader the picture is decorative, which is the
+             one thing a family photo is not; the fallback at least names who shared it.
+          {% endcomment %}
+          <img class="photo" loading="lazy" src="{% url 'serve_media' m.token %}"
+               alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ post.author.display_name }}{% endif %}">
+        {% elif m.media_kind == 'video' %}
+          {% if m.transcode_status == 'done' %}
+            <video class="photo" controls preload="metadata" poster="{% url 'serve_media' m.thumbnail_token %}">
+              <source src="{% url 'serve_media' m.token %}" type="video/mp4">
+            </video>
+          {% elif m.transcode_status == 'failed' %}
+            {% comment %} Both non-done states used to render NOTHING here, so a clip that
+               failed left her looking at a post that plainly refers to a video she cannot
+               see, with no explanation. The feed has said this for three waves; the elder
+               page did not. {% endcomment %}
+            <p class="clip-status">This video couldn't be shown.</p>
+          {% else %}
+            <p class="clip-status">A video is on its way — check back in a few minutes.</p>
+          {% endif %}
+        {% endif %}
+      {% endfor %}
+      {% for comment in post.comments.all|slice:":5" %}
+        <p class="reply"><strong>{{ comment.author.display_name }}</strong>{% if comment.via_email %} (by email){% endif %} said: {{ comment.body }}</p>
+      {% endfor %}
+      {% if post.comments.all|length > 5 %}
+        {# Plain text, never a link: S-601 forbids anywhere to get lost from this page. #}
+        <p class="reply more">and {{ post.comments.all|length|add:"-5" }} more replies</p>
+      {% endif %}
       <form method="post" action="{% url 'elder_react' post.id %}">{% csrf_token %}
         <button type="submit" {% if post.id in my_reactions %}class="on"{% endif %}>
           {% if post.id in my_reactions %}&#10084; You love this{% else %}&#9825; Send love{% endif %}

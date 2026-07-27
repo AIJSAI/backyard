@@ -287,6 +287,21 @@ LOGGING = {
             "level": "WARNING",
             "propagate": False,
         },
+        # gunicorn is a SECOND, independent sink for the same secrets, and it was
+        # bypassing the filter entirely: on any unhandled exception it emits
+        # `Error handling request %s` with req.uri — the RAW request line, query string
+        # included — and gunicorn sets `gunicorn.error.propagate = False` with its own
+        # handler, so neither the two loggers above nor the root logger ever see it. One
+        # 500 on a capability URL therefore wrote a live token to the container log.
+        # Declaring the logger here re-points it at the redacting handler (Django's
+        # dictConfig runs when the worker imports the app, after gunicorn's own logging
+        # setup, so this wins). INFO, not WARNING: gunicorn's worker lifecycle lines are
+        # the operational signal for a family box and must not be silenced to fix a leak.
+        "gunicorn.error": {
+            "handlers": ["console_redacted"],
+            "level": "INFO",
+            "propagate": False,
+        },
     },
 }
 

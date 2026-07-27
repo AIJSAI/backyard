@@ -1,0 +1,98 @@
+[
+ {
+  "surface": "elder_feed",
+  "viewport": "mobile",
+  "theme": "light",
+  "all_violations": 0,
+  "detail": [],
+  "media_imgs": 1
+ },
+ {
+  "surface": "digest_web",
+  "viewport": "mobile",
+  "theme": "light",
+  "all_violations": 0,
+  "detail": [],
+  "media_imgs": 1
+ },
+ {
+  "surface": "digest_post",
+  "viewport": "mobile",
+  "theme": "light",
+  "all_violations": 0,
+  "detail": [],
+  "media_imgs": 1
+ },
+ {
+  "surface": "elder_feed",
+  "viewport": "mobile",
+  "theme": "dark",
+  "all_violations": 0,
+  "detail": [],
+  "media_imgs": 1
+ },
+ {
+  "surface": "digest_web",
+  "viewport": "mobile",
+  "theme": "dark",
+  "all_violations": 0,
+  "detail": [],
+  "media_imgs": 1
+ },
+ {
+  "surface": "digest_post",
+  "viewport": "mobile",
+  "theme": "dark",
+  "all_violations": 0,
+  "detail": [],
+  "media_imgs": 1
+ },
+ {
+  "surface": "elder_feed",
+  "viewport": "desktop",
+  "theme": "light",
+  "all_violations": 0,
+  "detail": [],
+  "media_imgs": 1
+ },
+ {
+  "surface": "digest_web",
+  "viewport": "desktop",
+  "theme": "light",
+  "all_violations": 0,
+  "detail": [],
+  "media_imgs": 1
+ },
+ {
+  "surface": "digest_post",
+  "viewport": "desktop",
+  "theme": "light",
+  "all_violations": 0,
+  "detail": [],
+  "media_imgs": 1
+ },
+ {
+  "surface": "elder_feed",
+  "viewport": "desktop",
+  "theme": "dark",
+  "all_violations": 0,
+  "detail": [],
+  "media_imgs": 1
+ },
+ {
+  "surface": "digest_web",
+  "viewport": "desktop",
+  "theme": "dark",
+  "all_violations": 0,
+  "detail": [],
+  "media_imgs": 1
+ },
+ {
+  "surface": "digest_post",
+  "viewport": "desktop",
+  "theme": "dark",
+  "all_violations": 0,
+  "detail": [],
+  "media_imgs": 1
+ }
+]

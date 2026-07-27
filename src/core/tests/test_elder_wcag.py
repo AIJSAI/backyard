@@ -13,14 +13,16 @@ ADR-002 E2E path), which stays post-close.
 
 from __future__ import annotations
 
+import io
 import re
 
 import pytest
 from django.test import Client
 from django.urls import reverse
+from PIL import Image
 
-from core import elder_tokens
-from core.models import Member, Pod, PodMembership, Post, Yard
+from core import elder_tokens, media
+from core.models import Comment, MediaAsset, Member, Pod, PodMembership, Post, Yard
 
 pytestmark = pytest.mark.django_db
 
@@ -43,6 +45,13 @@ def _contrast(fg: str, bg: str) -> float:
     return (lighter + 0.05) / (darker + 0.05)
 
 
+def _jpeg() -> bytes:
+    """A tiny real JPEG: media.ingest_photo re-encodes, so it must actually decode."""
+    buf = io.BytesIO()
+    Image.new("RGB", (80, 60), (30, 92, 70)).save(buf, format="JPEG")
+    return buf.getvalue()
+
+
 @pytest.fixture
 def elder_page() -> str:
     yard = Yard.objects.create(name="Maternal", slug="maternal")
@@ -50,11 +59,54 @@ def elder_page() -> str:
     pod.yards.set([yard])
     nana = Member.objects.create(display_name="Nana", kinship_name="Nana")
     PodMembership.objects.create(member=nana, pod=pod)
-    Post.objects.create(author=nana, pod=pod, body="a warm hello")
+    post = Post.objects.create(author=nana, pod=pod, body="a warm hello")
+    # The post carries a photo, a finished video, a still-transcoding video and a reply.
+    # Without them every guard below inspected a page whose photo, video and reply markup
+    # had NEVER been rendered: the S-601 no-dead-ends assertion scans hrefs in the
+    # rendered string, and an empty {% for %} emits none, so the branch that the
+    # template's own comment claims is pinned by this suite was invisible to it.
+    media.ingest_photo(post=post, raw=_jpeg())
+    done = media.ingest_photo(post=post, raw=_jpeg())
+    MediaAsset.objects.filter(pk=done.pk).update(
+        media_kind=MediaAsset.VIDEO, transcode_status=MediaAsset.DONE
+    )
+    pending = media.ingest_photo(post=post, raw=_jpeg())
+    MediaAsset.objects.filter(pk=pending.pk).update(
+        media_kind=MediaAsset.VIDEO, transcode_status=MediaAsset.PENDING
+    )
+    Comment.objects.create(post=post, author=nana, body="She caught the biggest fish.")
     raw = elder_tokens.mint(nana)
     client = Client()
     client.get(reverse("elder_enter", args=[raw]))
     return client.get(reverse("elder_feed")).content.decode()
+
+
+def test_the_fixture_actually_renders_the_media_and_reply_markup() -> None:
+    """Non-vacuity guard for every other test in this file.
+
+    The S-601 dead-end assertion and the tap-target scan only constrain markup that is
+    actually on the page. If the fixture ever stops producing a photo, a video or a
+    reply, those guards silently narrow to the empty case and keep passing — which is
+    exactly what they did until this fixture grew media. Asserting the page's shape here
+    means that regression fails loudly instead.
+    """
+    # Rebuilt inline rather than taking the fixture, so this test cannot be satisfied by
+    # the same accident it exists to detect.
+    yard = Yard.objects.create(name="Probe", slug="probe-yard")
+    pod = Pod.objects.create(name="Probe pod")
+    pod.yards.set([yard])
+    nana = Member.objects.create(display_name="Nana", kinship_name="Nana")
+    PodMembership.objects.create(member=nana, pod=pod)
+    post = Post.objects.create(author=nana, pod=pod, body="a warm hello")
+    asset = media.ingest_photo(post=post, raw=_jpeg())
+    Comment.objects.create(post=post, author=nana, body="She caught the biggest fish.")
+    client = Client()
+    client.get(reverse("elder_enter", args=[elder_tokens.mint(nana)]))
+    page = client.get(reverse("elder_feed")).content.decode()
+
+    assert reverse("serve_media", args=[asset.token]) in page  # a real photo URL
+    assert '<img class="photo"' in page
+    assert "She caught the biggest fish." in page  # the reply reached her
 
 
 def test_body_text_meets_aa_contrast(elder_page: str) -> None:
