@@ -31,7 +31,7 @@ from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
 
-from core import digest_links, digesting, elder_tokens, media, reply_addresses, revocation
+from core import digest_links, digesting, elder_tokens, media, removal, reply_addresses, revocation
 from core.models import (
     DigestIssue,
     DigestSubscription,
@@ -208,7 +208,7 @@ def test_removal_kills_every_class_on_next_request(
     from core.removal import remove_member
 
     creds = member_with_everything
-    remove_member(creds.member)
+    remove_member(creds.member, content=removal.KEEP)
     dead = creds.all_dead()
     assert all(dead.values()), f"survivors: {[k for k, v in dead.items() if not v]}"
 
@@ -257,7 +257,7 @@ def test_leftover_rows_are_gone_after_removal(member_with_everything: Credential
     from core.removal import remove_member
 
     creds = member_with_everything
-    remove_member(creds.member)
+    remove_member(creds.member, content=removal.KEEP)
     assert not ElderToken.objects.filter(member=creds.member).exists()
     assert not DigestToken.objects.filter(member=creds.member).exists()
     assert ReplyAddress.objects.filter(member=creds.member, voided_at__isnull=True).count() == 0

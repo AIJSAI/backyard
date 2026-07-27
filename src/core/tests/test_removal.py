@@ -14,6 +14,7 @@ from django.contrib.auth.models import User
 from django.contrib.sessions.backends.db import SessionStore
 from django.contrib.sessions.models import Session
 
+from core import removal
 from core.invites import mint_invite
 from core.models import Member, Pod, PodMembership, Yard
 from core.removal import remove_member
@@ -55,7 +56,7 @@ def test_removal_revokes_detaches_and_deactivates(yard_with_ex: dict[str, object
     own_invite, _ = mint_invite(ex_pod, ex)
     generation_before = ex.token_generation
 
-    remove_member(ex)
+    remove_member(ex, content=removal.KEEP)
 
     assert not Session.objects.filter(session_key=key).exists()  # sessions gone
     own_invite.refresh_from_db()
@@ -82,7 +83,7 @@ def test_removal_voids_reachable_invite_because_it_revokes_before_teardown(
 
     sibling_invite, _ = mint_invite(sibling_pod, None)
 
-    remove_member(ex)
+    remove_member(ex, content=removal.KEEP)
 
     sibling_invite.refresh_from_db()
     assert sibling_invite.revoked_at is not None
@@ -96,7 +97,7 @@ def test_removal_of_accountless_member_is_clean(yard_with_ex: dict[str, object])
     accountless = Member.objects.create(display_name="Elder")
     PodMembership.objects.create(member=accountless, pod=ex_pod)
 
-    remove_member(accountless)
+    remove_member(accountless, content=removal.KEEP)
 
     assert not PodMembership.objects.filter(member=accountless).exists()
     assert Member.objects.filter(pk=accountless.pk).exists()
