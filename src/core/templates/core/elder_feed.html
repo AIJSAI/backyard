@@ -39,6 +39,13 @@ form { margin: 0; }
 article span { display: inline-block; color: #4c5a52; margin: 10px 14px 0 0; }
 a.back { color: #1e5c46; font-weight: 700; }
 p.back-wrap { margin-top: 28px; }
+/* Photos: full column width, never cropped, generous gap. A grandparent holds the
+   phone close, so bigger is simply better here. */
+img.photo, video.photo { display: block; width: 100%; height: auto; margin: 18px 0;
+  border-radius: 8px; background: #eeeeee; }
+/* Replies, so the conversation reaches her. Indented and quieter than the post, but
+   still well above the AA floor against the same white. */
+p.reply { margin: 12px 0 0 16px; color: #333333; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
   </style>
@@ -60,6 +67,23 @@ p.back-wrap { margin-top: 28px; }
     <article class="post">
       <p class="byline">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %} &middot; {{ post.created_at|date }}</p>
       <p>{{ post.body }}</p>
+      {% comment %} Photos, at last. Deliberately <img src> and NOT wrapped in a link:
+         test_elder_wcag asserts every href on this page is the elder feed itself
+         (S-601, no dead ends), so a full-size link would red the build. She sees the
+         picture; tapping it does nothing, which is the correct trade until the
+         no-off-surface-links rule is revisited. {% endcomment %}
+      {% for m in post.media.all %}
+        {% if m.media_kind == 'photo' %}
+          <img class="photo" src="{% url 'serve_media' m.token %}" alt="{{ m.alt_text }}">
+        {% elif m.media_kind == 'video' and m.transcode_status == 'done' %}
+          <video class="photo" controls preload="metadata" poster="{% url 'serve_media' m.thumbnail_token %}">
+            <source src="{% url 'serve_media' m.token %}" type="video/mp4">
+          </video>
+        {% endif %}
+      {% endfor %}
+      {% for comment in post.comments.all %}
+        <p class="reply"><strong>{{ comment.author.display_name }}</strong> said: {{ comment.body }}</p>
+      {% endfor %}
       <form method="post" action="{% url 'elder_react' post.id %}">{% csrf_token %}
         <button type="submit" {% if post.id in my_reactions %}class="on"{% endif %}>
           {% if post.id in my_reactions %}&#10084; You love this{% else %}&#9825; Send love{% endif %}

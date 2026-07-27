@@ -235,7 +235,12 @@ header.site .wrap { display: flex; align-items: center; min-height: 3.6rem; }
 
 main.wrap { flex: 1 0 auto; padding-top: 1.5rem; padding-bottom: 3rem; }
 main.wrap > p, main.wrap > h1 + p,
-.notice, .post > p, .empty { max-width: 34rem; }
+.notice, .post > p, /* Photos on the credential-free digest surfaces. Same aspect discipline as the feed
+   grid so a digest page and the app agree on what a post looks like. */
+img.digest-photo { display: block; width: 100%; height: auto; margin: 0.8rem 0;
+  border-radius: var(--radius-sm); background: var(--surface-sunk); }
+
+.empty { max-width: 34rem; }
 
 footer.site { border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 0.8rem; }
 footer.site .wrap { padding-top: 1rem; padding-bottom: 1rem; }

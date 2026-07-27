@@ -7,6 +7,17 @@
     <article class="post">
       <p class="byline">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %} · {{ post.created_at|date }}</p>
       <p>{{ post.body }}</p>
+      {% comment %} Photos, reachable without a login. The digest page has no session,
+         so each image re-presents the capability as ?d=<token>; serve_media resolves it
+         and runs the SAME audience check. Query-string tokens are redacted from request
+         logs by config/log_redaction. {% endcomment %}
+      {% for m in post.live_media %}
+        {% if m.media_kind == 'photo' %}
+          <img class="digest-photo" src="{% url 'serve_media' m.token %}?d={{ token }}" alt="{{ m.alt_text }}" loading="lazy">
+        {% elif m.media_kind == 'video' and m.transcode_status == 'done' %}
+          <img class="digest-photo" src="{% url 'serve_media' m.thumbnail_token %}?d={{ token }}" alt="{{ m.alt_text }}" loading="lazy">
+        {% endif %}
+      {% endfor %}
       <p><a href="{% url 'digest_web_post' token post.id %}">See replies</a></p>
     </article>
   {% empty %}

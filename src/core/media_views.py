@@ -11,18 +11,21 @@ deleted photo (T-MEDIA-6).
 
 from __future__ import annotations
 
-from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import FileResponse, Http404, HttpRequest
 
-from . import scoping
-from .feed_views import _acting_member
+from . import scoping, viewers
 from .models import MediaAsset
 
 
-@login_required
 def serve_media(request: HttpRequest, token: str) -> FileResponse:
-    member = _acting_member(request)
+    # No @login_required: an elder session and a digest token are read credentials too,
+    # and both were already reading the very posts these bytes hang off. Gating on a
+    # Django login meant a token-only elder — who has no user by design (TM-10) — could
+    # read "Camp dump, finally" and never see one of the five photos. The AUDIENCE check
+    # below is unchanged and is what actually decides visibility; resolve_reader only
+    # answers who is asking. A request with no valid credential of any kind still 404s.
+    member = viewers.resolve_reader(request, digest_token=request.GET.get("d"))
     asset = scoping.visible_media(member).filter(Q(token=token) | Q(thumbnail_token=token)).first()
     if asset is None:
         raise Http404

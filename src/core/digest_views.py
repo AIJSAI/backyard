@@ -42,6 +42,22 @@ def _resolve_or_respond(request: HttpRequest, raw_token: str) -> DigestToken | H
         return render(request, "core/digest_link_expired.html", status=410)
 
 
+from django.db.models import Prefetch
+
+from .models import MediaAsset
+
+# The post's own gallery only: a LINK_PREVIEW asset is the card image, not an
+# uploaded photo (S-301). Mirrors feed_views so the two surfaces agree on what
+# "the photos on this post" means.
+_GALLERY = Prefetch(
+    "media",
+    queryset=MediaAsset.objects.filter(deleted_at__isnull=True).exclude(
+        media_kind=MediaAsset.LINK_PREVIEW
+    ),
+    to_attr="live_media",
+)
+
+
 @require_GET
 def digest_view(request: HttpRequest, token: str) -> HttpResponse:
     """One digest issue as a web page: that yard's slice of that member's feed
@@ -53,6 +69,7 @@ def digest_view(request: HttpRequest, token: str) -> HttpResponse:
     posts = (
         digest_links.issue_posts(resolved.issue)
         .select_related("author", "pod")
+        .prefetch_related(_GALLERY)
         .order_by("-created_at")[:_MAX_POSTS]
     )
     return render(
@@ -75,6 +92,11 @@ def digest_post_view(request: HttpRequest, token: str, post_id: int) -> HttpResp
     if isinstance(resolved, HttpResponse):
         return resolved
     post = scoping.require_visible_post(resolved.member, post_id)
+    # Same gallery contract as the feed and the digest index, so a deep link from the
+    # email shows the photos the email said were there.
+    post = (
+        type(post).objects.filter(pk=post.pk).prefetch_related(_GALLERY).first() or post
+    )
     if not digest_links.issue_posts(resolved.issue).filter(pk=post.pk).exists():
         raise Http404
     comments = (

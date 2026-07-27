@@ -200,11 +200,77 @@ def test_media_on_a_deleted_post_404s(world: dict[str, object]) -> None:
     assert _client_for(author).get(reverse("serve_media", args=[asset.token])).status_code == 404
 
 
-def test_media_requires_login(world: dict[str, object]) -> None:
+def test_media_requires_a_read_credential(world: dict[str, object]) -> None:
+    """Anonymous gets nothing — and now gets the byte-identical 404 rather than a
+    redirect to the login page.
+
+    This asserted 302 while the view was `@login_required`. That gate had to go: a
+    token-only elder has no Django user by design (TM-10), so it made every photo on
+    every post she could already read return 404 — the product's central promise
+    undelivered on the one surface it exists for. The security property is unchanged
+    and the assertion now names it: no credential, no bytes. A 404 also leaks less
+    than a login redirect, which confirms the URL pattern is real.
+    """
     post = world["post"]
     assert isinstance(post, Post)
     asset = media.ingest_photo(post=post, raw=_jpeg_with_exif())
-    assert Client().get(reverse("serve_media", args=[asset.token])).status_code == 302
+    assert Client().get(reverse("serve_media", args=[asset.token])).status_code == 404
+
+
+def test_an_elder_session_can_fetch_media_it_can_see_and_nothing_else(
+    world: dict[str, object],
+) -> None:
+    """The fix, and its ceiling, in one test.
+
+    An elder session reaches the photos on posts inside her audience, and reaches
+    nothing outside it — the audience query is untouched, only the authentication path
+    widened.
+    """
+    from core import elder_tokens
+    post = world["post"]
+    assert isinstance(post, Post)
+    asset = media.ingest_photo(post=post, raw=_jpeg_with_exif())
+
+    # An elder in the poster's pod: she can see the post, so she must get the bytes.
+    elder = Member.objects.create(display_name="Gran")
+    PodMembership.objects.create(member=elder, pod=post.pod)
+    raw = elder_tokens.mint(elder)
+    client = Client()
+    client.get(reverse("elder_enter", args=[raw]))
+    assert client.get(reverse("serve_media", args=[asset.token])).status_code == 200
+
+    # An elder in a wholly separate yard: same credential shape, no overlap, no bytes.
+    other_yard = Yard.objects.create(name="Other side", slug="other-side-media")
+    other_pod = Pod.objects.create(name="Other house")
+    other_pod.yards.set([other_yard])
+    stranger = Member.objects.create(display_name="Stranger Gran")
+    PodMembership.objects.create(member=stranger, pod=other_pod)
+    raw2 = elder_tokens.mint(stranger)
+    client2 = Client()
+    client2.get(reverse("elder_enter", args=[raw2]))
+    assert client2.get(reverse("serve_media", args=[asset.token])).status_code == 404
+
+
+def test_revoking_an_elder_kills_her_media_access_mid_session(
+    world: dict[str, object],
+) -> None:
+    """ADR-003: the generation check is what revokes, not the TTL. A live session must
+    stop fetching bytes the moment the member's generation is bumped, or a revoked
+    elder link would keep serving family photos from a warm cookie."""
+    from core import elder_tokens
+    post = world["post"]
+    assert isinstance(post, Post)
+    asset = media.ingest_photo(post=post, raw=_jpeg_with_exif())
+    elder = Member.objects.create(display_name="Revoked Gran")
+    PodMembership.objects.create(member=elder, pod=post.pod)
+    raw = elder_tokens.mint(elder)
+    client = Client()
+    client.get(reverse("elder_enter", args=[raw]))
+    assert client.get(reverse("serve_media", args=[asset.token])).status_code == 200
+
+    elder.token_generation += 1
+    elder.save(update_fields=["token_generation"])
+    assert client.get(reverse("serve_media", args=[asset.token])).status_code == 404
 
 
 def test_visible_media_scoping(world: dict[str, object]) -> None:

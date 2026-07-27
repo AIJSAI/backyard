@@ -31,6 +31,12 @@ _CAPABILITY_ROUTES = (
 _TOKEN_SEGMENT = re.compile(
     r"/(?P<route>" + "|".join(re.escape(route) for route in _CAPABILITY_ROUTES) + r")/[^\s?#]+"
 )
+# The path pattern deliberately stops at `?`, so a credential in a QUERY STRING would
+# survive it. The digest surfaces pass their token that way when fetching media
+# (/media/<t>/?d=<digest-token>): the page has no session, so each image request must
+# re-present the capability. Without this second pattern every photo an emailed digest
+# renders would write a live digest token into the request log.
+_TOKEN_QUERY = re.compile(r"(?P<key>[?&]d=)[^\s&#]+")
 
 
 class RedactCapabilityPaths(logging.Filter):
@@ -39,6 +45,7 @@ class RedactCapabilityPaths(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         message = record.getMessage()
         redacted = _TOKEN_SEGMENT.sub(r"/\g<route>/[redacted]", message)
+        redacted = _TOKEN_QUERY.sub(r"\g<key>[redacted]", redacted)
         if redacted != message:
             record.msg = redacted
             record.args = ()
