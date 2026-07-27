@@ -13,13 +13,13 @@ from dataclasses import dataclass
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import BadRequest, PermissionDenied
 from django.db import transaction
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from . import handover, invites, permissions, scoping, supervised
+from . import handover, invites, permissions, removal, scoping, supervised
 from .models import (
     DigestDelivery,
     DigestSubscription,
@@ -98,7 +98,12 @@ def members(request: HttpRequest) -> HttpResponse:
     return render(
         request,
         "core/members.html",
-        {"actor": actor, "rows": rows, "can_create_yard": permissions.is_instance_admin(actor)},
+        {
+            "content_choices": removal.CONTENT_CHOICES,
+            "actor": actor,
+            "rows": rows,
+            "can_create_yard": permissions.is_instance_admin(actor),
+        },
     )
 
 
@@ -235,7 +240,13 @@ def remove(request: HttpRequest, member_id: int) -> HttpResponse:
     # (a cross-scope target is a byte-identical 404, same as one that does not exist).
     target = get_object_or_404(permissions.administrable_members(actor), pk=member_id)
     permissions.require_can_manage_member(actor, target)  # raises PermissionDenied
-    remove_member(target)
+    # S-702: the admin chooses what happens to their content, explicitly. An unrecognised
+    # or absent value is refused rather than defaulted — a default would silently keep
+    # everything, which is the behaviour this criterion exists to replace.
+    try:
+        remove_member(target, content=request.POST.get("content", ""))
+    except removal.UnknownContentChoice as exc:
+        raise BadRequest("Choose what happens to this person's posts.") from exc
     return redirect("members")
 
 

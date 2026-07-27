@@ -21,7 +21,7 @@ from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
 
-from core import digesting, emailing
+from core import digesting, emailing, removal
 from core.models import DigestIssue, DigestSubscription, Member, Pod, PodMembership, Yard
 from core.removal import remove_member
 
@@ -204,7 +204,7 @@ def test_cadence_clocks_over_a_simulated_month(world: World) -> None:
 
 def test_removal_drops_the_member_from_recipients(world: World) -> None:
     _subscribe_and_confirm(world.nana)
-    remove_member(world.nana)
+    remove_member(world.nana, content=removal.KEEP)
     later = timezone.now() + datetime.timedelta(days=30)
     assert digesting.due_recipients(later) == []  # TM-1: removal cancels the digest
 
