@@ -1,13 +1,25 @@
 {% extends "core/base.html" %}
-{% block title %}Edit my profile{% endblock %}
+{% block title %}{% if editing_other %}Edit {{ member.display_name }}’s profile{% else %}Edit my profile{% endif %}{% endblock %}
 {% block body %}
-  <h1>Edit my profile</h1>
+  {% if editing_other %}
+    <p class="notice">You are editing <strong>{{ member.display_name }}</strong>'s profile
+      on their behalf. They will see these details as their own.</p>
+  {% endif %}
+  <h1>{% if editing_other %}Edit {{ member.display_name }}’s profile{% else %}Edit my profile{% endif %}</h1>
   {% if errors %}
     <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
   {% endif %}
 
-  <form method="post" action="{% url 'profile_edit' %}">
+  {% comment %} Posts back to the profile being edited. A hardcoded 'profile_edit' here
+     would send a parent's edits of their child to the PARENT's own record — the form
+     would look right and quietly change the wrong person. {% endcomment %}
+  <form method="post"
+        action="{% if editing_other %}{% url 'managed_profile_edit' member.id %}{% else %}{% url 'profile_edit' %}{% endif %}">
     {% csrf_token %}
+
+    <label for="display_name">{% if editing_other %}Their name{% else %}Your name{% endif %}</label>
+    <input id="display_name" type="text" name="display_name" value="{{ member.display_name }}"
+           maxlength="100" required>
 
     <label for="kinship_name">What the family calls you (Nana, Uncle Jim)</label>
     <input id="kinship_name" type="text" name="kinship_name" value="{{ member.kinship_name }}" maxlength="50">

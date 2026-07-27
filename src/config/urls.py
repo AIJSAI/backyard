@@ -61,6 +61,13 @@ urlpatterns = [
     path("directory/", profile_views.directory, name="directory"),
     path("directory/<int:member_id>/", profile_views.member_profile, name="member_profile"),
     path("settings/profile/", profile_views.profile_edit, name="profile_edit"),
+    # Editing on someone's behalf (S-901): a supervised child's managing parent, or an
+    # admin standing in for an elder who has no login by design.
+    path(
+        "directory/<int:member_id>/edit/",
+        profile_views.profile_edit,
+        name="managed_profile_edit",
+    ),
     # Member data export (S-704): a zip of your own posts, comments, and photos.
     path("settings/export/", profile_views.export_data, name="export_data"),
     # Digest lifecycle (S-501): opt-in settings, the content-free address

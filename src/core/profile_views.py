@@ -12,10 +12,11 @@ from __future__ import annotations
 import tempfile
 
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.http import FileResponse, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 
-from . import export, profiles, scoping
+from . import export, permissions, profiles, scoping
 from .feed_views import _acting_member
 from .models import Member
 
@@ -65,12 +66,26 @@ def member_profile(request: HttpRequest, member_id: int) -> HttpResponse:
 
 
 @login_required
-def profile_edit(request: HttpRequest) -> HttpResponse:
-    """Edit one's own profile (S-901): kinship name, birthday (month and day required
-    together, year optional), and each contact field with its own visibility."""
-    member = _acting_member(request)
+def profile_edit(request: HttpRequest, member_id: int | None = None) -> HttpResponse:
+    """Edit a profile (S-901): name, kinship name, birthday (month and day required
+    together, year optional), and each contact field with its own visibility.
+
+    Without `member_id` this is your own profile. With one it is somebody you may edit on
+    behalf of — a supervised child's managing parent, or an instance admin standing in for
+    an elder, who has no login of her own by design (TM-10). That second path is S-901's
+    third acceptance criterion, and it did not exist.
+    """
+    actor = _acting_member(request)
+    if member_id is None:
+        member = actor
+    else:
+        # Resolved through the audience guard FIRST, so a member outside the actor's
+        # yards is a 404 rather than a permission error that confirms they exist.
+        member = scoping.require_visible_member(actor, member_id)
+        if not permissions.can_edit_profile_of(actor, member):
+            raise PermissionDenied("You cannot edit this person's profile.")
     if request.method != "POST":
-        return render(request, "core/profile_edit.html", _edit_context(member, []))
+        return render(request, "core/profile_edit.html", _edit_context(member, [], actor))
 
     errors: list[str] = []
     dates: dict[str, int | None] = {}
@@ -89,9 +104,15 @@ def profile_edit(request: HttpRequest) -> HttpResponse:
         if year is not None and not 1 <= year <= 9999:
             errors.append("That is not a real year.")
         dates[f"{kind}_month"], dates[f"{kind}_day"], dates[f"{kind}_year"] = month, day, year
-    if errors:
-        return render(request, "core/profile_edit.html", _edit_context(member, errors))
+    # A name is how a family recognises someone; an empty one is never what was meant.
+    display_name = request.POST.get("display_name", "").strip()[:100]
+    if not display_name:
+        errors.append("A name cannot be empty.")
 
+    if errors:
+        return render(request, "core/profile_edit.html", _edit_context(member, errors, actor))
+
+    member.display_name = display_name
     member.kinship_name = request.POST.get("kinship_name", "").strip()[:50]
     member.birthday_month = dates["birthday_month"]
     member.birthday_day = dates["birthday_day"]
@@ -109,6 +130,7 @@ def profile_edit(request: HttpRequest) -> HttpResponse:
     member.address_visibility = _visibility(request.POST.get("address_visibility"))
     member.save(
         update_fields=[
+            "display_name",
             "kinship_name",
             "birthday_month",
             "birthday_day",
@@ -144,9 +166,13 @@ def export_data(request: HttpRequest) -> FileResponse:
     return response
 
 
-def _edit_context(member: Member, errors: list[str]) -> dict[str, object]:
+def _edit_context(member: Member, errors: list[str], actor: Member) -> dict[str, object]:
     return {
         "member": member,
+        # The signed-in member, kept separate from the profile being edited so the page
+        # can say whose profile this is when they are not the same person.
+        "actor": actor,
+        "editing_other": member.pk != actor.pk,
         "errors": errors,
         "visibility_choices": Member.FIELD_VISIBILITY_CHOICES,
     }
