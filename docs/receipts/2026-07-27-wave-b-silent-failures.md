@@ -122,10 +122,35 @@ composer's explanation. Raised to 40: the application should be the thing that e
 itself. This also means the audit's ">20 silently truncated" was only half right; the
 reachable silent drops were the size cap and undecodable files, and both now speak.
 
+## Security review — 6 blocking findings, all closed
+
+An adversarial pass live-reproduced **five of six probes** against the first cut. Two of
+them **reintroduced the exact silent-data-loss failure this branch exists to eliminate**,
+one boundary further along — which is the strongest argument for the review existing.
+
+| # | Sev | Finding | Fix |
+|---|-----|---------|-----|
+| 1 | HIGH | Caps applied per-request, **not to the merged claimed+new list** — looping the error path piled **60 photos on one post** and held every raw in memory against a 768 MB container | Caps re-applied after the merge |
+| 2 | HIGH | `unsubscribe()` flips `enabled` and leaves `confirmed_at` intact, so the one-click unsubscribe silenced the digest **but not the nudge** — unstoppable mail for an address-only member | Gated on `enabled`, re-queried live; every nudge carries its own unsubscribe link |
+| 3 | HIGH | A claim that came up short was **silent** — a sweep crossing the TTL mid-hesitation gave `MEDIA: 0, MESSAGES: ''` | The shortfall is part of the `Claim` value and is said out loud |
+| 4 | HIGH | The SMTP send ran **inside the member's write transaction**; a hung mail server outruns gunicorn's timeout → worker killed → **the reply is destroyed** | Deferred to the worker on commit |
+| 5 | HIGH | 6h TTL swept **once daily** (~30h real retention), no quota anywhere | Hourly sweep, per-session byte budget with oldest-first eviction, manifest pruning |
+| 6 | MED | `str.isdigit()` accepts codepoints `int()` rejects → `?before=..._²` returned a **500 on a one-click GET** | The parse decides, with a bigint bound |
+
+Also closed: Cancel was a bare link (`discard()` had zero callers and the comment claiming
+otherwise was false) — now a POST that releases immediately; and the staging docstring
+claimed photos were validated before reaching disk, when only videos are.
+
+**Re-verified after the fixes:** the reviewer's own probe files go from 5-of-6 failing to
+6-of-8 passing. The two that still fail model the *old* architecture (an inline send, a
+GET-based cancel); both underlying properties were re-checked directly — CRLF in a display
+name is still neutralised on the deferred path (`'SamBcc: attacker@evil.example replied to
+your post'`, single-line).
+
 ## Full verification gate
 
-`ruff check` + `ruff format --check` + `mypy` (**145 files, no issues**) + full `pytest`
-(**603 passed**, 8 deselected). Never a subset.
+`ruff check` + `ruff format --check` + `mypy` (**146 files, no issues**) + full `pytest`
+(**613 passed**, 8 deselected). Never a subset.
 
 ## Still open from the audit (NOT closed here)
 
