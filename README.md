@@ -2,7 +2,27 @@
 
 **A private, self-hosted social network for your extended family.** Each household gets a pod. Each side of the family shares a backyard.
 
-> Status: **pre-alpha, started July 2026.** There is nothing to install yet. This repo is being built in public, decisions first, code second.
+> Status: **pre-release, July 2026.** It runs, and it is not shared with anyone yet. The
+> author's own family gets it first, after he has manually QA'd it end to end. Built in
+> public, decisions first, code second — the honest ledger of what is and is not done
+> lives in [PATH-TO-100.md](docs/PATH-TO-100.md) and the
+> [self-audit](docs/audits/2026-07-26-honest-100-audit.md), which is deliberately unkind
+> to this project.
+
+**[→ Install it](docs/runbooks/self-host.md)** — one `docker compose` command on a fresh
+Linux box, with TLS. Read the honest limitations there first, especially about email.
+
+## Install
+
+```bash
+git clone https://github.com/AIJSAI/backyard.git && cd backyard
+cp .env.example .env        # then set the three POSTGRES_* passwords
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Open your domain, and the first-run screen makes you the instance admin. The full guide —
+DNS, TLS, email, backups, upgrades, and what genuinely does not work yet — is
+**[docs/runbooks/self-host.md](docs/runbooks/self-host.md)**.
 
 ## Why this exists
 
