@@ -128,6 +128,25 @@ def test_framework_messages_reach_the_page() -> None:
     assert "MESSAGE_REACHED_THE_PAGE" in rendered, "messages are generated and then discarded"
 
 
+def test_the_messages_region_keeps_its_list_semantics() -> None:
+    """`role="status"` must sit on a WRAPPER, never on the <ul> itself.
+
+    An explicit role overrides an element's implicit one, so `<ul role="status">`
+    stops being a list and every child becomes an orphaned `<li>` — axe reports a
+    serious `listitem` violation and a screen reader stops announcing "list, N items".
+    Shipped that way in the first cut of the messages fix and caught only by the broad
+    axe sweep, on the MFA pages the earlier 8-surface sweep never reached.
+    """
+    from django.template import Context, Template
+
+    rendered = Template("{% extends 'core/base.html' %}").render(
+        Context({"messages": ["a message"]})
+    )
+    assert '<ul class="messages" role=' not in rendered, "role on the <ul> orphans its items"
+    assert '<div role="status">' in rendered, "the messages live region is missing its wrapper"
+    assert '<ul class="messages">' in rendered
+
+
 def test_the_vendored_login_template_has_not_drifted_upstream() -> None:
     """`src/templates/account/login.html` is allauth's markup minus the signup
     paragraph. The dependency pin allows every 65.x, and allauth actively reshapes

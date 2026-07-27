@@ -7,7 +7,9 @@
      that breakpoint the rail is just markup in flow and reads exactly as before.
      A page with no aside.rail automatically gets the single centred well. {% endcomment %}
   <aside class="rail">
-    <p><a href="{% url 'pod_list' %}">Your pods</a> · <a href="{% url 'directory' %}">Family directory</a></p>
+    <nav aria-label="Elsewhere in your backyard">
+      <p><a href="{% url 'pod_list' %}">Your pods</a> · <a href="{% url 'directory' %}">Family directory</a></p>
+    </nav>
 
     {% if todays_dates %}
       <div class="date-banner">

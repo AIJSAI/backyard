@@ -4,13 +4,13 @@
   <h1>Family directory</h1>
   {% comment %} Wayfinding in the margin rail at >=64rem; plain flow below. Search stays
      in the well, since it acts on the content beside it. {% endcomment %}
-  <aside class="rail">
+  <nav class="rail" aria-label="Your profile and data">
     <p>
       <a href="{% url 'feed' %}">Back to the feed</a> ·
       <a href="{% url 'profile_edit' %}">Edit my profile</a> ·
       <a href="{% url 'export_data' %}">Export my data</a>
     </p>
-  </aside>
+  </nav>
 
   <form method="get" action="{% url 'directory' %}">
     <input type="search" name="q" value="{{ q }}" placeholder="Search by name">

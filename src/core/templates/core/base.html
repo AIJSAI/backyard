@@ -240,6 +240,16 @@ main.wrap > p, main.wrap > h1 + p,
 footer.site { border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 0.8rem; }
 footer.site .wrap { padding-top: 1rem; padding-bottom: 1rem; }
 footer.site a { color: var(--ink-soft); }
+/* Two footer lines: stacked on a phone, side by side once there is room. The help
+   sentence must never be pushed off-screen — SC 3.2.6 wants it findable. */
+footer.site .wrap { display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem; }
+footer.site .help { font-weight: 700; }
+
+/* The rail's wayfinding is a real navigation landmark. Where the rail holds
+   only links the rail element IS the <nav>; on the feed the <nav> sits inside
+   the <aside> that also carries the genuinely complementary date banner. */
+.rail nav { margin: 0; }
+.rail nav > p:last-child, nav.rail > p:last-child { margin-bottom: 0; }
 
 /* ---- forms ------------------------------------------------------------------
    Control borders use --line-strong (>=3:1) — the SC 1.4.11 fix. */
@@ -601,19 +611,19 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
     align-items: start;
   }
   main.wrap > * { grid-column: 1; min-width: 0; }
-  /* The signpost rail: server-rendered <aside class="rail"> holding the
+  /* The signpost rail: server-rendered .rail holding the
      page's wayfinding (date banner, quiet links, page actions). Sticky, so
      "today" stays in the margin while the feed scrolls. */
-  main.wrap > aside.rail {
+  main.wrap > .rail {
     grid-column: 2; grid-row: 1 / span 99;
     position: sticky; top: 1.25rem;
     display: flex; flex-direction: column; gap: 1rem;
     font-size: 0.92rem;
   }
-  main.wrap > aside.rail .date-banner { margin: 0; }
+  main.wrap > .rail .date-banner { margin: 0; }
   /* Pages that render no rail (thread, digests, entrance forms already have
      their own narrow layout) fall back to one centred well. */
-  main.wrap:not(:has(> aside.rail)) { display: block; max-width: 56rem; }
+  main.wrap:not(:has(> .rail)) { display: block; max-width: 56rem; }
   /* Prose keeps its ch-based measure inside whichever region it lands in;
      feeds, galleries and tables take their region's full width. */
   main.wrap > p, main.wrap > h1 + p, .notice, .post > p, .empty { max-width: 34rem; }
@@ -623,7 +633,7 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
 @media (min-width: 75rem) {
   header.site .wrap, footer.site .wrap { max-width: 80rem; }
   main.wrap { max-width: 80rem; grid-template-columns: minmax(0, 46rem) 21rem; column-gap: 5rem; }
-  main.wrap:not(:has(> aside.rail)) { max-width: 60rem; }
+  main.wrap:not(:has(> .rail)) { max-width: 60rem; }
   ul.directory { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
@@ -654,6 +664,50 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
   ul.members .inline, ul.pods .inline, ul.invites .inline {
     margin-left: 0; display: inline-block; margin-top: 0.5rem; margin-right: 0.4rem; }
   ul.redeemers { margin-top: 0.5rem; }
+}
+
+/* ---- forced colours (Windows High Contrast) ---------------------------------
+   In forced-colors mode the UA replaces color / background-color / border-color /
+   outline-color with system colours, and computes box-shadow, text-shadow and any
+   non-url() background-image to `none`. Every boundary this design carries with a
+   shadow, a gradient or a color-mix()-painted pseudo-element therefore vanishes.
+   Repaired below with real borders and system colour keywords.
+
+   The focus ring is deliberately NOT touched: outline-color is force-ADJUSTED
+   rather than stripped, so `outline: 3px solid var(--ring)` survives. Redrawing a
+   ring with box-shadow would delete it for exactly these users. */
+@media (forced-colors: active) {
+  /* Cards carry their boundary in --shadow alone; without a border they merge
+     into the page. */
+  ul.feed > li, .comments > li, .composer, .handover, .post, .preview,
+  main.wrap > .rail .date-banner, .notice, .errors, .messages .msg, .empty {
+    border: 1px solid ButtonBorder;
+  }
+  /* The select arrow is drawn with two gradients and disappears entirely. */
+  select { background-image: none; padding-right: 0.9rem; border: 1px solid ButtonBorder; }
+  /* Tint-only pills collapse into plain text: give them an outline so the
+     distinction survives without relying on background colour. */
+  .role, .flag, .via-email { border: 1px solid CanvasText; }
+  /* Both dividers are painted only by color-mix() and are erased. */
+  li.boundary::before, li.boundary::after { background: CanvasText; }
+  .caught-up::before { background: CanvasText; }
+  /* Keep primary and destructive distinguishable when every fill goes flat. The
+     glyphs (x on destructive, checkmark on reacted) are text and survive; fills
+     do not. */
+  button, .btn { border: 1px solid ButtonBorder; }
+  button.danger, .btn-danger { border: 2px solid CanvasText; }
+  .react-buttons button.reacted { border: 2px solid Highlight; }
+  a { color: LinkText; }
+}
+
+/* ---- explicit high-contrast preference ---------------------------------------
+   Distinct from forced-colors: the palette still applies, the user has simply asked
+   for more separation. Thicken hairlines and pull secondary text toward the ink. */
+@media (prefers-contrast: more) {
+  :root { --line: var(--line-strong); --ink-soft: var(--ink); }
+  ul.feed > li, .comments > li, .composer, .handover, .preview, .empty,
+  .notice, .errors, .messages .msg { border-width: 2px; }
+  a { text-decoration-thickness: 2px; }
 }
 
   </style>
@@ -687,16 +741,30 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
   </header>
   {% endblock %}
   <main class="wrap" id="main">
+    {% comment %} role="status" goes on the WRAPPER, not the <ul>. Putting it on the list
+       itself overrides the implicit list role, which orphans every <li> — axe flags it as
+       a serious `listitem` violation and a screen reader stops announcing the count.
+       Caught by the v3.1 sweep on the MFA pages, which the earlier 8-surface sweep never
+       reached because they had no design at all then. {% endcomment %}
     {% if messages %}
-      <ul class="messages" role="status">
-        {% for message in messages %}<li class="msg {{ message.tags }}">{{ message }}</li>{% endfor %}
-      </ul>
+      <div role="status">
+        <ul class="messages">
+          {% for message in messages %}<li class="msg {{ message.tags }}">{{ message }}</li>{% endfor %}
+        </ul>
+      </div>
     {% endif %}
     {% block body %}{% endblock %}
   </main>
   <footer class="site">
     <div class="wrap">
       <span class="muted">A quiet place for family. Your history stays yours — export it any time.</span>
+      {% comment %} WCAG 2.2 SC 3.2.6 Consistent Help: a help mechanism in the same
+         relative position on every page that has one. There is NO help route in this
+         app and none is being added — a link to a page that does not exist is worse
+         than no link — so the mechanism is the sentence itself, naming the real person
+         who can act. For a family instance that is the honest answer: whoever runs it
+         is a relative, not a support desk. {% endcomment %}
+      <span class="muted help">Stuck? Ask whoever in the family set this up — they can fix it.</span>
     </div>
   </footer>
   {% if user.is_authenticated %}
