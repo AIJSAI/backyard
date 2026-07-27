@@ -102,15 +102,60 @@ the v3.0 defect where the header rule never matched and the zebra striped the wr
 Re-gated after the addendum: ruff + format + mypy(138) clean, **pytest 558 passed**, both WCAG
 guards still pass unmodified, 259 surfaces re-captured.
 
-## Still open after v3.1
+## Accessibility modes and landmarks — closed 2026-07-26
 
-1. **No `@media (forced-colors: active)` and no `prefers-contrast` block.** Card elevation carried
-   by `box-shadow` still disappears in Windows High Contrast.
-2. **No `<nav>` landmark** anywhere, and no "Need help?" affordance (SC 3.2.6). Note the elder page
-   must be excluded from both — its guard collects every `href` including `<link>` and requires each
-   to be the elder-feed URL.
-3. Container queries deliberately not used; the designer's stated reason is that every adaptive
-   region tracks the viewport-driven well directly, so `@media` is sufficient and cheaper to audit.
+The three items left open after v3.1 are now done, and two guards were found to be
+enforcing less than they appeared.
+
+- **`@media (forced-colors: active)`** added; the repo had none. In Windows High Contrast
+  the UA computes `box-shadow` and non-`url()` `background-image` to `none`, and this
+  design carried feed/comment/composer/handover card boundaries in `--shadow` **alone**,
+  the select arrow in two gradients, and both the unread divider and the feed end-cap in
+  `color-mix()` pseudo-elements — all of it silently gone. Repaired with real borders and
+  system colour keywords, and **verified live rather than asserted**: with forced colours
+  active a feed card computes `box-shadow: none` and `border: 1px solid`, and the select's
+  `background-image` is `none`. The outline focus ring is deliberately untouched —
+  `outline-color` is force-*adjusted* rather than stripped, so an outline survives where a
+  `box-shadow` ring would be deleted for exactly these users.
+- **`@media (prefers-contrast: more)`** tightens the ramp: `--line` takes `--line-strong`,
+  `--ink-soft` collapses to `--ink`, hairlines double.
+- **`<nav>` landmarks** — there were none in any of the 34 templates. On directory and
+  members the rail element *is* the `<nav>`; on the feed the `<nav>` sits inside the
+  `<aside>`, because that aside also carries the date banner, which is genuinely
+  complementary rather than navigation.
+- **SC 3.2.6 Consistent Help** — there is no help route in this app and none is being
+  added, because a link to a page that does not exist is worse than no link. The mechanism
+  is a sentence in the shared footer naming the person who can actually act; for a family
+  instance that is the honest answer. A test pins that it is **not** a link.
+
+**Two guards hardened, each proven non-vacuous by probe:**
+
+1. `test_elder_wcag` was enforcing "no links off this surface" **by quoting style** — its
+   regex matched only double-quoted `href`, so a single-quoted one passed untouched. It
+   also missed `formaction`, which navigates exactly like an `href`, and a meta refresh,
+   which leaves without either. On the one surface where a stray outbound link would carry
+   an elder's session. All three now fail the build; the clean page still passes.
+2. The messages region shipped `role="status"` on the `<ul>`, which overrides the implicit
+   list role and orphans every `<li>`. axe flagged it **serious** on the MFA pages —
+   surfaces the earlier 8-surface sweep never reached because they had no design then.
+
+**axe-in-browser sweep, broadened from 8 surfaces to 138 renders** — 35 surfaces including
+every allauth credential page and the three error pages, at desktop **and** mobile, in
+light **and** dark, plus the elder path, against `wcag2a`/`wcag2aa`/`wcag21a`/`wcag21aa`/
+`wcag22aa`: **0 violations at any severity.** Raw report:
+`docs/receipts/2026-07-26-axe-v31-sweep.json`.
+
+Gate: ruff + format + mypy(139) clean; **pytest 565 passed**.
+
+## Still open
+
+Nothing engineer-actionable on the design pass. What remains is founder-gated:
+**criterion 4** (his personal manual QA) and **criterion 7** (the go-public decision;
+the family share comes first).
+
+Container queries were deliberately not used — the designer's stated reason is that every
+adaptive region tracks the viewport-driven well directly, so `@media` is sufficient and
+cheaper to audit. Recorded as a decision, not a gap.
 
 ## What the first bundle (v3.0) asked for and did NOT arrive — now historical
 
