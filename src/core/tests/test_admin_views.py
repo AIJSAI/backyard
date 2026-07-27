@@ -79,7 +79,9 @@ def test_remove_runs_the_revocation_flow(world: dict[str, object]) -> None:
     target = world["member_a"]
     assert isinstance(admin, Member)
     assert isinstance(target, Member)
-    response = _client_for(admin).post(reverse("member_remove", args=[target.id]))
+    response = _client_for(admin).post(
+        reverse("member_remove", args=[target.id]), {"content": "keep"}
+    )
     assert response.status_code == 302
     assert not PodMembership.objects.filter(member=target).exists()  # detached
     assert target.user is not None
@@ -93,7 +95,9 @@ def test_yard_admin_cannot_remove_across_the_yard_boundary(world: dict[str, obje
     assert isinstance(ya, Member)
     assert isinstance(member_b, Member)
     # A yard-A admin cannot even see member B, so removal 404s (not 403): no existence leak.
-    response = _client_for(ya).post(reverse("member_remove", args=[member_b.id]))
+    response = _client_for(ya).post(
+        reverse("member_remove", args=[member_b.id]), {"content": "keep"}
+    )
     assert response.status_code == 404
     assert PodMembership.objects.filter(member=member_b).exists()  # untouched
 
@@ -105,7 +109,7 @@ def test_yard_admin_cannot_remove_an_instance_admin_in_scope(world: dict[str, ob
     admin = world["admin"]
     assert isinstance(ya, Member)
     assert isinstance(admin, Member)
-    response = _client_for(ya).post(reverse("member_remove", args=[admin.id]))
+    response = _client_for(ya).post(reverse("member_remove", args=[admin.id]), {"content": "keep"})
     assert response.status_code == 403
     assert PodMembership.objects.filter(member=admin).exists()
 
