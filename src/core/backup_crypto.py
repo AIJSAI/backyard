@@ -41,11 +41,18 @@ MAGIC = b"BACKYARD-ENC/1\n"
 _SALT_BYTES = 16
 _NONCE_PREFIX_BYTES = 8
 _KEY_BYTES = 32
-# ~100 ms and ~32 MiB on a small VPS: enough that a leaked archive is not trivially
-# guessable, low enough that the family's own restore drill is not painful.
-_SCRYPT_N = 2**15
+# 128 MiB and well under a second: OWASP's current scrypt floor (n=2**17, r=8, p=1). These
+# archives are long-lived and the asset is photographs of children — one stolen today is
+# attacked for years, so the cost is set for then, not for now. Old archives still restore:
+# the parameters travel in the header, which is exactly why they are there.
+_SCRYPT_N = 2**17
 _SCRYPT_R = 8
 _SCRYPT_P = 1
+# Accepted range when READING a header. Wide enough for archives written by other versions,
+# narrow enough that the KDF cannot be turned into a denial-of-service.
+_MIN_SCRYPT_N = 2**14
+_MAX_SCRYPT_N = 2**20
+_GCM_TAG_BYTES = 16
 # Plaintext chunk size. Bounds peak memory during both directions.
 CHUNK_BYTES = 4 * 1024 * 1024
 
@@ -114,6 +121,21 @@ def decrypt(source: IO[bytes], out: IO[bytes], passphrase: str) -> None:
     if len(header) != 12:
         raise BackupCryptoError("truncated backup header")
     n, r, p = struct.unpack(">III", header)
+    # The header is UNAUTHENTICATED — it has to be, the key comes from it — so every value
+    # in it is attacker-controlled until a tag verifies. Unbounded scrypt parameters are a
+    # memory bomb: a hand-written 91-byte "archive" declaring n=2**24 allocates 16 GiB, and
+    # the documented restore runs inside the live instance's container, so that OOM-kills
+    # the family's server. Invalid values (n=0, n=3, r=0) also escaped as a raw ValueError
+    # rather than this module's error type. Bounded to what this format actually produces.
+    if not (_MIN_SCRYPT_N <= n <= _MAX_SCRYPT_N and n & (n - 1) == 0):
+        raise BackupCryptoError(
+            f"refusing a backup header with an unreasonable scrypt cost (n={n}); "
+            "this is not an archive Backyard produced"
+        )
+    if not (1 <= r <= 32) or not (1 <= p <= 16):
+        raise BackupCryptoError(
+            f"refusing a backup header with unreasonable scrypt parameters (r={r}, p={p})"
+        )
     salt = source.read(_SALT_BYTES)
     nonce_prefix = source.read(_NONCE_PREFIX_BYTES)
     if len(salt) != _SALT_BYTES or len(nonce_prefix) != _NONCE_PREFIX_BYTES:
@@ -130,6 +152,10 @@ def decrypt(source: IO[bytes], out: IO[bytes], passphrase: str) -> None:
         if len(raw_len) != 4:
             raise BackupCryptoError("truncated backup: incomplete chunk length")
         (size,) = struct.unpack(">I", raw_len)
+        if size > CHUNK_BYTES + _GCM_TAG_BYTES:
+            # Without this the chunk size bounds memory on the ENCRYPT side only: a crafted
+            # archive declaring one enormous chunk is read whole before its tag is checked.
+            raise BackupCryptoError("refusing a backup chunk larger than this format writes")
         sealed = source.read(size)
         if len(sealed) != size:
             raise BackupCryptoError("truncated backup: incomplete chunk")

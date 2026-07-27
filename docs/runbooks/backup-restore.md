@@ -48,8 +48,18 @@ docker compose exec \
   -e POSTGRES_MIGRATOR_PASSWORD="$MIGRATOR_PW" \
   web python manage.py backup_instance /data/backups/backup-$(date +%F).bak
 
-# The passphrase comes from the environment (or --passphrase-file), never argv:
-#   BACKYARD_BACKUP_PASSPHRASE=... docker compose exec -T ... 
+# The passphrase never goes on the command line. Prefer a keyfile:
+#   printf '%s' 'your four-word diceware phrase' > /root/backyard.key
+#   chmod 600 /root/backyard.key        # the command refuses a group/world-readable key
+#   docker compose exec -T web python manage.py backup_instance \
+#     /data/backups/backup-$(date +%F).bak --passphrase-file /run/secrets/backyard.key
+#
+# The environment variable BACKYARD_BACKUP_PASSPHRASE also works (set it in .env, which
+# compose passes in). It is NOT visible in `ps`, but it IS visible in
+# /proc/<pid>/environ and `docker inspect` — a keyfile with 0600 is tighter.
+# Typing it inline as `VAR=secret docker compose ...` puts it in your shell history:
+# don't.
+#
 # To deliberately write a PLAINTEXT archive (it will warn, loudly):
 #   ... python manage.py backup_instance /path/out.tar --no-encrypt
 ```
@@ -76,9 +86,17 @@ docker compose exec \
   web python manage.py restore_instance /data/backups/backup-YYYY-MM-DD.bak
 
 # Restore auto-detects the archive shape. An encrypted one needs the same
-# BACKYARD_BACKUP_PASSPHRASE (or --passphrase-file); a wrong passphrase, an
-# altered archive and a truncated one all refuse loudly rather than restoring
-# a partial copy of the family's history.
+# passphrase; a wrong passphrase, an altered archive and a truncated one all
+# refuse loudly rather than restoring a partial copy of the family's history.
+#
+# If a passphrase is configured and the archive turns out NOT to be encrypted,
+# restore REFUSES. A plaintext archive has no integrity protection and its dump
+# is executed against the database as the migrator role, so a swapped file would
+# otherwise be restored without a word. Override with --allow-plaintext only for
+# an archive whose provenance you are certain of.
+#
+# SPACE: a restore holds the media tree TWICE (staged beside MEDIA_ROOT for an
+# atomic promote) plus the tar.gz and the dump. Make sure /data has room.
 ```
 
 To overwrite an instance that still has data (you have decided to roll back),

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import os
+import struct
 from pathlib import Path
 
 import pytest
@@ -64,20 +65,46 @@ def test_a_wrong_passphrase_is_refused_loudly() -> None:
         backup_crypto.decrypt(sealed, io.BytesIO(), "not the passphrase")
 
 
-def test_a_truncated_archive_is_refused_rather_than_half_restored() -> None:
-    """The failure mode that matters most.
+def _split(body: bytes) -> tuple[bytes, list[bytes]]:
+    """Header plus each length-prefixed chunk, so a test can cut on a real boundary."""
+    header = len(backup_crypto.MAGIC) + 12 + 16 + 8
+    cursor, chunks = header, []
+    while cursor < len(body):
+        (size,) = struct.unpack(">I", body[cursor : cursor + 4])
+        chunks.append(body[cursor : cursor + 4 + size])
+        cursor += 4 + size
+    return body[:header], chunks
 
-    Per-chunk authentication alone would happily decrypt the surviving chunks of a
-    truncated archive — a restore that silently returns most of a family's history and
-    says nothing. The end-of-stream marker is bound into the AAD so the missing tail is
-    detected instead.
+
+def test_an_archive_truncated_on_a_CHUNK_BOUNDARY_is_refused() -> None:
+    """The failure mode that matters most — and the one a sloppier test misses.
+
+    A security review proved the earlier version of this test was FALSE-GREEN: it cut at
+    `len(body) // 2`, which lands mid-chunk and trips the plain length-prefix check, not
+    the end-of-stream AAD binding it claimed to cover. A mutant with the silent
+    half-restore bug reintroduced passed it while handing back 8 MB of a 12 MB archive.
+
+    The realistic truncation — an interrupted scp, rsync, or object-store PUT — stops on a
+    block edge, which is exactly a clean chunk boundary. So cut there, and assert the
+    SPECIFIC message, because that is what distinguishes the two code paths.
     """
     sealed = io.BytesIO()
     backup_crypto.encrypt(io.BytesIO(os.urandom(backup_crypto.CHUNK_BYTES * 3)), sealed, _PASS)
+    header, chunks = _split(sealed.getvalue())
+    assert len(chunks) >= 3, "need several chunks for a boundary cut to mean anything"
+
+    lopped = io.BytesIO(header + b"".join(chunks[:-1]))  # drop exactly the final chunk
+    with pytest.raises(backup_crypto.BackupCryptoError, match="end-of-stream chunk is missing"):
+        backup_crypto.decrypt(lopped, io.BytesIO(), _PASS)
+
+
+def test_an_archive_truncated_MID_CHUNK_is_also_refused() -> None:
+    """The other cut, kept as its own case so neither can silently cover for the other."""
+    sealed = io.BytesIO()
+    backup_crypto.encrypt(io.BytesIO(os.urandom(backup_crypto.CHUNK_BYTES * 3)), sealed, _PASS)
     body = sealed.getvalue()
-    truncated = io.BytesIO(body[: len(body) // 2])
-    with pytest.raises(backup_crypto.BackupCryptoError, match="truncat"):
-        backup_crypto.decrypt(truncated, io.BytesIO(), _PASS)
+    with pytest.raises(backup_crypto.BackupCryptoError, match="incomplete chunk"):
+        backup_crypto.decrypt(io.BytesIO(body[: len(body) // 2]), io.BytesIO(), _PASS)
 
 
 def test_a_tampered_chunk_is_refused() -> None:
@@ -97,20 +124,50 @@ def test_reordered_chunks_are_refused() -> None:
     backup_crypto.encrypt(io.BytesIO(plain), sealed, _PASS)
     body = sealed.getvalue()
 
-    header = len(backup_crypto.MAGIC) + 12 + 16 + 8
-    import struct
-
-    cursor = header
-    chunks = []
-    while cursor < len(body):
-        (size,) = struct.unpack(">I", body[cursor : cursor + 4])
-        chunks.append(body[cursor : cursor + 4 + size])
-        cursor += 4 + size
+    header, chunks = _split(body)
     assert len(chunks) >= 3, "need several chunks for this to mean anything"
 
-    swapped = body[:header] + chunks[1] + chunks[0] + b"".join(chunks[2:])
+    swapped = header + chunks[1] + chunks[0] + b"".join(chunks[2:])
     with pytest.raises(backup_crypto.BackupCryptoError):
         backup_crypto.decrypt(io.BytesIO(swapped), io.BytesIO(), _PASS)
+
+
+def test_the_aad_binds_the_chunk_index_independently_of_the_nonce() -> None:
+    """Defence in depth, pinned.
+
+    Chunk order is protected twice over: the index is in the nonce AND in the AAD. The
+    reorder test above passes on the nonce alone, so removing the index from the AAD used
+    to ship all-green. This asserts the AAD contribution directly.
+    """
+    assert backup_crypto._aad(0, final=False) != backup_crypto._aad(1, final=False)
+    assert backup_crypto._aad(3, final=True) != backup_crypto._aad(3, final=False)
+    assert b"|3|" in backup_crypto._aad(3, final=False)
+
+
+def test_a_header_with_absurd_kdf_parameters_is_refused_before_the_kdf_runs() -> None:
+    """The header is UNAUTHENTICATED, so its numbers are attacker input.
+
+    A hand-written 91-byte file declaring n=2**24 allocated 16 GiB and 64 seconds of CPU —
+    inside the family's live container, since that is where the documented restore runs.
+    Invalid values escaped as a raw ValueError rather than this module's error type.
+    """
+    for n, r, p in ((2**24, 8, 1), (2**31, 8, 1), (0, 8, 1), (3, 8, 1), (2**15, 0, 1)):
+        body = backup_crypto.MAGIC + struct.pack(">III", n, r, p) + b"\x00" * 16 + b"\x00" * 8
+        with pytest.raises(backup_crypto.BackupCryptoError, match="refusing"):
+            backup_crypto.decrypt(io.BytesIO(body), io.BytesIO(), _PASS)
+
+
+def test_an_oversized_declared_chunk_is_refused_before_it_is_read() -> None:
+    """CHUNK_BYTES claims to bound memory 'during both directions'; on the decrypt side the
+    length came straight from the archive, so one crafted chunk drove peak RSS to ~3x."""
+    body = (
+        backup_crypto.MAGIC
+        + struct.pack(">III", 2**17, 8, 1)
+        + b"\x00" * 24
+        + struct.pack(">I", backup_crypto.CHUNK_BYTES * 64)
+    )
+    with pytest.raises(backup_crypto.BackupCryptoError, match="larger than this format"):
+        backup_crypto.decrypt(io.BytesIO(body), io.BytesIO(), _PASS)
 
 
 def test_a_plaintext_archive_is_recognised_as_not_ours() -> None:
@@ -135,6 +192,15 @@ def test_two_backups_of_the_same_bytes_differ() -> None:
     backup_crypto.encrypt(io.BytesIO(payload), first, _PASS)
     backup_crypto.encrypt(io.BytesIO(payload), second, _PASS)
     assert first.getvalue() != second.getvalue()
+    # Asserted FIELD BY FIELD, because a whole-file comparison passes if either one alone
+    # is fresh — mutation-testing showed a constant salt and a constant nonce prefix each
+    # shipped green against the weaker assertion.
+    start = len(backup_crypto.MAGIC) + 12
+    salt_a, salt_b = first.getvalue()[start : start + 16], second.getvalue()[start : start + 16]
+    nonce_a = first.getvalue()[start + 16 : start + 24]
+    nonce_b = second.getvalue()[start + 16 : start + 24]
+    assert salt_a != salt_b, "the salt must be fresh per archive (the KEY depends on it)"
+    assert nonce_a != nonce_b, "the nonce prefix must be fresh per archive"
 
 
 def test_the_backup_command_refuses_to_write_plaintext_by_accident(

@@ -24,6 +24,23 @@ from core import backup_crypto, backups
 ENV_VAR = "BACKYARD_BACKUP_PASSPHRASE"
 
 
+# Short enough not to fight a careful operator, long enough that the scrypt cost is doing
+# work against a real guessing attack rather than covering for "hunter2".
+MIN_PASSPHRASE_CHARS = 12
+
+
+def _normalise(secret: str) -> str | None:
+    """One normalisation for BOTH sources. Whitespace-only is nothing.
+
+    The env path used to strip and the keyfile path did not, so the same secret produced
+    two different keys (`'hunter2\n'` vs `'hunter2'`) depending on which you used. With no
+    key escrow that is not an inconvenience, it is the permanent loss of the only copy of a
+    family's history — back up via the env var, restore via --passphrase-file, and the
+    archive is gone.
+    """
+    return secret.strip() or None
+
+
 def resolve_passphrase(options: dict[str, Any]) -> str | None:
     """The passphrase from a keyfile or the environment, or None if neither is set.
 
@@ -35,11 +52,32 @@ def resolve_passphrase(options: dict[str, Any]) -> str | None:
         path = Path(keyfile)
         if not path.is_file():
             raise CommandError(f"passphrase file not found: {path}")
-        secret = path.read_text(encoding="utf-8").strip()
-        if not secret:
+        if path.stat().st_mode & 0o077:
+            raise CommandError(
+                f"passphrase file {path} is readable by other users; "
+                "run `chmod 600` on it before using it as a key."
+            )
+        try:
+            secret = _normalise(path.read_text(encoding="utf-8"))
+        except UnicodeDecodeError as exc:
+            # `head -c 32 /dev/urandom > keyfile` is the obvious way to make a *keyfile*,
+            # and it used to die with a UnicodeDecodeError that printed a byte of the key.
+            raise CommandError(
+                f"passphrase file {path} is not UTF-8 text. Use a text passphrase "
+                "(a diceware phrase is ideal); raw binary key material is not supported."
+            ) from exc
+        if secret is None:
             raise CommandError(f"passphrase file is empty: {path}")
-        return secret
-    return os.environ.get(ENV_VAR) or None
+    else:
+        secret = _normalise(os.environ.get(ENV_VAR, ""))
+    if secret is not None and len(secret) < MIN_PASSPHRASE_CHARS:
+        raise CommandError(
+            f"that backup passphrase is too short ({len(secret)} characters; "
+            f"{MIN_PASSPHRASE_CHARS} is the minimum). There is no key escrow and no reset: "
+            "this passphrase is the only thing standing between a stolen archive and every "
+            "photo of your family. Use a diceware phrase of four or more words."
+        )
+    return secret
 
 
 class Command(BaseCommand):
@@ -80,19 +118,35 @@ class Command(BaseCommand):
                 "plaintext archive, pass --no-encrypt explicitly."
             )
 
+        # Written to a sidecar first, then renamed into place. Opening `output` directly
+        # TRUNCATED yesterday's good backup before a byte of today's was written, so a full
+        # disk or an interrupt destroyed the old archive and left a plausible-looking file
+        # that only failed at restore. With no key escrow, "the backup that wasn't" is the
+        # whole risk. 0600: the archive is the entire family database and every photo.
+        partial = output.with_name(output.name + ".partial")
         try:
-            if passphrase is None or options["no_encrypt"]:
-                with output.open("wb") as destination:
+            fd = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "wb") as destination:
+                if passphrase is None or options["no_encrypt"]:
                     backups.write_backup(destination)
-            else:
-                # Staged through a temp file so the tar is built once and encrypted as it
-                # is streamed out; neither side is ever fully resident.
-                with tempfile.TemporaryFile() as staged:
-                    backups.write_backup(staged)
-                    staged.seek(0)
-                    with output.open("wb") as destination:
+                else:
+                    # Staged through an unlinked temp file so the tar is built once and
+                    # encrypted as it streams out; neither side is ever fully resident.
+                    with tempfile.TemporaryFile() as staged:
+                        backups.write_backup(staged)
+                        staged.seek(0)
                         backup_crypto.encrypt(staged, destination, passphrase)
-        except (backups.BackupError, backup_crypto.BackupCryptoError) as exc:
+
+            if passphrase is not None and not options["no_encrypt"]:
+                # Prove the archive actually decrypts under the passphrase we were given,
+                # before it replaces the previous one. A backup nobody can open is worse
+                # than no backup, because it is trusted.
+                with partial.open("rb") as check, open(os.devnull, "wb") as sink:
+                    backup_crypto.decrypt(check, sink, passphrase)
+
+            os.replace(partial, output)
+        except (backups.BackupError, backup_crypto.BackupCryptoError, OSError) as exc:
+            Path(partial).unlink(missing_ok=True)
             raise CommandError(str(exc)) from exc
 
         shape = "PLAINTEXT" if options["no_encrypt"] else "encrypted"

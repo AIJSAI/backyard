@@ -71,6 +71,9 @@ def _migrator_env() -> dict[str, str]:
             "migrator's environment (the documented runbook does)."
         )
     env = dict(os.environ)
+    # The backup passphrase is not the database's business. Inheriting it widened its blast
+    # radius to any child core dump or /proc/<pid>/environ read for no benefit at all.
+    env.pop("BACKYARD_BACKUP_PASSPHRASE", None)
     env["PGPASSWORD"] = password
     return env
 

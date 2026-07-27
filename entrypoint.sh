@@ -24,6 +24,18 @@ if [ "$ROLE" = web ]; then
   DJANGO_SECRET_KEY="$(cat "$SECRET_FILE")"
   export DJANGO_SECRET_KEY
 
+  # Sweep abandoned restore staging (S-802 review M-1). A restore stages the whole
+  # plaintext database and media tree beside MEDIA_ROOT so the promote is an atomic
+  # rename; TemporaryDirectory cannot clean up after a SIGKILL, so an OOM or a
+  # `compose down` mid-restore strands the family's data in the clear on the persistent
+  # volume, under a dot-prefixed name that `ls /data` does not show. Nothing else ever
+  # removes these.
+  for stale in /data/.restore-*; do
+    [ -e "$stale" ] || continue
+    rm -rf -- "$stale"
+    echo "Removed abandoned restore staging: $stale"
+  done
+
   # Pre-flight backup before any migration (TS-CO-2, T-UPGRADE-1, S-803): dump as
   # the migrator (it owns every table) with the version-matched client, keep the
   # last three, and refuse to migrate if the dump fails. The explicit override
