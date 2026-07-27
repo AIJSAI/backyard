@@ -24,8 +24,9 @@ holds the validated bytes server-side and the member carries only an opaque hand
   form names nothing in another member's session;
 - a claim **consumes** the bytes, so a replayed confirmation cannot clone photos onto a
   second post;
-- a daily sweep walks the staging directory **by mtime**, so an abandoned confirmation —
-  including one whose session has expired — cannot leave family photographs on disk.
+- an **hourly** sweep walks the staging directory **by mtime**, so an abandoned confirmation —
+  including one whose session has expired — cannot leave family photographs on disk, and a
+  per-session byte budget bounds what one member can park there at once.
 
 **Live repro** (running compose instance, real multipart upload, confirm sent with no
 files exactly as a browser does):
