@@ -276,3 +276,120 @@ def test_restore_promotes_only_the_media_subtree(
     assert (media_root / "2026" / "photo.jpg").read_bytes() == b"a photo"
     # Nothing leaked into /data (MEDIA_ROOT.parent) beyond the media tree itself.
     assert sorted(p.name for p in media_root.parent.iterdir()) == ["media"]
+
+
+# --- S-802: the ENCRYPTED path, end to end through the real commands ---------
+#
+# The security review found this had zero coverage: every crypto test drove
+# backup_crypto directly, and the only command-level test was a refusal. S-802's own
+# acceptance requires the restore drill to exercise the encrypted path, so the wiring
+# between the two commands — not just the primitive — needs a guard.
+
+
+def test_the_encrypted_path_round_trips_through_both_commands(
+    fake_pg: None, settings: Any, tmp_path: Path, monkeypatch: Any
+) -> None:
+    from django.core.management import call_command
+
+    from core import backup_crypto
+
+    media = tmp_path / "media"
+    media.mkdir()
+    (media / "photo.jpg").write_bytes(b"a family photograph")
+    settings.MEDIA_ROOT = str(media)
+    monkeypatch.setenv("BACKYARD_BACKUP_PASSPHRASE", "a four word diceware phrase")
+    archive = tmp_path / "out.bak"
+
+    call_command("backup_instance", str(archive))
+
+    body = archive.read_bytes()
+    assert backup_crypto.is_encrypted(body), "the default path must produce an ENCRYPTED archive"
+    assert b"a family photograph" not in body, "the photo bytes must not be readable"
+    assert not archive.with_name(archive.name + ".partial").exists(), "sidecar not cleaned up"
+    assert archive.stat().st_mode & 0o077 == 0, "the archive must not be group/world readable"
+
+    call_command("restore_instance", str(archive), "--force")
+    assert (Path(settings.MEDIA_ROOT) / "photo.jpg").read_bytes() == b"a family photograph"
+
+
+def test_restore_refuses_a_plaintext_archive_when_a_passphrase_is_configured(
+    fake_pg: None, settings: Any, tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The downgrade the review found: the backup side refuses to WRITE plaintext without
+    an explicit flag, and the restore side used to happily READ it. An attacker who can
+    write to the backup directory could swap in their own tar, whose dump is then executed
+    against the database as the migrator (DDL) role."""
+    from django.core.management import call_command
+    from django.core.management.base import CommandError
+
+    media = tmp_path / "media"
+    media.mkdir()
+    settings.MEDIA_ROOT = str(media)
+    archive = tmp_path / "plain.tar"
+    call_command("backup_instance", str(archive), "--no-encrypt")
+    assert archive.exists()
+
+    monkeypatch.setenv("BACKYARD_BACKUP_PASSPHRASE", "a four word diceware phrase")
+    with pytest.raises(CommandError, match="NOT encrypted"):
+        call_command("restore_instance", str(archive), "--force")
+    # ...and the operator can still override deliberately.
+    call_command("restore_instance", str(archive), "--force", "--allow-plaintext")
+
+
+def test_a_too_short_passphrase_is_refused(tmp_path: Path, monkeypatch: Any) -> None:
+    """No escrow means the passphrase is the only thing between a stolen archive and every
+    photo of the family; `hunter2` used to be accepted in silence."""
+    from django.core.management import call_command
+    from django.core.management.base import CommandError
+
+    monkeypatch.setenv("BACKYARD_BACKUP_PASSPHRASE", "hunter2")
+    with pytest.raises(CommandError, match="too short"):
+        call_command("backup_instance", str(tmp_path / "out.bak"))
+
+
+def test_env_and_keyfile_passphrases_normalise_identically(tmp_path: Path) -> None:
+    """They did not: the env path stripped and the keyfile path did not, so the same
+    secret produced two different keys. With no escrow that is permanent data loss —
+    back up with one source, restore with the other, and the archive is gone."""
+    from core.management.commands.backup_instance import resolve_passphrase
+
+    keyfile = tmp_path / "key"
+    keyfile.write_text("a four word diceware phrase\n", encoding="utf-8")
+    keyfile.chmod(0o600)
+
+    from_file = resolve_passphrase({"passphrase_file": str(keyfile)})
+    import os as _os
+
+    _os.environ["BACKYARD_BACKUP_PASSPHRASE"] = "a four word diceware phrase\n"
+    try:
+        from_env = resolve_passphrase({})
+    finally:
+        del _os.environ["BACKYARD_BACKUP_PASSPHRASE"]
+    assert from_file == from_env == "a four word diceware phrase"
+
+
+def test_a_group_readable_keyfile_is_refused(tmp_path: Path) -> None:
+    from django.core.management.base import CommandError
+
+    from core.management.commands.backup_instance import resolve_passphrase
+
+    keyfile = tmp_path / "key"
+    keyfile.write_text("a four word diceware phrase", encoding="utf-8")
+    keyfile.chmod(0o644)
+    with pytest.raises(CommandError, match="readable by other users"):
+        resolve_passphrase({"passphrase_file": str(keyfile)})
+
+
+def test_a_binary_keyfile_fails_cleanly_without_disclosing_key_bytes(tmp_path: Path) -> None:
+    """`head -c 32 /dev/urandom > keyfile` is the obvious way to make a *keyfile*; it used
+    to die with a UnicodeDecodeError whose message printed a byte of the key."""
+    from django.core.management.base import CommandError
+
+    from core.management.commands.backup_instance import resolve_passphrase
+
+    keyfile = tmp_path / "key"
+    keyfile.write_bytes(bytes([0xFF, 0xFE, 0x00, 0x81]) * 8)
+    keyfile.chmod(0o600)
+    with pytest.raises(CommandError, match="not UTF-8 text") as caught:
+        resolve_passphrase({"passphrase_file": str(keyfile)})
+    assert "0x81" not in str(caught.value)
