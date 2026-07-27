@@ -36,9 +36,21 @@
               <button type="submit">Set role</button>
             </form>
           {% endif %}
-          <form method="post" action="{% url 'member_remove' row.member.id %}" class="inline">
+          {% comment %} S-702: removal asks what happens to their content, and the
+             answer is required. This used to be a bare Remove button, which silently
+             kept everything — a decision nobody was ever asked to make. {% endcomment %}
+          <form method="post" action="{% url 'member_remove' row.member.id %}" class="removal">
             {% csrf_token %}
-            <button type="submit" class="danger">Remove</button>
+            <fieldset>
+              <legend>Remove {{ row.member.display_name }} — what happens to their posts?</legend>
+              {% for value, label in content_choices %}
+                <label>
+                  <input type="radio" name="content" value="{{ value }}" required>
+                  {{ label }}
+                </label>
+              {% endfor %}
+            </fieldset>
+            <button type="submit" class="danger">Remove {{ row.member.display_name }}</button>
           </form>
         {% endif %}
       </li>
