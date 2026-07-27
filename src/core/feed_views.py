@@ -10,13 +10,15 @@ requires an explicit confirmation that names the audience and its member count.
 
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
@@ -32,6 +34,7 @@ from . import (
     profiles,
     reacting,
     scoping,
+    staged_uploads,
     transcoding,
 )
 from .models import MediaAsset, Member, Pod, Post, Reaction
@@ -55,6 +58,13 @@ _MAX_COMMENT = 2000
 # co-viewer's page (security review LOW-1). A real family thread never approaches
 # this; if one ever did, the newest replies within the cap still render.
 _MAX_THREAD = 500
+# One screenful of history at a time. The feed is chronological and it ENDS (P1) — but it
+# must end at the actual end, not at an arbitrary slice. Before this, the feed cut off at
+# 100 posts and still said "You are all caught up", so a family past that count lost every
+# earlier photograph from the UI while being told they had seen everything.
+_PAGE_SIZE = 100
+# Postgres bigint ceiling: a cursor id past this is not a real post, it is a probe.
+_MAX_POST_ID = 2**63 - 1
 
 
 @dataclass
@@ -81,9 +91,46 @@ def _acting_member(request: HttpRequest) -> Member:
 @login_required
 def feed(request: HttpRequest) -> HttpResponse:
     """The chronological feed that ends, plus the composer form. Opening the feed
-    advances the member's unread boundary (S-303)."""
+    advances the member's unread boundary (S-303).
+
+    Paging back through the archive is NOT "opening the feed", so a cursor request
+    leaves the unread boundary where it is: reading history must never silently mark
+    the new posts above it as seen.
+    """
     member = _acting_member(request)
-    return _render_feed(request, member, advance_seen=True)
+    cursor = _parse_cursor(request.GET.get("before"))
+    return _render_feed(request, member, advance_seen=cursor is None, cursor=cursor)
+
+
+def _parse_cursor(raw: str | None) -> tuple[datetime.datetime, int] | None:
+    """Decode a `before=<iso>_<id>` keyset cursor, or None for anything malformed.
+
+    Leniently: a mangled cursor shows page one rather than erroring. The cursor names
+    only a position in time, never an audience — the audience query below is unchanged,
+    so a forged cursor can reorder nothing and reveal nothing.
+    """
+    if not raw or "_" not in raw:
+        return None
+    stamp, _, post_id = raw.rpartition("_")
+    try:
+        moment = datetime.datetime.fromisoformat(stamp)
+    except ValueError:
+        return None
+    if timezone.is_naive(moment):
+        return None
+    # Let the parse decide, rather than str.isdigit(): isdigit() is true for every
+    # Numeric_Type=Digit codepoint (superscripts, subscripts) while int() accepts only
+    # Nd decimals, and int() additionally refuses strings past 4300 digits — so both
+    # divergences reached int() and returned a 500 on a one-click GET. Not _int either:
+    # that raises Http404, and a mangled cursor must degrade to page one, not 404 the
+    # member's own feed.
+    try:
+        last_id = int(post_id)
+    except ValueError:
+        return None
+    if last_id <= 0 or last_id > _MAX_POST_ID:
+        return None  # keeps a bignum out of the id__lt parameter
+    return (moment, last_id)
 
 
 def _render_feed(
@@ -92,6 +139,8 @@ def _render_feed(
     *,
     advance_seen: bool,
     errors: list[str] | None = None,
+    staged_handle: str | None = None,
+    cursor: tuple[datetime.datetime, int] | None = None,
 ) -> HttpResponse:
     """Render the feed: the member's visible posts newest-first, each marked as their
     own (and still editable) and as new-since-last-visit, with one unread boundary
@@ -104,10 +153,14 @@ def _render_feed(
 
     # Muted pods drop out of this member's feed only (S-205); the posts stay reachable
     # by direct link, so mute is a display choice, not an authorization change.
-    feed_posts = (
-        scoping.visible_posts(member)
-        .exclude(pod_id__in=pods.muted_pod_ids(member))
-        .select_related("author", "pod", "link_preview", "link_preview__image_asset")
+    visible = scoping.visible_posts(member).exclude(pod_id__in=pods.muted_pod_ids(member))
+    if cursor is not None:
+        # Keyset, not OFFSET: (created_at, id) strictly older than the cursor, so paging
+        # stays cheap and cannot skip or repeat a post when a new one lands mid-read.
+        moment, last_id = cursor
+        visible = visible.filter(Q(created_at__lt=moment) | Q(created_at=moment, id__lt=last_id))
+    page_query = (
+        visible.select_related("author", "pod", "link_preview", "link_preview__image_asset")
         .prefetch_related(
             Prefetch(
                 "media",
@@ -118,8 +171,13 @@ def _render_feed(
                 ),
                 to_attr="live_media",
             )
-        )[:100]
+        )
+        .order_by("-created_at", "-id")[: _PAGE_SIZE + 1]
     )
+    # One extra row is fetched purely to answer "is there more?" without a COUNT.
+    page = list(page_query)
+    has_older = len(page) > _PAGE_SIZE
+    feed_posts = page[:_PAGE_SIZE]
     items = [
         FeedItem(
             post=post,
@@ -151,8 +209,35 @@ def _render_feed(
             # exactly scoped to what they may act on.
             "is_moderator": permissions.is_admin(member),
             "errors": errors or [],
+            # The end-cap is only honest when the tail is genuinely reached; otherwise the
+            # member gets a way back into the archive instead of a false "all caught up".
+            "has_older": has_older,
+            "older_cursor": (
+                f"{feed_posts[-1].created_at.isoformat()}_{feed_posts[-1].id}"
+                if has_older and feed_posts
+                else None
+            ),
+            "is_archive_page": cursor is not None,
+            # Carried so a compose that bounced for correction keeps its uploads (the
+            # files themselves cannot survive the round trip; the handle can).
+            "staged_handle": staged_handle,
         },
     )
+
+
+@login_required
+def compose_cancel(request: HttpRequest) -> HttpResponse:
+    """Abandon a wide send and release its staged uploads immediately.
+
+    Cancel used to be a bare link back to the feed, so the photographs sat on disk until
+    the sweep collected them — and the compose comment claimed the cancel path released
+    them, which was simply untrue. POST, so a link prefetch cannot destroy an upload.
+    """
+    _acting_member(request)
+    if request.method != "POST":
+        raise Http404
+    staged_uploads.discard(request, request.POST.get("staged_uploads") or None)
+    return redirect("feed")
 
 
 @transaction.non_atomic_requests
@@ -194,6 +279,29 @@ def compose(request: HttpRequest) -> HttpResponse:
     # are best-effort and attached after creation.
     video_raws, video_errors = _validate_videos(request.FILES.getlist("videos"))
     errors.extend(video_errors)
+    photo_raws, media_notices = _read_photos(request.FILES.getlist("photos"))
+
+    # A second pass through the composer (the TM-3 confirmation) arrives with an EMPTY
+    # request.FILES — a plain form cannot carry files — so the bytes come back from
+    # staging instead. Claiming here, before the widening branch, means the cancel path
+    # below also releases them.
+    staged_handle = request.POST.get("staged_uploads") or None
+    if staged_handle:
+        claimed = staged_uploads.claim(request, staged_handle)
+        # The caps are re-applied to the MERGED list, not just to this request's upload.
+        # Without that, looping the error path (which re-stages every time) accumulated 20
+        # more photos per round onto one post — 20N photos, 4N clips, past every per-post
+        # ceiling, with every raw held in memory at once against a 768 MB container.
+        photo_raws = (claimed.photos + photo_raws)[:_MAX_PHOTOS]
+        video_raws = (claimed.videos + video_raws)[:_MAX_VIDEOS]
+        if claimed.missing:
+            # A claim that came up short is the original defect one boundary further on:
+            # the sweep can cross the TTL while the member hesitates over the confirmation.
+            # Say it rather than posting quietly without them.
+            media_notices.append(
+                f"{claimed.missing} upload{'s' if claimed.missing > 1 else ''} had expired "
+                "before you confirmed, so they were not added. Please attach them again."
+            )
 
     # TM-3: any audience broader than the poster's own pod (a yard send, or more
     # than one yard) must be explicitly confirmed with its name and member count.
@@ -201,6 +309,9 @@ def compose(request: HttpRequest) -> HttpResponse:
     confirmed = request.POST.get("confirm_wide") == "yes"
     if widening and not confirmed and not errors:
         reach = scoping.visible_members(member).filter(pods__yards__in=audience_yards).distinct()
+        # Hold the media server-side across the hop. Without this the confirmation page
+        # was where photos went to die: it is an ordinary form with no file inputs, so
+        # the re-POST carried nothing and the post was created empty.
         return render(
             request,
             "core/compose_confirm.html",
@@ -210,24 +321,41 @@ def compose(request: HttpRequest) -> HttpResponse:
                 "audience_yards": audience_yards,
                 "audience_names": ", ".join(y.name for y in audience_yards),
                 "member_count": reach.count(),
+                "staged_handle": staged_uploads.stage(
+                    request, photos=photo_raws, videos=video_raws
+                ),
+                "staged_photo_count": len(photo_raws),
+                "staged_video_count": len(video_raws),
             },
         )
 
-    if not errors:
-        post = posting.create_post(author=member, pod=pod, audience_yards=audience_yards, body=body)
-        # A link in the body gets a best-effort preview card, fetched on the WORKER (S-725,
-        # TS-CO-4): the SSRF-sensitive outbound fetch runs off the edge-facing web process,
-        # on the worker's own network segment. The card appears once the worker attaches it
-        # (like a video transcode); the post shows the bare link until then.
-        from .tasks import attach_link_preview
+    if errors:
+        # The compose is going back for correction and the bytes must not be lost in the
+        # meantime, so re-stage them and carry the handle through the re-rendered form.
+        return _render_feed(
+            request,
+            member,
+            advance_seen=False,
+            errors=errors,
+            staged_handle=staged_uploads.stage(request, photos=photo_raws, videos=video_raws),
+        )
 
-        attach_link_preview.defer(post_id=post.id)
-        _attach_photos(post, request.FILES.getlist("photos"))
-        _attach_videos(post, video_raws)
-        return redirect("feed")
+    post = posting.create_post(author=member, pod=pod, audience_yards=audience_yards, body=body)
+    # A link in the body gets a best-effort preview card, fetched on the WORKER (S-725,
+    # TS-CO-4): the SSRF-sensitive outbound fetch runs off the edge-facing web process,
+    # on the worker's own network segment. The card appears once the worker attaches it
+    # (like a video transcode); the post shows the bare link until then.
+    from .tasks import attach_link_preview
 
-    # Re-render the feed with the error (rare; the composer requires a body client-side).
-    return _render_feed(request, member, advance_seen=False, errors=errors)
+    attach_link_preview.defer(post_id=post.id)
+    media_notices.extend(_attach_photos(post, photo_raws))
+    _attach_videos(post, video_raws)
+    # Anything the post did NOT get is said out loud on the feed the member lands on.
+    # Silence here is the failure mode: a post appears, looks fine, and is missing photos
+    # nobody will ever mention.
+    for notice in media_notices:
+        messages.warning(request, notice)
+    return redirect("feed")
 
 
 @login_required
@@ -274,21 +402,65 @@ def delete_post(request: HttpRequest, post_id: int) -> HttpResponse:
     return render(request, "core/delete_confirm.html", {"post": post})
 
 
-def _attach_photos(post: Post, files: list[UploadedFile]) -> None:
-    """Re-encode and attach uploaded photos to a just-created post (S-401). Each file
-    is size-bounded and passed through the ingest gate (media.ingest_photo), which
-    strips metadata and rejects anything that does not decode to an allowed image. A
-    file too large or one that will not decode is dropped, not fatal to the post."""
+def _read_photos(files: list[UploadedFile]) -> tuple[list[bytes], list[str]]:
+    """Read uploaded photos into bounded raw bytes, and SAY what was dropped.
+
+    Every drop here used to be a silent `continue`: over the 20-per-post cap, over the
+    size ceiling, or undecodable. Someone selected 40 photos from a birthday, tapped
+    Post, watched the post appear, and 20 of them were simply gone — real family data
+    loss with a success message on top. HEIC makes it worse: the browser-canvas
+    conversion falls through to "let the server decide" when `createImageBitmap` fails,
+    and the server's decision was that same silent drop.
+
+    Reading happens BEFORE any post exists so the same bytes can be staged across the
+    TM-3 confirmation hop; the ingest gate still runs at attach time.
+    """
+    notices: list[str] = []
+    submitted = len(files)
+    if submitted > _MAX_PHOTOS:
+        dropped = submitted - _MAX_PHOTOS
+        notices.append(
+            f"{dropped} of your {submitted} photos could not be added — "
+            f"{_MAX_PHOTOS} is the limit for one post."
+        )
+    raws: list[bytes] = []
+    too_large = 0
     for uploaded in files[:_MAX_PHOTOS]:
         if uploaded.size is not None and uploaded.size > _MAX_PHOTO_BYTES:
-            continue  # fast path when the size is known
+            too_large += 1  # fast path when the size is known
+            continue
         raw = uploaded.read()
         if len(raw) > _MAX_PHOTO_BYTES:
-            continue  # backstop for an unknown size (security review LOW-2)
+            too_large += 1  # backstop for an unknown size (security review LOW-2)
+            continue
+        raws.append(raw)
+    if too_large:
+        notices.append(
+            f"{too_large} photo{'s were' if too_large > 1 else ' was'} too large to add "
+            f"({_MAX_PHOTO_BYTES // (1024 * 1024)} MB is the limit each)."
+        )
+    return raws, notices
+
+
+def _attach_photos(post: Post, raws: list[bytes]) -> list[str]:
+    """Re-encode and attach staged photo bytes to a just-created post (S-401).
+
+    Each passes the ingest gate (media.ingest_photo), which strips metadata and rejects
+    anything that does not decode to an allowed image. A rejection is not fatal to the
+    post — but it is now reported rather than dropped in silence.
+    """
+    rejected = 0
+    for raw in raws:
         try:
             media.ingest_photo(post=post, raw=raw)
         except media.MediaRejected:
-            continue
+            rejected += 1
+    if not rejected:
+        return []
+    return [
+        f"{rejected} photo{'s' if rejected > 1 else ''} could not be added — "
+        "the file was not a picture Backyard could read."
+    ]
 
 
 def _validate_videos(files: list[UploadedFile]) -> tuple[list[bytes], list[str]]:

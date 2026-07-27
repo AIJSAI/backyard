@@ -15,14 +15,17 @@ implementation, only a second driver over one implementation.
 from __future__ import annotations
 
 import datetime
+import logging
 
 from django.core.management import call_command
 from django.utils import timezone
 from procrastinate.contrib.django import app
 
-from . import digest_send
+from . import digest_send, staged_uploads
 from .metrics import rollup_week
 from .models import Yard
+
+logger = logging.getLogger(__name__)
 
 
 @app.periodic(cron="0 * * * *")  # hourly; the per-member cadence clock decides who is due
@@ -50,6 +53,25 @@ def clear_sessions_task(timestamp: int) -> None:
     """Purge expired db-session rows (threat model TS-DJ-1): db sessions never
     self-purge, so removed-member rows would otherwise accumulate."""
     call_command("clearsessions")
+
+
+@app.periodic(cron="45 * * * *")  # HOURLY: a daily sweep made a 6h TTL mean ~30h
+@app.task(name="sweep_staged_uploads")
+def sweep_staged_uploads_task(timestamp: int) -> None:
+    """Delete uploads abandoned at the confirm-on-widen step (TM-3).
+
+    Photos are staged server-side so a wide post cannot lose them across the confirmation
+    hop. A member who then closes the tab leaves family photographs on disk, and the
+    session purge above does not touch files — so this walks the staging directory by
+    mtime and collects anything past the TTL, including orphans whose session is long
+    gone.
+
+    Hourly, not daily: with a once-a-day cron a file staged just after the sweep lived
+    ~30 hours against a TTL that claims 6, so the documented guarantee was not the real
+    retention. The sweep is one iterdir over one directory."""
+    removed = staged_uploads.sweep()
+    if removed:
+        logger.info("swept %s abandoned staged upload(s)", removed)
 
 
 # The first enqueued (non-periodic) task: a video upload defers one of these with its
@@ -84,3 +106,25 @@ def attach_link_preview(post_id: int) -> None:
     if post is None:
         return  # deleted, or gone before the worker picked it up
     link_preview.attach_to_post(post)
+
+
+@app.task(name="notify_reply")
+def notify_reply_task(comment_id: int) -> None:
+    """Send the opt-in reply nudge for one comment (S-305), off the request path.
+
+    Carries only the id and re-resolves live (TS-DJ-11): the preference, the confirmed
+    and still-enabled subscription, and whether the replier is visible to the author are
+    all re-read now, so a comment deleted or a member removed between the reply and this
+    tick sends nothing.
+    """
+    from . import notifications
+    from .models import Comment
+
+    comment = (
+        Comment.objects.filter(pk=comment_id, deleted_at__isnull=True)
+        .select_related("author", "post", "post__author")
+        .first()
+    )
+    if comment is None:
+        return  # deleted before the worker picked it up
+    notifications.notify_reply(comment)
