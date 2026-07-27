@@ -116,3 +116,31 @@ def test_the_elder_surface_is_excluded_from_all_of_it() -> None:
     assert "{% extends" not in elder, "the elder page must stay standalone"
     for forbidden in ("<nav", "skip-link", 'rel="icon"', "Ask whoever in the family"):
         assert forbidden not in elder, f"{forbidden!r} must never appear on the elder page"
+
+
+def test_the_rail_refactor_did_not_hoist_a_gated_link_out_of_its_condition() -> None:
+    """The regression a markup refactor causes and a design review never catches.
+
+    The v3.1 layout wrapped each page's wayfinding in a rail element. On members.html
+    the "Family sides" link sits inside `{% if can_create_yard %}`; if the wrapper had
+    been opened above that conditional and closed below it, or the link nudged outside
+    while moving markup, an authorization-gated action would render for everyone. The
+    page would look identical either way.
+
+    Assert the gate still bites AND that nothing outside the rail gained a link.
+    """
+    import re
+
+    from django.template.loader import render_to_string
+
+    on = render_to_string("core/members.html", {"can_create_yard": True, "rows": []})
+    off = render_to_string("core/members.html", {"can_create_yard": False, "rows": []})
+    assert "Family sides" in on, "the gated link vanished entirely"
+    assert "Family sides" not in off, "an authz-gated link now renders for everyone"
+    # And it is inside the rail, not hoisted above it.
+    nav = on[on.index('<nav class="rail"') : on.index("</nav>")]
+    assert "Family sides" in nav
+    # Everything after the rail must be identical in both states.
+    assert re.findall(r'href="([^"]+)"', on.split("</nav>")[1]) == re.findall(
+        r'href="([^"]+)"', off.split("</nav>")[1]
+    ), "the gate changed something outside the rail"
