@@ -1,0 +1,13 @@
+{% extends "core/base.html" %}
+{% comment %} 404 — a NORMAL surface here: authorization denials answer 404 by
+   design (TM-2), so family members will see this after a revoked or expired
+   link. Calm, no blame, no technical words. {% endcomment %}
+{% block title %}Not here — Backyard{% endblock %}
+{% block body %}
+  <div style="text-align:center;padding:2.5rem 0">
+    <h1>There&rsquo;s nothing at this address</h1>
+    <p class="muted" style="margin:0 auto 0.4rem">The page may have moved, or the link may have expired or been revoked — expired family links land here too.</p>
+    <p class="muted" style="margin:0 auto 1.4rem">If someone sent you this link, ask them for a fresh one.</p>
+    <p><a class="btn" href="/">Go to your backyard</a></p>
+  </div>
+{% endblock %}

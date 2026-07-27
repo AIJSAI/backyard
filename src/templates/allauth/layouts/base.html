@@ -1,0 +1,30 @@
+{% extends "core/base.html" %}
+{% comment %} allauth layout bridge. All ~30 allauth pages inherit core/base.html's
+   design system through this file, which is why it lives at the project template
+   root: `core` sits after `allauth` in INSTALLED_APPS, so the app-dirs loader would
+   otherwise find the library's own unstyled layouts first.
+
+   `auth_shell` is the seam, and it is load-bearing. Every allauth leaf page
+   (account/login.html and friends) defines `content` itself, so a wrapper written
+   around `content` HERE would simply be replaced by that override — which is
+   exactly what happened on the first application of this design: the page inherited
+   the stylesheet but the entrance wrapper never rendered. Wrapping happens in
+   `auth_shell`, which no leaf defines, with `content` rendered inside it, so the
+   leaf's markup lands in the wrapper instead of replacing it.
+
+   `extra_head` and `extra_body` are NOT declared here on purpose — core/base.html
+   declares them, so inheritance carries a leaf's override straight through. They are
+   load-bearing: without them Django silently discards account/login.html's
+   `<form id="mfa_login">` and its WebAuthn scripts, leaving the passkey button
+   submitting to a form that does not exist.
+
+   LATENT, currently unreachable: allauth's account/base_confirm_code.html uses
+   `{% block title %}` for an in-page H1, and Django block names are flat across a
+   chain, so on those pages the leaf's `title` would win at both render sites and
+   `head_title` would go dead. Only reachable if LOGIN_BY_CODE_ENABLED or the
+   by-code verification/reset flags are enabled. If that happens, rename
+   core/base.html's document-title block to something namespaced. {% endcomment %}
+{% block title %}{% block head_title %}Backyard{% endblock %}{% endblock %}
+{% block body %}
+  {% block auth_shell %}{% block content %}{% endblock %}{% endblock %}
+{% endblock %}
