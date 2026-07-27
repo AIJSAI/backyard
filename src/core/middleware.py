@@ -32,7 +32,13 @@ from collections.abc import Callable
 from django.http import HttpRequest, HttpResponse
 
 # Token is IN the URL: suppress the Referer entirely.
-_TOKEN_URL_PREFIXES = ("/d/", "/t/")
+# /media/ joined this list when the digest surfaces began re-presenting their capability
+# as ?d=<token> on every image request: the URL now carries a live 21-day credential, and
+# serve_media only sets its own hygiene headers on the 200 path — both Http404 sites and
+# the append-slash 301 (whose Location echoes the whole URL back) escaped it entirely, so
+# a token-bearing denial was cacheable and indexable. /media/ hosts no forms, so
+# no-referrer is safe here for the same reason it is on /d/ and /t/.
+_TOKEN_URL_PREFIXES = ("/d/", "/t/", "/media/")
 # Elder session surface: no token in the URL, but hosts same-origin POST forms.
 _ELDER_SURFACE_PREFIX = "/e/"
 

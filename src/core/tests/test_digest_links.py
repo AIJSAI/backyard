@@ -274,19 +274,65 @@ def test_request_log_redaction_covers_the_404_paths() -> None:
     assert record.getMessage() == "Not Found: /directory/5/"
 
 
+def test_request_log_redaction_covers_query_string_tokens() -> None:
+    """A capability in a QUERY STRING must be redacted too.
+
+    The path pattern stops at `?` by construction, and the digest surfaces put their
+    token there: a page with no session has to re-present the capability on every image
+    request (/media/<t>/?d=<digest-token>). Without this, one emailed digest rendering
+    five photos wrote the live token to the log five times.
+    """
+    redactor = RedactCapabilityPaths()
+    for message in (
+        "Error handling request /media/mediatok/?d=DIGESTSECRET",
+        "Not Found: /media/mediatok/?d=DIGESTSECRET&foo=1",
+        "GET /feed/?d=DIGESTSECRET#frag",
+    ):
+        record = logging.LogRecord(
+            name="gunicorn.error",
+            level=logging.ERROR,
+            pathname=__file__,
+            lineno=1,
+            msg="%s",
+            args=(message,),
+            exc_info=None,
+        )
+        assert redactor.filter(record) is True
+        formatted = record.getMessage()
+        assert "DIGESTSECRET" not in formatted, formatted
+        assert "d=[redacted]" in formatted, formatted
+
+
 def test_settings_wire_the_redaction_filter() -> None:
-    """The LOGGING config attaches the filter to django.request and
-    django.security handlers; a future settings edit that drops it fails here."""
+    """The LOGGING config attaches the filter to every logger that can sink a
+    capability URL; a future settings edit that drops one fails here.
+
+    gunicorn.error is in this list because it is a SECOND sink that bypassed the filter:
+    it logs `Error handling request <raw request line>` on any unhandled exception, and
+    gunicorn sets propagate=False with its own handler, so neither the Django loggers nor
+    the root logger ever saw those records.
+    """
     from typing import Any, cast
 
     from django.conf import settings
 
     logging_config = cast(dict[str, Any], settings.LOGGING)
     assert "redact_capability_paths" in logging_config["filters"]
-    for logger_name in ("django.request", "django.security"):
-        handlers = logging_config["loggers"][logger_name]["handlers"]
-        for handler_name in handlers:
+    for logger_name in ("django.request", "django.security", "gunicorn.error"):
+        logger_config = logging_config["loggers"][logger_name]
+        assert logger_config["propagate"] is False
+        for handler_name in logger_config["handlers"]:
             assert "redact_capability_paths" in logging_config["handlers"][handler_name]["filters"]
+
+
+def test_the_live_gunicorn_error_logger_redacts() -> None:
+    """The wiring, not just the dict: the CONFIGURED logging tree must put the filter in
+    front of anything gunicorn.error emits. Asserting on settings.LOGGING alone would
+    still pass if dictConfig never applied it."""
+    logger = logging.getLogger("gunicorn.error")
+    assert logger.propagate is False
+    attached = [f for handler in logger.handlers for f in handler.filters]
+    assert any(isinstance(f, RedactCapabilityPaths) for f in attached), logger.handlers
 
 
 def test_hygiene_headers_cover_failure_shapes_too(world: World) -> None:

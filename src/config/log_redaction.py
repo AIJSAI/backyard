@@ -1,12 +1,17 @@
 """Token redaction for request logs (threat model TS-EDGE-LOG).
 
-Capability URLs put the credential in the path, and django.request logs paths:
+Capability URLs put the credential in the URL, and the log stream sees URLs:
 every expired or mistyped digest link would otherwise write a working (or
 nearly working) token into the log file, turning log access into content
-access. This filter rewrites any capability-route path segment before a record
-is emitted. It is attached to the handlers for django.request and
-django.security in settings.LOGGING, and the redaction happens on the fully
-formatted message so no arg-shape variant of the record slips through.
+access. This filter rewrites any capability-bearing URL before a record is
+emitted, and the redaction happens on the fully formatted message so no
+arg-shape variant of the record slips through.
+
+Two sinks, not one. django.request and django.security log the PATH of a 4xx.
+gunicorn.error logs the RAW REQUEST LINE — query string included — whenever a
+request raises, and it sets propagate=False with its own handler, so it saw
+none of this until settings.LOGGING named it explicitly. Both are attached to
+the redacting handler there; the settings wiring has its own guard.
 """
 
 from __future__ import annotations

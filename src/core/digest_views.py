@@ -15,17 +15,29 @@ revoked tokens are the guard's byte-identical 404 (T-TOKEN-2).
 
 from __future__ import annotations
 
+from django.db.models import Prefetch, prefetch_related_objects
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
 from . import digest_links, scoping
-from .models import DigestToken
+from .models import DigestToken, MediaAsset
 
 # A digest page truncating an absurd week beats an unbounded render on an
 # unauthenticated surface (#36 LOW-3); the feed uses the same posture.
 _MAX_POSTS = 500
 _MAX_COMMENTS = 500
+
+# The post's own gallery only: a LINK_PREVIEW asset is the card image, not an
+# uploaded photo (S-301). Mirrors feed_views so the two surfaces agree on what
+# "the photos on this post" means.
+_GALLERY = Prefetch(
+    "media",
+    queryset=MediaAsset.objects.filter(deleted_at__isnull=True).exclude(
+        media_kind=MediaAsset.LINK_PREVIEW
+    ),
+    to_attr="live_media",
+)
 
 
 def _resolve_or_respond(request: HttpRequest, raw_token: str) -> DigestToken | HttpResponse:
@@ -40,22 +52,6 @@ def _resolve_or_respond(request: HttpRequest, raw_token: str) -> DigestToken | H
         # the ask-your-family message. 410: honest "this link is done", and a
         # mail client prefetcher can never mistake it for live content.
         return render(request, "core/digest_link_expired.html", status=410)
-
-
-from django.db.models import Prefetch
-
-from .models import MediaAsset
-
-# The post's own gallery only: a LINK_PREVIEW asset is the card image, not an
-# uploaded photo (S-301). Mirrors feed_views so the two surfaces agree on what
-# "the photos on this post" means.
-_GALLERY = Prefetch(
-    "media",
-    queryset=MediaAsset.objects.filter(deleted_at__isnull=True).exclude(
-        media_kind=MediaAsset.LINK_PREVIEW
-    ),
-    to_attr="live_media",
-)
 
 
 @require_GET
@@ -93,10 +89,10 @@ def digest_post_view(request: HttpRequest, token: str, post_id: int) -> HttpResp
         return resolved
     post = scoping.require_visible_post(resolved.member, post_id)
     # Same gallery contract as the feed and the digest index, so a deep link from the
-    # email shows the photos the email said were there.
-    post = (
-        type(post).objects.filter(pk=post.pk).prefetch_related(_GALLERY).first() or post
-    )
+    # email shows the photos the email said were there. Prefetched onto the object the
+    # guard already returned rather than re-fetching it, so there is exactly one path
+    # through require_visible_post and no second query that could disagree with it.
+    prefetch_related_objects([post], _GALLERY)
     if not digest_links.issue_posts(resolved.issue).filter(pk=post.pk).exists():
         raise Http404
     comments = (

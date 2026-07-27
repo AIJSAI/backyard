@@ -9,7 +9,10 @@ unknown token.
 
 from __future__ import annotations
 
+import ast
+import datetime
 import io
+from pathlib import Path
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -19,8 +22,17 @@ from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
 
-from core import media, scoping
-from core.models import MediaAsset, Member, Pod, PodMembership, Post, Yard
+from core import digest_links, elder_tokens, media, scoping
+from core.models import (
+    DigestIssue,
+    DigestToken,
+    MediaAsset,
+    Member,
+    Pod,
+    PodMembership,
+    Post,
+    Yard,
+)
 
 pytestmark = pytest.mark.django_db
 User = get_user_model()
@@ -226,7 +238,6 @@ def test_an_elder_session_can_fetch_media_it_can_see_and_nothing_else(
     nothing outside it — the audience query is untouched, only the authentication path
     widened.
     """
-    from core import elder_tokens
     post = world["post"]
     assert isinstance(post, Post)
     asset = media.ingest_photo(post=post, raw=_jpeg_with_exif())
@@ -257,7 +268,6 @@ def test_revoking_an_elder_kills_her_media_access_mid_session(
     """ADR-003: the generation check is what revokes, not the TTL. A live session must
     stop fetching bytes the moment the member's generation is bumped, or a revoked
     elder link would keep serving family photos from a warm cookie."""
-    from core import elder_tokens
     post = world["post"]
     assert isinstance(post, Post)
     asset = media.ingest_photo(post=post, raw=_jpeg_with_exif())
@@ -271,6 +281,168 @@ def test_revoking_an_elder_kills_her_media_access_mid_session(
     elder.token_generation += 1
     elder.save(update_fields=["token_generation"])
     assert client.get(reverse("serve_media", args=[asset.token])).status_code == 404
+
+
+def _issue_for(member: Member, yard: Yard, *, days: int = 7) -> tuple[DigestIssue, str]:
+    """A digest issue whose window ends an hour out, plus its minted raw token."""
+    window_end = timezone.now() + datetime.timedelta(hours=1)
+    issue = DigestIssue.objects.create(
+        member=member,
+        yard=yard,
+        window_start=window_end - datetime.timedelta(days=days),
+        window_end=window_end,
+    )
+    return issue, digest_links.mint(issue)
+
+
+def test_a_digest_token_fetches_the_photos_its_own_issue_rendered(
+    world: dict[str, object],
+) -> None:
+    """The emailed deep link opens a page with no session, so every image on it
+    re-presents the capability as ?d=<token>. Without this the digest surfaces showed
+    captions and a photo count over a grid of broken images."""
+    post, maternal = world["post"], world["maternal"]
+    assert isinstance(post, Post) and isinstance(maternal, Yard)
+    pod_mate = world["pod_mate"]
+    assert isinstance(pod_mate, Member)
+    asset = media.ingest_photo(post=post, raw=_jpeg_with_exif())
+    _, raw = _issue_for(pod_mate, maternal)
+
+    url = reverse("serve_media", args=[asset.token])
+    assert Client().get(f"{url}?d={raw}").status_code == 200
+    # The token is the whole credential: without it the same URL is anonymous.
+    assert Client().get(url).status_code == 404
+    assert Client().get(f"{url}?d=never-was-a-token").status_code == 404
+
+
+def test_a_digest_token_cannot_fetch_media_outside_its_own_issue(
+    world: dict[str, object],
+) -> None:
+    """The capability ceiling, on the media path.
+
+    A digest token authenticates its member but must never widen into a general read
+    credential for that member's other yards and other weeks — digest_post_view has
+    always enforced that with the issue-slice check. The first cut of this feature ran
+    only `scoping.visible_media(member)` here, which is strictly wider than the page the
+    token was minted to render: one leaked link would have reached every photo that
+    member could see, ever. The narrowing now lives on Reader, so the ceiling travels
+    with the credential instead of waiting on each caller to remember it.
+    """
+    maternal, m_pod = world["maternal"], world["m_pod"]
+    author, pod_mate = world["author"], world["pod_mate"]
+    assert isinstance(maternal, Yard) and isinstance(m_pod, Pod)
+    assert isinstance(author, Member) and isinstance(pod_mate, Member)
+
+    # A post from BEFORE the issue window: same yard, same audience, fully visible to
+    # this member in the app — and deliberately outside what this token covers.
+    old_post = Post.objects.create(author=author, pod=m_pod, body="last month")
+    old_post.audience_yards.set([maternal])
+    old_asset = media.ingest_photo(post=old_post, raw=_jpeg_with_exif())
+    Post.objects.filter(pk=old_post.pk).update(
+        created_at=timezone.now() - datetime.timedelta(days=40)
+    )
+
+    _, raw = _issue_for(pod_mate, maternal)
+    url = reverse("serve_media", args=[old_asset.token])
+    assert Client().get(f"{url}?d={raw}").status_code == 404
+    # ...and the member's own session still reaches it, so this is the token's ceiling
+    # and not a change to what the member may see.
+    assert _client_for(pod_mate).get(url).status_code == 200
+
+
+def test_an_expired_or_revoked_digest_token_fetches_nothing(
+    world: dict[str, object],
+) -> None:
+    """Both failure shapes collapse to the same 404 as an unknown token: expiry and the
+    ADR-003 generation bump each end the link's media reach, not just its page."""
+    post, maternal = world["post"], world["maternal"]
+    assert isinstance(post, Post) and isinstance(maternal, Yard)
+    pod_mate = world["pod_mate"]
+    assert isinstance(pod_mate, Member)
+    asset = media.ingest_photo(post=post, raw=_jpeg_with_exif())
+    url = reverse("serve_media", args=[asset.token])
+
+    _, expiring = _issue_for(pod_mate, maternal)
+    assert Client().get(f"{url}?d={expiring}").status_code == 200
+    DigestToken.objects.all().update(expires_at=timezone.now() - datetime.timedelta(days=1))
+    assert Client().get(f"{url}?d={expiring}").status_code == 404
+
+    _, live = _issue_for(pod_mate, maternal)
+    assert Client().get(f"{url}?d={live}").status_code == 200
+    Member.objects.filter(pk=pod_mate.pk).update(token_generation=99)
+    assert Client().get(f"{url}?d={live}").status_code == 404
+
+
+def test_all_three_credential_free_surfaces_actually_render_the_photo(
+    world: dict[str, object],
+) -> None:
+    """The headline fix, asserted end-to-end on the RENDERED pages.
+
+    Every other test here proves `serve_media` will hand over the bytes when asked. None
+    of them proved anything ASKS. A template regression — a renamed prefetch attribute, a
+    dropped {% for %}, the wrong token — would leave the whole suite green while a
+    grandparent again sees a post with no picture on it, which is the exact failure this
+    wave exists to end.
+    """
+    post, maternal = world["post"], world["maternal"]
+    author, pod_mate, other = world["author"], world["pod_mate"], world["other"]
+    assert isinstance(post, Post) and isinstance(maternal, Yard)
+    assert isinstance(author, Member) and isinstance(pod_mate, Member)
+    assert isinstance(other, Member)
+    asset = media.ingest_photo(post=post, raw=_jpeg_with_exif())
+    media_url = reverse("serve_media", args=[asset.token])
+
+    # 1. The elder page: a token-only elder, no Django user at all.
+    elder = Member.objects.create(display_name="Elder Renderer")
+    PodMembership.objects.create(member=elder, pod=post.pod)
+    elder_client = Client()
+    elder_client.get(reverse("elder_enter", args=[elder_tokens.mint(elder)]))
+    elder_page = elder_client.get(reverse("elder_feed")).content.decode()
+    assert media_url in elder_page
+
+    # 2 and 3. Both digest surfaces, cookieless, each image re-presenting the capability.
+    _, raw = _issue_for(pod_mate, maternal)
+    for url in (
+        reverse("digest_web", args=[raw]),
+        reverse("digest_web_post", args=[raw, post.pk]),
+    ):
+        page = Client().get(url).content.decode()
+        assert f"{media_url}?d={raw}" in page, url
+
+    # The negative arm: a cross-yard elder's page must not carry that URL at all. Without
+    # this the assertions above would also pass on a template that rendered every asset.
+    stranger_yard = Yard.objects.create(name="Far side", slug="far-side-render")
+    stranger_pod = Pod.objects.create(name="Far house")
+    stranger_pod.yards.set([stranger_yard])
+    stranger = Member.objects.create(display_name="Far Elder")
+    PodMembership.objects.create(member=stranger, pod=stranger_pod)
+    stranger_client = Client()
+    stranger_client.get(reverse("elder_enter", args=[elder_tokens.mint(stranger)]))
+    assert media_url not in stranger_client.get(reverse("elder_feed")).content.decode()
+
+
+def test_serve_media_routes_every_audience_decision_through_reader() -> None:
+    """Drift guard: `serve_media` must never reach for `scoping` itself.
+
+    The ceiling a credential carries lives on `Reader.visible_media`. The first cut of
+    this view called `scoping.visible_media(member)` directly and so silently dropped the
+    digest issue-slice ceiling — the bug that mutation-testing caught. A future edit that
+    reintroduces a direct scoping call would reintroduce exactly that class of hole, and
+    this fails the build instead. Checked over the parsed IMPORTS, not the text, so the
+    module docstring stays free to describe the audience query in prose. Non-vacuous by
+    construction: the pre-fix module imported `scoping` and would fail here.
+    """
+    path = Path(__file__).resolve().parents[1] / "media_views.py"
+    tree = ast.parse(path.read_text())
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.Import):
+            imported.update(alias.name.split(".")[0] for alias in node.names)
+    assert "scoping" not in imported, "serve_media must resolve audience via Reader, not scoping"
+    assert "viewers" in imported
+    assert "reader.visible_media()" in path.read_text()
 
 
 def test_visible_media_scoping(world: dict[str, object]) -> None:

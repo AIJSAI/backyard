@@ -13,9 +13,11 @@
          logs by config/log_redaction. {% endcomment %}
       {% for m in post.live_media %}
         {% if m.media_kind == 'photo' %}
-          <img class="digest-photo" src="{% url 'serve_media' m.token %}?d={{ token }}" alt="{{ m.alt_text }}" loading="lazy">
+          <img class="digest-photo" src="{% url 'serve_media' m.token %}?d={{ token }}" loading="lazy"
+               alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ post.author.display_name }}{% endif %}">
         {% elif m.media_kind == 'video' and m.transcode_status == 'done' %}
-          <img class="digest-photo" src="{% url 'serve_media' m.thumbnail_token %}?d={{ token }}" alt="{{ m.alt_text }}" loading="lazy">
+          <img class="digest-photo" src="{% url 'serve_media' m.thumbnail_token %}?d={{ token }}" loading="lazy"
+               alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Still from a video shared by {{ post.author.display_name }}{% endif %}">
         {% endif %}
       {% endfor %}
       <p><a href="{% url 'digest_web_post' token post.id %}">See replies</a></p>

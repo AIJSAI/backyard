@@ -22,7 +22,7 @@
               <p class="clip-status">Processing this clip… it'll appear here shortly.</p>
             {% endif %}
           {% else %}
-            <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.thumbnail_token %}" alt="{{ m.alt_text }}" loading="lazy"></a>
+            <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.thumbnail_token %}" loading="lazy" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ post.author.display_name }}{% endif %}"></a>
           {% endif %}
         {% endfor %}
       </div>

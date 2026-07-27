@@ -86,7 +86,10 @@ def elder_feed(request: HttpRequest) -> HttpResponse:
             # the three replies invisible — the product's central promise undelivered on
             # the one surface it was written for.
             Prefetch("media", queryset=scoping.visible_attached_media(member)),
-            Prefetch("comments", queryset=scoping.visible_comments(member).select_related("author")),
+            Prefetch(
+                "comments",
+                queryset=scoping.visible_comments(member).select_related("author"),
+            ),
         )[:_MAX_POSTS]
     )
     my_reactions = {
