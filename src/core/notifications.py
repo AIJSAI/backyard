@@ -17,8 +17,9 @@ Four conditions, all required, all of them the guarantee rather than decoration:
 
 * the member opted in (default False — silence is the default and stays it),
 * the reply is on a post they wrote, and is not their own reply to themselves,
-* the address is one they CONFIRMED through the digest double opt-in (T-EMAIL-6), so a
-  nudge can never be the thing that mails an unverified address, and
+* the address is one they CONFIRMED through the digest double opt-in (T-EMAIL-6) and have
+  not since unsubscribed — both re-queried at send time, so the one-click unsubscribe an
+  address-only member holds silences this too, and
 * the replier is still someone that member can see, re-resolved live at send time.
 
 The mail carries no reply text and no photograph — only that someone replied, and a link
@@ -30,8 +31,10 @@ from __future__ import annotations
 
 import logging
 
-from . import emailing, scoping
-from .models import Comment, Member, NotificationPreference
+from django.urls import reverse
+
+from . import digesting, emailing, scoping
+from .models import Comment, DigestSubscription, Member, NotificationPreference
 
 logger = logging.getLogger(__name__)
 
@@ -64,11 +67,18 @@ def notify_reply(comment: Comment) -> bool:
     if not preference_for(author).notify_on_reply:
         return False  # the default, and the guarantee
 
-    subscription = getattr(author, "digest_subscription", None)
-    if subscription is None or subscription.confirmed_at is None:
-        # No confirmed address means no send. The digest double opt-in (T-EMAIL-6) is the
-        # only thing that verifies an address here, so a nudge never becomes the first
-        # message to an unverified inbox.
+    # Re-queried, not read off the cached relation: whether this member still wants mail
+    # is decided NOW. An instance carried in from the caller can hold a subscription
+    # loaded before an unsubscribe, and the whole point of these gates is that they
+    # reflect the member's most recent choice.
+    subscription = DigestSubscription.objects.filter(member=author).first()
+    if subscription is None or subscription.confirmed_at is None or not subscription.enabled:
+        # Three conditions, matching digest_send exactly. `enabled` is the one that was
+        # missing: unsubscribe() deliberately leaves confirmed_at intact and only flips
+        # enabled, so gating on confirmation alone meant the one-click unsubscribe in the
+        # digest silenced the digest and NOT this. For an address-only member — the elder
+        # the product is built around, who has no login to reach the settings page — that
+        # capability is their only lever, so the mail became unstoppable.
         return False
 
     # Re-resolved live rather than trusted from the comment row: if the replier has since
@@ -78,6 +88,11 @@ def notify_reply(comment: Comment) -> bool:
 
     who = comment.author.display_name
     url = emailing.absolute_url(f"/posts/{comment.post_id}/")
+    # Every message must carry its own way out. Without this the only lever was a settings
+    # page behind a login, which an address-only member does not have.
+    stop = emailing.absolute_url(
+        reverse("digest_unsubscribe", args=[digesting.rotate_unsubscribe_token(subscription)])
+    )
     try:
         emailing.send_family_email(
             to=subscription.address,
@@ -85,8 +100,7 @@ def notify_reply(comment: Comment) -> bool:
             text=(
                 f"{who} replied to your post on Backyard.\n\n"
                 f"Read it here: {url}\n\n"
-                "You are getting this because you turned on reply notifications. "
-                "You can turn them off any time in your settings."
+                f"Don't want these? Stop them here: {stop}"
             ),
         )
     except Exception:  # noqa: BLE001 - a courtesy must never fail the member's reply

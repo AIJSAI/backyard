@@ -63,6 +63,8 @@ _MAX_THREAD = 500
 # 100 posts and still said "You are all caught up", so a family past that count lost every
 # earlier photograph from the UI while being told they had seen everything.
 _PAGE_SIZE = 100
+# Postgres bigint ceiling: a cursor id past this is not a real post, it is a probe.
+_MAX_POST_ID = 2**63 - 1
 
 
 @dataclass
@@ -116,11 +118,19 @@ def _parse_cursor(raw: str | None) -> tuple[datetime.datetime, int] | None:
         return None
     if timezone.is_naive(moment):
         return None
-    # Parsed here rather than through _int, which raises Http404 on a bad value: a mangled
-    # cursor must degrade to page one, not 404 the member's own feed.
-    if not post_id.isdigit():
+    # Let the parse decide, rather than str.isdigit(): isdigit() is true for every
+    # Numeric_Type=Digit codepoint (superscripts, subscripts) while int() accepts only
+    # Nd decimals, and int() additionally refuses strings past 4300 digits — so both
+    # divergences reached int() and returned a 500 on a one-click GET. Not _int either:
+    # that raises Http404, and a mangled cursor must degrade to page one, not 404 the
+    # member's own feed.
+    try:
+        last_id = int(post_id)
+    except ValueError:
         return None
-    return (moment, int(post_id))
+    if last_id <= 0 or last_id > _MAX_POST_ID:
+        return None  # keeps a bignum out of the id__lt parameter
+    return (moment, last_id)
 
 
 def _render_feed(
@@ -215,6 +225,21 @@ def _render_feed(
     )
 
 
+@login_required
+def compose_cancel(request: HttpRequest) -> HttpResponse:
+    """Abandon a wide send and release its staged uploads immediately.
+
+    Cancel used to be a bare link back to the feed, so the photographs sat on disk until
+    the sweep collected them — and the compose comment claimed the cancel path released
+    them, which was simply untrue. POST, so a link prefetch cannot destroy an upload.
+    """
+    _acting_member(request)
+    if request.method != "POST":
+        raise Http404
+    staged_uploads.discard(request, request.POST.get("staged_uploads") or None)
+    return redirect("feed")
+
+
 @transaction.non_atomic_requests
 @login_required
 def compose(request: HttpRequest) -> HttpResponse:
@@ -262,9 +287,21 @@ def compose(request: HttpRequest) -> HttpResponse:
     # below also releases them.
     staged_handle = request.POST.get("staged_uploads") or None
     if staged_handle:
-        claimed_photos, claimed_videos = staged_uploads.claim(request, staged_handle)
-        photo_raws = claimed_photos + photo_raws
-        video_raws = claimed_videos + video_raws
+        claimed = staged_uploads.claim(request, staged_handle)
+        # The caps are re-applied to the MERGED list, not just to this request's upload.
+        # Without that, looping the error path (which re-stages every time) accumulated 20
+        # more photos per round onto one post — 20N photos, 4N clips, past every per-post
+        # ceiling, with every raw held in memory at once against a 768 MB container.
+        photo_raws = (claimed.photos + photo_raws)[:_MAX_PHOTOS]
+        video_raws = (claimed.videos + video_raws)[:_MAX_VIDEOS]
+        if claimed.missing:
+            # A claim that came up short is the original defect one boundary further on:
+            # the sweep can cross the TTL while the member hesitates over the confirmation.
+            # Say it rather than posting quietly without them.
+            media_notices.append(
+                f"{claimed.missing} upload{'s' if claimed.missing > 1 else ''} had expired "
+                "before you confirmed, so they were not added. Please attach them again."
+            )
 
     # TM-3: any audience broader than the poster's own pod (a yard send, or more
     # than one yard) must be explicitly confirmed with its name and member count.

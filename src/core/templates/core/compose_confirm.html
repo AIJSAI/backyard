@@ -32,5 +32,9 @@
     <button type="submit">Yes, share with {{ audience_names }}</button>
   </form>
 
-  <p><a href="{% url 'feed' %}">Cancel</a></p>
+  <form method="post" action="{% url 'compose_cancel' %}">
+    {% csrf_token %}
+    {% if staged_handle %}<input type="hidden" name="staged_uploads" value="{{ staged_handle }}">{% endif %}
+    <button type="submit" class="linkish">Cancel</button>
+  </form>
 {% endblock %}

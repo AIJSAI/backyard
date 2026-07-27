@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import pytest
 from django.core import mail
+from django.db import connection
 from django.utils import timezone
 
 from core import commenting, emailing, notifications
@@ -44,9 +45,18 @@ def _opt_in(member: Member, *, confirmed: bool = True) -> DigestSubscription:
 
 
 def _reply(world: dict[str, object], body: str = "Lovely!") -> None:
+    """Create the reply, then run the nudge the way the worker does.
+
+    The send is deferred to the worker on commit (a synchronous SMTP conversation inside
+    the member's write transaction could cost them the reply when gunicorn times out), so
+    these tests drive `notify_reply` directly — the same function the task calls, with the
+    same live re-resolution. `test_create_comment_defers_the_nudge_and_never_sends_inline`
+    below is what pins the wiring between the two.
+    """
     replier, post = world["replier"], world["post"]
     assert isinstance(replier, Member) and isinstance(post, Post)
-    commenting.create_comment(author=replier, post=post, body=body)
+    comment = commenting.create_comment(author=replier, post=post, body=body)
+    notifications.notify_reply(comment)
 
 
 def test_an_opted_in_author_is_told_when_someone_replies(world: dict[str, object]) -> None:
@@ -100,6 +110,39 @@ def test_an_unconfirmed_address_is_never_mailed(world: dict[str, object]) -> Non
     assert mail.outbox == []
 
 
+def test_an_unsubscribed_address_is_never_nudged(world: dict[str, object]) -> None:
+    """The one-click unsubscribe in the digest must silence THIS too.
+
+    unsubscribe() deliberately leaves confirmed_at intact and only flips `enabled`, so
+    gating on confirmation alone meant the capability stopped the digest and not the
+    nudge. For an address-only member — the elder with no login to reach the settings
+    page — that link is the only lever they have, so the mail became unstoppable.
+    """
+    from core import digesting
+
+    author = world["author"]
+    assert isinstance(author, Member)
+    subscription = _opt_in(author)
+    raw = digesting.rotate_unsubscribe_token(subscription)
+    digesting.unsubscribe(raw)
+    mail.outbox.clear()
+
+    _reply(world)
+
+    assert mail.outbox == []
+
+
+def test_the_nudge_carries_its_own_way_out(world: dict[str, object]) -> None:
+    """Every message must carry an unsubscribe route. Without one the only lever was a
+    settings page behind a login, which an address-only member does not have."""
+    author = world["author"]
+    assert isinstance(author, Member)
+    _opt_in(author)
+    mail.outbox.clear()
+    _reply(world)
+    assert "/digest/unsubscribe/" in mail.outbox[0].body
+
+
 def test_no_address_at_all_is_not_an_error(world: dict[str, object]) -> None:
     """Opted in, but never subscribed to the digest: nothing to send to, and the reply
     itself must still succeed."""
@@ -117,7 +160,8 @@ def test_replying_to_yourself_is_not_news(world: dict[str, object]) -> None:
     assert isinstance(author, Member) and isinstance(post, Post)
     _opt_in(author)
     mail.outbox.clear()
-    commenting.create_comment(author=author, post=post, body="adding one more thing")
+    comment = commenting.create_comment(author=author, post=post, body="adding one more thing")
+    notifications.notify_reply(comment)
     assert mail.outbox == []
 
 
@@ -161,3 +205,34 @@ def test_the_preference_model_still_grows_no_firehose(world: dict[str, object]) 
     fields = {f.name for f in NotificationPreference._meta.get_fields()}
     assert "notify_on_reply" in fields
     assert not {f for f in fields if f.startswith("notify_") and f != "notify_on_reply"}
+
+
+def test_create_comment_defers_the_nudge_and_never_sends_inline(
+    world: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The wiring, pinned: create_comment must DEFER, not send.
+
+    An inline send ran a whole SMTP conversation inside the member's open write
+    transaction (ATOMIC_REQUESTS). EMAIL_TIMEOUT bounds each socket operation but not
+    their sum, so a degraded mail server outruns gunicorn's timeout, the worker is killed
+    mid-view, the transaction rolls back — and the member loses the reply they wrote.
+    Deferring on commit also stops mail going out for a comment that never committed.
+    """
+    from core import tasks
+
+    author, replier, post = world["author"], world["replier"], world["post"]
+    assert isinstance(author, Member) and isinstance(replier, Member)
+    assert isinstance(post, Post)
+    _opt_in(author)
+    mail.outbox.clear()
+
+    deferred: list[int] = []
+    monkeypatch.setattr(
+        tasks.notify_reply_task, "defer", lambda **kw: deferred.append(kw["comment_id"])
+    )
+    comment = commenting.create_comment(author=replier, post=post, body="Lovely!")
+    for callback in connection.run_on_commit:
+        callback[1]()
+
+    assert deferred == [comment.pk]  # queued for the worker...
+    assert mail.outbox == []  # ...and nothing sent from the request itself

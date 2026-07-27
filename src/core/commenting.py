@@ -12,6 +12,7 @@ invariant. Delete is author-only and soft, mirroring the post lifecycle.
 from __future__ import annotations
 
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.utils import timezone
 
 from . import scoping
@@ -38,11 +39,19 @@ def create_comment(*, author: Member, post: Post, body: str, via_email: bool = F
     comment = Comment.objects.create(author=author, post=post, body=body, via_email=via_email)
     # Fired here rather than at the two call sites (the web composer and the inbound-email
     # path), so the one opt-in cannot be honoured on one route and forgotten on the other,
-    # and a future third route gets it for free. notify_reply itself decides whether
-    # anything is sent; the default is silence.
-    from . import notifications
+    # and a future third route gets it for free.
+    #
+    # Deferred to the WORKER, on commit, and never run inline. ATOMIC_REQUESTS wraps the
+    # view, so an inline send held the member's write transaction open across a whole SMTP
+    # conversation: EMAIL_TIMEOUT bounds each socket operation but not the sum, so a
+    # degraded mail server outruns gunicorn's timeout, the worker is killed mid-view, the
+    # transaction rolls back and the member LOSES THE REPLY THEY WROTE. on_commit also
+    # fixes the ordering — mail for a comment that never committed — and keeps the
+    # edge-facing web process free of outbound connections, the same rule that put the
+    # link-preview fetch on the worker (S-725, TS-CO-4).
+    from .tasks import notify_reply_task
 
-    notifications.notify_reply(comment)
+    transaction.on_commit(lambda: notify_reply_task.defer(comment_id=comment.pk))
     return comment
 
 
