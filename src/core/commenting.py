@@ -35,7 +35,15 @@ def create_comment(*, author: Member, post: Post, body: str, via_email: bool = F
     """
     if not scoping.visible_posts(author).filter(id=post.id).exists():
         raise CommentNotAllowed("You can only comment on a post you can see.")
-    return Comment.objects.create(author=author, post=post, body=body, via_email=via_email)
+    comment = Comment.objects.create(author=author, post=post, body=body, via_email=via_email)
+    # Fired here rather than at the two call sites (the web composer and the inbound-email
+    # path), so the one opt-in cannot be honoured on one route and forgotten on the other,
+    # and a future third route gets it for free. notify_reply itself decides whether
+    # anything is sent; the default is silence.
+    from . import notifications
+
+    notifications.notify_reply(comment)
+    return comment
 
 
 def delete_comment(*, actor: Member, comment: Comment) -> None:
