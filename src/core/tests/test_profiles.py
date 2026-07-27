@@ -157,6 +157,7 @@ def test_profile_edit_saves_fields(world: World) -> None:
     response = _client_for(world.author).post(
         reverse("profile_edit"),
         {
+            "display_name": "Nina",
             "kinship_name": "Papa",
             "birthday_month": "3",
             "birthday_day": "5",
@@ -186,7 +187,7 @@ def test_profile_edit_rejects_a_half_birthday(world: World) -> None:
 def test_profile_edit_defaults_an_unknown_visibility_to_hidden(world: World) -> None:
     response = _client_for(world.author).post(
         reverse("profile_edit"),
-        {"phone": "555-0000", "phone_visibility": "everyone"},  # not a real choice
+        {"display_name": "Nina", "phone": "555-0000", "phone_visibility": "everyone"},
     )
     assert response.status_code == 302
     world.author.refresh_from_db()
