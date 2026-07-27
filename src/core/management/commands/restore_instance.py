@@ -7,12 +7,15 @@ point at a fresh box or a drill scratch DB and hard to fire by accident.
 
 from __future__ import annotations
 
+import tarfile
+import tempfile
 from pathlib import Path
 from typing import Any
 
 from django.core.management.base import BaseCommand, CommandError
 
-from core import backups
+from core import backup_crypto, backups
+from core.management.commands.backup_instance import resolve_passphrase
 
 
 class Command(BaseCommand):
@@ -20,6 +23,23 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser: Any) -> None:
         parser.add_argument("archive", help="Path to the backup archive to restore.")
+        parser.add_argument(
+            "--allow-plaintext",
+            action="store_true",
+            help=(
+                "Restore an UNENCRYPTED archive even though a passphrase is configured. "
+                "Such an archive has no integrity protection; only use it on one whose "
+                "provenance you are certain of."
+            ),
+        )
+        parser.add_argument(
+            "--passphrase-file",
+            help=(
+                "File holding the decryption passphrase. Defaults to the "
+                "BACKYARD_BACKUP_PASSPHRASE environment variable. Only needed for an "
+                "encrypted archive; a plaintext one restores without it."
+            ),
+        )
         parser.add_argument(
             "--force",
             action="store_true",
@@ -32,8 +52,40 @@ class Command(BaseCommand):
             raise CommandError(f"backup archive not found: {archive}")
         try:
             with archive.open("rb") as source:
-                replay = backups.restore_backup(source, force=bool(options["force"]))
-        except backups.BackupError as exc:
+                head = source.read(len(backup_crypto.MAGIC))
+                source.seek(0)
+                encrypted = backup_crypto.is_encrypted(head)
+                configured = resolve_passphrase(options)
+                if not encrypted and configured is not None and not options["allow_plaintext"]:
+                    # The backup side refuses to WRITE plaintext without an explicit flag;
+                    # without this the restore side would happily READ it. A plaintext
+                    # archive carries no integrity protection at all, and restore feeds its
+                    # dump to pg_restore as the DDL role — "equivalent to handing its author
+                    # a shell on the box". So an attacker who can write to the backup
+                    # directory (the mis-scoped bind mount this feature exists to defend
+                    # against) could swap in their own tar and be restored without a word.
+                    raise CommandError(
+                        "this archive is NOT encrypted, but a backup passphrase is "
+                        "configured. It carries no integrity protection, and restoring it "
+                        "runs its contents against the database as the migrator role. "
+                        "Pass --allow-plaintext only if you are certain of its provenance."
+                    )
+                if encrypted:
+                    passphrase = configured
+                    if passphrase is None:
+                        raise CommandError(
+                            "this archive is encrypted; set BACKYARD_BACKUP_PASSPHRASE or "
+                            "pass --passphrase-file to restore it."
+                        )
+                    # Decrypted to a temp file rather than memory: a family instance's
+                    # media does not have to fit in RAM to be restorable.
+                    with tempfile.TemporaryFile() as plain:
+                        backup_crypto.decrypt(source, plain, passphrase)
+                        plain.seek(0)
+                        replay = backups.restore_backup(plain, force=bool(options["force"]))
+                else:
+                    replay = backups.restore_backup(source, force=bool(options["force"]))
+        except (backups.BackupError, backup_crypto.BackupCryptoError, tarfile.TarError) as exc:
             raise CommandError(str(exc)) from exc
         self.stdout.write(f"instance restored from {archive}")
         self._print_security_replay(replay)
