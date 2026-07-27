@@ -20,8 +20,13 @@ import io
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from PIL import Image, ImageDraw
 
-_THEME = "#234a78"  # Backyard navy (design system v2)
-_BG = "#f7f8f9"  # cool near-white ground
+# Design v3 "Signage". These were still the v2 navy (#234a78) and its cool near-white
+# ground after the founder REJECTED v2 and the whole app moved to sign green — so
+# installing the PWA gave a home-screen icon and a splash screen matching nothing in the
+# product, which is the one surface a member looks at every day without opening the app.
+# Kept in sync with base.html's --green and --paper by test_pwa.
+_THEME = "#1e5c46"  # --green, sign green (7.63:1 on paper)
+_BG = "#fbfcfb"  # --paper
 
 
 def manifest(request: HttpRequest) -> JsonResponse:
@@ -54,7 +59,7 @@ def manifest(request: HttpRequest) -> JsonResponse:
 
 def _render_icon(size: int, *, maskable: bool) -> bytes:
     """The Homestead mark (design system v2): a light house with an arched door on a
-    navy rounded field. Deterministic, no binary in the tree. A maskable icon keeps
+    green rounded field. Deterministic, no binary in the tree. A maskable icon keeps
     its content inside the center safe zone so a launcher mask cannot clip it. Traces
     the handoff app-icon path (§6) in a 24-unit box whose 2..22 field maps to the
     padded rounded rectangle."""
@@ -72,7 +77,7 @@ def _render_icon(size: int, *, maskable: bool) -> bytes:
 
     # A light house pentagon: apex, right eave, right base, left base, left eave.
     draw.polygon([m(12, 6), m(17.4, 10.8), m(17.4, 17.6), m(6.6, 17.6), m(6.6, 10.8)], fill=_BG)
-    # An arched door cut back to the navy field: a rectangle body + a half-disc arch.
+    # An arched door cut back to the green field: a rectangle body + a half-disc arch.
     dl, dtop = m(10.6, 14)
     dr, dbot = m(13.4, 17.6)
     draw.rectangle([dl, dtop, dr, dbot], fill=_THEME)
