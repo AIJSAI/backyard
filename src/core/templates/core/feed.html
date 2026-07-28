@@ -6,19 +6,16 @@
      keeps a prose measure while the wide viewport carries the secondary links. Below
      that breakpoint the rail is just markup in flow and reads exactly as before.
      A page with no aside.rail automatically gets the single centred well. {% endcomment %}
-  <aside class="rail">
-    <nav aria-label="Elsewhere in your backyard">
-      <p><a href="{% url 'pod_list' %}">Your pods</a> · <a href="{% url 'directory' %}">Family directory</a></p>
-    </nav>
-
-    {% if todays_dates %}
-      <div class="date-banner">
-        {% for d in todays_dates %}
-          <p>Today is {{ d.display_name }}{% if d.kinship_name %} ({{ d.kinship_name }}){% endif %}&rsquo;s {{ d.kind }}.</p>
-        {% endfor %}
-      </div>
-    {% endif %}
-  </aside>
+  {% comment %} The quiet on-the-day banner (S-903). It used to sit in a margin rail
+     alongside two nav links; the links moved to the header, so what is left is a single
+     piece of genuinely complementary content and it reads better in flow. {% endcomment %}
+  {% if todays_dates %}
+    <aside class="date-banner" aria-label="Today">
+      {% for d in todays_dates %}
+        <p>Today is {{ d.display_name }}{% if d.kinship_name %} ({{ d.kinship_name }}){% endif %}&rsquo;s {{ d.kind }}.</p>
+      {% endfor %}
+    </aside>
+  {% endif %}
 
   {% if errors %}
     <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>

@@ -91,6 +91,14 @@
   --font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   --measure:      40rem;
+  /* The width a FORM sits at. Prose gets --measure; controls get this. Separate
+     tokens because a 900px-wide text input is a different mistake from a
+     900px-wide paragraph, and only one of them is about reading. */
+  --field-measure: 32rem;
+  /* One shell width for header, main and footer. They used to differ (72rem vs
+     56rem), so the brand never lined up with the content beneath it — the single
+     biggest reason desktop read as "nothing is centred". */
+  --shell:        46rem;
   --step:         1rem;
 }
 
@@ -214,8 +222,29 @@ header.site { background: var(--green); border-bottom: 1px solid var(--green-dee
 
 header.site .wrap,
 main.wrap,
-footer.site .wrap { width: 100%; max-width: var(--measure); margin: 0 auto; padding: 0 1.25rem; }
-header.site .wrap { display: flex; align-items: center; min-height: 3.6rem; }
+footer.site .wrap { width: 100%; max-width: var(--shell); margin: 0 auto; padding: 0 1.25rem; }
+header.site .wrap { display: flex; align-items: center; gap: 1rem; min-height: 3.6rem; }
+/* Wayfinding belongs in the header, where a person looks for it — not marooned in a
+   margin. The old .rail held two links in a 19rem column, which at 1440 left a third of
+   the screen empty and made the whole composition sit left. */
+header.site nav.site-nav { margin-left: auto; display: flex; flex-wrap: wrap; gap: 0.25rem 1.1rem; }
+/* The header keeps a GREEN ground in light mode and a tinted one in dark, so its text
+   colour follows the brand's treatment rather than --ink. Colouring these with --ink
+   put dark text on the dark-green bar: axe caught it at 3 nodes per page, light mode
+   only. Same override chain as .brand so a manual theme choice still wins. */
+header.site nav.site-nav a { color: #ffffff; font-size: 0.94rem; font-weight: 700;
+  text-decoration: none; padding: 0.35rem 0; border-bottom: 2px solid transparent; }
+header.site nav.site-nav a:hover,
+header.site nav.site-nav a[aria-current="page"] { border-bottom-color: currentColor; }
+@media (prefers-color-scheme: dark) {
+  header.site nav.site-nav a { color: var(--ink); }
+  header.site nav.site-nav a:hover,
+  header.site nav.site-nav a[aria-current="page"] { color: var(--green); }
+}
+:root[data-theme="light"] header.site nav.site-nav a { color: #ffffff; }
+:root[data-theme="dark"] header.site nav.site-nav a { color: var(--ink); }
+:root[data-theme="dark"] header.site nav.site-nav a:hover,
+:root[data-theme="dark"] header.site nav.site-nav a[aria-current="page"] { color: var(--green); }
 
 .brand {
   display: inline-flex; align-items: baseline; gap: 0.55rem;
@@ -255,20 +284,71 @@ footer.site .help { font-weight: 700; }
    the <aside> that also carries the genuinely complementary date banner. */
 .rail nav { margin: 0; }
 .rail nav > p:last-child, nav.rail > p:last-child { margin-bottom: 0; }
+/* A .rail now carries a page's OWN actions ("Invite a household", "Export my data"),
+   not global navigation — that moved to the header. So it reads as an action bar
+   directly under the heading, which is where a person looks for what they can do here. */
+nav.rail {
+  margin: 0 0 1.75rem; padding: 0.7rem 0.95rem;
+  background: var(--surface); border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm); font-size: 0.94rem;
+}
+nav.rail p { margin: 0; }
+/* The date banner is complementary content, not an action bar. */
+aside.date-banner {
+  margin: 0 0 1.75rem; padding: 0.7rem 0.95rem;
+  background: var(--green-tint); border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+aside.date-banner p:last-child { margin-bottom: 0; }
 
 /* ---- forms ------------------------------------------------------------------
    Control borders use --line-strong (>=3:1) — the SC 1.4.11 fix. */
-label { display: block; margin: 1rem 0 0.35rem; font-weight: 700; color: var(--ink); font-size: 0.92rem; }
+label { display: block; margin: 0 0 0.35rem; font-weight: 700; color: var(--ink); font-size: 0.92rem; }
 label.inline-check { display: flex; align-items: baseline; gap: 0.55rem; font-weight: 400; margin: 0.5rem 0; font-size: 1rem; }
 input, select, textarea {
-  width: 100%; font: inherit; color: var(--ink);
+  /* Capped, not full-bleed. A pod-name field spanning 900px reads as a mistake and
+     gives the eye no anchor; forms sit at a form's measure, prose at prose's. */
+  /* Block, so each field owns its line. While inputs were 100%-wide this was implicit;
+     capping the measure left room beside them and a following submit button slid up onto
+     the same row, reading as if it belonged to that one field. */
+  display: block;
+  width: 100%; max-width: var(--field-measure); font: inherit; color: var(--ink);
   background: var(--surface);
   padding: 0.7rem 0.75rem;
   min-height: 48px;
+  /* The RHYTHM lives on the control, not on the next label. It used to live entirely in
+     `label { margin-top: 1rem }`, so any field NOT followed by a label — the last one
+     before a submit button, or a placeholder-only input — collided with whatever came
+     next. That is why "Create pod" sat flush against "House rule (optional)". */
+  margin: 0 0 1.1rem;
   border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm);
 }
-input[type=checkbox], input[type=radio] { width: auto; min-width: 1.2rem; min-height: 1.2rem; accent-color: var(--green); }
-input[type=file] { padding: 0.55rem; background: var(--surface-sunk); }
+/* Inside a bordered card or fieldset the control fills its container: a field capped
+   well short of the card it sits in leaves a band of dead space and makes the card look
+   broken. The cap is for BARE pages, where nothing else bounds the field. */
+.composer input, .composer select, .composer textarea,
+fieldset input, fieldset select, fieldset textarea,
+.card input, .card select, .card textarea,
+.composer fieldset, .card fieldset { max-width: none; }
+/* A label belongs to the control beneath it, so the gap goes ABOVE the pair. */
+label + input, label + select, label + textarea { margin-top: 0; }
+* + label { margin-top: 1.35rem; }
+/* A submit never touches the field above it. */
+form > button, form > input[type=submit], form > .btn,
+fieldset + button, fieldset + input[type=submit] { margin-top: 0.5rem; }
+input[type=checkbox], input[type=radio] { display: inline-block; width: auto; max-width: none;
+  min-width: 1.2rem; min-height: 1.2rem; margin: 0; accent-color: var(--green); }
+/* The native file control renders as a grey OS button and unstyled "No file chosen"
+   text — the one place the design system stopped at the edge of the browser's default.
+   Style the button part so it reads as ours. */
+input[type=file] { padding: 0.5rem; background: var(--surface-sunk); cursor: pointer; }
+input[type=file]::file-selector-button {
+  font: inherit; font-weight: 700; cursor: pointer;
+  margin-right: 0.75rem; padding: 0.45rem 0.9rem;
+  color: var(--green); background: var(--surface);
+  border: 1.5px solid var(--green); border-radius: var(--radius-sm);
+}
+input[type=file]::file-selector-button:hover { background: var(--green-tint); }
 input::placeholder, textarea::placeholder { color: var(--ink-soft); opacity: 1; }
 input:focus, select:focus, textarea:focus { border-color: var(--green); }
 textarea { resize: vertical; min-height: 3.2rem; }
@@ -278,7 +358,8 @@ select { appearance: none; -webkit-appearance: none;
   background-position: right 1rem center, right 0.75rem center;
   background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 2rem; }
 
-fieldset { border: 1.5px solid var(--line); border-radius: var(--radius-sm); margin: 1rem 0 0; padding: 0.5rem 0.9rem 0.9rem; }
+fieldset { border: 1.5px solid var(--line); border-radius: var(--radius-sm);
+  max-width: var(--field-measure); margin: 0 0 1.1rem; padding: 0.5rem 0.9rem 0.9rem; }
 legend { font-weight: 700; padding: 0 0.4rem; color: var(--ink); font-size: 0.92rem; }
 
 /* ---- buttons ---------------------------------------------------------------- */
@@ -305,6 +386,20 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 button.danger, .inline button.danger, .btn-danger {
   background: var(--surface); color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+}
+/* A moderator's takedown control sat in a red outlined pill under EVERY post in the
+   feed — for an instance admin that made the loudest thing on a page of family
+   photographs the button that destroys one. The principle is "we ship rooms, not
+   referees": in a post's action row it reads as a quiet link like its neighbours, keeps
+   the danger colour and the x, and only becomes a bordered control on the thread page
+   where the act is deliberate. Hit area is preserved via padding, not a border. */
+.actions button.danger {
+  background: none; border-color: transparent; padding-left: 0; padding-right: 0.6rem;
+  min-height: 44px; font-size: 0.94rem;
+}
+.actions button.danger:hover {
+  background: none; border-color: transparent; color: var(--danger);
+  text-decoration: underline; text-underline-offset: 3px;
 }
 button.danger:hover, .btn-danger:hover { background: var(--danger-tint); color: var(--danger); border-color: var(--danger); }
 /* Non-colour cue: destructive carries a leading x beyond colour + wording. */
@@ -617,29 +712,21 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
 
 /* ---- md: 64rem — the two-region information design ------------------------- */
 @media (min-width: 64rem) {
-  header.site .wrap, footer.site .wrap { max-width: 72rem; }
   main.wrap {
-    max-width: 72rem;
-    display: grid;
-    grid-template-columns: minmax(0, 44rem) 19rem;   /* reading well + rail */
-    column-gap: 4rem;
-    justify-content: center;
-    align-items: start;
+    /* ONE centred well. The previous two-region grid put a 19rem rail beside the
+       content to hold two links; at 1440 that read as a third of the page left blank
+       and pushed the whole composition off-centre. The links now live in the header,
+       which is both where people look for navigation and honest about how little
+       navigation this product has. */
+    display: block;
+    padding-top: 2.25rem;
   }
-  main.wrap > * { grid-column: 1; min-width: 0; }
+  main.wrap > * { min-width: 0; }
   /* The signpost rail: server-rendered .rail holding the
      page's wayfinding (date banner, quiet links, page actions). Sticky, so
      "today" stays in the margin while the feed scrolls. */
-  main.wrap > .rail {
-    grid-column: 2; grid-row: 1 / span 99;
-    position: sticky; top: 1.25rem;
-    display: flex; flex-direction: column; gap: 1rem;
-    font-size: 0.92rem;
-  }
-  main.wrap > .rail .date-banner { margin: 0; }
-  /* Pages that render no rail (thread, digests, entrance forms already have
-     their own narrow layout) fall back to one centred well. */
-  main.wrap:not(:has(> .rail)) { display: block; max-width: 56rem; }
+  /* A .rail, where a template still renders one, is a normal block in flow. */
+  main.wrap > .rail { display: block; }
   /* Prose keeps its ch-based measure inside whichever region it lands in;
      feeds, galleries and tables take their region's full width. */
   main.wrap > p, main.wrap > h1 + p, .notice, .post > p, .empty { max-width: 34rem; }
@@ -647,9 +734,8 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
 
 /* ---- lg: 75rem -------------------------------------------------------------- */
 @media (min-width: 75rem) {
-  header.site .wrap, footer.site .wrap { max-width: 80rem; }
-  main.wrap { max-width: 80rem; grid-template-columns: minmax(0, 46rem) 21rem; column-gap: 5rem; }
-  main.wrap:not(:has(> .rail)) { max-width: 60rem; }
+  /* The shell does NOT keep growing. 1440 and 1920 render the same composition,
+     centred — a family archive read like a book, not a dashboard that stretches. */
   ul.directory { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
@@ -764,6 +850,16 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
         </svg>
         Backyard
       </a>
+      {% if user.is_authenticated %}
+        {% comment %} The whole nav inventory, in the header where people look for it.
+           Five links is not an app rail; it is a header. {% endcomment %}
+        <nav class="site-nav" aria-label="Backyard">
+          <a href="{% url 'feed' %}"{% if request.resolver_match.url_name == 'feed' %} aria-current="page"{% endif %}>Feed</a>
+          <a href="{% url 'pod_list' %}"{% if request.resolver_match.url_name == 'pod_list' %} aria-current="page"{% endif %}>Pods</a>
+          <a href="{% url 'directory' %}"{% if request.resolver_match.url_name == 'directory' %} aria-current="page"{% endif %}>Directory</a>
+          <a href="{% url 'profile_edit' %}"{% if request.resolver_match.url_name == 'profile_edit' %} aria-current="page"{% endif %}>Settings</a>
+        </nav>
+      {% endif %}
     </div>
   </header>
   {% endblock %}
