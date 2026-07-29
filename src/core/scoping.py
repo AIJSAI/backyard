@@ -110,14 +110,23 @@ def visible_reactions(member: Member) -> models.QuerySet[Reaction]:
 
 def visible_media(member: Member) -> models.QuerySet[MediaAsset]:
     """Every media asset a member may see: the non-deleted media on posts they can
-    see. Media inherits its post's audience through the same one query (S-403,
-    T-MEDIA-1), so every byte, original or thumbnail, is access-checked against the
-    post and never reaches a member in a yard the post is not addressed to. This
-    INCLUDES re-hosted link-preview card images (they must be access-checked and
-    served through the one media path); for a post's own gallery, use
-    visible_attached_media."""
+    see, plus the non-deleted media on REPLIES they can see. Media inherits its
+    owner's audience through the same one query (S-403, S-404, T-MEDIA-1), so every
+    byte, original or thumbnail, is access-checked and never reaches a member in a
+    yard the post is not addressed to. This INCLUDES re-hosted link-preview card
+    images (they must be access-checked and served through the one media path); for a
+    post's own gallery, use visible_attached_media.
+
+    Reply media routes through `visible_comments`, NOT through a second audience
+    computation of its own. That matters twice over: a comment already inherits its
+    post's audience there, and a comment's own `deleted_at` is already applied there
+    — so a soft-deleted or taken-down reply takes its photos out of every surface for
+    free, with no separate rule to forget. Re-deriving the audience here would be the
+    second path TM-2 forbids.
+    """
     return MediaAsset.objects.filter(
-        post__in=visible_posts(member), deleted_at__isnull=True
+        models.Q(post__in=visible_posts(member)) | models.Q(comment__in=visible_comments(member)),
+        deleted_at__isnull=True,
     ).distinct()
 
 

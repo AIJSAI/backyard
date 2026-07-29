@@ -60,6 +60,11 @@ def take_down_comment(*, moderator: Member, comment: Comment) -> None:
         raise PermissionDenied("Only an admin may take down content.")
     if not scoping.visible_comments(moderator).filter(id=comment.id).exists():
         raise PermissionDenied("You can only take down content you can see.")
+    # S-713's promise is that a takedown hard-purges the content's photos; a reply can
+    # now carry them (S-404), so the comment path purges exactly as the post path does.
+    from . import media
+
+    media.purge_comment_media(comment)
     comment.deleted_at = timezone.now()
     comment.moderated_by = moderator
     comment.save(update_fields=["deleted_at", "moderated_by"])

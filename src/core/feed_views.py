@@ -38,7 +38,7 @@ from . import (
     staged_uploads,
     transcoding,
 )
-from .models import MediaAsset, Member, Pod, Post, Reaction
+from .models import Comment, MediaAsset, Member, Pod, Post, Reaction
 
 # Per-file upload ceiling at the application layer (the Caddy body cap is the edge
 # control, TS-CA-4); a larger file is skipped rather than buffered and decoded.
@@ -353,8 +353,8 @@ def compose(request: HttpRequest) -> HttpResponse:
     from .tasks import attach_link_preview
 
     attach_link_preview.defer(post_id=post.id)
-    media_notices.extend(_attach_photos(post, photo_raws))
-    _attach_videos(post, video_raws)
+    media_notices.extend(_attach_photos(photo_raws, post=post))
+    _attach_videos(video_raws, post=post)
     # Anything the post did NOT get is said out loud on the feed the member lands on.
     # Silence here is the failure mode: a post appears, looks fine, and is missing photos
     # nobody will ever mention.
@@ -447,8 +447,11 @@ def _read_photos(files: list[UploadedFile]) -> tuple[list[bytes], list[str]]:
     return raws, notices
 
 
-def _attach_photos(post: Post, raws: list[bytes]) -> list[str]:
-    """Re-encode and attach staged photo bytes to a just-created post (S-401).
+def _attach_photos(
+    raws: list[bytes], *, post: Post | None = None, comment: Comment | None = None
+) -> list[str]:
+    """Re-encode and attach staged photo bytes to a just-created post or reply (S-401,
+    S-404).
 
     Each passes the ingest gate (media.ingest_photo), which strips metadata and rejects
     anything that does not decode to an allowed image. A rejection is not fatal to the
@@ -457,7 +460,7 @@ def _attach_photos(post: Post, raws: list[bytes]) -> list[str]:
     rejected = 0
     for raw in raws:
         try:
-            media.ingest_photo(post=post, raw=raw)
+            media.ingest_photo(post=post, comment=comment, raw=raw)
         except media.MediaRejected:
             rejected += 1
     if not rejected:
@@ -494,14 +497,16 @@ def _validate_videos(files: list[UploadedFile]) -> tuple[list[bytes], list[str]]
     return raws, errors
 
 
-def _attach_videos(post: Post, raws: list[bytes]) -> None:
+def _attach_videos(
+    raws: list[bytes], *, post: Post | None = None, comment: Comment | None = None
+) -> None:
     """Store each validated video as a PENDING asset and enqueue its transcode (S-402).
     The bytes are already validated, so ingest here only strips and stores; the worker
     (concurrency 1, TS-PP-2) produces the served rendition and poster."""
     from .tasks import transcode_video
 
     for raw in raws:
-        asset = media.ingest_video(post=post, raw=raw)
+        asset = media.ingest_video(post=post, comment=comment, raw=raw)
         transcode_video.defer(asset_id=asset.id)
 
 
@@ -542,7 +547,22 @@ def _render_post_detail(
     request: HttpRequest, member: Member, post: Post, errors: list[str] | None = None
 ) -> HttpResponse:
     comments = (
-        scoping.visible_comments(member).filter(post=post).select_related("author")[:_MAX_THREAD]
+        scoping.visible_comments(member)
+        .filter(post=post)
+        .select_related("author")
+        # S-404. Prefetched rather than let the template walk `comment.media.all()`:
+        # that relation includes SOFT-DELETED assets, so a purged-then-restored row or a
+        # per-asset delete would render bytes the audience query has already excluded.
+        # The same `deleted_at` filter and LINK_PREVIEW exclusion the post's gallery uses.
+        .prefetch_related(
+            Prefetch(
+                "media",
+                queryset=MediaAsset.objects.filter(deleted_at__isnull=True).exclude(
+                    media_kind=MediaAsset.LINK_PREVIEW
+                ),
+                to_attr="live_media",
+            )
+        )[:_MAX_THREAD]
     )
     # Reactions show WHO reacted, grouped by kind, never a count (S-304). Capped for
     # symmetry with the comment path so a pathologically large yard cannot inflate the
@@ -643,14 +663,31 @@ def add_comment(request: HttpRequest, post_id: int) -> HttpResponse:
 
     body = request.POST.get("body", "").strip()
     errors: list[str] = []
-    if not body:
-        errors.append("Write a reply.")
+    # S-404: a reply carries photos and clips exactly as a post does — the SAME readers,
+    # the same caps, the same ingest gate. A second set of limits here would drift from
+    # the composer's the first time either moved.
+    video_raws, video_errors = _validate_videos(request.FILES.getlist("videos"))
+    errors.extend(video_errors)
+    photo_raws, media_notices = _read_photos(request.FILES.getlist("photos"))
+
+    if not body and not photo_raws and not video_raws:
+        # A reply that is only a photograph is a real reply, so the body is required only
+        # when nothing is attached. "Write a reply" in front of someone who just picked
+        # three wedding photos would be a lie.
+        errors.append("Write a reply, or add a photo.")
     elif len(body) > _MAX_COMMENT:
         errors.append(f"That reply is a little long. Keep it under {_MAX_COMMENT} characters.")
     if errors:
-        return _render_post_detail(request, member, post, errors)
+        return _render_post_detail(request, member, post, errors + media_notices)
 
-    commenting.create_comment(author=member, post=post, body=body)
+    comment = commenting.create_comment(author=member, post=post, body=body)
+    media_notices.extend(_attach_photos(photo_raws, comment=comment))
+    _attach_videos(video_raws, comment=comment)
+    if media_notices:
+        # Same posture as the composer: a partial attach is REPORTED, never dropped in
+        # silence. The reply itself already landed, so these are notices, not errors.
+        for notice in media_notices:
+            messages.warning(request, notice)
     return redirect("post_detail", post_id=post.id)
 
 

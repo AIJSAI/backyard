@@ -22,7 +22,7 @@ from typing import IO
 
 from django.utils import timezone
 
-from .models import MediaAsset, Member
+from .models import Comment, MediaAsset, Member, Post
 
 EXPORT_FORMAT = "backyard-member-export/1"
 
@@ -39,7 +39,7 @@ def write_member_export(member: Member, destination: IO[bytes]) -> None:
         .select_related("pod")
         .prefetch_related("audience_yards", "media")
     )
-    comments = list(member.comments.filter(deleted_at__isnull=True))
+    comments = list(member.comments.filter(deleted_at__isnull=True).prefetch_related("media"))
 
     with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(
@@ -91,11 +91,17 @@ def write_member_export(member: Member, destination: IO[bytes]) -> None:
             ),
         )
         media_index = []
-        for post in posts:
+        # S-404: their photographs on their REPLIES are theirs too. Iterating posts alone
+        # meant "leaving takes your data" quietly excluded every picture a member ever put
+        # under someone else's post — which, for a family whose weddings live in threads,
+        # could be most of what they contributed.
+        owners: list[tuple[str, int, Post | Comment]] = [("post_id", p.id, p) for p in posts]
+        owners += [("comment_id", c.id, c) for c in comments]
+        for owner_key, owner_id, owner in owners:
             # The member's OWN photos only: a LINK_PREVIEW asset is a re-hosted copy of a
             # third party's og:image, not the member's content, so it never rides their
             # personal data export (S-301 / S-704).
-            for asset in post.media.exclude(media_kind=MediaAsset.LINK_PREVIEW):
+            for asset in owner.media.exclude(media_kind=MediaAsset.LINK_PREVIEW):
                 if asset.deleted_at is not None:
                     continue
                 # A photo exports its full re-encoded image; a video exports the
@@ -116,7 +122,7 @@ def write_member_export(member: Member, destination: IO[bytes]) -> None:
                 except (FileNotFoundError, ValueError):
                     continue  # a missing or unpopulated file is skipped, never a 500
                 media_index.append(
-                    {"post_id": post.id, "file": arcname, "alt_text": asset.alt_text}
+                    {owner_key: owner_id, "file": arcname, "alt_text": asset.alt_text}
                 )
         archive.writestr("media.json", json.dumps(media_index, indent=2))
 

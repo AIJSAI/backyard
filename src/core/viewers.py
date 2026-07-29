@@ -31,7 +31,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from django.http import Http404, HttpRequest
 
 from . import digest_links, scoping
@@ -66,7 +66,12 @@ class Reader:
         """
         assets = scoping.visible_media(self.member)
         if self.digest_issue is not None:
-            assets = assets.filter(post__in=digest_links.issue_posts(self.digest_issue))
+            issue_posts = digest_links.issue_posts(self.digest_issue)
+            # Both attachment shapes must be narrowed. Filtering on `post__in` alone
+            # would let a digest token fetch the photos on any REPLY that member can
+            # see, in any yard and any week — exactly the widening this narrowing
+            # exists to prevent, reintroduced through the S-404 path.
+            assets = assets.filter(Q(post__in=issue_posts) | Q(comment__post__in=issue_posts))
         return assets
 
 

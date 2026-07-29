@@ -99,6 +99,12 @@ def digest_post_view(request: HttpRequest, token: str, post_id: int) -> HttpResp
         scoping.visible_comments(resolved.member)
         .filter(post=post)
         .select_related("author")
+        # S-404. The reader here is a DIGEST TOKEN, so the ceiling matters: these assets
+        # are fetched through serve_media with ?d=<token>, and Reader.visible_media
+        # narrows reply media to this issue's posts exactly as it narrows a post's own.
+        .prefetch_related(
+            Prefetch("media", queryset=scoping.visible_attached_media(resolved.member))
+        )
         .order_by("created_at")[:_MAX_COMMENTS]
     )
     return render(

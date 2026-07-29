@@ -766,7 +766,19 @@ ul.comments > li { padding: 0.9rem 0; }
 ul.comments > li + li { border-top: 1px solid var(--line); }
 ul.comments > li > .author { display: inline-block; }
 ul.comments p { margin: 0.2rem 0 0; font-size: 1.02rem; }
-ul.comments > li > .inline { margin-top: 0.5rem; }
+/* A reply's delete/takedown reads as a quiet link, exactly as a post's does in the feed
+   — "we ship rooms, not referees". As a bordered red pill it was the loudest thing under
+   a reply, which S-404 made obvious: a full-width crimson control sitting beneath
+   somebody's wedding photographs. Hit area is preserved by padding, not the border. */
+ul.comments > li > .inline { margin-top: 0.25rem; }
+ul.comments > li > .inline button.danger {
+  background: none; border-color: transparent; padding-left: 0; padding-right: 0.6rem;
+  min-height: 44px; font-size: 0.88rem;
+}
+ul.comments > li > .inline button.danger:hover {
+  background: none; border-color: transparent; color: var(--danger);
+  text-decoration: underline; text-underline-offset: 3px;
+}
 ul.comments > li.empty { border-left: 0; padding: 1.25rem; }
 /* The reply box must not sit flush against the last reply. General sibling, so an
    .errors block between them does not break the rule. */

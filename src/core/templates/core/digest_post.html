@@ -21,7 +21,24 @@
   </article>
   <section class="comments">
     {% for comment in comments %}
-      <p><strong>{{ comment.author.display_name }}</strong>{% if comment.via_email %} <span class="via-email">(via email)</span>{% endif %}: {{ comment.body }}</p>
+      <p><strong>{{ comment.author.display_name }}</strong>{% if comment.via_email %} <span class="via-email">(via email)</span>{% endif %}{% if comment.body %}: {{ comment.body }}{% else %}: sent photos{% endif %}</p>
+      {% comment %} S-404: reply photos on the credential-free digest surface. The ?d=
+         token rides every media URL here, and Reader.visible_media narrows reply media
+         to this issue's posts so the token cannot widen into a general media credential.
+      {% endcomment %}
+      {% for m in comment.media.all %}
+        {% if m.media_kind == 'photo' %}
+          <img class="digest-photo" src="{% url 'serve_media' m.token %}?d={{ token }}" loading="lazy"
+               alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ comment.author.display_name }}{% endif %}">
+        {% elif m.media_kind == 'video' and m.transcode_status == 'done' %}
+          {% comment %} The POSTER still, not a player — identical to the post gallery above.
+             Reviewer catch on #100: handling only photos here meant a reply's clip was
+             silently invisible on this surface while the same clip on the POST showed its
+             still, which under-delivers the story's "photos and clips" line. {% endcomment %}
+          <img class="digest-photo" src="{% url 'serve_media' m.thumbnail_token %}?d={{ token }}" loading="lazy"
+               alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Still from a video shared by {{ comment.author.display_name }}{% endif %}">
+        {% endif %}
+      {% endfor %}
     {% empty %}
       <p class="empty">No replies yet.</p>
     {% endfor %}
