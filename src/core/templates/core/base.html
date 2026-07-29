@@ -351,7 +351,10 @@ aside.date-banner p:last-child { margin-bottom: 0; }
 /* ---- forms ------------------------------------------------------------------
    Control borders use --line-strong (>=3:1) — the SC 1.4.11 fix. */
 label { display: block; margin: 0 0 0.35rem; font-weight: 700; color: var(--ink); font-size: 0.9rem; }
-label.inline-check { display: flex; align-items: baseline; gap: 0.55rem; font-weight: 400; margin: 0.5rem 0; font-size: 1rem; }
+/* align-items: CENTER, not baseline. A checkbox is a replaced element with no text
+   baseline, so a browser synthesises one from its bottom margin edge — which sat the
+   box 4.59px above the middle of its own label on every checkbox in the product. */
+label.inline-check { display: flex; align-items: center; gap: 0.55rem; font-weight: 400; margin: 0.5rem 0; font-size: 1rem; }
 input, select, textarea {
   /* Capped, not full-bleed. A pod-name field spanning 900px reads as a mistake and
      gives the eye no anchor; forms sit at a form's measure, prose at prose's. */
