@@ -17,14 +17,16 @@
      saying what any of them does, so whoever was handed the admin controls had to be
      told out of band. A <details> rather than a permanent block: it matters the first
      few times someone re-roles a relative, and never again. {% endcomment %}
-  <details class="role-key">
-    <summary>What the roles mean</summary>
-    <dl>
-      {% for label, meaning in role_meanings %}
-        <dt>{{ label }}</dt><dd>{{ meaning }}</dd>
-      {% endfor %}
-    </dl>
-  </details>
+  {% if role_meanings %}
+    <details class="role-key">
+      <summary>What the roles mean</summary>
+      <dl>
+        {% for label, meaning in role_meanings %}
+          <dt>{{ label }}</dt><dd>{{ meaning }}</dd>
+        {% endfor %}
+      </dl>
+    </details>
+  {% endif %}
 
   <ul class="members">
     {% for row in rows %}

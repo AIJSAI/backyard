@@ -48,6 +48,22 @@ def _join(pod: Pod) -> tuple[Client, Member]:
     return client, Member.objects.get(display_name="Cousin Reed")
 
 
+def _heading(html: str) -> str:
+    """The orientation heading's text, whitespace collapsed.
+
+    The closing tag is searched FROM the heading's own start, not from the top of
+    the document. Unanchored, an earlier </h2> anywhere on the page would make `end`
+    precede `start`, the slice would come out EMPTY, and every assertion below would
+    pass against nothing — a test that cannot fail. Reviewer catch on #99.
+    """
+    start = html.index('id="orientation-heading"')
+    end = html.index("</h2>", start)
+    assert end > start, "heading slice is inverted"
+    text = html[start:end]
+    assert text.strip(), "heading slice came out empty"
+    return " ".join(text.split())
+
+
 def test_a_newcomers_first_feed_says_where_they_are(pod: Pod) -> None:
     client, _ = _join(pod)
     html = client.get(reverse("feed")).content.decode()
@@ -181,8 +197,8 @@ def test_the_heading_reads_as_a_sentence_with_one_side_and_with_two(pod: Pod) ->
     """
     client, member = _join(pod)
     one = client.get(reverse("feed")).content.decode()
-    heading = one[one.index('id="orientation-heading"') : one.index("</h2>")]
-    flat = " ".join(heading.split())
+    heading = _heading(one)
+    flat = heading
     assert "in, " not in flat, f"stray comma before a single side: {flat}"
     assert "Mom&#x27;s side" in flat or "Mom's side" in flat
 
@@ -193,7 +209,7 @@ def test_the_heading_reads_as_a_sentence_with_one_side_and_with_two(pod: Pod) ->
     Member.objects.filter(pk=member.pk).update(orientation_dismissed_at=None)
 
     two = client.get(reverse("feed")).content.decode()
-    heading = two[two.index('id="orientation-heading"') : two.index("</h2>")]
-    flat = " ".join(heading.split())
+    heading = _heading(two)
+    flat = heading
     assert "in, " not in flat, f"stray comma before a list of sides: {flat}"
     assert " and " in flat, f"two sides must read as a list: {flat}"

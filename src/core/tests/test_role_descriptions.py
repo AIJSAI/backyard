@@ -155,3 +155,17 @@ def test_the_roster_actually_renders_the_key() -> None:
         assert escape(Member.ROLE_DESCRIPTIONS[role]) in html, (
             f"{role}'s description is not on the page"
         )
+
+
+def test_the_roster_renders_no_empty_disclosure_without_meanings() -> None:
+    """Reviewer catch on #99. `members.html` is rendered without `role_meanings` by
+    other tests, and an unguarded block produced a "What the roles mean" disclosure
+    that opened onto nothing — a control promising an answer it does not have."""
+    from django.template.loader import render_to_string
+
+    html = render_to_string("core/members.html", {"rows": [], "can_create_yard": False})
+    assert "What the roles mean" not in html, "an empty role key rendered"
+    # The ELEMENT, not the bare class name: base.html's stylesheet ships
+    # `details.role-key { ... }` on every page, so a substring check for "role-key"
+    # matches the CSS and fails against correct output.
+    assert '<details class="role-key">' not in html
