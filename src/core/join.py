@@ -75,8 +75,12 @@ def _create_account(token: str, display_name: str, username: str, password: str)
     """
     with transaction.atomic():
         user = User.objects.create_user(username=username, password=password)
+        # Read the invite's pod BEFORE consuming it: that is the household the card
+        # belongs in, and it is the only source that cannot be wrong. If this peek
+        # loses the race, redeem_invite raises on the next line and nothing lands.
+        pod = invites.peek_invite(token).pod
         member = invites.redeem_invite(token, display_name=display_name, user_id=user.id)
-        posting.announce_arrival(member)
+        posting.announce_arrival(member, pod)
         return member
 
 

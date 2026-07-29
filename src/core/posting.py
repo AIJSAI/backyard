@@ -76,7 +76,7 @@ def create_post(*, author: Member, pod: Pod, audience_yards: list[Yard], body: s
 ARRIVAL_BODY = "Just joined."
 
 
-def announce_arrival(member: Member) -> Post | None:
+def announce_arrival(member: Member, pod: Pod) -> Post:
     """S-905: a quiet card in the pod a member just joined, so the family knows.
 
     The gap this closes was found by walking a delegate's onboarding end to end,
@@ -93,13 +93,18 @@ def announce_arrival(member: Member) -> Post | None:
       * The body carries no name. The byline already says who this is; "Priya
         Shehan joined" under a byline reading "Priya Shehan" reads as a bug.
 
-    Returns None when the member somehow has no pod, rather than raising: an
-    arrival card is not worth failing a join over, and redeem_invite already
-    guarantees the membership this reads.
+    The pod is a PARAMETER, not something this function works out. The first cut
+    inferred it as the member's lowest-id pod, which is correct only because the
+    caller happens to invoke it one line after redeem_invite mints a brand-new
+    member with exactly one membership. A Member can belong to several pods (their
+    household plus any ad-hoc pod), so that inference was one refactor away from
+    posting "just joined" into the wrong household — and it would have looked
+    right, because a card in the wrong pod still renders. Reviewer catch on #98.
+
+    Passing it is also the only option that is not a guess: PodMembership carries
+    no timestamp, so "the most recently joined pod" is not answerable at all
+    without a migration. The caller holds the invite, and the invite names the pod.
     """
-    pod = Pod.objects.filter(memberships__member=member).order_by("id").first()
-    if pod is None:  # pragma: no cover - redeem_invite always creates one
-        return None
     return create_post(author=member, pod=pod, audience_yards=[], body=ARRIVAL_BODY)
 
 

@@ -23,7 +23,7 @@ from django.urls import reverse
 from core import scoping
 from core.invites import mint_invite
 from core.models import Member, Pod, PodMembership, Post, Yard
-from core.posting import ARRIVAL_BODY
+from core.posting import ARRIVAL_BODY, announce_arrival
 
 pytestmark = pytest.mark.django_db
 
@@ -134,3 +134,27 @@ def test_a_failed_join_leaves_no_orphan_card(world: World) -> None:
     assert "already taken" in response.content.decode()
     assert Post.objects.count() == before, "a card survived a rolled-back join"
     assert not Member.objects.filter(display_name="Second Cousin").exists()
+
+
+def test_the_card_lands_in_the_INVITED_pod_not_the_members_oldest_one(world: World) -> None:
+    """Reviewer catch on #98, pinned.
+
+    `announce_arrival` first worked the pod out itself, as the member's lowest-id
+    pod. That is right only because the caller invokes it one line after
+    redeem_invite mints a brand-new member with exactly one membership — and a
+    Member can belong to several pods. The failure would have been silent: a card
+    in the wrong household still renders perfectly.
+
+    Reproduce the hazard directly. `world.pod` is created BEFORE the pod invited
+    here, so it has the lower id; the card must still land in the pod whose invite
+    was redeemed.
+    """
+    joiner = Member.objects.create(display_name="Multi Pod")
+    PodMembership.objects.create(member=joiner, pod=world.pod)  # the OLDER pod
+    newer = Pod.objects.create(name="An ad-hoc pod")
+    newer.yards.set(list(world.pod.yards.all()))
+    PodMembership.objects.create(member=joiner, pod=newer)
+    assert world.pod.id < newer.id, "fixture no longer reproduces the id ordering"
+
+    card = announce_arrival(joiner, newer)
+    assert card.pod_id == newer.id, "the card went to the member's oldest pod, not the invited one"
