@@ -56,7 +56,9 @@
       </div>
       <fieldset>
         <legend>Also a whole side of the family</legend>
-        <div>
+        {% comment %} .sides is the fieldset's CONTROL box — it wears the same border and
+           48px height as the select beside it, so the two columns line up. {% endcomment %}
+        <div class="sides">
           {% for yard in yards %}
             <label class="inline-check"><input type="checkbox" name="audience_yards" value="{{ yard.id }}"> {{ yard.name }}</label>
           {% endfor %}

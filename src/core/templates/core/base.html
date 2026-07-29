@@ -31,10 +31,11 @@
               h3 was smaller than a post and nothing on a page told you what
               mattered. Now: 1.75/2.05rem display, 1.28rem section, 1.09rem post
               body, 0.8rem timestamps.
-     WARMTH — the ground was #fbfcfb, which is white with a rumour of green in
-              it. It is now a warm linen (#f7f4ed) and the CARDS are the white,
-              so a page of photographs sits on paper instead of on a screen.
-              Ink, lines and tints were re-cut warm to match.
+     WARMTH — ATTEMPTED AND REVERTED. The ground was warmed to a linen #f7f4ed;
+              the founder rejected it on sight as the palette of a design run he
+              had already turned down, and he was right. The whole colour system
+              is v3.1's again, token for token. Warmth in this product has to come
+              from the photographs and the writing, not from the paper.
      DENSITY— things that belong on one line are now on one line (a birthday,
               a search box and its button, a photo picker and a video picker),
               and things that belong together are grouped by proximity instead
@@ -42,15 +43,14 @@
 
    Contract kept verbatim: every token name and class hook from v2/v3.1 is
    present (test_design_system_wcag.py and test_accessibility_modes.py parse
-   these). Every text/background pair is proven >= 4.5:1 in BOTH themes — the
-   warm palette was computed against the guard's own math before it was written,
-   worst pair 5.20:1 (amber on amber-tint), worst control border 3.12:1.
+   these). Every text/background pair is proven >= 4.5:1 in BOTH themes.
 
    --paper is read out of this file by test_pwa to pin the PWA install descriptor's
-   background colour, so a warmer ground means core/pwa_views._BG moves with it.
-   (That word is spelled around on purpose: this comment ships inside every page's
-   <style>, and the /d/ digest surface asserts the install-descriptor noun is absent
-   from its HTML — an anonymous email-link recipient is never offered an install.)
+   background colour, so the ground and core/pwa_views._BG move together in both
+   directions. (That word is spelled around on purpose: this comment ships inside
+   every page's <style>, and the /d/ digest surface asserts the install-descriptor
+   noun is absent from its HTML — an anonymous email-link recipient is never
+   offered an install.)
 
    Type: Atkinson Hyperlegible, self-hosted woff2 (font-src 'self' — the CSP
    has no font-src directive, so same-origin fonts are already allowed).
@@ -76,35 +76,39 @@
 :root {
   color-scheme: light dark;
 
-  /* Light — "the lawn at noon" on warm paper: linen ground, white cards,
-     sign green, one warm amber. */
-  --paper:        #f7f4ed;  /* page ground: warm linen                        */
-  --surface:      #ffffff;  /* raised cards — now the BRIGHTEST thing         */
-  --surface-sunk: #efeade;  /* insets, readonly fields, table stripes         */
-  --ink:          #1d1b16;  /* primary text (15.66:1 on paper)                */
-  --ink-soft:     #575047;  /* secondary text (7.23:1 on paper)               */
-  --line:         #e0d9c9;  /* hairline borders (decorative)                  */
-  --line-strong:  #8b8375;  /* CONTROL borders: 3.75:1 on surface (SC 1.4.11) */
+  /* Light — "the lawn at noon": clean whites, sign green, one warm amber.
+     REVERTED 2026-07-29. The visual pass warmed this ground to a linen #f7f4ed;
+     the founder rejected it on sight as belonging to the design run he had already
+     turned down. Nothing in the repo stopped that — the only guard on the rejected
+     identity pins its NAVY (test_no_surface_still_carries_the_rejected_v2_navy),
+     so the cream half of the same direction walked straight back in. The ground is
+     the v3.1 palette again, unchanged, token for token. */
+  --paper:        #fbfcfb;  /* page ground: near-white, faint green cast     */
+  --surface:      #ffffff;  /* raised cards                                   */
+  --surface-sunk: #eef3ef;  /* insets, readonly fields, table stripes         */
+  --ink:          #1c211e;  /* primary text                                   */
+  --ink-soft:     #4c5a52;  /* secondary text (7.06:1 on paper)               */
+  --line:         #dde4df;  /* hairline borders (decorative)                  */
+  --line-strong:  #7f8f85;  /* CONTROL borders: 3.40:1 on surface (SC 1.4.11) */
 
-  --green:        #1e5c46;  /* brand: sign green (7.15:1 on paper)            */
+  --green:        #1e5c46;  /* brand: sign green (7.63:1 on paper)            */
   --green-deep:   #174534;  /* hover / pressed                                */
-  --green-tint:   #e7efe6;  /* soft wash: notices, role pills, banners        */
-  --amber:        #87540d;  /* warm accent: boundary, flags (5.79:1)          */
-  --amber-tint:   #f4e7cf;
+  --green-tint:   #eef4f0;  /* soft wash: notices, role pills, banners        */
+  --amber:        #8a5a12;  /* warm accent: boundary, flags (5.75:1)          */
+  --amber-tint:   #f6efe0;
 
-  --danger:       #ad3527;  /* destructive + errors (5.77:1 on paper)         */
-  --danger-tint:  #f8e3dd;
+  --danger:       #b23b2e;  /* destructive + errors (5.74:1 on paper)         */
+  --danger-tint:  #f9e9e6;
 
   --btn-bg:       var(--green);
   --btn-bg-hover: var(--green-deep);
   --btn-ink:      #ffffff;  /* 7.85:1 on btn-bg                               */
 
-  --ring:         #87540d;  /* warm focus ring, distinct from the green fills */
+  --ring:         #8a5a12;  /* warm focus ring, distinct from the green fills */
 
-  --radius:       14px;
-  --radius-sm:    10px;
-  /* Warm-cast, not neutral grey: a grey shadow on linen reads as dirt. */
-  --shadow:       0 1px 2px rgba(60, 48, 30, 0.05), 0 4px 14px rgba(60, 48, 30, 0.035);
+  --radius:       12px;
+  --radius-sm:    9px;
+  --shadow:       0 1px 3px rgba(20, 40, 30, 0.05);
 
   --font-display: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI",
                   Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -129,24 +133,23 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Dark — "dusk on the lawn", warm-cast to match: brown-black rather than
-       the old green-black, so the two themes read as one product. */
-    --paper:        #16140f;
-    --surface:      #1f1c16;
-    --surface-sunk: #100e0a;
-    --ink:          #ece8df;
-    --ink-soft:     #aca396;
-    --line:         #332e25;
-    --line-strong:  #776f61;  /* 3.42:1 on surface */
+    /* Dark — "dusk on the lawn": deep green-cast charcoal, hand-tuned. */
+    --paper:        #121714;
+    --surface:      #1a211c;
+    --surface-sunk: #0d110f;
+    --ink:          #e8ece9;
+    --ink-soft:     #a8b3ab;
+    --line:         #2a332d;
+    --line-strong:  #6b7a71;  /* 3.64:1 on surface */
 
-    --green:        #86c8a3;  /* foliage green, lightened for text/links */
-    --green-deep:   #a2d7ba;
-    --green-tint:   #1a2a20;
-    --amber:        #e0b878;
-    --amber-tint:   #2a2010;
+    --green:        #7fc9a4;  /* foliage green, lightened for text/links */
+    --green-deep:   #9ad8b8;
+    --green-tint:   #16281f;
+    --amber:        #e2b878;
+    --amber-tint:   #241c10;
 
-    --danger:       #ec9a8b;
-    --danger-tint:  #2d1a15;
+    --danger:       #eb9a8d;
+    --danger-tint:  #2a1815;
 
     --btn-bg:       #2c7a5c;  /* filled-button green, separate from link green */
     /* Hover DARKENS in dark mode. It used to lighten to #35906d, which is 3.92:1
@@ -156,29 +159,29 @@
     --btn-bg-hover: #226047;
     --btn-ink:      #ffffff;  /* 5.19:1 on btn-bg, 7.41:1 on btn-bg-hover */
 
-    --ring:         #e0b878;
-    --shadow:       0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.3);
+    --ring:         #e2b878;
+    --shadow:       0 1px 3px rgba(0, 0, 0, 0.45);
   }
 }
 
 /* A manual theme choice wins over the OS preference, in both directions. */
 :root[data-theme="light"] {
-  --paper:#f7f4ed; --surface:#ffffff; --surface-sunk:#efeade;
-  --ink:#1d1b16; --ink-soft:#575047; --line:#e0d9c9; --line-strong:#8b8375;
-  --green:#1e5c46; --green-deep:#174534; --green-tint:#e7efe6;
-  --amber:#87540d; --amber-tint:#f4e7cf; --danger:#ad3527; --danger-tint:#f8e3dd;
+  --paper:#fbfcfb; --surface:#ffffff; --surface-sunk:#eef3ef;
+  --ink:#1c211e; --ink-soft:#4c5a52; --line:#dde4df; --line-strong:#7f8f85;
+  --green:#1e5c46; --green-deep:#174534; --green-tint:#eef4f0;
+  --amber:#8a5a12; --amber-tint:#f6efe0; --danger:#b23b2e; --danger-tint:#f9e9e6;
   --btn-bg:var(--green); --btn-bg-hover:var(--green-deep); --btn-ink:#ffffff;
-  --ring:#87540d;
-  --shadow:0 1px 2px rgba(60,48,30,0.05), 0 4px 14px rgba(60,48,30,0.035);
+  --ring:#8a5a12;
+  --shadow:0 1px 3px rgba(20,40,30,0.05);
 }
 :root[data-theme="dark"] {
-  --paper:#16140f; --surface:#1f1c16; --surface-sunk:#100e0a;
-  --ink:#ece8df; --ink-soft:#aca396; --line:#332e25; --line-strong:#776f61;
-  --green:#86c8a3; --green-deep:#a2d7ba; --green-tint:#1a2a20;
-  --amber:#e0b878; --amber-tint:#2a2010; --danger:#ec9a8b; --danger-tint:#2d1a15;
+  --paper:#121714; --surface:#1a211c; --surface-sunk:#0d110f;
+  --ink:#e8ece9; --ink-soft:#a8b3ab; --line:#2a332d; --line-strong:#6b7a71;
+  --green:#7fc9a4; --green-deep:#9ad8b8; --green-tint:#16281f;
+  --amber:#e2b878; --amber-tint:#241c10; --danger:#eb9a8d; --danger-tint:#2a1815;
   --btn-bg:#2c7a5c; --btn-bg-hover:#226047; --btn-ink:#ffffff;
-  --ring:#e0b878;
-  --shadow:0 1px 2px rgba(0,0,0,0.4), 0 4px 14px rgba(0,0,0,0.3);
+  --ring:#e2b878;
+  --shadow:0 1px 3px rgba(0,0,0,0.45);
 }
 
 /* ---- reset & base --------------------------------------------------------- */
@@ -315,7 +318,8 @@ img.digest-photo { display: block; width: 100%; height: auto; margin: 0.8rem 0;
 footer.site { border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 0.82rem; }
 footer.site .wrap { padding-top: 1.1rem; padding-bottom: 1.1rem; }
 footer.site a { color: var(--ink-soft); }
-footer.site .wrap { display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem; }
+footer.site .wrap { display: flex; flex-wrap: wrap; justify-content: center;
+  text-align: center; gap: 0.35rem 1.25rem; }
 /* SC 3.2.6 wants this findable, not shouted: regular weight, same quiet ink as the
    rest of the page furniture. */
 footer.site .help { font-weight: 400; color: var(--ink-soft); }
@@ -557,11 +561,28 @@ p.back-link { margin: 0 0 1rem; }
 .composer-media > *, .composer-audience > * { min-width: 0; }
 .composer-media label, .composer-audience label:not(.inline-check) { margin-top: 0; }
 .composer-media input[type=file] { margin-bottom: 0; }
-.composer-audience fieldset { margin-bottom: 0; padding: 0.5rem 0.9rem 0.75rem; }
-.composer-audience fieldset .inline-check { margin: 0.3rem 0; }
-.composer-audience select { margin-bottom: 0; }
-/* The checkboxes are a short list of family sides; they sit in a row, not a column. */
-.composer-audience fieldset > div { display: flex; flex-wrap: wrap; gap: 0.1rem 1.4rem; }
+/* The two controls on this row must be the SAME BOX. They were a label-above-a-select
+   beside a legend-inset-in-a-fieldset-border: two different constructions, so the boxes
+   started and ended at different heights and the row read as broken. The fieldset now
+   drops its own border and its legend renders as a plain label, so both columns are
+   label + 48px control, tops and bottoms aligned. */
+.composer-audience > div, .composer-audience fieldset {
+  display: flex; flex-direction: column; margin: 0; padding: 0; border: 0; max-width: none;
+}
+.composer-audience legend {
+  display: block; float: left; width: 100%;   /* float makes a legend behave as a block */
+  padding: 0; margin: 0 0 0.35rem;
+  font-weight: 700; font-size: 0.9rem; color: var(--ink);
+}
+.composer-audience select { margin: 0; flex: 1 0 auto; }
+/* The checkbox row is the fieldset's control, so it wears the control's box. */
+.composer-audience .sides {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem 1.4rem;
+  flex: 1 0 auto; min-height: 48px; padding: 0.4rem 0.85rem;
+  background: var(--surface);
+  border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm);
+}
+.composer-audience .sides .inline-check { margin: 0; }
 .composer-submit { display: flex; justify-content: flex-end; margin-top: 1.1rem;
   padding-top: 1rem; border-top: 1px solid var(--line); }
 .composer-submit button { margin: 0; }
@@ -604,13 +625,24 @@ li.boundary span::before { content: ""; width: 0.5em; height: 0.5em; border: 2px
 
 /* The feed ends. It said so in bold green centred type with a decorative tick; the
    fact is worth one quiet line and the rule above it. */
+/* These two are page-level markers, not prose, so they must escape the 34rem reading
+   cap that `main.wrap > p` puts on every direct <p> child. They did not: each was
+   boxed into a 544px column at the LEFT of the well and then centred inside that box,
+   which put "You are all caught up" and its rule visibly left of the card above them.
+
+   Both halves of the fix have to survive the cascade, and the first attempt lost both:
+   a bare `.caught-up` is (0,1,0) against `main.wrap > p` at (0,1,1), so the cap stood;
+   and the `margin` SHORTHAND in the rule below resets margin-inline to 0, so an earlier
+   `margin-inline: auto` was silently undone. Hence the qualified selector here and the
+   auto sides written into the shorthand itself. */
+main.wrap > p.caught-up, main.wrap > p.older { max-width: none; }
 .caught-up { text-align: center; color: var(--ink-soft); font-weight: 400; font-size: 0.9rem;
-  margin: 2.25rem 0 0.5rem; padding-top: 1.4rem; }
+  margin: 2.25rem auto 0.5rem; padding-top: 1.4rem; }
 .caught-up::before {
   content: ""; display: block; width: 34px; height: 1px;
   margin: 0 auto 1.1rem; background: var(--line-strong);
 }
-p.older { margin-top: 2rem; text-align: center; }
+p.older { margin: 2rem auto 0; text-align: center; }
 .empty {
   color: var(--ink-soft); text-align: center; padding: 1.75rem 1.25rem;
   background: var(--surface-sunk); border-radius: var(--radius); border: 1.5px dashed var(--line-strong);
@@ -658,14 +690,15 @@ ul.feed > li.empty, .comments > li.empty { box-shadow: none; background: var(--s
   border-radius: 8px; border: 1px solid var(--line);
   background: var(--surface-sunk); cursor: zoom-in; }
 .photos:has(a:only-child) { display: block; }                  /* 1: natural ratio */
-/* A lone photo used to be centred while every multi-photo post started at the text's
-   left edge, so one feed had two left margins. It starts where the words start.
-   The 25rem cap is the honest one: the feed serves the 400x400 thumbnail rendition
-   (core/media._THUMB_MAX), so anything wider is upscaling. It reads as a chosen size
-   rather than a stunted one. Filling a 52rem column would need a mid-size rendition
-   out of the media pipeline, which is not a stylesheet's decision to make. */
+/* A lone photo is CENTRED in its card. The visual pass left-aligned it, reasoning that
+   a multi-photo post starts at the text's left edge so a single one should too; against
+   a real card that just read as a photograph shoved into a corner, and the founder
+   called it. The 25rem cap stays: the feed serves the 400x400 thumbnail rendition
+   (core/media._THUMB_MAX), so anything wider is upscaling. Filling the column properly
+   needs a mid-size rendition out of the media pipeline, which is not a stylesheet's
+   decision to make. */
 .photos a:only-child img { width: auto; max-width: min(100%, 25rem); height: auto;
-  aspect-ratio: auto; max-height: 25rem; margin-inline: 0; }
+  aspect-ratio: auto; max-height: 25rem; margin-inline: auto; }
 .photos:has(a:first-child:nth-last-child(3)) {                 /* 3: square row */
   grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .photos:has(a:first-child:nth-last-child(n+4)) {               /* 4+ and the 20-cap */
@@ -894,7 +927,10 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
   h2 { font-size: 1.35rem; }
   /* The two file pickers, and the pod select beside its family-side checkboxes. */
   .composer-media { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .composer-audience { grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); align-items: start; }
+  /* stretch, not start: with `start` each column grew only to its own content, so the
+     select came out 51.5px and the checkbox box 48px and the row's bottoms disagreed by
+     three and a half pixels. Stretch equalises the columns; both controls flex to fill. */
+  .composer-audience { grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); align-items: stretch; }
   ul.directory { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.85rem; grid-auto-rows: 1fr; }
   /* grid-auto-rows: 1fr above equalises the row heights — a "(Nana)" on one card used
@@ -928,6 +964,9 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
   /* Prose keeps its measure inside the well; feeds, galleries and tables take
      the well's full width. */
   main.wrap > p, main.wrap > h1 + p, .notice, .post > p, .empty { max-width: 34rem; }
+  /* ...but not the feed's end markers, which are centred on the well. Qualified, so
+     it outranks the (0,1,1) cap directly above rather than tying with it. */
+  main.wrap > p.caught-up, main.wrap > p.older { max-width: none; }
 }
 
 /* ---- lg: 75rem -------------------------------------------------------------- */
