@@ -8,6 +8,29 @@ went wrong this month was invisible on a laptop.
 
 ---
 
+## The demo family on the instance
+
+`scripts/demo_seed.py` puts a small two-sided family on the box so every section below
+exercises something real. It exists because QA against the bare instance gave FALSE
+NEGATIVES: every elder token belonged to a member whose pods held no photographs, so
+"can Nana see a photo?" answered *no* for a data reason rather than a code one — and
+both logins sat on the same side of the family, so the isolation boundary could not be
+crossed to test it.
+
+    # seed
+    docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+      python manage.py shell' < scripts/demo_seed.py
+
+    # wipe, before the instance goes to anyone real
+    docker compose exec -T -e BACKYARD_DEMO_WIPE=1 web sh -c \
+      'DJANGO_SECRET_KEY=$(cat /data/secret_key) python manage.py shell' < scripts/demo_seed.py
+
+Seeded logins (`priya`, `sam`, `dave`) share one throwaway password, printed in the
+script. `sam` and `dave` sit on OPPOSITE sides — that pair is what makes section D real.
+The elder token is printed when the seed runs.
+
+**Wipe it before the first invite.** These are disposable accounts with a known password.
+
 ## Before you start: the one thing that will lie to you
 
 **Register the Resend `email.received` webhook first**, pointing at
