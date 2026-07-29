@@ -696,13 +696,17 @@ epics:
     acceptance:
     - "A first-visit-only orientation on the feed: which side of the family this is, who can see what I post, and that nothing is pushed at me"
     - "It is dismissible and never returns; it is not a notification and not a tour"
-    status: spec        # PROPOSED 2026-07-29 from the delegate walkthrough, not built.
-                        # A newcomer completing the join lands on /feed/ with a composer and
-                        # other people's posts and NO orientation whatsoever. Distinct from
-                        # S-905, which tells the FAMILY someone arrived; this is what the
-                        # ARRIVING person sees. At the founder's scale (two delegates onboarding
-                        # ~10 relatives) this is explained by voice ten times.
+    status: passing     # S-906 close 2026-07-29: three facts above the composer, shown until
+                        # dismissed and never again. A STORED column, not a first-render check:
+                        # feed_last_seen_at advances on the first render, so an orientation keyed
+                        # to it would vanish the moment a newcomer tapped Pods and came back.
+                        # Migration 0022 backfills every member alive at deploy so only genuine
+                        # newcomers ever see it. Dismissal is POST-only (a prefetch must not clear
+                        # the one thing they have not read) and does not re-stamp. Every guard
+                        # proven to fire by probe; the stray comma in "You're in, Dad's side" was
+                        # caught by LOOKING and is now pinned at both arities.
     v1: false
+    evidence: src/core/tests/test_orientation.py + docs/receipts/2026-07-29-s906-s907-onboarding-close.md
 
   - id: S-907
     epic: E7
@@ -711,11 +715,15 @@ epics:
     acceptance:
     - "The roster states, in prose beside the control, what Pod owner / Yard admin / Instance admin each permit"
     - "It matches docs/security/permission-matrix.md, and a guard fails if the two drift"
-    status: spec        # PROPOSED 2026-07-29 from the delegate walkthrough, not built.
-                        # The roster renders the three role names and nothing else — measured:
-                        # no sentence anywhere on the page describes a capability. The person
-                        # being handed the controls has to be told what to pick.
+    status: passing     # S-907 close 2026-07-29: Member.ROLE_DESCRIPTIONS, rendered in a
+                        # closed <details> beside the Set role control. Bound to reality in BOTH
+                        # directions — every claim EXERCISED against permissions.py (a source-text
+                        # assertion would be defeated by the comment beside the code), and checked
+                        # against permission-matrix.md with whitespace collapsed, since the matrix
+                        # hard-wraps and a raw substring search would fail on a reflow and pass on
+                        # a rewrite. Proven non-vacuous by making a description lie.
     v1: false
+    evidence: src/core/tests/test_role_descriptions.py + docs/receipts/2026-07-29-s906-s907-onboarding-close.md
 
   - id: S-905
     epic: E9

@@ -22,6 +22,7 @@ from django.db.models import Prefetch, Q
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from . import (
     commenting,
@@ -208,6 +209,10 @@ def _render_feed(
             # posts rendered here are already the ones they can see, so the affordance is
             # exactly scoped to what they may act on.
             "is_moderator": permissions.is_admin(member),
+            # S-906: shown until dismissed, then never again. Not a notification and
+            # not a tour — three facts a newcomer would otherwise have to be told by
+            # whichever relative invited them.
+            "show_orientation": member.orientation_dismissed_at is None,
             "errors": errors or [],
             # The end-cap is only honest when the tail is genuinely reached; otherwise the
             # member gets a way back into the archive instead of a false "all caught up".
@@ -605,6 +610,25 @@ def notification_settings(request: HttpRequest) -> HttpResponse:
     return render(
         request, "core/notification_settings.html", {"pref": notifications.preference_for(member)}
     )
+
+
+@login_required
+@require_POST
+def dismiss_orientation(request: HttpRequest) -> HttpResponse:
+    """S-906: the member says they have read the orientation, and it never returns.
+
+    POST-only. A GET that dismissed it would let a link preview or a prefetch clear
+    the one thing a newcomer has not read yet — the same class of mistake the
+    compose-cancel route already guards against.
+
+    Idempotent, and it does NOT re-stamp: dismissing twice keeps the first moment, so
+    the column stays a truthful record of when they said they were oriented.
+    """
+    member = _acting_member(request)
+    Member.objects.filter(pk=member.pk, orientation_dismissed_at__isnull=True).update(
+        orientation_dismissed_at=timezone.now()
+    )
+    return redirect("feed")
 
 
 @login_required

@@ -50,6 +50,9 @@ urlpatterns = [
     # single reply opt-in, off by default.
     path("posts/<int:post_id>/react/", feed_views.react, name="react"),
     path("settings/notifications/", feed_views.notification_settings, name="notification_settings"),
+    # S-906: the newcomer's orientation, dismissed once and never shown again.
+    # POST-only, so a prefetch cannot clear it before it has been read.
+    path("feed/oriented/", feed_views.dismiss_orientation, name="dismiss_orientation"),
     # Ad-hoc pods and quiet exits (S-204, S-205).
     path("pods/", pod_views.pod_list, name="pod_list"),
     path("pods/create/", pod_views.pod_create, name="pod_create"),

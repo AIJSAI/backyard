@@ -103,6 +103,14 @@ def members(request: HttpRequest) -> HttpResponse:
             "actor": actor,
             "rows": rows,
             "can_create_yard": permissions.is_instance_admin(actor),
+            # S-907: what each role actually permits, beside the control that grants
+            # it. Only the roles this roster can hand out — listing "supervised" here
+            # would describe something the Set role control cannot produce.
+            "role_meanings": [
+                (label, Member.ROLE_DESCRIPTIONS[role])
+                for role, label in Member.ROLE_CHOICES
+                if role in _ASSIGNABLE_ROLES
+            ],
         },
     )
 
