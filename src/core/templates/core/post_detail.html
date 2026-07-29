@@ -66,7 +66,29 @@
       <li>
         <span class="author">{{ comment.author.display_name }}{% if comment.author.kinship_name %} ({{ comment.author.kinship_name }}){% endif %}</span>{% if comment.via_email %} <span class="via-email">via email</span>{% endif %}
         <span class="when">{{ comment.created_at|date:"M j, g:i a" }}</span>
-        <p>{{ comment.body }}</p>
+        {% if comment.body %}<p>{{ comment.body }}</p>{% endif %}
+        {% comment %} S-404: a reply's own photos and clips. Identical markup to a post's
+           gallery, so the same CSS grid, the same square cover-crop, the same
+           serve_media tokens — no second rendering path to drift. {% endcomment %}
+        {% if comment.live_media %}
+          <div class="photos">
+            {% for m in comment.live_media %}
+              {% if m.media_kind == 'video' %}
+                {% if m.transcode_status == 'done' %}
+                  <video class="clip" controls preload="metadata" poster="{% url 'serve_media' m.thumbnail_token %}">
+                    <source src="{% url 'serve_media' m.token %}" type="video/mp4">
+                  </video>
+                {% elif m.transcode_status == 'failed' %}
+                  <p class="clip-status">This clip couldn't be processed.</p>
+                {% else %}
+                  <p class="clip-status">Processing this clip… it'll appear here shortly.</p>
+                {% endif %}
+              {% else %}
+                <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.thumbnail_token %}" loading="lazy" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ comment.author.display_name }}{% endif %}"></a>
+              {% endif %}
+            {% endfor %}
+          </div>
+        {% endif %}
         {% if comment.author_id == member.id %}
           <form method="post" action="{% url 'delete_comment' comment.id %}" class="inline">
             {% csrf_token %}
@@ -88,9 +110,25 @@
   {% if errors %}
     <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
   {% endif %}
-  <form method="post" action="{% url 'add_comment' post.id %}" class="composer">
+  {% comment %} S-404. `required` comes OFF the textarea: a reply that is only a
+     photograph is a real reply, and the view requires a body only when nothing is
+     attached. Same field names as the composer, so the same server-side caps and the
+     same client-side resize apply. {% endcomment %}
+  <form method="post" action="{% url 'add_comment' post.id %}" class="composer"
+        enctype="multipart/form-data">
     {% csrf_token %}
-    <textarea name="body" rows="2" placeholder="Write a reply" required></textarea>
-    <button type="submit">Reply</button>
+    <textarea name="body" rows="2" placeholder="Write a reply, or just add photos"></textarea>
+    <div class="composer-media">
+      <div>
+        <label for="reply-photos">Photos</label>
+        <input id="reply-photos" type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
+      </div>
+      <div>
+        <label for="reply-videos">Short video clips</label>
+        <input id="reply-videos" type="file" name="videos" accept="video/mp4,video/quicktime" multiple>
+      </div>
+    </div>
+    <div class="composer-submit"><button type="submit">Reply</button></div>
   </form>
+  {% include "core/_photo_resize.html" %}
 {% endblock %}

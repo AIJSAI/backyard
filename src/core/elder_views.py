@@ -88,7 +88,15 @@ def elder_feed(request: HttpRequest) -> HttpResponse:
             Prefetch("media", queryset=scoping.visible_attached_media(member)),
             Prefetch(
                 "comments",
-                queryset=scoping.visible_comments(member).select_related("author"),
+                queryset=scoping.visible_comments(member)
+                .select_related("author")
+                # S-404: the wedding case is the whole reason this story exists, and it
+                # fails on the one surface it was written for if her grandchildren's
+                # reply photographs are invisible here. Same audience-checked queryset
+                # the post's own gallery uses.
+                .prefetch_related(
+                    Prefetch("media", queryset=scoping.visible_attached_media(member))
+                ),
             ),
         )[:_MAX_POSTS]
     )

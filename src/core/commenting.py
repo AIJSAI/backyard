@@ -56,10 +56,21 @@ def create_comment(*, author: Member, post: Post, body: str, via_email: bool = F
 
 
 def delete_comment(*, actor: Member, comment: Comment) -> None:
-    """Soft-delete the actor's own comment. Author-only; idempotent."""
+    """Soft-delete the actor's own comment and hard-purge its media. Author-only;
+    idempotent.
+
+    The purge lives HERE rather than in the view, unlike the post path, and
+    deliberately: `removal._delete_content` reaches comments through a bulk queryset
+    and never touches a view, so a view-level purge would leave a removed member's
+    reply photographs on the volume while telling them their content was gone
+    (T-MEDIA-6, S-702). In the service it cannot be forgotten by a new caller.
+    """
     if comment.author_id != actor.id:
         raise NotYourComment("You can only delete your own comment.")
     if comment.deleted_at is not None:
         return
+    from . import media
+
+    media.purge_comment_media(comment)
     comment.deleted_at = timezone.now()
     comment.save(update_fields=["deleted_at"])

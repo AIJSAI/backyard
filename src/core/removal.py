@@ -132,4 +132,12 @@ def _delete_content(member: Member) -> None:
     for post in posts:
         media.purge_post_media(post)
     posts.update(deleted_at=now)
-    Comment.objects.filter(author=member, deleted_at__isnull=True).update(deleted_at=now)
+    # Their REPLIES on other people's posts carry media too (S-404), and those posts are
+    # not theirs to delete — so the loop above never reaches them. Without this, a removed
+    # member's reply photographs stay on the volume after they have been told their
+    # content is gone, and the revocation-completeness promise (S-702, T-MEDIA-6) is only
+    # true of the content they happened to author at the top level.
+    comments = Comment.objects.filter(author=member, deleted_at__isnull=True)
+    for comment in comments:
+        media.purge_comment_media(comment)
+    comments.update(deleted_at=now)

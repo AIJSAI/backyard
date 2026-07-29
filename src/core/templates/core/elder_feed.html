@@ -46,6 +46,9 @@ img.photo, video.photo { display: block; width: 100%; height: auto; margin: 18px
 /* Replies, so the conversation reaches her. Indented and quieter than the post, but
    still well above the AA floor against the same white. */
 p.reply { margin: 12px 0 0 16px; color: #333333; }
+/* A reply's own photographs, indented with the reply they belong to so it stays clear
+   whose picture it is. Same full-width, never-cropped treatment as the post's. */
+.reply-photo { margin-left: 16px; width: calc(100% - 16px); }
 p.reply.more { color: #4c5a52; }
 /* A clip that is still transcoding, or failed: she gets a sentence instead of silence. */
 p.clip-status { margin: 18px 0; color: #4c5a52; }
@@ -100,7 +103,21 @@ p.clip-status { margin: 18px 0; color: #4c5a52; }
         {% endif %}
       {% endfor %}
       {% for comment in post.comments.all|slice:":5" %}
-        <p class="reply"><strong>{{ comment.author.display_name }}</strong>{% if comment.via_email %} (by email){% endif %} said: {{ comment.body }}</p>
+        <p class="reply"><strong>{{ comment.author.display_name }}</strong>{% if comment.via_email %} (by email){% endif %}{% if comment.body %} said: {{ comment.body }}{% else %} sent photos{% endif %}</p>
+        {% comment %} S-404. Deliberately <img src> and NOT wrapped in a link, exactly as
+           the post's own photos are: test_elder_wcag asserts every href on this page is
+           the elder feed itself (S-601, no dead ends), so a full-size link would red the
+           build. She sees the picture. {% endcomment %}
+        {% for m in comment.media.all %}
+          {% if m.media_kind == 'photo' %}
+            <img class="photo reply-photo" loading="lazy" src="{% url 'serve_media' m.token %}"
+                 alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ comment.author.display_name }}{% endif %}">
+          {% elif m.media_kind == 'video' and m.transcode_status == 'done' %}
+            <video class="photo reply-photo" controls preload="metadata" poster="{% url 'serve_media' m.thumbnail_token %}">
+              <source src="{% url 'serve_media' m.token %}" type="video/mp4">
+            </video>
+          {% endif %}
+        {% endfor %}
       {% endfor %}
       {% if post.comments.all|length > 5 %}
         {# Plain text, never a link: S-601 forbids anywhere to get lost from this page. #}

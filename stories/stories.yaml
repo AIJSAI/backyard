@@ -301,6 +301,38 @@ epics:
         Video metadata stripping at ingest covers container metadata (QuickTime and MP4 location atoms such as com.apple.quicktime.location.ISO6709), mirroring S-401's photo rule, and runs before any transcode or poster frame is generated. An ingest test corpus of real iPhone and Android video with known location is asserted clean post-ingest.
       source: docs/security/threat-model.md
     evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-404
+    epic: E4
+    persona: family-member
+    story: "As a member, I can reply to a post with my own photos or a clip, so a wedding becomes one thread instead of five separate posts."
+    acceptance:
+    - "A reply carries photos and short video clips, ingested and served exactly as a post's are (re-encoded, metadata-stripped, two unguessable tokens)"
+    - "Reply media inherits the COMMENT's audience, which inherits the post's, through the one audience query — no second path to drift (TM-2, T-MEDIA-1)"
+    - "A soft-deleted or taken-down reply takes its media out of every surface, and the files are hard-purged (T-MEDIA-6)"
+    - "Reply media appears on the thread, the elder page, and the digest web view; the digest EMAIL stays text-only"
+    - "The same per-upload caps, decode limits and staged-upload handling as a post; no new limits and no new ingest path"
+    status: passing     # S-404 close 2026-07-29. MediaAsset now hangs off EXACTLY ONE of a
+                        # post or a comment, enforced by a DB check constraint because every
+                        # reader and every purge branches on which is set. Reply media routes
+                        # through scoping.visible_comments — not a second audience derivation
+                        # — so it inherits the comment's audience AND the comment's deleted_at
+                        # for free (TM-2). Purge wired into all four paths: author delete,
+                        # takedown, post delete (comments cascade, the FILES did not), and
+                        # member removal (their replies live on OTHER people's posts, so the
+                        # post loop never reached them — S-702 completeness). Digest ceiling
+                        # narrowed on comment__post too, or a digest token widened into a
+                        # general reply-media credential. Export covers reply media: "leaving
+                        # takes your data" had excluded every picture a member put under
+                        # someone else's post. Six mutation probes, each failing the right
+                        # test; probe 1 (re-derive audience from the post) breaks the
+                        # SOFT-DELETE test, which is precisely the drift TM-2 warns about.
+                        # Live repro of the real wedding case + axe 8 renders / 0 violations
+                        # on a thread carrying reply photos.
+                        # Attachments on EMAILED replies (S-502) remain OUT: a separate
+                        # untrusted-input ingest path with its own threat surface.
+    v1: false
+    evidence: src/core/tests/test_reply_media.py + docs/receipts/2026-07-29-s404-reply-media.md
+
   - id: S-403
     epic: E4
     persona: yard-admin

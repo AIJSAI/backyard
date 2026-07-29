@@ -21,10 +21,11 @@ from django.core.files import File
 from django.core.files.base import ContentFile
 from django.core.files.storage import Storage
 from django.db import transaction
+from django.db.models import Q, QuerySet
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from . import transcoding
-from .models import MediaAsset, Post
+from .models import Comment, MediaAsset, Post
 
 # Formats accepted at open. HEIC is deliberately absent (the wave-3 pillow-heif decision):
 # the composer's client-side resize (feed.html) converts HEIC to JPEG in browsers that can
@@ -107,15 +108,34 @@ def _reencode(img: Image.Image, max_size: tuple[int, int]) -> bytes:
     return out.getvalue()
 
 
-def ingest_photo(*, post: Post, raw: bytes, alt_text: str = "") -> MediaAsset:
-    """Re-encode and store one uploaded photo as a media asset on the post. Raises
-    MediaRejected on anything that does not decode to an allowed image format. The
-    stored content type is always the re-encoded JPEG, never the client's claim."""
+def _owner_kwargs(post: Post | None, comment: Comment | None) -> dict[str, object]:
+    """Resolve the one owner an asset may have (S-404).
+
+    Refuses zero or two here, in the service, as well as at the database constraint:
+    an ingest that reached the DB with both set would already have written the file to
+    disk before the write failed, leaving bytes with no row to purge them.
+    """
+    if (post is None) == (comment is None):
+        raise MediaRejected("Media must attach to exactly one of a post or a reply.")
+    return {"post": post} if post is not None else {"comment": comment}
+
+
+def ingest_photo(
+    *, post: Post | None = None, comment: Comment | None = None, raw: bytes, alt_text: str = ""
+) -> MediaAsset:
+    """Re-encode and store one uploaded photo as a media asset on a post or a reply.
+    Raises MediaRejected on anything that does not decode to an allowed image format.
+    The stored content type is always the re-encoded JPEG, never the client's claim.
+
+    One ingest path for both owners, deliberately: a separate reply-photo function
+    would be a second place for the re-encode, the pixel ceiling and the
+    metadata-strip (TM-9) to drift out of step."""
+    owner = _owner_kwargs(post, comment)
     img = _decode(raw)
     full_bytes = _reencode(img, _FULL_MAX)
     thumb_bytes = _reencode(img, _THUMB_MAX)
     asset = MediaAsset(
-        post=post, content_type=_OUTPUT_CONTENT_TYPE, alt_text=alt_text.strip()[:_MAX_ALT]
+        **owner, content_type=_OUTPUT_CONTENT_TYPE, alt_text=alt_text.strip()[:_MAX_ALT]
     )
     asset.image.save(f"{asset.token}.jpg", ContentFile(full_bytes), save=False)
     asset.thumbnail.save(f"{asset.thumbnail_token}.jpg", ContentFile(thumb_bytes), save=False)
@@ -173,14 +193,17 @@ def validate_video(raw: bytes) -> float:
     return duration
 
 
-def ingest_video(*, post: Post, raw: bytes, alt_text: str = "") -> MediaAsset:
-    """Validate and store one uploaded video as a PENDING asset on the post (S-402).
+def ingest_video(
+    *, post: Post | None = None, comment: Comment | None = None, raw: bytes, alt_text: str = ""
+) -> MediaAsset:
+    """Validate and store one uploaded video as a PENDING asset on a post or reply (S-402).
 
     The stored source is metadata-stripped at ingest (TM-9), before any transcode or
     poster runs, so the retained original carries no QuickTime/MP4 location atom; the
     worker later produces the served H.264 rendition and a poster. content_type is pinned
     to the eventual rendition, never the client's claim.
     """
+    owner = _owner_kwargs(post, comment)
     validate_video(raw)
     with tempfile.TemporaryDirectory() as workdir:
         raw_path = Path(workdir) / "upload"
@@ -191,7 +214,7 @@ def ingest_video(*, post: Post, raw: bytes, alt_text: str = "") -> MediaAsset:
         except transcoding.FfmpegError as exc:
             raise MediaRejected("That video could not be processed.") from exc
         asset = MediaAsset(
-            post=post,
+            **owner,
             media_kind=MediaAsset.VIDEO,
             content_type=_VIDEO_OUTPUT_CONTENT_TYPE,
             transcode_status=MediaAsset.PENDING,
@@ -206,17 +229,31 @@ def ingest_video(*, post: Post, raw: bytes, alt_text: str = "") -> MediaAsset:
 
 
 def purge_post_media(post: Post) -> int:
-    """Hard-delete a post's media and every derivative from storage (T-MEDIA-6).
+    """Hard-delete a post's media, and the media on its REPLIES, from storage (T-MEDIA-6).
 
     Called when the post is deleted. Soft-delete alone stops the serving path (the view
     re-checks the post), but the files themselves must leave the disk so deleted media
     does not linger on the volume or behind a stale cached URL. Removes every stored file
     a photo or video carries (image, thumbnail, video source, and rendition), then drops
     the row. Returns the count purged.
+
+    Reply media is included because deleting a post takes its comments with it
+    (Comment.post is CASCADE). Without this the rows would vanish with the comments
+    while the FILES stayed on the volume forever — unreachable, unpurgeable, and
+    invisible to every test that only counted a post's own gallery.
     """
+    return _purge(MediaAsset.objects.filter(Q(post=post) | Q(comment__post=post)))
+
+
+def purge_comment_media(comment: Comment) -> int:
+    """Hard-delete one reply's media (T-MEDIA-6), for an author delete or a takedown."""
+    return _purge(comment.media.all())
+
+
+def _purge(assets: QuerySet[MediaAsset]) -> int:
     to_remove: list[tuple[Storage, str]] = []
     count = 0
-    for asset in post.media.all():
+    for asset in assets:
         for field in (asset.image, asset.thumbnail, asset.source, asset.video):
             if field.name:
                 to_remove.append((field.storage, field.name))

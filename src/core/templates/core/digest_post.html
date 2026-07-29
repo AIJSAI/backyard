@@ -21,7 +21,17 @@
   </article>
   <section class="comments">
     {% for comment in comments %}
-      <p><strong>{{ comment.author.display_name }}</strong>{% if comment.via_email %} <span class="via-email">(via email)</span>{% endif %}: {{ comment.body }}</p>
+      <p><strong>{{ comment.author.display_name }}</strong>{% if comment.via_email %} <span class="via-email">(via email)</span>{% endif %}{% if comment.body %}: {{ comment.body }}{% else %}: sent photos{% endif %}</p>
+      {% comment %} S-404: reply photos on the credential-free digest surface. The ?d=
+         token rides every media URL here, and Reader.visible_media narrows reply media
+         to this issue's posts so the token cannot widen into a general media credential.
+      {% endcomment %}
+      {% for m in comment.media.all %}
+        {% if m.media_kind == 'photo' %}
+          <img class="digest-photo" src="{% url 'serve_media' m.token %}?d={{ token }}" loading="lazy"
+               alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ comment.author.display_name }}{% endif %}">
+        {% endif %}
+      {% endfor %}
     {% empty %}
       <p class="empty">No replies yet.</p>
     {% endfor %}

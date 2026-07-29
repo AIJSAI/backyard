@@ -426,7 +426,20 @@ class MediaAsset(models.Model):
     FAILED = "failed"
     TRANSCODE_STATUS_CHOICES = [(PENDING, "Pending"), (DONE, "Done"), (FAILED, "Failed")]
 
-    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="media")
+    # S-404. An asset hangs off EXACTLY ONE of a post or a comment, enforced by a
+    # database constraint rather than by convention, because both the audience query
+    # and the purge branch on which one is set: a row with neither would be
+    # unreachable and unpurgeable, and a row with both would have two audiences.
+    #
+    # A comment carries no audience of its own — it inherits its post's — so comment
+    # media inherits the COMMENT's audience and therefore the post's, through the same
+    # single query. There is deliberately no second audience path to drift (TM-2).
+    post = models.ForeignKey(
+        Post, on_delete=models.CASCADE, related_name="media", null=True, blank=True
+    )
+    comment = models.ForeignKey(
+        "Comment", on_delete=models.CASCADE, related_name="media", null=True, blank=True
+    )
     media_kind = models.CharField(max_length=5, choices=MEDIA_KIND_CHOICES, default=PHOTO)
     token = models.CharField(max_length=43, unique=True, default=_media_token)
     thumbnail_token = models.CharField(max_length=43, unique=True, default=_media_token)
@@ -446,10 +459,41 @@ class MediaAsset(models.Model):
 
     class Meta:
         ordering = ["created_at"]
-        indexes = [models.Index(fields=["post", "created_at"])]
+        indexes = [
+            models.Index(fields=["post", "created_at"]),
+            models.Index(fields=["comment", "created_at"]),
+        ]
+        constraints = [
+            # Exactly one owner. Enforced in the DATABASE, not in a service function:
+            # every reader and every purge decides by branching on which FK is set, so
+            # neither "orphan" (unreachable, unpurgeable bytes) nor "both" (two
+            # audiences for one asset) may exist at all.
+            models.CheckConstraint(
+                condition=models.Q(post__isnull=False, comment__isnull=True)
+                | models.Q(post__isnull=True, comment__isnull=False),
+                name="mediaasset_exactly_one_owner",
+            )
+        ]
 
     def __str__(self) -> str:
-        return f"{self.get_media_kind_display()} {self.token[:8]} on post {self.post_id}"
+        where = f"post {self.post_id}" if self.post_id else f"reply {self.comment_id}"
+        return f"{self.get_media_kind_display()} {self.token[:8]} on {where}"
+
+    @property
+    def owning_post_id(self) -> int:
+        """The post whose audience this asset inherits, whichever way it is attached.
+
+        The check constraint guarantees exactly one owner, so this cannot legitimately
+        fail — but it raises rather than returning None if the invariant is ever
+        broken, because a caller that silently got None would compute an EMPTY
+        audience and read as "nobody may see this" instead of "this row is corrupt".
+        """
+        if self.post_id is not None:
+            return self.post_id
+        comment = self.comment
+        if comment is not None:
+            return int(comment.post_id)
+        raise ValueError(f"media {self.token[:8]} has no owner; the constraint was bypassed")
 
 
 class Reaction(models.Model):
