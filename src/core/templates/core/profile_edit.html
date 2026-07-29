@@ -30,7 +30,14 @@
 
        The visibility selects had only an aria-label, which made the page axe-clean and
        humanly baffling: a field called "Phone", then an unexplained "No one". Each now
-       carries a visible label that says what the control does. {% endcomment %}
+       carries a visible label that says what the control does.
+
+       That label NAMES ITS FIELD. The first cut of this change used a bare "Who can see
+       it", which read fine on screen and put five controls with the identical accessible
+       name on one page — a regression on the aria-labels it replaced, and one axe does
+       not flag. Keeping the noun in the VISIBLE text (rather than reaching for aria-label)
+       also keeps SC 2.5.3 Label in Name satisfied for free: there is only one name, and
+       it is the one on screen. {% endcomment %}
     <fieldset>
       <legend>Birthday (year optional; your age is never shown)</legend>
       <div class="field-row">
@@ -39,7 +46,7 @@
         <input type="number" name="birthday_year" value="{{ member.birthday_year|default_if_none:'' }}" placeholder="Year" aria-label="Birthday year, optional">
       </div>
       <div class="visibility">
-        <label for="birthday_visibility">Who can see it</label>
+        <label for="birthday_visibility">Who can see my birthday</label>
         <select id="birthday_visibility" name="birthday_visibility">
           {% for value, label in visibility_choices %}
             <option value="{{ value }}"{% if value == member.birthday_visibility %} selected{% endif %}>{{ label }}</option>
@@ -56,7 +63,7 @@
         <input type="number" name="anniversary_year" value="{{ member.anniversary_year|default_if_none:'' }}" placeholder="Year" aria-label="Anniversary year, optional">
       </div>
       <div class="visibility">
-        <label for="anniversary_visibility">Who can see it</label>
+        <label for="anniversary_visibility">Who can see my anniversary</label>
         <select id="anniversary_visibility" name="anniversary_visibility">
           {% for value, label in visibility_choices %}
             <option value="{{ value }}"{% if value == member.anniversary_visibility %} selected{% endif %}>{{ label }}</option>
@@ -68,7 +75,7 @@
     <label for="phone">Phone</label>
     <input id="phone" type="text" name="phone" value="{{ member.phone }}" maxlength="40">
     <div class="visibility">
-      <label for="phone_visibility">Who can see it</label>
+      <label for="phone_visibility">Who can see my phone</label>
       <select id="phone_visibility" name="phone_visibility">
         {% for value, label in visibility_choices %}
           <option value="{{ value }}"{% if value == member.phone_visibility %} selected{% endif %}>{{ label }}</option>
@@ -79,7 +86,7 @@
     <label for="contact_email">Email</label>
     <input id="contact_email" type="email" name="contact_email" value="{{ member.contact_email }}" maxlength="254">
     <div class="visibility">
-      <label for="contact_email_visibility">Who can see it</label>
+      <label for="contact_email_visibility">Who can see my email</label>
       <select id="contact_email_visibility" name="contact_email_visibility">
         {% for value, label in visibility_choices %}
           <option value="{{ value }}"{% if value == member.contact_email_visibility %} selected{% endif %}>{{ label }}</option>
@@ -90,7 +97,7 @@
     <label for="address">Address</label>
     <input id="address" type="text" name="address" value="{{ member.address }}" maxlength="255">
     <div class="visibility">
-      <label for="address_visibility">Who can see it</label>
+      <label for="address_visibility">Who can see my address</label>
       <select id="address_visibility" name="address_visibility">
         {% for value, label in visibility_choices %}
           <option value="{{ value }}"{% if value == member.address_visibility %} selected{% endif %}>{{ label }}</option>
