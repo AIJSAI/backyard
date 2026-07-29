@@ -1,8 +1,9 @@
 {% extends "core/base.html" %}
 {% block title %}Your pods{% endblock %}
 {% block body %}
+  {% comment %} No "Back to the feed" here: the header nav carries Feed on every page,
+     so this was a second, differently-styled copy of a link already on screen. {% endcomment %}
   <h1>Your pods</h1>
-  <p><a href="{% url 'feed' %}">Back to the feed</a></p>
 
   <ul class="pods">
     {% for row in rows %}
@@ -43,14 +44,19 @@
   </ul>
 
   <h2>Start a pod that is just your group</h2>
+  {% comment %} Two of these three fields were placeholder-only while the middle one
+     carried a bold label, so the form read as ragged — and a placeholder disappears
+     the moment someone types. All three are labelled now. {% endcomment %}
   <form method="post" action="{% url 'pod_create' %}">
     {% csrf_token %}
-    <input type="text" name="name" placeholder="Pod name (e.g. The Cousins)" required maxlength="100">
+    <label for="pod_name">Pod name</label>
+    <input id="pod_name" type="text" name="name" placeholder="e.g. The Cousins" required maxlength="100">
     <label for="yard_id">In which side of the family</label>
     <select id="yard_id" name="yard_id" required>
       {% for yard in yards %}<option value="{{ yard.id }}">{{ yard.name }}</option>{% endfor %}
     </select>
-    <input type="text" name="house_rule" placeholder="House rule (optional)" maxlength="200">
+    <label for="pod_house_rule">House rule (optional)</label>
+    <input id="pod_house_rule" type="text" name="house_rule" placeholder="One sentence" maxlength="200">
     <button type="submit">Create pod</button>
   </form>
 {% endblock %}

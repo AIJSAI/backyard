@@ -1,10 +1,14 @@
 {% extends "core/base.html" %}
 {% block title %}A post and its replies{% endblock %}
 {% block body %}
-  <p><a href="{% url 'feed' %}">Back to the feed</a></p>
+  <p class="back-link"><a class="back" href="{% url 'feed' %}">Back to the feed</a></p>
+  {% comment %} The thread page had no h1 at all: it opened on a bare link and then a
+     card, so nothing named the page for a reader or a screen reader. The heading is
+     the post's author, which is what a person opening a thread is looking for. {% endcomment %}
+  <h1>{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %}</h1>
 
   <div class="post">
-    <span class="author">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %}</span>
+    {% comment %} The author is the h1 above; repeating it here read as a bug. {% endcomment %}
     <span class="when">{{ post.created_at|date:"M j, g:i a" }}</span>
     {% if post.edited_at %}<span class="edited">(edited)</span>{% endif %}
     <p>{{ post.body }}</p>

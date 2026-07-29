@@ -15,43 +15,61 @@
 
   <ul class="members">
     {% for row in rows %}
+      {% comment %} The row is a HEADER line plus optional blocks beneath it. It used to
+         be one flat flex row containing a tall removal fieldset, so the wrapping put a
+         member's name vertically centred against the destruction form to its right and
+         the role control floating above both. {% endcomment %}
       <li>
-        <span>{{ row.member.display_name }}</span>
-        {% if row.member.kinship_name %}<span class="muted">({{ row.member.kinship_name }})</span>{% endif %}
-        <span class="role">{{ row.member.get_role_display }}</span>
-        {% if row.member.is_supervised %}<span class="flag">supervised</span>{% endif %}
+        <div class="member-head">
+          <span class="member-name">{{ row.member.display_name }}</span>
+          {% if row.member.kinship_name %}<span class="muted">({{ row.member.kinship_name }})</span>{% endif %}
+          <span class="role">{{ row.member.get_role_display }}</span>
+          {% if row.member.is_supervised %}<span class="flag">supervised</span>{% endif %}
+          {% if row.manageable %}
+            {% if not row.member.is_supervised %}
+              <a href="{% url 'provision_elder' row.member.id %}">Elder link</a>
+            {% endif %}
+            {% if row.assignable_roles %}
+              <form method="post" action="{% url 'assign_role' row.member.id %}" class="inline">
+                {% csrf_token %}
+                <label class="visually-hidden" for="role-{{ row.member.id }}">Role for {{ row.member.display_name }}</label>
+                <select id="role-{{ row.member.id }}" name="role">
+                  {% for value, label in row.assignable_roles %}
+                    <option value="{{ value }}">{{ label }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit">Set role</button>
+              </form>
+            {% endif %}
+          {% endif %}
+        </div>
         {% if row.manageable %}
-          {% if not row.member.is_supervised %}
-            <a href="{% url 'provision_elder' row.member.id %}">Elder link</a>
-          {% endif %}
-          {% if row.assignable_roles %}
-            <form method="post" action="{% url 'assign_role' row.member.id %}" class="inline">
-              {% csrf_token %}
-              <label class="visually-hidden" for="role-{{ row.member.id }}">Role for {{ row.member.display_name }}</label>
-              <select id="role-{{ row.member.id }}" name="role">
-                {% for value, label in row.assignable_roles %}
-                  <option value="{{ value }}">{{ label }}</option>
-                {% endfor %}
-              </select>
-              <button type="submit">Set role</button>
-            </form>
-          {% endif %}
           {% comment %} S-702: removal asks what happens to their content, and the
              answer is required. This used to be a bare Remove button, which silently
-             kept everything — a decision nobody was ever asked to make. {% endcomment %}
-          <form method="post" action="{% url 'member_remove' row.member.id %}" class="removal">
-            {% csrf_token %}
-            <fieldset>
-              <legend>Remove {{ row.member.display_name }} — what happens to their posts?</legend>
-              {% for value, label in content_choices %}
-                <label>
-                  <input type="radio" name="content" value="{{ value }}" required>
-                  {{ label }}
-                </label>
-              {% endfor %}
-            </fieldset>
-            <button type="submit" class="danger">Remove {{ row.member.display_name }}</button>
-          </form>
+             kept everything — a decision nobody was ever asked to make.
+
+             The form is unchanged — same action, same required radio, same POST. It is
+             now behind a disclosure because it was rendered OPEN for every member at
+             once: on a six-person family the admin page was four-fifths destruction UI,
+             five red "Remove" buttons deep, which is not what an admin came to do. A
+             closed <summary> is markup, not JavaScript, and the extra click before an
+             irreversible act is a feature of the arrangement rather than a cost. {% endcomment %}
+          <details class="removal-disclosure">
+            <summary>Remove {{ row.member.display_name }}&hellip;</summary>
+            <form method="post" action="{% url 'member_remove' row.member.id %}" class="removal">
+              {% csrf_token %}
+              <fieldset>
+                <legend>What happens to their posts?</legend>
+                {% for value, label in content_choices %}
+                  <label class="inline-check">
+                    <input type="radio" name="content" value="{{ value }}" required>
+                    {{ label }}
+                  </label>
+                {% endfor %}
+              </fieldset>
+              <button type="submit" class="danger">Remove {{ row.member.display_name }}</button>
+            </form>
+          </details>
         {% endif %}
       </li>
     {% endfor %}

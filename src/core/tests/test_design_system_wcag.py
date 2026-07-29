@@ -83,6 +83,13 @@ _PAIRS: list[tuple[str, str]] = [
     ("danger", "paper"),  # .danger button label
     ("danger", "surface"),  # .danger button inside a card row
     ("btn-ink", "btn-bg"),  # primary button label
+    # ADDED 2026-07-28. The list checked the button's RESTING fill and stopped there,
+    # so nothing ever measured the label against the fill a pointer actually produces.
+    # In dark mode that was #ffffff on #35906d = 3.92:1 — every primary button in the
+    # product below AA for as long as a pointer rested on it, through two separate
+    # 138-render axe sweeps that each reported zero violations, because an automated
+    # sweep never hovers. A state a user can reach is a state that has to be measured.
+    ("btn-ink", "btn-bg-hover"),  # primary button label, hovered
 ]
 
 

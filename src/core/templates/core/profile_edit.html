@@ -24,55 +24,81 @@
     <label for="kinship_name">What the family calls you (Nana, Uncle Jim)</label>
     <input id="kinship_name" type="text" name="kinship_name" value="{{ member.kinship_name }}" maxlength="50">
 
+    {% comment %} Month, day and year each had their own full-width 48px row, twice on
+       this page, for a value ten characters long — about 350px of page spent on two
+       dates. They are one value, so they sit on one line.
+
+       The visibility selects had only an aria-label, which made the page axe-clean and
+       humanly baffling: a field called "Phone", then an unexplained "No one". Each now
+       carries a visible label that says what the control does. {% endcomment %}
     <fieldset>
       <legend>Birthday (year optional; your age is never shown)</legend>
-      <input type="number" name="birthday_month" value="{{ member.birthday_month|default_if_none:'' }}" min="1" max="12" placeholder="Month">
-      <input type="number" name="birthday_day" value="{{ member.birthday_day|default_if_none:'' }}" min="1" max="31" placeholder="Day">
-      <input type="number" name="birthday_year" value="{{ member.birthday_year|default_if_none:'' }}" placeholder="Year (optional)">
-      <select name="birthday_visibility" aria-label="Who can see my birthday">
-        {% for value, label in visibility_choices %}
-          <option value="{{ value }}"{% if value == member.birthday_visibility %} selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
+      <div class="field-row">
+        <input type="number" name="birthday_month" value="{{ member.birthday_month|default_if_none:'' }}" min="1" max="12" placeholder="Month" aria-label="Birthday month">
+        <input type="number" name="birthday_day" value="{{ member.birthday_day|default_if_none:'' }}" min="1" max="31" placeholder="Day" aria-label="Birthday day">
+        <input type="number" name="birthday_year" value="{{ member.birthday_year|default_if_none:'' }}" placeholder="Year" aria-label="Birthday year, optional">
+      </div>
+      <div class="visibility">
+        <label for="birthday_visibility">Who can see it</label>
+        <select id="birthday_visibility" name="birthday_visibility">
+          {% for value, label in visibility_choices %}
+            <option value="{{ value }}"{% if value == member.birthday_visibility %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
     </fieldset>
 
     <fieldset>
       <legend>Anniversary (year optional; never shown)</legend>
-      <input type="number" name="anniversary_month" value="{{ member.anniversary_month|default_if_none:'' }}" min="1" max="12" placeholder="Month">
-      <input type="number" name="anniversary_day" value="{{ member.anniversary_day|default_if_none:'' }}" min="1" max="31" placeholder="Day">
-      <input type="number" name="anniversary_year" value="{{ member.anniversary_year|default_if_none:'' }}" placeholder="Year (optional)">
-      <select name="anniversary_visibility" aria-label="Who can see my anniversary">
-        {% for value, label in visibility_choices %}
-          <option value="{{ value }}"{% if value == member.anniversary_visibility %} selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
+      <div class="field-row">
+        <input type="number" name="anniversary_month" value="{{ member.anniversary_month|default_if_none:'' }}" min="1" max="12" placeholder="Month" aria-label="Anniversary month">
+        <input type="number" name="anniversary_day" value="{{ member.anniversary_day|default_if_none:'' }}" min="1" max="31" placeholder="Day" aria-label="Anniversary day">
+        <input type="number" name="anniversary_year" value="{{ member.anniversary_year|default_if_none:'' }}" placeholder="Year" aria-label="Anniversary year, optional">
+      </div>
+      <div class="visibility">
+        <label for="anniversary_visibility">Who can see it</label>
+        <select id="anniversary_visibility" name="anniversary_visibility">
+          {% for value, label in visibility_choices %}
+            <option value="{{ value }}"{% if value == member.anniversary_visibility %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
     </fieldset>
 
     <label for="phone">Phone</label>
     <input id="phone" type="text" name="phone" value="{{ member.phone }}" maxlength="40">
-    <select name="phone_visibility" aria-label="Who can see my phone">
-      {% for value, label in visibility_choices %}
-        <option value="{{ value }}"{% if value == member.phone_visibility %} selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
+    <div class="visibility">
+      <label for="phone_visibility">Who can see it</label>
+      <select id="phone_visibility" name="phone_visibility">
+        {% for value, label in visibility_choices %}
+          <option value="{{ value }}"{% if value == member.phone_visibility %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
 
     <label for="contact_email">Email</label>
     <input id="contact_email" type="email" name="contact_email" value="{{ member.contact_email }}" maxlength="254">
-    <select name="contact_email_visibility" aria-label="Who can see my email">
-      {% for value, label in visibility_choices %}
-        <option value="{{ value }}"{% if value == member.contact_email_visibility %} selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
+    <div class="visibility">
+      <label for="contact_email_visibility">Who can see it</label>
+      <select id="contact_email_visibility" name="contact_email_visibility">
+        {% for value, label in visibility_choices %}
+          <option value="{{ value }}"{% if value == member.contact_email_visibility %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
 
     <label for="address">Address</label>
     <input id="address" type="text" name="address" value="{{ member.address }}" maxlength="255">
-    <select name="address_visibility" aria-label="Who can see my address">
-      {% for value, label in visibility_choices %}
-        <option value="{{ value }}"{% if value == member.address_visibility %} selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
+    <div class="visibility">
+      <label for="address_visibility">Who can see it</label>
+      <select id="address_visibility" name="address_visibility">
+        {% for value, label in visibility_choices %}
+          <option value="{{ value }}"{% if value == member.address_visibility %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
 
     <button type="submit">Save</button>
   </form>
-  <p><a href="{% url 'directory' %}">Back to the directory</a></p>
+  <p class="back-link"><a class="back" href="{% url 'directory' %}">Back to the directory</a></p>
 {% endblock %}

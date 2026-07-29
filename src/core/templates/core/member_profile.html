@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% block title %}{{ profile.display_name }}{% endblock %}
 {% block body %}
-  <p><a href="{% url 'directory' %}">Back to the directory</a></p>
+  <p class="back-link"><a class="back" href="{% url 'directory' %}">Back to the directory</a></p>
   <h1>
     {{ profile.display_name }}
     {% if profile.kinship_name %}<span class="kinship">({{ profile.kinship_name }})</span>{% endif %}

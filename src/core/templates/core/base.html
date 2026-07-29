@@ -19,22 +19,42 @@
   {% endif %}
   <style>
 /* ==========================================================================
-   Backyard design system v3.1 — "Signage" (Claude Design, 2026-07-26).
-   v3.1 adds the layout addendum at the END of this file: desktop two-region
-   information design, mixed-aspect photo grids, sub-640px table reflow.
-   Zero appearance changes — same tokens, palette, type, component look.
-   Replaces the entire <style> block in src/core/templates/core/base.html.
+   Backyard design system v3.2 — "Signage", after the visual pass (2026-07-28).
 
-   Contract kept verbatim: every token name and class hook from v2 is present
-   (test_design_system_wcag.py parses these). Every text/background pair is
-   proven >= 4.5:1 in BOTH themes; control borders >= 3:1 (fixes SC 1.4.11 on
-   the composer textarea). See design_handoff_backyard_v3/README.md for the
-   full computed contrast table.
+   v3.1 fixed the LAYOUT: one shell width, a real header, form rhythm. It never
+   had a pass on type, density or warmth, and it showed — every screen opened
+   with a stack of identically-sized 48px boxes on a near-white ground, so the
+   family archive read as a form with photographs in it. This revision changes
+   three things and nothing else:
+
+     TYPE   — a real scale. h1/h2/h3 and body used to span 1.04rem-1.8rem, so an
+              h3 was smaller than a post and nothing on a page told you what
+              mattered. Now: 1.75/2.05rem display, 1.28rem section, 1.09rem post
+              body, 0.8rem timestamps.
+     WARMTH — the ground was #fbfcfb, which is white with a rumour of green in
+              it. It is now a warm linen (#f7f4ed) and the CARDS are the white,
+              so a page of photographs sits on paper instead of on a screen.
+              Ink, lines and tints were re-cut warm to match.
+     DENSITY— things that belong on one line are now on one line (a birthday,
+              a search box and its button, a photo picker and a video picker),
+              and things that belong together are grouped by proximity instead
+              of by a border.
+
+   Contract kept verbatim: every token name and class hook from v2/v3.1 is
+   present (test_design_system_wcag.py and test_accessibility_modes.py parse
+   these). Every text/background pair is proven >= 4.5:1 in BOTH themes — the
+   warm palette was computed against the guard's own math before it was written,
+   worst pair 5.20:1 (amber on amber-tint), worst control border 3.12:1.
+
+   --paper is read out of this file by test_pwa to pin the PWA install descriptor's
+   background colour, so a warmer ground means core/pwa_views._BG moves with it.
+   (That word is spelled around on purpose: this comment ships inside every page's
+   <style>, and the /d/ digest surface asserts the install-descriptor noun is absent
+   from its HTML — an anonymous email-link recipient is never offered an install.)
 
    Type: Atkinson Hyperlegible, self-hosted woff2 (font-src 'self' — the CSP
-   has no font-src directive, so same-origin fonts are already allowed; the
-   project must ship static/fonts/ and run collectstatic). Falls back to the
-   system humanist stack; no data: URIs, no CDN, no build step.
+   has no font-src directive, so same-origin fonts are already allowed).
+   Falls back to the system humanist stack; no data: URIs, no CDN, no build step.
    ========================================================================== */
 
 @font-face {
@@ -56,33 +76,35 @@
 :root {
   color-scheme: light dark;
 
-  /* Light — "the lawn at noon": clean whites, sign green, one warm amber. */
-  --paper:        #fbfcfb;  /* page ground: near-white, faint green cast     */
-  --surface:      #ffffff;  /* raised cards                                   */
-  --surface-sunk: #eef3ef;  /* insets, readonly fields, table stripes         */
-  --ink:          #1c211e;  /* primary text                                   */
-  --ink-soft:     #4c5a52;  /* secondary text (7.06:1 on paper)               */
-  --line:         #dde4df;  /* hairline borders (decorative)                  */
-  --line-strong:  #7f8f85;  /* CONTROL borders: 3.40:1 on surface (SC 1.4.11) */
+  /* Light — "the lawn at noon" on warm paper: linen ground, white cards,
+     sign green, one warm amber. */
+  --paper:        #f7f4ed;  /* page ground: warm linen                        */
+  --surface:      #ffffff;  /* raised cards — now the BRIGHTEST thing         */
+  --surface-sunk: #efeade;  /* insets, readonly fields, table stripes         */
+  --ink:          #1d1b16;  /* primary text (15.66:1 on paper)                */
+  --ink-soft:     #575047;  /* secondary text (7.23:1 on paper)               */
+  --line:         #e0d9c9;  /* hairline borders (decorative)                  */
+  --line-strong:  #8b8375;  /* CONTROL borders: 3.75:1 on surface (SC 1.4.11) */
 
-  --green:        #1e5c46;  /* brand: sign green (7.63:1 on paper)            */
+  --green:        #1e5c46;  /* brand: sign green (7.15:1 on paper)            */
   --green-deep:   #174534;  /* hover / pressed                                */
-  --green-tint:   #eef4f0;  /* soft wash: notices, role pills, banners        */
-  --amber:        #8a5a12;  /* warm accent: boundary, flags (5.75:1)          */
-  --amber-tint:   #f6efe0;
+  --green-tint:   #e7efe6;  /* soft wash: notices, role pills, banners        */
+  --amber:        #87540d;  /* warm accent: boundary, flags (5.79:1)          */
+  --amber-tint:   #f4e7cf;
 
-  --danger:       #b23b2e;  /* destructive + errors (5.74:1 on paper)         */
-  --danger-tint:  #f9e9e6;
+  --danger:       #ad3527;  /* destructive + errors (5.77:1 on paper)         */
+  --danger-tint:  #f8e3dd;
 
   --btn-bg:       var(--green);
   --btn-bg-hover: var(--green-deep);
   --btn-ink:      #ffffff;  /* 7.85:1 on btn-bg                               */
 
-  --ring:         #8a5a12;  /* warm focus ring, distinct from the green fills */
+  --ring:         #87540d;  /* warm focus ring, distinct from the green fills */
 
-  --radius:       12px;
-  --radius-sm:    9px;
-  --shadow:       0 1px 3px rgba(20, 40, 30, 0.05);
+  --radius:       14px;
+  --radius-sm:    10px;
+  /* Warm-cast, not neutral grey: a grey shadow on linen reads as dirt. */
+  --shadow:       0 1px 2px rgba(60, 48, 30, 0.05), 0 4px 14px rgba(60, 48, 30, 0.035);
 
   --font-display: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI",
                   Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -96,59 +118,67 @@
      900px-wide paragraph, and only one of them is about reading. */
   --field-measure: 32rem;
   /* One shell width for header, main and footer. They used to differ (72rem vs
-     56rem), so the brand never lined up with the content beneath it — the single
-     biggest reason desktop read as "nothing is centred". */
-  --shell:        46rem;
+     56rem), so the brand never lined up with the content beneath it. Widened
+     from 46rem in the visual pass: at 46rem a three-photo post rendered three
+     166px stamps at 1440, which is the wrong trade for a family photo archive.
+     Prose is still capped at 34rem below, so the reading measure did not move —
+     only the photographs got their room back. */
+  --shell:        52rem;
   --step:         1rem;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Dark — "dusk on the lawn": deep green-cast charcoal, hand-tuned. */
-    --paper:        #121714;
-    --surface:      #1a211c;
-    --surface-sunk: #0d110f;
-    --ink:          #e8ece9;
-    --ink-soft:     #a8b3ab;
-    --line:         #2a332d;
-    --line-strong:  #6b7a71;  /* 3.64:1 on surface */
+    /* Dark — "dusk on the lawn", warm-cast to match: brown-black rather than
+       the old green-black, so the two themes read as one product. */
+    --paper:        #16140f;
+    --surface:      #1f1c16;
+    --surface-sunk: #100e0a;
+    --ink:          #ece8df;
+    --ink-soft:     #aca396;
+    --line:         #332e25;
+    --line-strong:  #776f61;  /* 3.42:1 on surface */
 
-    --green:        #7fc9a4;  /* foliage green, lightened for text/links */
-    --green-deep:   #9ad8b8;
-    --green-tint:   #16281f;
-    --amber:        #e2b878;
-    --amber-tint:   #241c10;
+    --green:        #86c8a3;  /* foliage green, lightened for text/links */
+    --green-deep:   #a2d7ba;
+    --green-tint:   #1a2a20;
+    --amber:        #e0b878;
+    --amber-tint:   #2a2010;
 
-    --danger:       #eb9a8d;
-    --danger-tint:  #2a1815;
+    --danger:       #ec9a8b;
+    --danger-tint:  #2d1a15;
 
     --btn-bg:       #2c7a5c;  /* filled-button green, separate from link green */
-    --btn-bg-hover: #35906d;
-    --btn-ink:      #ffffff;  /* 5.19:1 on btn-bg */
+    /* Hover DARKENS in dark mode. It used to lighten to #35906d, which is 3.92:1
+       against the white label — so every primary button in the product fell below
+       AA for as long as a pointer rested on it. Two 138-render axe sweeps reported
+       zero violations because neither ever hovered anything. 7.41:1 now. */
+    --btn-bg-hover: #226047;
+    --btn-ink:      #ffffff;  /* 5.19:1 on btn-bg, 7.41:1 on btn-bg-hover */
 
-    --ring:         #e2b878;
-    --shadow:       0 1px 3px rgba(0, 0, 0, 0.45);
+    --ring:         #e0b878;
+    --shadow:       0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.3);
   }
 }
 
 /* A manual theme choice wins over the OS preference, in both directions. */
 :root[data-theme="light"] {
-  --paper:#fbfcfb; --surface:#ffffff; --surface-sunk:#eef3ef;
-  --ink:#1c211e; --ink-soft:#4c5a52; --line:#dde4df; --line-strong:#7f8f85;
-  --green:#1e5c46; --green-deep:#174534; --green-tint:#eef4f0;
-  --amber:#8a5a12; --amber-tint:#f6efe0; --danger:#b23b2e; --danger-tint:#f9e9e6;
+  --paper:#f7f4ed; --surface:#ffffff; --surface-sunk:#efeade;
+  --ink:#1d1b16; --ink-soft:#575047; --line:#e0d9c9; --line-strong:#8b8375;
+  --green:#1e5c46; --green-deep:#174534; --green-tint:#e7efe6;
+  --amber:#87540d; --amber-tint:#f4e7cf; --danger:#ad3527; --danger-tint:#f8e3dd;
   --btn-bg:var(--green); --btn-bg-hover:var(--green-deep); --btn-ink:#ffffff;
-  --ring:#8a5a12;
-  --shadow:0 1px 3px rgba(20,40,30,0.05);
+  --ring:#87540d;
+  --shadow:0 1px 2px rgba(60,48,30,0.05), 0 4px 14px rgba(60,48,30,0.035);
 }
 :root[data-theme="dark"] {
-  --paper:#121714; --surface:#1a211c; --surface-sunk:#0d110f;
-  --ink:#e8ece9; --ink-soft:#a8b3ab; --line:#2a332d; --line-strong:#6b7a71;
-  --green:#7fc9a4; --green-deep:#9ad8b8; --green-tint:#16281f;
-  --amber:#e2b878; --amber-tint:#241c10; --danger:#eb9a8d; --danger-tint:#2a1815;
-  --btn-bg:#2c7a5c; --btn-bg-hover:#35906d; --btn-ink:#ffffff;
-  --ring:#e2b878;
-  --shadow:0 1px 3px rgba(0,0,0,0.45);
+  --paper:#16140f; --surface:#1f1c16; --surface-sunk:#100e0a;
+  --ink:#ece8df; --ink-soft:#aca396; --line:#332e25; --line-strong:#776f61;
+  --green:#86c8a3; --green-deep:#a2d7ba; --green-tint:#1a2a20;
+  --amber:#e0b878; --amber-tint:#2a2010; --danger:#ec9a8b; --danger-tint:#2d1a15;
+  --btn-bg:#2c7a5c; --btn-bg-hover:#226047; --btn-ink:#ffffff;
+  --ring:#e0b878;
+  --shadow:0 1px 2px rgba(0,0,0,0.4), 0 4px 14px rgba(0,0,0,0.3);
 }
 
 /* ---- reset & base --------------------------------------------------------- */
@@ -168,21 +198,27 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* The type scale. It used to run 1.04 / 1.18 / 1.55rem against a 1.0625rem body —
+   an h3 SMALLER than a paragraph, and an h2 four percent above one. Nothing on a
+   page said what mattered. */
 h1, h2, h3 {
   font-family: var(--font-display);
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.2;
+  letter-spacing: -0.012em;
   text-wrap: balance;
   color: var(--ink);
-  margin: 0 0 0.35em;
+  margin: 0 0 0.5rem;
 }
-h1 { font-size: 1.55rem; }
-h2 { font-size: 1.18rem; margin-top: 1.5em; }
-h3 { font-size: 1.04rem; }
+h1 { font-size: 1.75rem; margin-bottom: 1.4rem; }
+h2 { font-size: 1.28rem; margin-top: 2.25rem; margin-bottom: 0.75rem; letter-spacing: -0.008em; }
+h3 { font-size: 1.06rem; letter-spacing: 0; }
+/* A heading immediately followed by its own explanatory line is one unit. */
+h1 + p, h2 + p { margin-top: -0.55rem; }
 p  { margin: 0 0 var(--step); }
 p:last-child { margin-bottom: 0; }
 
-a { color: var(--green); font-weight: 700; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a { color: var(--green); font-weight: 700; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 a:hover { color: var(--green-deep); }
 
 .muted { color: var(--ink-soft); }
@@ -191,7 +227,7 @@ code {
   font-family: var(--font-mono); font-size: 0.9em;
   background: var(--surface-sunk); padding: 0.12em 0.4em; border-radius: 5px;
 }
-hr { border: 0; border-top: 1px solid var(--line); margin: 1.5rem 0; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 1.75rem 0; }
 
 /* ---- focus: one warm ring on every interactive element -------------------- */
 :focus-visible {
@@ -223,17 +259,17 @@ header.site { background: var(--green); border-bottom: 1px solid var(--green-dee
 header.site .wrap,
 main.wrap,
 footer.site .wrap { width: 100%; max-width: var(--shell); margin: 0 auto; padding: 0 1.25rem; }
-header.site .wrap { display: flex; align-items: center; gap: 1rem; min-height: 3.6rem; }
+header.site .wrap { display: flex; align-items: center; gap: 1rem; min-height: 3.9rem; }
 /* Wayfinding belongs in the header, where a person looks for it — not marooned in a
    margin. The old .rail held two links in a 19rem column, which at 1440 left a third of
    the screen empty and made the whole composition sit left. */
-header.site nav.site-nav { margin-left: auto; display: flex; flex-wrap: wrap; gap: 0.25rem 1.1rem; }
+header.site nav.site-nav { margin-left: auto; display: flex; flex-wrap: wrap; gap: 0.25rem 1.4rem; }
 /* The header keeps a GREEN ground in light mode and a tinted one in dark, so its text
    colour follows the brand's treatment rather than --ink. Colouring these with --ink
    put dark text on the dark-green bar: axe caught it at 3 nodes per page, light mode
    only. Same override chain as .brand so a manual theme choice still wins. */
-header.site nav.site-nav a { color: #ffffff; font-size: 0.94rem; font-weight: 700;
-  text-decoration: none; padding: 0.35rem 0; border-bottom: 2px solid transparent; }
+header.site nav.site-nav a { color: #ffffff; font-size: 0.95rem; font-weight: 700;
+  text-decoration: none; padding: 0.4rem 0; border-bottom: 2px solid transparent; }
 header.site nav.site-nav a:hover,
 header.site nav.site-nav a[aria-current="page"] { border-bottom-color: currentColor; }
 @media (prefers-color-scheme: dark) {
@@ -247,8 +283,9 @@ header.site nav.site-nav a[aria-current="page"] { border-bottom-color: currentCo
 :root[data-theme="dark"] header.site nav.site-nav a[aria-current="page"] { color: var(--green); }
 
 .brand {
-  display: inline-flex; align-items: baseline; gap: 0.55rem;
-  font-family: var(--font-display); font-size: 1.22rem; font-weight: 700;
+  display: inline-flex; align-items: baseline; gap: 0.5rem;
+  font-family: var(--font-display); font-size: 1.28rem; font-weight: 700;
+  letter-spacing: -0.015em;
   color: #ffffff; text-decoration: none;
 }
 .brand:hover { color: #ffffff; }
@@ -262,7 +299,7 @@ header.site nav.site-nav a[aria-current="page"] { border-bottom-color: currentCo
 :root[data-theme="dark"] .brand, :root[data-theme="dark"] .brand:hover,
 :root[data-theme="dark"] .brand svg { color: var(--green); }
 
-main.wrap { flex: 1 0 auto; padding-top: 1.5rem; padding-bottom: 3rem; }
+main.wrap { flex: 1 0 auto; padding-top: 2rem; padding-bottom: 3.5rem; }
 main.wrap > p, main.wrap > h1 + p,
 .notice, .post > p, .empty { max-width: 34rem; }
 /* Photos on the credential-free digest surfaces. Its own rule, deliberately: folding it
@@ -271,39 +308,45 @@ main.wrap > p, main.wrap > h1 + p,
 img.digest-photo { display: block; width: 100%; height: auto; margin: 0.8rem 0;
   border-radius: var(--radius-sm); background: var(--surface-sunk); }
 
-footer.site { border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 0.8rem; }
-footer.site .wrap { padding-top: 1rem; padding-bottom: 1rem; }
+/* The footer used to open with "A quiet place for family. Your history stays yours"
+   — a tagline nothing in the product pinned, set above a BOLDER help line, so the
+   least important sentence on the page was also the loudest. The tagline is gone and
+   the help sentence is the footer. */
+footer.site { border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 0.82rem; }
+footer.site .wrap { padding-top: 1.1rem; padding-bottom: 1.1rem; }
 footer.site a { color: var(--ink-soft); }
-/* Two footer lines: stacked on a phone, side by side once there is room. The help
-   sentence must never be pushed off-screen — SC 3.2.6 wants it findable. */
 footer.site .wrap { display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem; }
-footer.site .help { font-weight: 700; }
+/* SC 3.2.6 wants this findable, not shouted: regular weight, same quiet ink as the
+   rest of the page furniture. */
+footer.site .help { font-weight: 400; color: var(--ink-soft); }
 
 /* The rail's wayfinding is a real navigation landmark. Where the rail holds
    only links the rail element IS the <nav>; on the feed the <nav> sits inside
    the <aside> that also carries the genuinely complementary date banner. */
 .rail nav { margin: 0; }
 .rail nav > p:last-child, nav.rail > p:last-child { margin-bottom: 0; }
-/* A .rail now carries a page's OWN actions ("Invite a household", "Export my data"),
-   not global navigation — that moved to the header. So it reads as an action bar
-   directly under the heading, which is where a person looks for what they can do here. */
+/* A .rail carries a page's OWN actions ("Invite a household", "Export my data"), not
+   global navigation — that lives in the header. It used to be a bordered card of bold
+   underlined links, which made a row of secondary actions the heaviest object under the
+   heading. It is now a quiet action row: no box, no underline until hover. */
 nav.rail {
-  margin: 0 0 1.75rem; padding: 0.7rem 0.95rem;
-  background: var(--surface); border: 1.5px solid var(--line);
-  border-radius: var(--radius-sm); font-size: 0.94rem;
+  margin: -0.6rem 0 2rem; padding: 0;
+  background: none; border: 0; font-size: 0.94rem;
 }
 nav.rail p { margin: 0; }
+nav.rail a { text-decoration: none; }
+nav.rail a:hover { text-decoration: underline; }
 /* The date banner is complementary content, not an action bar. */
 aside.date-banner {
-  margin: 0 0 1.75rem; padding: 0.7rem 0.95rem;
-  background: var(--green-tint); border: 1.5px solid var(--line);
+  margin: 0 0 1.75rem; padding: 0.85rem 1.1rem;
+  background: var(--green-tint); border: 1px solid color-mix(in srgb, var(--green) 18%, transparent);
   border-radius: var(--radius-sm);
 }
 aside.date-banner p:last-child { margin-bottom: 0; }
 
 /* ---- forms ------------------------------------------------------------------
    Control borders use --line-strong (>=3:1) — the SC 1.4.11 fix. */
-label { display: block; margin: 0 0 0.35rem; font-weight: 700; color: var(--ink); font-size: 0.92rem; }
+label { display: block; margin: 0 0 0.35rem; font-weight: 700; color: var(--ink); font-size: 0.9rem; }
 label.inline-check { display: flex; align-items: baseline; gap: 0.55rem; font-weight: 400; margin: 0.5rem 0; font-size: 1rem; }
 input, select, textarea {
   /* Capped, not full-bleed. A pod-name field spanning 900px reads as a mistake and
@@ -314,13 +357,13 @@ input, select, textarea {
   display: block;
   width: 100%; max-width: var(--field-measure); font: inherit; color: var(--ink);
   background: var(--surface);
-  padding: 0.7rem 0.75rem;
+  padding: 0.7rem 0.8rem;
   min-height: 48px;
   /* The RHYTHM lives on the control, not on the next label. It used to live entirely in
      `label { margin-top: 1rem }`, so any field NOT followed by a label — the last one
      before a submit button, or a placeholder-only input — collided with whatever came
      next. That is why "Create pod" sat flush against "House rule (optional)". */
-  margin: 0 0 1.1rem;
+  margin: 0 0 0.95rem;
   border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm);
 }
 /* Inside a bordered card or fieldset the control fills its container: a field capped
@@ -332,26 +375,30 @@ fieldset input, fieldset select, fieldset textarea,
 .composer fieldset, .card fieldset { max-width: none; }
 /* A label belongs to the control beneath it, so the gap goes ABOVE the pair. */
 label + input, label + select, label + textarea { margin-top: 0; }
-* + label { margin-top: 1.35rem; }
-/* A submit never touches the field above it. */
+* + label { margin-top: 1.2rem; }
+/* A submit never touches the field above it — and never touches the "back" link
+   BELOW it either, which is what happened on every settings page: a solid green
+   button with a bold underlined link jammed four pixels under its bottom edge. */
 form > button, form > input[type=submit], form > .btn,
 fieldset + button, fieldset + input[type=submit] { margin-top: 0.5rem; }
+form + p, form + .rail { margin-top: 1.5rem; }
 input[type=checkbox], input[type=radio] { display: inline-block; width: auto; max-width: none;
   min-width: 1.2rem; min-height: 1.2rem; margin: 0; accent-color: var(--green); }
 /* The native file control renders as a grey OS button and unstyled "No file chosen"
    text — the one place the design system stopped at the edge of the browser's default.
    Style the button part so it reads as ours. */
-input[type=file] { padding: 0.5rem; background: var(--surface-sunk); cursor: pointer; }
+input[type=file] { padding: 0.5rem; background: var(--surface-sunk); cursor: pointer;
+  font-size: 0.92rem; color: var(--ink-soft); }
 input[type=file]::file-selector-button {
   font: inherit; font-weight: 700; cursor: pointer;
-  margin-right: 0.75rem; padding: 0.45rem 0.9rem;
+  margin-right: 0.75rem; padding: 0.5rem 0.9rem;
   color: var(--green); background: var(--surface);
   border: 1.5px solid var(--green); border-radius: var(--radius-sm);
 }
 input[type=file]::file-selector-button:hover { background: var(--green-tint); }
 input::placeholder, textarea::placeholder { color: var(--ink-soft); opacity: 1; }
 input:focus, select:focus, textarea:focus { border-color: var(--green); }
-textarea { resize: vertical; min-height: 3.2rem; }
+textarea { resize: vertical; min-height: 3.2rem; line-height: 1.5; }
 select { appearance: none; -webkit-appearance: none;
   background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
                     linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
@@ -359,14 +406,37 @@ select { appearance: none; -webkit-appearance: none;
   background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 2rem; }
 
 fieldset { border: 1.5px solid var(--line); border-radius: var(--radius-sm);
-  max-width: var(--field-measure); margin: 0 0 1.1rem; padding: 0.5rem 0.9rem 0.9rem; }
-legend { font-weight: 700; padding: 0 0.4rem; color: var(--ink); font-size: 0.92rem; }
+  max-width: var(--field-measure); margin: 0 0 0.95rem; padding: 0.6rem 1rem 1rem; }
+legend { font-weight: 700; padding: 0 0.4rem; color: var(--ink); font-size: 0.9rem; }
+
+/* A row of fields that describe ONE value — a birthday's month, day and year. Three
+   full-width 48px boxes stacked down the page for a ten-character date was the single
+   biggest density defect in the app, and the profile form carried it twice. */
+.field-row { display: flex; flex-wrap: wrap; gap: 0.6rem; max-width: var(--field-measure); }
+.field-row > input, .field-row > select { flex: 1 1 6rem; width: auto; min-width: 0; margin-bottom: 0; }
+.field-row + * { margin-top: 0.95rem; }
+/* A control that governs who may SEE the field above it, rather than another field.
+   These were bare selects with only an aria-label, so the page was axe-clean and
+   humanly baffling: "Phone", a box, then an unexplained "No one". */
+.visibility { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem;
+  margin: -0.35rem 0 1.2rem; }
+/* Inside a fieldset the box already supplies the bottom breathing room; the
+   token margin left a band of empty space under each date. */
+fieldset .visibility { margin: 0.7rem 0 0; }
+.visibility label { margin: 0; font-weight: 400; font-size: 0.88rem; color: var(--ink-soft); }
+.visibility select { width: auto; min-width: 12rem; max-width: 100%; margin: 0;
+  min-height: 40px; padding-top: 0.35rem; padding-bottom: 0.35rem; font-size: 0.92rem; }
+/* A search field and the button that runs it are one control, not two rows. */
+.search-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.6rem;
+  max-width: var(--field-measure); margin-bottom: 1.75rem; }
+.search-row input { flex: 1 1 12rem; margin: 0; width: auto; }
+.search-row button { flex: none; margin: 0; }
 
 /* ---- buttons ---------------------------------------------------------------- */
 button, input[type=submit], .btn {
   font: inherit; font-weight: 700; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
-  min-height: 46px; padding: 0.55rem 1.2rem;
+  min-height: 46px; padding: 0.55rem 1.3rem;
   color: var(--btn-ink); background: var(--btn-bg);
   border: 1.5px solid transparent; border-radius: var(--radius-sm);
   text-decoration: none; line-height: 1.2;
@@ -395,7 +465,7 @@ button.danger, .inline button.danger, .btn-danger {
    where the act is deliberate. Hit area is preserved via padding, not a border. */
 .actions button.danger {
   background: none; border-color: transparent; padding-left: 0; padding-right: 0.6rem;
-  min-height: 44px; font-size: 0.94rem;
+  min-height: 44px; font-size: 0.88rem;
 }
 .actions button.danger:hover {
   background: none; border-color: transparent; color: var(--danger);
@@ -405,9 +475,21 @@ button.danger:hover, .btn-danger:hover { background: var(--danger-tint); color: 
 /* Non-colour cue: destructive carries a leading x beyond colour + wording. */
 button.danger::before, .btn-danger::before { content: "\00d7"; font-weight: 700; font-size: 1.05em; line-height: 1; }
 
+/* One consistent "back" treatment. There were four: a bordered card of links on the
+   directory, a bare bold underlined link under the h1 on pods, the same link ABOVE the
+   h1 on a profile, and none at all on a thread. Where the header nav already goes
+   somewhere, the back link is now simply gone. */
+a.back {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-size: 0.9rem; text-decoration: none; color: var(--ink-soft);
+}
+a.back::before { content: "\2190"; font-weight: 700; }
+a.back:hover { color: var(--green); text-decoration: underline; }
+p.back-link { margin: 0 0 1rem; }
+
 /* ---- notices, errors, flags ------------------------------------------------- */
 .notice, .errors {
-  border-radius: var(--radius-sm); padding: 0.8rem 1rem;
+  border-radius: var(--radius-sm); padding: 0.85rem 1.1rem;
   border: 1.5px solid color-mix(in srgb, var(--green) 25%, transparent);
   background: var(--green-tint);
   margin: 1.25rem 0;
@@ -425,11 +507,10 @@ button.danger::before, .btn-danger::before { content: "\00d7"; font-weight: 700;
    password set, second factor added or REMOVED, verification link expired — and
    for two paths they are the ONLY feedback that exists, so a page with no messages
    region turns a failure into silence. Styled as .notice; error/warning tags borrow
-   the .errors treatment so severity is not carried by colour alone.
-   RE-GRAFTED after the v3.1 layout addendum, which was authored against v3.0. */
+   the .errors treatment so severity is not carried by colour alone. */
 .messages { list-style: none; margin: 1.25rem 0; padding: 0; }
 .messages .msg {
-  border-radius: var(--radius-sm); padding: 0.8rem 1rem;
+  border-radius: var(--radius-sm); padding: 0.85rem 1.1rem;
   border: 1.5px solid color-mix(in srgb, var(--green) 25%, transparent);
   background: var(--green-tint);
 }
@@ -443,7 +524,7 @@ button.danger::before, .btn-danger::before { content: "\00d7"; font-weight: 700;
 
 .flag, .role, .via-email {
   display: inline-flex; align-items: center; gap: 0.34em;
-  font-size: 0.73rem; font-weight: 700;
+  font-size: 0.72rem; font-weight: 700;
   line-height: 1.4; padding: 0.16rem 0.6rem; border-radius: 999px;
   background: var(--surface-sunk); color: var(--ink-soft);
   letter-spacing: 0.02em; vertical-align: middle;
@@ -458,29 +539,52 @@ button.danger::before, .btn-danger::before { content: "\00d7"; font-weight: 700;
 .via-email::before { content: ""; width: 0.7em; height: 0.5em; border: 1px solid currentColor; border-radius: 1px; flex: none; }
 
 /* ---- the feed & post cards --------------------------------------------------- */
+/* The composer used to be ~560px of form standing between the member and the first
+   photograph in their family's feed: a textarea, two full-width native file pickers
+   with "No file chosen" beside each, a full-width select, and a bordered fieldset.
+   Same fields, same names, same action — grouped onto rows and given a quieter frame,
+   so what you land on is the feed with a way to add to it. */
 .composer {
   background: var(--surface); border: 1.5px solid var(--line);
   border-radius: var(--radius); box-shadow: var(--shadow);
-  padding: 1rem 1.1rem; margin: 1.25rem 0 1.75rem;
+  padding: 1.15rem 1.25rem; margin: 0 0 2rem;
 }
-.composer textarea { border-color: var(--line-strong); }  /* was --line at 1.24:1 */
+.composer textarea { border-color: var(--line-strong); font-size: 1.06rem; }
 .composer > label:first-of-type { margin-top: 0.75rem; }
+/* Two pickers side by side once there is room, and a compact label above each: the
+   word "(optional)" was on both, in a box where everything except the text is. */
+.composer-media, .composer-audience { display: grid; gap: 0.85rem 1.1rem; margin-bottom: 0.5rem; }
+.composer-media > *, .composer-audience > * { min-width: 0; }
+.composer-media label, .composer-audience label:not(.inline-check) { margin-top: 0; }
+.composer-media input[type=file] { margin-bottom: 0; }
+.composer-audience fieldset { margin-bottom: 0; padding: 0.5rem 0.9rem 0.75rem; }
+.composer-audience fieldset .inline-check { margin: 0.3rem 0; }
+.composer-audience select { margin-bottom: 0; }
+/* The checkboxes are a short list of family sides; they sit in a row, not a column. */
+.composer-audience fieldset > div { display: flex; flex-wrap: wrap; gap: 0.1rem 1.4rem; }
+.composer-submit { display: flex; justify-content: flex-end; margin-top: 1.1rem;
+  padding-top: 1rem; border-top: 1px solid var(--line); }
+.composer-submit button { margin: 0; }
 
 ul.feed, ul.comments, ul.members, ul.pods, ul.directory,
 ul.invites, ul.digests, ul.redeemers, ul.uses, ul.quarantine, ul.yards, ul.contacts { list-style: none; margin: 0; padding: 0; }
-ul.feed { display: flex; flex-direction: column; gap: 0.9rem; }
+ul.feed { display: flex; flex-direction: column; gap: 1.1rem; }
 
 ul.feed > li, .post {
   background: var(--surface); border: 1.5px solid var(--line);
   border-radius: var(--radius); box-shadow: var(--shadow);
-  padding: 1rem 1.1rem;
+  padding: 1.2rem 1.35rem;
 }
-.post { margin: 1.1rem 0; }
+.post { margin: 0 0 1.5rem; }
 .author, .byline strong, .byline { font-weight: 700; color: var(--ink); }
 .byline { margin: 0 0 0.5rem; color: var(--ink-soft); font-size: 0.86rem; font-weight: 400; }
-.byline strong, .author { font-size: 1rem; }
-.when, .edited { color: var(--ink-soft); font-size: 0.82rem; font-weight: 400; margin-left: 0.5rem; }
-ul.feed > li > p, .post > p, .comments p { margin: 0.5rem 0 0.75rem; }
+.byline strong, .author { font-size: 1.02rem; letter-spacing: -0.008em; }
+.when, .edited { color: var(--ink-soft); font-size: 0.8rem; font-weight: 400; margin-left: 0.55rem; }
+/* On a thread page the author is the h1, so the card opens on its timestamp. */
+.post > .when:first-child { margin-left: 0; }
+/* The post body is the thing the member came for: a shade larger than the interface
+   around it, and set at a reading line-height rather than a UI one. */
+ul.feed > li > p, .post > p, .comments p { margin: 0.55rem 0 0.9rem; font-size: 1.09rem; line-height: 1.55; }
 
 /* The new-since divider: a labelled sign, not an alert. */
 li.boundary {
@@ -492,44 +596,45 @@ li.boundary::before, li.boundary::after {
   content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--amber) 40%, var(--line));
 }
 li.boundary span {
-  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap;
+  font-size: 0.76rem; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap;
   display: inline-flex; align-items: center; gap: 0.45em;
   border: 1.5px solid currentColor; border-radius: 999px; padding: 0.32rem 0.9rem;
 }
 li.boundary span::before { content: ""; width: 0.5em; height: 0.5em; border: 2px solid currentColor; border-radius: 50%; flex: none; }
 
-/* The feed ends. */
-.caught-up { text-align: center; color: var(--green-deep); font-weight: 700; margin: 2rem 0 0.5rem; padding-top: 1.1rem; }
-@media (prefers-color-scheme: dark) { .caught-up { color: var(--green); } }
-:root[data-theme="light"] .caught-up { color: var(--green-deep); }
-:root[data-theme="dark"] .caught-up { color: var(--green); }
-.caught-up::after { content: " \2713"; }
+/* The feed ends. It said so in bold green centred type with a decorative tick; the
+   fact is worth one quiet line and the rule above it. */
+.caught-up { text-align: center; color: var(--ink-soft); font-weight: 400; font-size: 0.9rem;
+  margin: 2.25rem 0 0.5rem; padding-top: 1.4rem; }
 .caught-up::before {
-  content: ""; display: block; width: 30px; height: 2px;
-  margin: 0 auto 0.8rem; background: color-mix(in srgb, var(--green) 55%, transparent); border-radius: 2px;
+  content: ""; display: block; width: 34px; height: 1px;
+  margin: 0 auto 1.1rem; background: var(--line-strong);
 }
+p.older { margin-top: 2rem; text-align: center; }
 .empty {
-  color: var(--ink-soft); text-align: center; padding: 1.5rem 1rem;
+  color: var(--ink-soft); text-align: center; padding: 1.75rem 1.25rem;
   background: var(--surface-sunk); border-radius: var(--radius); border: 1.5px dashed var(--line-strong);
 }
 ul.feed > li.empty, .comments > li.empty { box-shadow: none; background: var(--surface-sunk); border: 1.5px dashed var(--line-strong); }
 
 .date-banner {
   background: var(--green-tint); border: 1px solid color-mix(in srgb, var(--green) 18%, transparent);
-  border-radius: 10px; padding: 0.7rem 0.95rem; margin: 1.1rem 0;
+  border-radius: var(--radius-sm); padding: 0.85rem 1.1rem; margin: 1.1rem 0;
 }
 .date-banner p { margin: 0.15rem 0; color: var(--green-deep); font-weight: 700; }
 @media (prefers-color-scheme: dark) { .date-banner p { color: var(--green); } }
 :root[data-theme="light"] .date-banner p { color: var(--green-deep); }
 :root[data-theme="dark"] .date-banner p { color: var(--green); }
 
-/* ---- post actions: every target >= 44px -------------------------------------- */
+/* ---- post actions: every target >= 44px --------------------------------------
+   The rule across the top of this row put a ruled footer on every card, so a page of
+   family photographs read as a stack of form sections. Proximity does the work now. */
 .actions {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem;
-  margin-top: 0.8rem; padding-top: 0.55rem; border-top: 1px solid var(--line);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.9rem;
+  margin-top: 0.35rem;
   font-size: 0.88rem;
 }
-.actions a { text-decoration: none; font-weight: 700; padding: 0.6rem 0.45rem; }
+.actions a { text-decoration: none; font-weight: 700; padding: 0.55rem 0; }
 .actions a:hover { text-decoration: underline; }
 .actions .inline button {
   min-height: 44px;                      /* was min-height:auto (~28px) */
@@ -545,7 +650,7 @@ ul.feed > li.empty, .comments > li.empty { box-shadow: none; background: var(--s
    ALONE keeps its natural ratio, height-capped so a portrait cannot blow
    out the column. Counts are read in CSS via :has()/:nth-last-child —
    no JS, no template change. */
-.photos { display: grid; gap: 0.5rem; margin: 0.75rem 0;
+.photos { display: grid; gap: 0.5rem; margin: 0.9rem 0;
   grid-template-columns: repeat(2, minmax(0, 1fr)); }         /* 2-up + default */
 .photos a { display: block; min-width: 0; }
 .photos img { display: block; width: 100%; height: 100%;
@@ -553,12 +658,18 @@ ul.feed > li.empty, .comments > li.empty { box-shadow: none; background: var(--s
   border-radius: 8px; border: 1px solid var(--line);
   background: var(--surface-sunk); cursor: zoom-in; }
 .photos:has(a:only-child) { display: block; }                  /* 1: natural ratio */
-.photos a:only-child img { width: auto; max-width: 100%; height: auto;
-  aspect-ratio: auto; max-height: 26rem; margin-inline: auto; }
+/* A lone photo used to be centred while every multi-photo post started at the text's
+   left edge, so one feed had two left margins. It starts where the words start.
+   The 25rem cap is the honest one: the feed serves the 400x400 thumbnail rendition
+   (core/media._THUMB_MAX), so anything wider is upscaling. It reads as a chosen size
+   rather than a stunted one. Filling a 52rem column would need a mid-size rendition
+   out of the media pipeline, which is not a stylesheet's decision to make. */
+.photos a:only-child img { width: auto; max-width: min(100%, 25rem); height: auto;
+  aspect-ratio: auto; max-height: 25rem; margin-inline: 0; }
 .photos:has(a:first-child:nth-last-child(3)) {                 /* 3: square row */
   grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .photos:has(a:first-child:nth-last-child(n+4)) {               /* 4+ and the 20-cap */
-  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); }
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); }
 .clip { width: 100%; max-width: 100%; aspect-ratio: 16 / 9; object-fit: cover;
   border-radius: 8px; border: 1px solid var(--line); background: var(--surface-sunk); }
 .clip-status {
@@ -566,44 +677,101 @@ ul.feed > li.empty, .comments > li.empty { box-shadow: none; background: var(--s
   background: var(--surface-sunk); border-radius: var(--radius-sm); padding: 0.6rem 0.8rem;
 }
 a.preview {
-  display: block; margin: 0.75rem 0; text-decoration: none; color: var(--ink); font-weight: 400;
-  border: 1.5px solid var(--line); border-radius: 10px; overflow: hidden;
+  display: block; margin: 0.9rem 0; text-decoration: none; color: var(--ink); font-weight: 400;
+  border: 1.5px solid var(--line); border-radius: var(--radius-sm); overflow: hidden;
   background: var(--surface-sunk); transition: border-color 120ms ease;
 }
 a.preview:hover { border-color: var(--line-strong); }
 .preview-image { display: block; width: 100%; max-height: 15rem; object-fit: cover; }
-.preview-title { display: block; font-weight: 700; padding: 0.65rem 0.85rem 0.15rem; font-size: 0.95rem; }
-.preview-desc  { display: block; color: var(--ink-soft); padding: 0 0.85rem 0.3rem; font-size: 0.86rem; }
-.preview-url   { display: block; color: var(--green); font-weight: 700; padding: 0.15rem 0.85rem 0.7rem; font-size: 0.78rem; }
+.preview-title { display: block; font-weight: 700; padding: 0.7rem 0.9rem 0.15rem; font-size: 0.98rem; }
+.preview-desc  { display: block; color: var(--ink-soft); padding: 0 0.9rem 0.3rem; font-size: 0.86rem; }
+.preview-url   { display: block; color: var(--green); font-weight: 700; padding: 0.15rem 0.9rem 0.75rem; font-size: 0.78rem; }
 
 /* ---- reactions ----------------------------------------------------------------- */
-.reactions { margin: 0.9rem 0; }
+.reactions { margin: 1.25rem 0 0; }
 .reaction-label { font-weight: 700; color: var(--green-deep); }
 @media (prefers-color-scheme: dark) { .reaction-label { color: var(--green); } }
 :root[data-theme="light"] .reaction-label { color: var(--green-deep); }
 :root[data-theme="dark"] .reaction-label { color: var(--green); }
-.react-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.55rem; }
+.reactions > p { font-size: 0.92rem; margin: 0 0 0.5rem; }
+.react-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
 .react-buttons button {
   background: var(--surface); color: var(--ink); border-color: var(--line-strong);
-  min-height: 44px; padding: 0.4rem 1rem; border-radius: 999px; font-weight: 700;
+  min-height: 44px; padding: 0.4rem 1.1rem; border-radius: 999px; font-weight: 700;
+  font-size: 0.94rem;
 }
 .react-buttons button:hover { background: var(--green-tint); border-color: var(--green); color: var(--green-deep); }
 .react-buttons button.reacted { background: var(--btn-bg); color: var(--btn-ink); border-color: var(--btn-bg); }
 .react-buttons button.reacted::before { content: "\2713"; font-weight: 700; }
 
+/* ---- a thread's replies ----------------------------------------------------------
+   The replies had no container, no rule and no indent, and the gap between one
+   reply's text and the NEXT reply's name was the same as the gap between a name and
+   its own text — so two replies read as two loose paragraphs. They are a thread: one
+   quiet spine down the left, and each reply grouped to its own author. */
+ul.comments { margin: 0.5rem 0 0; border-left: 2px solid var(--line); padding-left: 1.1rem; }
+ul.comments > li { padding: 0.9rem 0; }
+ul.comments > li + li { border-top: 1px solid var(--line); }
+ul.comments > li > .author { display: inline-block; }
+ul.comments p { margin: 0.2rem 0 0; font-size: 1.02rem; }
+ul.comments > li > .inline { margin-top: 0.5rem; }
+ul.comments > li.empty { border-left: 0; padding: 1.25rem; }
+/* The reply box must not sit flush against the last reply. General sibling, so an
+   .errors block between them does not break the rule. */
+ul.comments ~ .composer { margin-top: 1.75rem; }
+
 /* ---- admin lists & tables -------------------------------------------------------- */
 ul.members > li, ul.pods > li, ul.directory > li, ul.invites > li,
 ul.digests > li, ul.redeemers > li, ul.uses > li, ul.quarantine > li, ul.yards > li {
-  padding: 0.8rem 0; border-bottom: 1px solid var(--line);
+  padding: 0.9rem 0; border-bottom: 1px solid var(--line);
   display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
 }
 ul.members .inline, ul.pods .inline, ul.invites .inline { margin-left: auto; }
 ul.redeemers { flex-basis: 100%; border-left: 2px solid color-mix(in srgb, var(--green) 30%, var(--line)); padding-left: 0.9rem; margin-left: 0.2rem; }
 ul.redeemers > li { border: 0; padding: 0.15rem 0; font-size: 0.88rem; color: var(--ink-soft); }
+/* A pod's name is the row's subject; it was set at body weight beside a large
+   outlined Mute button, so the control outranked the thing it acted on. */
+ul.pods .pod-name { font-size: 1.09rem; font-weight: 700; }
+ul.pods > li { align-items: baseline; }
+ul.pods .house-rule { flex-basis: 100%; }
+/* Mute/Leave are row actions, not page actions: a full-size outlined pill outweighed
+   the pod name it acts on. Target stays >= 44px. */
+ul.pods .inline button, ul.members .inline button, ul.invites .inline button {
+  min-height: 44px; padding: 0.4rem 1.05rem; font-size: 0.9rem; border-radius: 999px;
+}
+
+/* ---- the members roster ------------------------------------------------------
+   A member is a HEADER line plus optional blocks under it. As one flat flex row
+   containing a tall removal fieldset, the wrap put a supervised child's name
+   vertically centred beside the form that deletes them. */
+ul.members > li { display: block; padding: 1.1rem 0; }
+.member-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.member-name { font-size: 1.06rem; font-weight: 700; }
+.member-head .inline { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
+.member-head .inline select { width: auto; min-width: 10rem; margin: 0;
+  min-height: 44px; padding-top: 0.35rem; padding-bottom: 0.35rem; font-size: 0.92rem; }
+.member-head a { font-size: 0.92rem; text-decoration: none; }
+.member-head a:hover { text-decoration: underline; }
+/* Removal is one member's most serious action; it opens closed, and its trigger reads
+   as a quiet link rather than as a red button standing permanently open. */
+.removal-disclosure { margin-top: 0.6rem; }
+.removal-disclosure > summary {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  cursor: pointer; list-style: none; width: fit-content;
+  font-size: 0.88rem; font-weight: 700; color: var(--danger);
+  padding: 0.5rem 0; min-height: 44px;
+}
+.removal-disclosure > summary::-webkit-details-marker { display: none; }
+.removal-disclosure > summary::before { content: "\00d7"; font-size: 1.05em; line-height: 1; }
+.removal-disclosure > summary:hover { text-decoration: underline; text-underline-offset: 3px; }
+.removal-disclosure[open] > summary { margin-bottom: 0.4rem; }
+.removal { max-width: var(--field-measure); }
+.removal fieldset { margin-bottom: 0.75rem; }
+.removal fieldset .inline-check { margin: 0.55rem 0; }
 
 table { width: 100%; border-collapse: collapse; margin: 1.1rem 0; font-variant-numeric: tabular-nums; }
 caption { text-align: left; color: var(--ink-soft); margin-bottom: 0.5rem; }
-th, td { text-align: left; padding: 0.6rem 0.6rem; border-bottom: 1px solid var(--line); }
+th, td { text-align: left; padding: 0.65rem 0.6rem; border-bottom: 1px solid var(--line); }
 /* Style the FIRST row's th too: members_metrics.html has no <thead> today
    (fix recommended in the handoff README), so this selector pair covers both. */
 thead th, table tr:first-child th {
@@ -619,14 +787,14 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
 /* ---- hand-over block & printable QR ------------------------------------------------ */
 .handover {
   background: var(--surface); border: 1.5px solid var(--line);
-  border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.1rem; margin: 1rem 0 1.4rem;
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.2rem 1.35rem; margin: 1rem 0 1.4rem;
 }
 .handover::before {
   content: "Shown once — anyone with this link can act as its holder";
   display: inline-flex; align-items: center;
   font-size: 0.78rem; font-weight: 700; color: var(--amber);
   background: var(--amber-tint); border-radius: var(--radius-sm);
-  padding: 0.45rem 0.8rem; margin-bottom: 0.75rem;
+  padding: 0.45rem 0.8rem; margin-bottom: 0.85rem;
 }
 .handover input[readonly] { background: var(--surface-sunk); font-family: var(--font-mono); font-size: 0.86rem; }
 .handover-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; margin: 0.7rem 0; }
@@ -645,7 +813,7 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
 /* ---- misc surfaces ------------------------------------------------------------------ */
 .house-rule { background: var(--green-tint); border-radius: var(--radius-sm);
   border: 1px solid color-mix(in srgb, var(--green) 18%, transparent);
-  padding: 0.7rem 0.95rem; margin: 1rem 0; }
+  padding: 0.7rem 0.95rem; margin: 0.6rem 0; font-size: 0.96rem; }
 .contacts, .contact { color: var(--ink-soft); }
 .kinship { color: var(--ink-soft); font-weight: 400; }
 
@@ -654,16 +822,43 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
-/* ---- allauth layout hooks (new; used by templates/allauth/layouts/*) -------------- */
-.entrance { max-width: 26rem; margin: 0 auto; padding: 2.2rem 0 2.5rem; }
+/* ---- allauth layout hooks (used by templates/allauth/layouts/*) -------------------
+   The entrance card was a 26rem column centred inside the 46rem shell while the footer
+   sat at the shell's left edge, so the one screen with two elements on it had two
+   different left margins. Giving the card a real edge makes it an object on the page
+   rather than a column that failed to line up. */
+.entrance { max-width: 27rem; margin: 0 auto; padding: 2.5rem 0 3rem; }
 .entrance .brand-inline { display: inline-flex; align-items: baseline; gap: 0.5rem;
-  font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; color: var(--green); text-decoration: none; }
+  font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; color: var(--green); text-decoration: none; }
 .entrance .brand-inline svg { width: 1.35em; height: 1.35em; transform: translateY(0.18em); color: var(--green); }
-.entrance h1 { margin-top: 1rem; }
-.entrance .lede { color: var(--ink-soft); font-size: 0.92rem; }
+.entrance .lede { color: var(--ink-soft); font-size: 0.92rem; margin: 0.85rem 0 0; max-width: 24rem; }
+.entrance .entrance-card {
+  background: var(--surface); border: 1.5px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 1.5rem 1.5rem 1.75rem; margin-top: 1.5rem;
+}
+.entrance h1 { margin-top: 0; font-size: 1.45rem; }
 .entrance button, .entrance input[type=submit] { width: 100%; margin-top: 0.6rem; min-height: 50px; }
+/* Sign-in offered two identically-weighted solid green buttons, so neither was the
+   primary. The password path is the primary; the passkey is the alternative. */
+.entrance #passkey_login {
+  background: var(--surface); color: var(--green); border-color: var(--green);
+}
+.entrance #passkey_login:hover { background: var(--green-tint); color: var(--green-deep); border-color: var(--green-deep); }
+.entrance hr { margin: 1.5rem 0 0.5rem; }
+/* Django renders a checkbox field as <p><label>…</label><input></p>, which put the
+   "keep me signed in" label on the line ABOVE its own unlabelled-looking box. */
+.entrance p:has(> input[type=checkbox]) {
+  display: flex; flex-direction: row-reverse; justify-content: flex-end;
+  align-items: center; gap: 0.6rem; margin: 0.25rem 0 0;
+}
+.entrance p:has(> input[type=checkbox]) label { margin: 0; font-weight: 400; font-size: 0.95rem; }
+/* "Forgot your password?" is a recovery path, not a peer of the field labels; at bold
+   it was the loudest line between the two inputs. */
+.entrance .helptext { display: block; margin: -0.5rem 0 1.1rem; font-size: 0.88rem; }
+.entrance .helptext a { font-size: 0.88rem; font-weight: 400; }
 .manage-card { background: var(--surface); border: 1.5px solid var(--line);
-  border-radius: var(--radius); box-shadow: var(--shadow); padding: 0.3rem 1.1rem 1rem; margin: 0.9rem 0; }
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 0.3rem 1.25rem 1.1rem; margin: 0.9rem 0; }
 
 /* ---- reduced motion & print ---------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
@@ -677,40 +872,46 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
 }
 
 /* ==========================================================================
-   v3.1 LAYOUT ADDENDUM. Every @media block below sits AFTER the two guarded
-   :root token blocks (the WCAG guard's block regexes are lazy — nothing may
-   be inserted above or inside them). No colour, type, radius or component
-   appearance changes here: layout only.
+   LAYOUT ADDENDUM (v3.1, retained). Every @media block below sits AFTER the two
+   guarded :root token blocks (the WCAG guard's block regexes are lazy — nothing
+   may be inserted above or inside them). No colour token is redefined here.
 
    Breakpoints (mobile-first, named):
-     base                 one column, 40rem well — the phone layout
-     sm   37.5rem (600px) breathing room: wider gutters, larger h1,
-                          2-column directory cards
-     md   64rem  (1024px) THE SHAPE CHANGE: two-region "path + signpost" —
-                          a 44rem reading well plus a sticky 19rem margin
-                          rail (aside.rail); rail-less pages get a single
-                          centred 56rem well
-     lg   75rem  (1200px) well 46rem, rail 21rem, wider gutters,
-                          3-column directory
-   The shell caps at 80rem: 1440 and 1920 render the SAME composition,
-   centred. Backyard is a family archive read like a book, not a dashboard
-   that stretches to fill — and the nav inventory (five quiet links) cannot
-   honestly fill a persistent app rail, so it does not get one.
+     base                 one column, the phone layout
+     sm   37.5rem (600px) breathing room: wider gutters, larger h1, paired
+                          composer rows, 2-column directory cards
+     md   64rem  (1024px) the single centred well at its full 52rem
+     lg   75rem  (1200px) 3-column directory
+   The shell caps at 52rem: 1440 and 1920 render the SAME composition, centred.
+   Backyard is a family archive read like a book, not a dashboard that stretches.
    ========================================================================== */
 
 /* ---- sm: 37.5rem ----------------------------------------------------------- */
 @media (min-width: 37.5rem) {
   header.site .wrap, main.wrap, footer.site .wrap { padding-left: 2rem; padding-right: 2rem; }
-  main.wrap { padding-top: 2rem; }
-  h1 { font-size: 1.8rem; }
-  ul.directory { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
-  ul.directory > li { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem;
+  main.wrap { padding-top: 2.5rem; }
+  h1 { font-size: 2.05rem; margin-bottom: 1.6rem; }
+  h2 { font-size: 1.35rem; }
+  /* The two file pickers, and the pod select beside its family-side checkboxes. */
+  .composer-media { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .composer-audience { grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); align-items: start; }
+  ul.directory { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem; grid-auto-rows: 1fr; }
+  /* grid-auto-rows: 1fr above equalises the row heights — a "(Nana)" on one card used
+     to make its whole row taller than the next. Centring keeps the short cards from
+     reading as a name stranded at the top of an empty box. */
+  ul.directory > li { display: flex; flex-direction: column; justify-content: center;
+    align-items: flex-start; gap: 0.15rem;
     border: 1.5px solid var(--line); border-bottom: 1.5px solid var(--line);
     border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow);
-    padding: 0.9rem 1rem; }
+    padding: 1rem 1.1rem; }
+  /* The card is the target; an underline on every name made the grid read as a list
+     of raw links rather than a set of people. */
+  ul.directory > li > a { font-size: 1.06rem; text-decoration: none; }
+  ul.directory > li > a:hover { text-decoration: underline; }
 }
 
-/* ---- md: 64rem — the two-region information design ------------------------- */
+/* ---- md: 64rem — the single centred well ----------------------------------- */
 @media (min-width: 64rem) {
   main.wrap {
     /* ONE centred well. The previous two-region grid put a 19rem rail beside the
@@ -719,16 +920,13 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
        which is both where people look for navigation and honest about how little
        navigation this product has. */
     display: block;
-    padding-top: 2.25rem;
+    padding-top: 2.75rem;
   }
   main.wrap > * { min-width: 0; }
-  /* The signpost rail: server-rendered .rail holding the
-     page's wayfinding (date banner, quiet links, page actions). Sticky, so
-     "today" stays in the margin while the feed scrolls. */
   /* A .rail, where a template still renders one, is a normal block in flow. */
   main.wrap > .rail { display: block; }
-  /* Prose keeps its ch-based measure inside whichever region it lands in;
-     feeds, galleries and tables take their region's full width. */
+  /* Prose keeps its measure inside the well; feeds, galleries and tables take
+     the well's full width. */
   main.wrap > p, main.wrap > h1 + p, .notice, .post > p, .empty { max-width: 34rem; }
 }
 
@@ -741,9 +939,8 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
 
 /* ---- table + admin-list reflow below 40rem (WCAG 2.2 SC 1.4.10) -------------
    Tables become stacked cards; each cell shows its column name from a
-   data-label attribute (template edit listed in 06-layout-notes.md). Applies
-   to every table — the app's only tables are the admin panels
-   (members_metrics, members_digests). Pure CSS, no JS. */
+   data-label attribute. Applies to every table — the app's only tables are the
+   admin panels (members_metrics, members_digests). Pure CSS, no JS. */
 @media (max-width: 39.9375rem) {
   table, caption, tbody, tr, th, td { display: block; }
   thead { position: absolute; width: 1px; height: 1px; overflow: hidden;
@@ -782,7 +979,8 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
   /* Cards carry their boundary in --shadow alone; without a border they merge
      into the page. */
   ul.feed > li, .comments > li, .composer, .handover, .post, .preview,
-  main.wrap > .rail .date-banner, .notice, .messages .msg, .empty {
+  main.wrap > .rail .date-banner, .notice, .messages .msg, .empty,
+  .entrance .entrance-card {
     border: 1px solid ButtonBorder;
   }
   /* Heavier than a notice: in forced colours both lose their tint, and this one is the
@@ -799,6 +997,9 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
   /* Both dividers are painted only by color-mix() and are erased. */
   li.boundary::before, li.boundary::after { background: CanvasText; }
   .caught-up::before { background: CanvasText; }
+  /* The reply spine and the composer's submit rule are hairlines the UA keeps, but
+     the thread's grouping depends on them, so name them explicitly. */
+  ul.comments { border-left: 2px solid CanvasText; }
   /* Keep primary and destructive distinguishable when every fill goes flat. The
      glyphs (x on destructive, checkmark on reacted) are text and survive; fills
      do not. */
@@ -819,7 +1020,7 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
     --line: var(--line-strong); --ink-soft: var(--ink);
   }
   ul.feed > li, .comments > li, .composer, .handover, .preview, .empty,
-  .notice, .errors, .messages .msg { border-width: 2px; }
+  .notice, .errors, .messages .msg, .entrance .entrance-card { border-width: 2px; }
   a { text-decoration-thickness: 2px; }
 }
 
@@ -880,14 +1081,18 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
   </main>
   <footer class="site">
     <div class="wrap">
-      <span class="muted">A quiet place for family. Your history stays yours — export it any time.</span>
       {% comment %} WCAG 2.2 SC 3.2.6 Consistent Help: a help mechanism in the same
          relative position on every page that has one. There is NO help route in this
          app and none is being added — a link to a page that does not exist is worse
          than no link — so the mechanism is the sentence itself, naming the real person
          who can act. For a family instance that is the honest answer: whoever runs it
-         is a relative, not a support desk. {% endcomment %}
-      <span class="muted help">Stuck? Ask whoever in the family set this up — they can fix it.</span>
+         is a relative, not a support desk.
+
+         The trailing clause "— they can fix it" was cut in the visual pass: it asserts
+         nothing the first half does not already say. The pinned substring
+         "Ask whoever in the family set this up" is intact, so the two tests in
+         test_accessibility_modes.py still hold this sentence without being moved. {% endcomment %}
+      <span class="help">Stuck? Ask whoever in the family set this up.</span>
     </div>
   </footer>
   {% if user.is_authenticated %}

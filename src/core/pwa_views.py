@@ -25,8 +25,8 @@ from PIL import Image, ImageDraw
 # installing the PWA gave a home-screen icon and a splash screen matching nothing in the
 # product, which is the one surface a member looks at every day without opening the app.
 # Kept in sync with base.html's --green and --paper by test_pwa.
-_THEME = "#1e5c46"  # --green, sign green (7.63:1 on paper)
-_BG = "#fbfcfb"  # --paper
+_THEME = "#1e5c46"  # --green, sign green (7.15:1 on paper)
+_BG = "#f7f4ed"  # --paper — warmed with the rest of the system in the v3.2 visual pass
 
 
 def manifest(request: HttpRequest) -> JsonResponse:
