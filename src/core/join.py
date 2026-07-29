@@ -30,7 +30,7 @@ from django.db import IntegrityError, transaction
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 
-from . import invites
+from . import invites, posting
 from .models import Member
 
 User = get_user_model()
@@ -64,10 +64,24 @@ def _validate(display_name: str, username: str, password: str) -> list[str]:
 
 
 def _create_account(token: str, display_name: str, username: str, password: str) -> Member:
-    """Create the User and redeem the invite in one transaction (property 4)."""
+    """Create the User, redeem the invite, and post the arrival card, in one
+    transaction (property 4, extended by S-905).
+
+    The card is inside the transaction on purpose. Its only realistic failure is a
+    database error, which would fail the join anyway — and a card written outside
+    the transaction is a card that can silently not happen, which is the whole
+    class of defect this project keeps finding. Either the member exists with an
+    arrival card or neither exists.
+    """
     with transaction.atomic():
         user = User.objects.create_user(username=username, password=password)
-        return invites.redeem_invite(token, display_name=display_name, user_id=user.id)
+        # Read the invite's pod BEFORE consuming it: that is the household the card
+        # belongs in, and it is the only source that cannot be wrong. If this peek
+        # loses the race, redeem_invite raises on the next line and nothing lands.
+        pod = invites.peek_invite(token).pod
+        member = invites.redeem_invite(token, display_name=display_name, user_id=user.id)
+        posting.announce_arrival(member, pod)
+        return member
 
 
 def join(request: HttpRequest, token: str) -> HttpResponse:

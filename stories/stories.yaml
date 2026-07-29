@@ -518,13 +518,21 @@ epics:
     - the profile is frozen out of birthday and anniversary surfaces
     - content and attribution are preserved with remembrance framing, and the content-disposition choice (keep attributed or memorialize) is made explicitly
     - the admin runbook names the action
-    status: spec
+    status: superseded  # FOUNDER DECISION 2026-07-29: "No to the passed away thing... it can just
+                        # be a deactivation from admin controls. That is not sensitive at all."
+                        # The shipped S-702 removal already does the mechanical half: choosing
+                        # "keep their posts, still attributed to them" runs the full revocation
+                        # inventory (token, sessions, digest, reply addresses), stops the digest and
+                        # preserves content and attribution. What this story added beyond that was
+                        # remembrance FRAMING and a birthday/anniversary freeze, and the founder has
+                        # ruled that ceremony out. Recorded, not deleted, per the tracker's own rule.
     v1: false
     security:
       threat_refs:
       - TM-1
       - TM-6
       source: docs/security/threat-model.md
+    evidence: src/core/removal.py + src/core/tests/test_removal.py (the revocation half already ships)
   - id: S-707
     epic: E7
     persona: instance-admin
@@ -681,14 +689,50 @@ epics:
     - "Per-member and whole-visible-directory vCard downloads honoring field visibility"
     status: spec
     v1: false
+  - id: S-906
+    epic: E9
+    persona: family-member
+    story: "As someone who has just joined, my first screen tells me where I am, so my relative does not have to explain it by phone."
+    acceptance:
+    - "A first-visit-only orientation on the feed: which side of the family this is, who can see what I post, and that nothing is pushed at me"
+    - "It is dismissible and never returns; it is not a notification and not a tour"
+    status: spec        # PROPOSED 2026-07-29 from the delegate walkthrough, not built.
+                        # A newcomer completing the join lands on /feed/ with a composer and
+                        # other people's posts and NO orientation whatsoever. Distinct from
+                        # S-905, which tells the FAMILY someone arrived; this is what the
+                        # ARRIVING person sees. At the founder's scale (two delegates onboarding
+                        # ~10 relatives) this is explained by voice ten times.
+    v1: false
+
+  - id: S-907
+    epic: E7
+    persona: yard-admin
+    story: "As a delegate handed the admin controls, I can tell what each role actually lets someone do, without being told out of band."
+    acceptance:
+    - "The roster states, in prose beside the control, what Pod owner / Yard admin / Instance admin each permit"
+    - "It matches docs/security/permission-matrix.md, and a guard fails if the two drift"
+    status: spec        # PROPOSED 2026-07-29 from the delegate walkthrough, not built.
+                        # The roster renders the three role names and nothing else — measured:
+                        # no sentence anywhere on the page describes a capability. The person
+                        # being handed the controls has to be told what to pick.
+    v1: false
+
   - id: S-905
     epic: E9
     persona: family-member
     story: "As a new member, a quiet intro card in my pod tells the family who just arrived, without a fanfare."
     acceptance:
     - "Joining generates a pod-scoped profile card post; no notification, no yard-wide broadcast"
-    status: spec
+    status: passing     # S-905 close 2026-07-29: pulled forward from post-v1 because walking a
+                        # delegate's onboarding end to end showed the gap it fixes — a household is
+                        # invited, relatives join over a week, and nothing anywhere says any of them
+                        # arrived. posting.announce_arrival, inside the join transaction so the card
+                        # cannot silently not happen. Both negatives in the acceptance are tested and
+                        # each proven to fire by probe: forcing the card yard-wide fails
+                        # test_the_card_is_pod_scoped_and_never_a_yard_wide_broadcast, removing the
+                        # call fails three others.
     v1: false
+    evidence: src/core/tests/test_arrival_card.py + docs/receipts/2026-07-29-s905-arrival-card.md
 
 - id: E8
   title: Deploy and operations

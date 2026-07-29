@@ -60,6 +60,18 @@ question.
 
 This is the product's central bet and the part that was most broken.
 
+> **Order matters, and nothing in the product enforces it.** An elder's page shows the
+> posts visible to her household — so if you set her up on a side of the family where
+> nobody has posted yet, she opens her link and reads *"Nothing new right now. Your
+> family's posts will appear here."* That is an honest empty state and a terrible first
+> impression, and **the person handing over the link cannot preview what she will see**;
+> there is no "view as". Verified 2026-07-29 by creating a new side, adding an elder to
+> it, and opening her link cold.
+>
+> So: **post something to the whole side of the family FIRST, then hand out the elder
+> links.** One photo is enough. Tell whoever else is setting up grandparents the same
+> thing — it is the difference between "look, there's the family" and a blank page.
+
 | # | Do | Wrong looks like |
 |---|----|------------------|
 | A1 | From the admin roster, mint an elder link for a test member. Print or open the QR. | No link, or a page that errors |

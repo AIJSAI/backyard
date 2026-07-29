@@ -73,6 +73,41 @@ def create_post(*, author: Member, pod: Pod, audience_yards: list[Yard], body: s
         return post
 
 
+ARRIVAL_BODY = "Just joined."
+
+
+def announce_arrival(member: Member, pod: Pod) -> Post:
+    """S-905: a quiet card in the pod a member just joined, so the family knows.
+
+    The gap this closes was found by walking a delegate's onboarding end to end,
+    not by a test: a household is invited, ten relatives join over a week, and
+    nothing anywhere says any of them arrived. The people already in the pod have
+    no way to notice a cousin is now reachable.
+
+    Deliberately without fanfare, per the story:
+      * POD-SCOPED. audience_yards is empty, so it never reaches a whole side of
+        the family. A yard-wide "X joined" for every arrival is a broadcast, and
+        this product does not have those.
+      * NO NOTIFICATION. It is a post, not a comment, and S-305's opt-in only
+        fires on replies to your own post — so nothing is pushed at anyone.
+      * The body carries no name. The byline already says who this is; "Priya
+        Shehan joined" under a byline reading "Priya Shehan" reads as a bug.
+
+    The pod is a PARAMETER, not something this function works out. The first cut
+    inferred it as the member's lowest-id pod, which is correct only because the
+    caller happens to invoke it one line after redeem_invite mints a brand-new
+    member with exactly one membership. A Member can belong to several pods (their
+    household plus any ad-hoc pod), so that inference was one refactor away from
+    posting "just joined" into the wrong household — and it would have looked
+    right, because a card in the wrong pod still renders. Reviewer catch on #98.
+
+    Passing it is also the only option that is not a guess: PodMembership carries
+    no timestamp, so "the most recently joined pod" is not answerable at all
+    without a migration. The caller holds the invite, and the invite names the pod.
+    """
+    return create_post(author=member, pod=pod, audience_yards=[], body=ARRIVAL_BODY)
+
+
 def within_edit_window(post: Post) -> bool:
     """Whether the post is still inside its edit window (used by the view and the
     feed template to offer the edit affordance only while it will succeed)."""
