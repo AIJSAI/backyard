@@ -73,6 +73,36 @@ def create_post(*, author: Member, pod: Pod, audience_yards: list[Yard], body: s
         return post
 
 
+ARRIVAL_BODY = "Just joined."
+
+
+def announce_arrival(member: Member) -> Post | None:
+    """S-905: a quiet card in the pod a member just joined, so the family knows.
+
+    The gap this closes was found by walking a delegate's onboarding end to end,
+    not by a test: a household is invited, ten relatives join over a week, and
+    nothing anywhere says any of them arrived. The people already in the pod have
+    no way to notice a cousin is now reachable.
+
+    Deliberately without fanfare, per the story:
+      * POD-SCOPED. audience_yards is empty, so it never reaches a whole side of
+        the family. A yard-wide "X joined" for every arrival is a broadcast, and
+        this product does not have those.
+      * NO NOTIFICATION. It is a post, not a comment, and S-305's opt-in only
+        fires on replies to your own post — so nothing is pushed at anyone.
+      * The body carries no name. The byline already says who this is; "Priya
+        Shehan joined" under a byline reading "Priya Shehan" reads as a bug.
+
+    Returns None when the member somehow has no pod, rather than raising: an
+    arrival card is not worth failing a join over, and redeem_invite already
+    guarantees the membership this reads.
+    """
+    pod = Pod.objects.filter(memberships__member=member).order_by("id").first()
+    if pod is None:  # pragma: no cover - redeem_invite always creates one
+        return None
+    return create_post(author=member, pod=pod, audience_yards=[], body=ARRIVAL_BODY)
+
+
 def within_edit_window(post: Post) -> bool:
     """Whether the post is still inside its edit window (used by the view and the
     feed template to offer the edit affordance only while it will succeed)."""

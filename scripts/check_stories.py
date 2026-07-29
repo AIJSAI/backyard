@@ -17,7 +17,13 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
-VALID_STATUS = {"spec", "built", "tested", "passing"}
+# "superseded" is a DECISION, not a stall: a story the founder has ruled out, or one
+# that turned out to be already covered by shipped behaviour. It exists so a dropped
+# story is recorded rather than deleted (the same rule PATH-TO-100 applies to its own
+# items) and so it stops reading as pending work forever. It carries the same evidence
+# burden as "passing": a claim that something need not be built has to say why.
+VALID_STATUS = {"spec", "built", "tested", "passing", "superseded"}
+NEEDS_EVIDENCE = {"passing", "superseded"}
 REQUIRED_FIELDS = {"id", "epic", "persona", "story", "acceptance", "status"}
 CHECKED_LINE = re.compile(r"^\s*-\s*\[[xX]\]\s")
 
@@ -45,8 +51,8 @@ def validate_stories(data: object) -> list[str]:
             status = story.get("status")
             if status not in VALID_STATUS:
                 errors.append(f"{sid}: invalid status {status!r}")
-            if status == "passing" and not story.get("evidence"):
-                errors.append(f"{sid}: status is passing but no evidence")
+            if status in NEEDS_EVIDENCE and not story.get("evidence"):
+                errors.append(f"{sid}: status is {status} but no evidence")
             acceptance = story.get("acceptance")
             if not isinstance(acceptance, list) or not acceptance:
                 errors.append(f"{sid}: acceptance must be a non-empty list")
@@ -75,7 +81,15 @@ BAD_STORIES: dict = {
                     "story": "passing with no evidence must fail",
                     "acceptance": ["x"],
                     "status": "passing",
-                }
+                },
+                {
+                    "id": "S-BAD-2",
+                    "epic": "EX",
+                    "persona": "fixture",
+                    "story": "superseded with no evidence must fail too",
+                    "acceptance": ["x"],
+                    "status": "superseded",
+                },
             ],
         }
     ]
@@ -85,8 +99,14 @@ BAD_CHECKLIST = "- [x] shipped something without a receipt\n"
 
 def selftest() -> list[str]:
     errors: list[str] = []
-    if not validate_stories(BAD_STORIES):
+    found = validate_stories(BAD_STORIES)
+    if not found:
         errors.append("selftest: story guard accepted a known-bad fixture (vacuous gate)")
+    # Both evidence-bearing statuses must be caught, not just the first. Widening
+    # VALID_STATUS without widening the fixture is how a gate quietly stops enforcing.
+    for bad_id in ("S-BAD", "S-BAD-2"):
+        if not any(e.startswith(bad_id + ":") for e in found):
+            errors.append(f"selftest: {bad_id} passed the story guard (evidence rule not enforced)")
     if not validate_checklist(BAD_CHECKLIST, name="fixture"):
         errors.append("selftest: checklist guard accepted a known-bad fixture (vacuous gate)")
     return errors
