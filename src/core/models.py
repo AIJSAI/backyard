@@ -98,6 +98,29 @@ class Member(models.Model):
         (INSTANCE_ADMIN, "Instance admin"),
         (SUPERVISED, "Supervised member"),
     ]
+    # S-907. The roster used to render these five names and nothing else, so the
+    # relative being handed the admin controls had to be TOLD, out of band, what
+    # picking one would do. One sentence each, in the member's own words rather than
+    # the matrix's vocabulary ("side of the family", not "yard").
+    #
+    # This is the single source the roster reads. It is bound to reality in two
+    # directions by test_role_descriptions.py: each sentence's claim is exercised
+    # against permissions.py (so a description cannot promise what the code refuses),
+    # and against docs/security/permission-matrix.md (so the prose and the doc cannot
+    # drift apart silently).
+    ROLE_DESCRIPTIONS = {
+        MEMBER: "Posts and replies. No say over anyone else.",
+        POD_OWNER: (
+            "Sets their household's house rule and invites people into it. "
+            "Cannot remove or re-role anyone."
+        ),
+        YARD_ADMIN: (
+            "Manages members, but only on their own side of the family. "
+            "Cannot touch an admin, or anyone who also belongs to the other side."
+        ),
+        INSTANCE_ADMIN: "Manages anyone, on either side. This is the whole instance.",
+        SUPERVISED: "A managed account with no login of its own. Their parent edits it.",
+    }
 
     # PROTECT, not SET_NULL: deleting the auth User looks like offboarding but revokes
     # nothing (the Member keeps their pods and token_generation). Removal must go through
@@ -174,6 +197,13 @@ class Member(models.Model):
     # unread boundary (S-303) between what is new since that visit and what they
     # already saw; it is advanced on each feed open. Null until the first visit.
     feed_last_seen_at = models.DateTimeField(null=True, blank=True)
+    # S-906. Null means "has never dismissed the orientation", which is how a
+    # brand-new member is recognised. Deliberately NOT derived from
+    # feed_last_seen_at: that advances on the first feed render, so an orientation
+    # keyed to it would vanish the moment someone tapped Pods and came back — before
+    # they had read it. Existing members are backfilled at migration time, so this
+    # only ever appears for people who arrive after it ships.
+    orientation_dismissed_at = models.DateTimeField(null=True, blank=True)
     pods: models.ManyToManyField[Pod, PodMembership] = models.ManyToManyField(
         Pod, through="PodMembership", related_name="members"
     )

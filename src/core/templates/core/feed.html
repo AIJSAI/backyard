@@ -17,6 +17,26 @@
     </aside>
   {% endif %}
 
+  {% comment %} S-906. Three facts a newcomer would otherwise be told by phone: where
+     they are, who sees what they write, and that nothing will chase them. Shown until
+     they dismiss it and never again — not a notification, not a tour, no steps. {% endcomment %}
+  {% if show_orientation %}
+    <aside class="orientation" aria-labelledby="orientation-heading">
+      {% comment %} No comma before the list: with a single side it rendered
+         "You're in, Dad's side." — caught by looking at the page, not by a test. {% endcomment %}
+      <h2 id="orientation-heading">You&rsquo;re in{% if yards %}
+        {% for yard in yards %}{% if not forloop.first %}{% if forloop.last %} and {% else %}, {% endif %}{% endif %}<strong>{{ yard.name }}</strong>{% endfor %}{% endif %}.</h2>
+      <p>Your feed shows what the households there share.</p>
+      <p>What you post goes to <strong>your household only</strong>, unless you tick a whole
+        side of the family when you write it.</p>
+      <p>Nothing is ever sent to you unless you turn it on in Settings.</p>
+      <form method="post" action="{% url 'dismiss_orientation' %}">
+        {% csrf_token %}
+        <button type="submit">Got it</button>
+      </form>
+    </aside>
+  {% endif %}
+
   {% if errors %}
     <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
   {% endif %}
