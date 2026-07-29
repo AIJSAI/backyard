@@ -414,8 +414,19 @@ epics:
     acceptance:
     - "Per-member pod address turns attachments into a photo post"
     - "Sender verified by address plus token; strangers bounce"
-    status: spec
+    status: superseded  # FOUNDER DECISION 2026-07-29: "I wouldn't put too much energy into
+                        # the reply by email thing... it would be better if it just opened
+                        # the app to where they reply when they click reply by email."
+                        # This story is email-ATTACHMENT ingest — the same untrusted-input
+                        # path over a webhook — and the need it served (get my photos into
+                        # the family archive from my phone) is met by S-404 (photos on a
+                        # reply) reached through the capability-free app link the digest now
+                        # offers. Not building attachment ingest also RETIRES exposure
+                        # rather than adding it: T-EMAIL-2's residual risk was that a
+                        # forwarded digest carries the ability to reply as you, and the
+                        # per-post bearer address is no longer printed in the email at all.
     v1: false
+    evidence: src/core/templates/core/email/digest.txt + src/core/tests/test_digest_send.py (the app link replaced the printed bearer address) + docs/receipts/2026-07-29-reply-opens-the-app.md
 
 - id: E6
   title: Elder surfaces

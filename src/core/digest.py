@@ -55,6 +55,13 @@ class PostBlock:
     url: str  # the /d/ deep link for this post
     photo_count: int  # photos degrade to the deep link until W3's signer lands
     reply_count: int
+    # The app's own thread, anchored at the reply box. This is the reply affordance the
+    # email offers, and it deliberately carries NO capability: clicking it lands on the
+    # login wall and you reply as yourself. The per-post reply ADDRESS is a bearer
+    # credential (T-EMAIL-2: "a forwarded digest leaks reply capabilities, so a stranger
+    # or excluded relative posts as the elder"), and printing it in every digest body
+    # was how it travelled. Founder decision 2026-07-29: the reply action opens the app.
+    reply_url: str
     reply_address: str  # "reply-<capability>@<our domain>", or "" when absent
 
 
@@ -102,7 +109,9 @@ def _reply_domain() -> str:
 
 def _family_urls_of(block: DigestBlock) -> list[str]:
     if isinstance(block, PostBlock):
-        return [block.url]
+        # BOTH links, so the on-origin guard covers the new one too. A reply_url left
+        # out of this list would be the one link in a digest nothing checked.
+        return [block.url, block.reply_url]
     if isinstance(block, FooterBlock):
         return [block.digest_url, block.unsubscribe_url]
     return []
@@ -161,6 +170,11 @@ def build_digest(
             # "1 photo" then show them none (security review MEDIUM-1, S-301).
             photo_count=scoping.visible_attached_media(member).filter(post=post).count(),
             reply_count=scoping.visible_comments(member).filter(post=post).count(),
+            # Through emailing.absolute_url like every other outbound link, not a raw
+            # f-string: the helper refuses a non-site-absolute or protocol-relative path
+            # and any whitespace or control character, so one place governs how a link
+            # leaves this instance. Reviewer catch on #101.
+            reply_url=emailing.absolute_url(f"/posts/{post.id}/#reply"),
             reply_address=reply_map.get(post.id, ""),
         )
         for post in digest_links.issue_posts(issue).select_related("author").order_by("created_at")

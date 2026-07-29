@@ -16,7 +16,7 @@ from __future__ import annotations
 import datetime
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pytest
@@ -173,6 +173,42 @@ def test_the_gate_trips_on_an_injected_foreign_block(world: World) -> None:
         )
 
 
+def test_the_gate_trips_on_an_off_origin_REPLY_url(world: World) -> None:
+    """The reply link is the second URL a PostBlock carries, and it was added to the
+    on-origin list without anything proving that list actually covers it — removing it
+    from `_family_urls_of` failed no test at all. It does now.
+
+    A reply link is the one thing in a digest a member is most likely to click, so an
+    off-origin value there is the most valuable place in the email to inject one.
+    """
+    from django.conf import settings
+
+    # Origin from settings, never a literal: validate_blocks keys off BASE_URL, so a
+    # hard-coded "http://localhost:8000" makes this pass or fail on the environment
+    # rather than on the behaviour. Reviewer catch on #101.
+    off_origin = digest.PostBlock(
+        author_line="Cousin",
+        date_text="March 5",
+        body="hello",
+        url=f"{settings.BASE_URL}/d/tok/posts/1/",
+        photo_count=0,
+        reply_count=0,
+        reply_url="https://phish.example/posts/1/#reply",
+        reply_address="",
+    )
+    with pytest.raises(digest.NonFamilyContent, match="off-origin"):
+        digest.validate_blocks((digest.HeaderBlock(yard_name="Y", window_text="w"), off_origin))
+
+    # And the same block with an on-origin reply link passes, so the test is not simply
+    # rejecting every PostBlock it is handed.
+    digest.validate_blocks(
+        (
+            digest.HeaderBlock(yard_name="Y", window_text="w"),
+            replace(off_origin, reply_url=f"{settings.BASE_URL}/posts/1/#reply"),
+        )
+    )
+
+
 # --- live state at build time (TM-2) ---
 
 
@@ -275,7 +311,26 @@ def test_digest_photo_count_excludes_a_rehosted_link_preview_image(world: World)
     assert asset is not None  # the re-hosted card image exists on the post...
 
     built = _build(world, world.maternal_cousin, world.maternal)
-    assert "photo" not in built.text  # ...but the digest reports zero photos
+    # ...but the digest reports zero photos.
+    #
+    # Asserted on the COUNT phrasing, not on the bare word "photo": the digest's body
+    # copy legitimately mentions photographs elsewhere (the reply link says you can add
+    # them), and a substring check for "photo" made this MEDIUM-1 guard trip on unrelated
+    # prose while saying nothing sharper about the count. Non-vacuity is proven directly
+    # below, by building a digest for a post that DOES carry a real photo.
+    import re as _re
+
+    assert not _re.search(r"\(\d+ photo", built.text), built.text
+    assert "photo ·" not in built.html and "photos ·" not in built.html
+
+    real = _post(world.maternal_cousin, world.m_pod, "a real photo", yards=[world.maternal])
+    buf2 = _io.BytesIO()
+    _Image.new("RGB", (40, 40), (9, 9, 9)).save(buf2, format="JPEG")
+    media.ingest_photo(post=real, raw=buf2.getvalue())
+    with_photo = _build(world, world.maternal_cousin, world.maternal)
+    assert _re.search(r"\(1 photo", with_photo.text), (
+        "the guard is vacuous: a post with a real photo reports no count either"
+    )
 
 
 # --- the TM-2 confinement guard trips from both sides ---
