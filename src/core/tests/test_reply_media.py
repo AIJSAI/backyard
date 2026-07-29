@@ -135,7 +135,7 @@ def test_an_empty_reply_with_nothing_attached_is_still_refused(world: World) -> 
     assert not Comment.objects.filter(author=world.replier).exists()
 
 
-def test_the_thread_renders_a_replys_photos(world: World) -> None:
+def test_the_thread_renders_a_reply_own_photos(world: World) -> None:
     comment = commenting.create_comment(author=world.replier, post=world.post, body="Mine:")
     asset = media.ingest_photo(comment=comment, raw=_png())
     html = _client(world.author).get(reverse("post_detail", args=[world.post.id])).content.decode()
@@ -192,7 +192,7 @@ def test_reply_media_is_unreachable_from_the_other_side_of_the_family(world: Wor
         assert _client(world.stranger).get(url).status_code == 404
 
 
-def test_narrowing_the_posts_audience_takes_the_replys_photos_with_it(world: World) -> None:
+def test_narrowing_the_posts_audience_takes_the_reply_own_photos_with_it(world: World) -> None:
     """Reply media inherits the comment's audience, which inherits the post's — so it
     must follow the post, not a copy of the post's audience made at attach time."""
     comment = commenting.create_comment(author=world.replier, post=world.post, body="Mine:")
@@ -239,7 +239,7 @@ def test_deleting_a_reply_purges_its_photos_from_disk(
     assert not any(storage.exists(n) for n in names), "the files survived the delete"
 
 
-def test_a_takedown_purges_a_replys_photos(
+def test_a_takedown_purges_a_reply_own_photos(
     world: World, django_capture_on_commit_callbacks: object
 ) -> None:
     """S-713's promise is that a takedown hard-purges the content's photos; a reply can
@@ -388,7 +388,7 @@ def test_a_digest_token_cannot_widen_into_a_general_reply_media_credential(
 # ---------------------------------------------------------------- the other surfaces
 
 
-def test_the_elder_page_shows_a_replys_photos_and_adds_no_way_out(world: World) -> None:
+def test_the_elder_page_shows_a_reply_own_photos_and_adds_no_way_out(world: World) -> None:
     """The wedding case fails on the surface it was written for if her grandchildren's
     reply photographs are invisible here.
 
@@ -447,3 +447,41 @@ def test_the_digest_email_stays_text_only(world: World) -> None:
     for token in (asset.token, asset.thumbnail_token):
         assert token not in email.text, "a capability-token image URL reached the email text"
         assert token not in email.html, "a capability-token image URL reached the email HTML"
+
+
+def test_a_replys_clip_shows_its_poster_on_the_digest_web_view(world: World) -> None:
+    """Reviewer catch on #100, pinned.
+
+    The post gallery on that surface renders a completed video's POSTER still. The reply
+    block handled only photos, so the same clip attached to a REPLY was silently invisible
+    there — inconsistent with the post above it, and under-delivering the story's "photos
+    and clips" line. Asserted on the rendered page, since the defect was a missing template
+    branch that no model-level check would notice.
+    """
+    from django.template.loader import render_to_string
+
+    comment = commenting.create_comment(author=world.replier, post=world.post, body="a clip")
+    clip = MediaAsset.objects.create(
+        comment=comment,
+        media_kind=MediaAsset.VIDEO,
+        transcode_status=MediaAsset.DONE,
+        content_type="video/mp4",
+    )
+    # And one still transcoding: it must NOT render, exactly as on a post.
+    pending = MediaAsset.objects.create(
+        comment=comment,
+        media_kind=MediaAsset.VIDEO,
+        transcode_status=MediaAsset.PENDING,
+        content_type="video/mp4",
+    )
+
+    html = render_to_string(
+        "core/digest_post.html",
+        {"post": world.post, "comments": [comment], "token": "dtok", "issue": None},
+    )
+    assert reverse("serve_media", args=[clip.thumbnail_token]) in html, (
+        "the clip's still is missing"
+    )
+    assert reverse("serve_media", args=[pending.thumbnail_token]) not in html, (
+        "a clip that is still transcoding rendered a broken image"
+    )

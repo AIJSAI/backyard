@@ -30,6 +30,13 @@
         {% if m.media_kind == 'photo' %}
           <img class="digest-photo" src="{% url 'serve_media' m.token %}?d={{ token }}" loading="lazy"
                alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ comment.author.display_name }}{% endif %}">
+        {% elif m.media_kind == 'video' and m.transcode_status == 'done' %}
+          {% comment %} The POSTER still, not a player — identical to the post gallery above.
+             Reviewer catch on #100: handling only photos here meant a reply's clip was
+             silently invisible on this surface while the same clip on the POST showed its
+             still, which under-delivers the story's "photos and clips" line. {% endcomment %}
+          <img class="digest-photo" src="{% url 'serve_media' m.thumbnail_token %}?d={{ token }}" loading="lazy"
+               alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Still from a video shared by {{ comment.author.display_name }}{% endif %}">
         {% endif %}
       {% endfor %}
     {% empty %}
