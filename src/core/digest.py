@@ -170,7 +170,11 @@ def build_digest(
             # "1 photo" then show them none (security review MEDIUM-1, S-301).
             photo_count=scoping.visible_attached_media(member).filter(post=post).count(),
             reply_count=scoping.visible_comments(member).filter(post=post).count(),
-            reply_url=f"{settings.BASE_URL}/posts/{post.id}/#reply",
+            # Through emailing.absolute_url like every other outbound link, not a raw
+            # f-string: the helper refuses a non-site-absolute or protocol-relative path
+            # and any whitespace or control character, so one place governs how a link
+            # leaves this instance. Reviewer catch on #101.
+            reply_url=emailing.absolute_url(f"/posts/{post.id}/#reply"),
             reply_address=reply_map.get(post.id, ""),
         )
         for post in digest_links.issue_posts(issue).select_related("author").order_by("created_at")

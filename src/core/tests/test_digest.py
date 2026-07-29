@@ -181,11 +181,16 @@ def test_the_gate_trips_on_an_off_origin_REPLY_url(world: World) -> None:
     A reply link is the one thing in a digest a member is most likely to click, so an
     off-origin value there is the most valuable place in the email to inject one.
     """
+    from django.conf import settings
+
+    # Origin from settings, never a literal: validate_blocks keys off BASE_URL, so a
+    # hard-coded "http://localhost:8000" makes this pass or fail on the environment
+    # rather than on the behaviour. Reviewer catch on #101.
     off_origin = digest.PostBlock(
         author_line="Cousin",
         date_text="March 5",
         body="hello",
-        url="http://localhost:8000/d/tok/posts/1/",
+        url=f"{settings.BASE_URL}/d/tok/posts/1/",
         photo_count=0,
         reply_count=0,
         reply_url="https://phish.example/posts/1/#reply",
@@ -199,7 +204,7 @@ def test_the_gate_trips_on_an_off_origin_REPLY_url(world: World) -> None:
     digest.validate_blocks(
         (
             digest.HeaderBlock(yard_name="Y", window_text="w"),
-            replace(off_origin, reply_url="http://localhost:8000/posts/1/#reply"),
+            replace(off_origin, reply_url=f"{settings.BASE_URL}/posts/1/#reply"),
         )
     )
 
