@@ -114,7 +114,10 @@
      photograph is a real reply, and the view requires a body only when nothing is
      attached. Same field names as the composer, so the same server-side caps and the
      same client-side resize apply. {% endcomment %}
-  <form method="post" action="{% url 'add_comment' post.id %}" class="composer"
+  {% comment %} id="reply" is the anchor the digest email's "Reply in Backyard" link
+     targets, so someone arriving from their inbox lands on the box rather than the top
+     of the thread. {% endcomment %}
+  <form id="reply" method="post" action="{% url 'add_comment' post.id %}" class="composer"
         enctype="multipart/form-data">
     {% csrf_token %}
     <textarea name="body" rows="2" placeholder="Write a reply, or just add photos"></textarea>

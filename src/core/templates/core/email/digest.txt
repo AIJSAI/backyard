@@ -7,7 +7,7 @@
 {{ block.body }}
 {% if block.photo_count %}({{ block.photo_count }} photo{{ block.photo_count|pluralize }} - see them here) {% endif %}{% if block.reply_count %}({{ block.reply_count }} repl{{ block.reply_count|pluralize:"y,ies" }}) {% endif %}
 Open this post: {{ block.url }}
-{% if block.reply_address %}Reply to this post by email: {{ block.reply_address }}
+{% if block.reply_url %}Reply in Backyard (you can add photos there): {{ block.reply_url }}
 {% endif %}
 
 {% empty %}A quiet stretch; nothing new this time.

@@ -312,11 +312,24 @@ def test_partial_crash_never_loses_a_yards_window(world: World, monkeypatch: Any
     assert paternal_bodies and "ALMOST-LOST-BODY" in paternal_bodies[-1]
 
 
-def test_sent_digest_carries_working_reply_addresses(world: World) -> None:
-    """The emailed reply block is real end-to-end: the address in the sent
-    digest resolves to the right (member, post), and a reply through the full
-    inbound pipeline posts a badged comment."""
-    from core import digest, inbound
+def test_sent_digest_offers_the_app_and_publishes_no_bearer_address(world: World) -> None:
+    """FOUNDER DECISION 2026-07-29: the digest's reply action opens the app.
+
+    It used to print the per-post reply ADDRESS in the body. That address is a bearer
+    credential — T-EMAIL-2: "a forwarded digest leaks reply capabilities, so a stranger
+    or excluded relative posts as the elder" — and printing it in every digest was how it
+    travelled. An app link carries no capability: it lands on the login wall and you reply
+    as yourself, with photos (S-404).
+
+    This asserts BOTH halves, because dropping the address without adding the link would
+    leave the digest with no way to reply at all, and adding the link without dropping the
+    address would leave the credential in every forward.
+
+    The inbound pipeline itself is unchanged and still proven end to end here, from an
+    address minted directly — the same way the twelve tests in test_inbound.py do it, none
+    of which ever scraped the email body.
+    """
+    from core import digest, inbound, reply_addresses
 
     _confirmed(world.maternal_cousin, "cousin@example.com")
     post = Post.objects.create(author=world.maternal_cousin, pod=world.m_pod, body="reply to me")
@@ -324,8 +337,21 @@ def test_sent_digest_carries_working_reply_addresses(world: World) -> None:
     send_due_digests(timezone.now())
     body = mail.outbox[0].body
     assert digest.REPLY_SEPARATOR in body  # the separator ships in every digest
-    line = next(line for line in body.splitlines() if "Reply to this post by email:" in line)
-    address = line.split(":", 1)[1].strip()
+
+    assert f"/posts/{post.id}/#reply" in body, "the digest offers no way to reply"
+    assert "Reply to this post by email" not in body
+    assert "@" + digest._reply_domain() not in body, (
+        "a per-post reply address is still printed in the digest body"
+    )
+
+    # And the machinery still works when an address exists: mint one the way the send
+    # path does and drive the full inbound pipeline.
+    issue = DigestIssue.objects.filter(member=world.maternal_cousin).order_by("-id").first()
+    assert issue is not None
+    # mint_for_issue returns the LOCAL PART; the address is that plus the sending domain,
+    # the same shape test_inbound's fixtures build.
+    local_part = reply_addresses.mint_for_issue(issue, [post.id])[post.id]
+    address = f"{local_part}@{digest._reply_domain()}"
     raw = (
         f"Message-ID: <e2e@x>\nFrom: cousin@example.com\nTo: {address}\n"
         f"Subject: Re: digest\nContent-Type: text/plain\n\n"

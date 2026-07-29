@@ -14,7 +14,27 @@ Status: Phase 0 artifact, 2026-07-20. The backbone is user activities; the v1 li
 
 ## The v1 line
 
-v1 includes exactly the stories flagged `v1: true` in stories.yaml: 34 stories that make the seven activities work end to end for the founding household and the first yards. The count moved from 33 to 34 in Phase 1: the [threat model](security/threat-model.md) added break-glass admin recovery (S-805) as a v1 story, since mandatory admin two-factor ships in v1 and a lockout needs a recovery path from the first line of auth code. Five stories are built into the map but flagged post-v1 (`v1: false`): the ambient frame display (S-603), email-photo-to-pod posting (S-503), vCard directory export (S-904), new-member intro cards (S-905), and two lifecycle stories the threat model surfaced (deceased-member state S-706, handover/shutdown runbook S-804). None is required to pass the alpha KPI.
+v1 includes exactly the stories flagged `v1: true` in stories.yaml: 34 stories that make the seven activities work end to end for the founding household and the first yards. The count moved from 33 to 34 in Phase 1: the [threat model](security/threat-model.md) added break-glass admin recovery (S-805) as a v1 story, since mandatory admin two-factor ships in v1 and a lockout needs a recovery path from the first line of auth code. Five stories are built into the map but flagged post-v1 (`v1: false`): the ambient frame display (S-603), email-photo-to-pod posting (S-503), vCard directory export (S-904), new-member intro cards (S-905), and two lifecycle stories the threat model surfaced (deceased-member state S-706, handover/shutdown runbook S-804). ~~None is required to pass the alpha KPI.~~ — **CORRECTED 2026-07-29.** That was the
+whole basis for the `v1: false` flag on all five, and the alpha KPI it refers to was
+**superseded by the founder on 2026-07-22**: adoption is measured to inform iteration and
+is explicitly NOT a gate. So the classification outlived its own rationale, and "post-v1"
+kept being read as a decision when it was an inference from a retired metric. The founder's
+actual bar is "get it 100% RIGHT the first time, then share", which these were never
+measured against.
+
+Re-decided individually, on that bar:
+
+- **S-905** intro card — BUILT (#98). A household is invited, relatives join over a week,
+  and nothing said any of them arrived.
+- **S-706** deceased-member state — **SUPERSEDED** by founder decision: *"it can just be a
+  deactivation from admin controls. That is not sensitive at all."* The shipped S-702
+  removal already does the mechanical half.
+- **S-503** email-photo-to-pod — **SUPERSEDED** by founder decision: *"I wouldn't put too
+  much energy into the reply by email thing... it would be better if it just opened the app
+  to where they reply."* Email-attachment ingest is the same untrusted-input path, and the
+  need it served is met better by S-404 (photos on a reply) reached through an app link.
+- **S-904** vCard export, **S-804** handover/succession, **S-603** ambient frame — carried
+  forward as real pre-share work, no longer excused by the KPI.
 
 Eighteen stories also carry a `security:` block: threat-model acceptance criteria bound to specific threats, layered on top of the original product acceptance rather than replacing it. Those are the criteria the Phase 3 story loop tests.
 

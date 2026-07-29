@@ -30,10 +30,10 @@
             {% if block.reply_count %}{{ block.reply_count }} repl{{ block.reply_count|pluralize:"y,ies" }} ·{% endif %}
             <a href="{{ block.url }}" style="color: #1e5c46;">Open this post</a>
           </p>
-          {% if block.reply_address %}
-            <p style="font-size: 16px; margin: 8px 0 0;">Reply to this post by email:
-              <a href="mailto:{{ block.reply_address }}" style="color: #1e5c46;">{{ block.reply_address }}</a>
-              (your reply goes to everyone who can see this post)</p>
+          {% if block.reply_url %}
+            <p style="font-size: 16px; margin: 8px 0 0;">
+              <a href="{{ block.reply_url }}" style="color: #1e5c46;">Reply in Backyard</a>
+              — your reply goes to everyone who can see this post, and you can add photos.</p>
           {% endif %}
         </div>
       {% empty %}
