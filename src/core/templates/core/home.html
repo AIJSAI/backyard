@@ -1,11 +1,16 @@
 {% extends "core/base.html" %}
 {% block title %}Backyard{% endblock %}
 {% block body %}
+  {% comment %} "Your family's private instance is up." said nothing the paragraph
+     under it did not, so it came out in the v3.2 pass. The h1 string stays: it is
+     pinned by test_setup.test_home_shows_landing_to_a_logged_out_visitor, and moving
+     a test was authorised only for the SC 3.2.6 help sentence. It still reads like a
+     status page rather than a front door — flagged, not changed. {% endcomment %}
   <h1>Backyard is running</h1>
-  <p>Your family's private instance is up.</p>
   <p class="muted">
     This is a private, invite-only family network. If someone in the family sent you a
     link, open it to join. Members are taken straight to the family feed after signing in.
   </p>
-  <p><a href="{% url 'account_login' %}">Sign in</a></p>
+  {% comment %} The one action on the page was the quietest thing on it. {% endcomment %}
+  <p><a class="btn" href="{% url 'account_login' %}">Sign in</a></p>
 {% endblock %}

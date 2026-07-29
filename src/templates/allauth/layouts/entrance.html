@@ -15,6 +15,12 @@
       Backyard
     </a>
     <p class="lede">This Backyard is invite-only. If someone in the family sent you a link, open it to join.</p>
-    {% block content %}{% endblock %}
+    {% comment %} The card is new in the v3.2 visual pass. Without it the entrance was a
+       27rem column centred inside the shell while the footer sat at the shell's left
+       edge, so the one screen carrying two elements had two different left margins.
+       An object with an edge reads as placed; a stray column reads as misaligned. {% endcomment %}
+    <div class="entrance-card">
+      {% block content %}{% endblock %}
+    </div>
   </div>
 {% endblock %}

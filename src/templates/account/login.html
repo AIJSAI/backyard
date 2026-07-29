@@ -7,6 +7,12 @@
    refuses the route, so that link sent a new relative to a dead end on the first
    screen of the product.
 
+   Changed in a SECOND way by the v3.2 visual pass: all three "Sign In" strings (the
+   document title, the h1, the submit button) are now "Sign in". Every other heading
+   and button in the product is sentence case
+   ("Your backyard", "Family directory", "Create pod"); Title Case here was the
+   library's house style, not this one.
+
    Everything else is the package's markup verbatim, so the form, the passkey
    button and the login-by-code path keep working. This file is pinned by
    test_auth_surfaces.py: if an allauth upgrade changes the page, the assertions
@@ -14,11 +20,11 @@
 {% load i18n %}
 {% load allauth account %}
 {% block head_title %}
-    {% trans "Sign In" %}
+    {% trans "Sign in" %}
 {% endblock head_title %}
 {% block content %}
     {% element h1 %}
-        {% trans "Sign In" %}
+        {% trans "Sign in" %}
     {% endelement %}
     {% if not SOCIALACCOUNT_ONLY %}
         {% url 'account_login' as login_url %}
@@ -31,7 +37,7 @@
             {% endslot %}
             {% slot actions %}
                 {% element button type="submit" tags="prominent,login" %}
-                    {% trans "Sign In" %}
+                    {% trans "Sign in" %}
                 {% endelement %}
             {% endslot %}
         {% endelement %}

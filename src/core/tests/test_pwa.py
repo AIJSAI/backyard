@@ -158,9 +158,17 @@ def test_the_installed_identity_matches_the_shipped_design_system() -> None:
     assert manifest["background_color"] == paper.group(1)
 
 
-def test_no_surface_still_carries_the_rejected_v2_navy() -> None:
-    """The founder rejected design v2 by name. A stray #234a78 anywhere is a piece of the
-    rejected identity still shipping, and the PWA is where one survived the v3 pass."""
+def test_no_surface_still_carries_a_rejected_ground_or_accent() -> None:
+    """The founder rejected design v2 by name. A stray rejected colour anywhere is a piece
+    of an identity he already turned down, still shipping.
+
+    WIDENED 2026-07-29. This guard pinned exactly one value — the v2 navy #234a78 — and
+    that narrowness cost a review cycle: the v3.2 visual pass warmed the page ground to a
+    linen cream chasing "warmth" from the brief, the founder rejected it on sight as
+    belonging to the same run he had already turned down, and nothing in the suite said a
+    word, because the cream is not the navy. A guard that names ONE value from a rejected
+    direction implies the direction is covered when only that value is. Each entry below
+    is a colour a founder has rejected; add to the list rather than narrowing it."""
     import re as _re
     from pathlib import Path
 
@@ -179,11 +187,41 @@ def test_no_surface_still_carries_the_rejected_v2_navy() -> None:
             )
         return text
 
+    # hex (no leading #) -> what it was and who rejected it
+    rejected = {
+        "234a78": "design-v2 navy",
+        "f7f4ed": "the v3.2 linen-cream page ground",
+        "efeade": "the v3.2 linen-cream sunk surface",
+    }
+
     src = Path(__file__).resolve().parents[2]
     offenders = []
     for path in list(src.rglob("*.py")) + list(src.rglob("*.html")):
         if "__pycache__" in str(path) or path.name == "test_pwa.py":
             continue
-        if "234a78" in _strip_comments(path.read_text(errors="ignore"), path.suffix):
-            offenders.append(str(path.relative_to(src)))
-    assert not offenders, f"design-v2 navy still shipping as a LIVE colour in: {offenders}"
+        live = _strip_comments(path.read_text(errors="ignore"), path.suffix)
+        for hexval, what in rejected.items():
+            if hexval in live:
+                offenders.append(f"{path.relative_to(src)}: #{hexval} ({what})")
+    assert not offenders, f"a rejected colour is still shipping as a LIVE value in: {offenders}"
+
+
+def test_the_rejected_colour_guard_is_non_vacuous() -> None:
+    """Guard the guard, twice over. The comment-stripper must not swallow a live value,
+    and the list must actually contain the colour whose absence it is asserting — a typo
+    in a hex would make the loop above pass over a shipping defect in silence."""
+    import re as _re
+    from pathlib import Path
+
+    source = Path(__file__).read_text()
+    # The rejected map is real and holds more than the one value it started with.
+    hexes = _re.findall(r'"([0-9a-f]{6})": "', source)
+    assert len(hexes) >= 3, f"the rejected-colour list collapsed to {hexes}"
+    for h in ("234a78", "f7f4ed"):
+        assert h in hexes, f"{h} fell out of the rejected list"
+    # And the live palette really is the accepted one, so the guard has something to hold.
+    base = (Path(__file__).resolve().parents[1] / "templates" / "core" / "base.html").read_text()
+    paper = _re.search(r"--paper:\s*(#[0-9a-fA-F]{6})", base)
+    assert paper and paper.group(1).lower() == "#fbfcfb", (
+        f"--paper is {paper.group(1) if paper else 'missing'}, not the accepted ground"
+    )

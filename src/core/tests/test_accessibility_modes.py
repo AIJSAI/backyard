@@ -186,3 +186,41 @@ def test_prefers_contrast_beats_a_manual_theme_choice() -> None:
     body = _block("@media (prefers-contrast: more)")
     for selector in (':root[data-theme="light"]', ':root[data-theme="dark"]'):
         assert selector in body, f"{selector} outranks :root here and would win"
+
+
+def test_no_page_gives_two_controls_the_same_accessible_name() -> None:
+    """A class of defect axe does not report and a sighted review cannot see.
+
+    The profile form carries five visibility selects. They began life with
+    field-specific aria-labels ("Who can see my phone"); the v3.2 visual pass replaced
+    those with a VISIBLE label, which was the right call for sighted users and, in its
+    first cut, gave all five the identical name "Who can see it". A screen-reader user
+    pulling up the form-controls list then sees five indistinguishable selects. axe
+    reports nothing — duplicate names are not a violation of any single success
+    criterion — so only a human reading the markup, or this test, catches it.
+
+    Asserted on the RENDERED page rather than the template, because the names are built
+    from a loop and a template read would not prove what a browser receives.
+    """
+    import re
+
+    from django.template.loader import render_to_string
+
+    from core.models import Member
+
+    html = render_to_string(
+        "core/profile_edit.html",
+        {"member": Member(display_name="Priya"), "visibility_choices": [("no_one", "No one")]},
+    )
+    # Every <label for="..."> is the accessible name of the control it points at.
+    labels = re.findall(r'<label for="([^"]+)"[^>]*>(.*?)</label>', html, re.S)
+    names: dict[str, str] = {}
+    duplicates: list[str] = []
+    for control_id, text in labels:
+        name = " ".join(re.sub(r"<[^>]+>", "", text).split())
+        if name in names.values():
+            duplicates.append(f"{name!r} labels both {control_id} and another control")
+        names[control_id] = name
+    assert not duplicates, "two controls share an accessible name:\n" + "\n".join(duplicates)
+    # Non-vacuity: the page really does render the five visibility selects this guards.
+    assert sum(1 for n in names.values() if n.startswith("Who can see")) == 5, names

@@ -173,6 +173,9 @@ CACHES = {
 # overwrites client-sent forwarded headers and is the only peer that can reach
 # web (the TS-CO-4 network split). A CDN or second proxy must revisit this.
 ACCOUNT_ADAPTER = "core.adapters.AccountAdapter"  # signup is invite-only (S-101)
+# Copy only (v3.2 visual pass): sign-in shipped allauth's "Login:" / "Remember Me:"
+# with Django's colon suffix, on the first surface a family member ever sees.
+ACCOUNT_FORMS = {"login": "core.forms.LoginForm"}
 ACCOUNT_LOGIN_METHODS = {"username", "email"}
 ACCOUNT_EMAIL_VERIFICATION = "optional"  # invite-token members may have no email
 ACCOUNT_PREVENT_ENUMERATION = True  # login/reset never reveal whether an account exists

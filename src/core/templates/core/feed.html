@@ -32,25 +32,41 @@
     {% csrf_token %}
     <textarea name="body" rows="3" placeholder="Share something with your family" required></textarea>
 
-    <label for="photos">Add photos (optional)</label>
-    <input id="photos" type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
+    {% comment %} Same fields, same names, same action as before the v3.2 visual pass —
+       grouped onto rows. Stacked full-width they made the composer ~560px of form
+       standing between a member and the first photograph in their family's feed. The
+       word "(optional)" came off both pickers: everything here except the text is. {% endcomment %}
+    <div class="composer-media">
+      <div>
+        <label for="photos">Photos</label>
+        <input id="photos" type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
+      </div>
+      <div>
+        <label for="videos">Short video clips</label>
+        <input id="videos" type="file" name="videos" accept="video/mp4,video/quicktime" multiple>
+      </div>
+    </div>
 
-    <label for="videos">Add short video clips (optional)</label>
-    <input id="videos" type="file" name="videos" accept="video/mp4,video/quicktime" multiple>
+    <div class="composer-audience">
+      <div>
+        <label for="pod_id">Post to</label>
+        <select id="pod_id" name="pod_id" required>
+          {% for pod in pods %}<option value="{{ pod.id }}">{{ pod.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <fieldset>
+        <legend>Also a whole side of the family</legend>
+        {% comment %} .sides is the fieldset's CONTROL box — it wears the same border and
+           48px height as the select beside it, so the two columns line up. {% endcomment %}
+        <div class="sides">
+          {% for yard in yards %}
+            <label class="inline-check"><input type="checkbox" name="audience_yards" value="{{ yard.id }}"> {{ yard.name }}</label>
+          {% endfor %}
+        </div>
+      </fieldset>
+    </div>
 
-    <label for="pod_id">Post to</label>
-    <select id="pod_id" name="pod_id" required>
-      {% for pod in pods %}<option value="{{ pod.id }}">{{ pod.name }}</option>{% endfor %}
-    </select>
-
-    <fieldset>
-      <legend>Also share with a whole side of the family (optional)</legend>
-      {% for yard in yards %}
-        <label class="inline-check"><input type="checkbox" name="audience_yards" value="{{ yard.id }}"> {{ yard.name }}</label>
-      {% endfor %}
-    </fieldset>
-
-    <button type="submit">Post</button>
+    <div class="composer-submit"><button type="submit">Post</button></div>
   </form>
 
   <ul class="feed">

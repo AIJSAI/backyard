@@ -2,18 +2,20 @@
 {% block title %}Family directory{% endblock %}
 {% block body %}
   <h1>Family directory</h1>
-  {% comment %} Wayfinding in the margin rail at >=64rem; plain flow below. Search stays
-     in the well, since it acts on the content beside it. {% endcomment %}
+  {% comment %} The page's own actions. "Back to the feed" came out: the header nav has
+     carried Feed on every page since v3.1, so the rail was repeating it. {% endcomment %}
   <nav class="rail" aria-label="Your profile and data">
     <p>
-      <a href="{% url 'feed' %}">Back to the feed</a> ·
       <a href="{% url 'profile_edit' %}">Edit my profile</a> ·
       <a href="{% url 'export_data' %}">Export my data</a>
     </p>
   </nav>
 
-  <form method="get" action="{% url 'directory' %}">
-    <input type="search" name="q" value="{{ q }}" placeholder="Search by name">
+  {% comment %} A search box and the button that runs it are one control. Stacked, the
+     button read as an unrelated action sitting under an unrelated field. {% endcomment %}
+  <form method="get" action="{% url 'directory' %}" class="search-row">
+    <label class="visually-hidden" for="q">Search by name</label>
+    <input id="q" type="search" name="q" value="{{ q }}" placeholder="Search by name">
     <button type="submit">Search</button>
   </form>
 
