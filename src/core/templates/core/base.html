@@ -311,10 +311,12 @@ main.wrap > p, main.wrap > h1 + p,
 img.digest-photo { display: block; width: 100%; height: auto; margin: 0.8rem 0;
   border-radius: var(--radius-sm); background: var(--surface-sunk); }
 
-/* The footer used to open with "A quiet place for family. Your history stays yours"
-   — a tagline nothing in the product pinned, set above a BOLDER help line, so the
-   least important sentence on the page was also the loudest. The tagline is gone and
-   the help sentence is the footer. */
+/* The footer used to open with a tagline nothing in the product pinned, set above a
+   BOLDER help line, so the least important sentence on the page was also the loudest.
+   The tagline is gone and the help sentence is the footer. Its words are deliberately
+   NOT quoted here: this comment ships inside every page's <style>, so quoting a string
+   the founder asked to cut would keep sending it to every client on every load — and
+   would defeat a grep meant to prove it was gone. */
 footer.site { border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 0.82rem; }
 footer.site .wrap { padding-top: 1.1rem; padding-bottom: 1.1rem; }
 footer.site a { color: var(--ink-soft); }
