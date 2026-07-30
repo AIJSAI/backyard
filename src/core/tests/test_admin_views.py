@@ -156,9 +156,7 @@ def test_roster_visibly_flags_supervised_members_to_admins(world: dict[str, obje
 # --- a yard admin does not get a member's delivery address in full ---
 
 
-def test_yard_admin_sees_the_digest_address_masked_and_instance_admin_does_not(
-    client: Client,
-) -> None:
+def test_yard_admin_sees_the_digest_address_masked_and_instance_admin_does_not() -> None:
     """The digest panel rendered subscription.address in full to any admin.
 
     It is a personal email the member entered for delivery, and the panel's job -- did it
