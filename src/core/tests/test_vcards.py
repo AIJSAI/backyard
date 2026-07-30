@@ -315,6 +315,33 @@ def test_a_card_carries_a_stable_instance_scoped_uid(world: World) -> None:
     assert uid in first and uid in second
 
 
+def test_a_naive_now_is_refused_rather_than_silently_shifted(world: World) -> None:
+    # Measured: a naive datetime does not raise on .astimezone() — Python reads it as
+    # system local time, which stamped a REV five hours off with no error on a UTC-5
+    # machine. Refusing beats guessing UTC for the caller.
+    profile = profiles.viewable_profile(world.yard_mate, world.author)
+    with pytest.raises(ValueError, match="aware"):
+        vcards.render([profile], now=datetime.datetime(2026, 7, 29, 15, 4, 5))
+
+    # And the aware path still works, so the guard is not just refusing everything.
+    aware = datetime.datetime(2026, 7, 29, 15, 4, 5, tzinfo=datetime.UTC)
+    assert "REV:2026-07-29T15:04:05Z" in vcards.render([profile], now=aware)
+
+
+def test_a_non_utc_aware_now_is_converted_not_stamped_verbatim(world: World) -> None:
+    profile = profiles.viewable_profile(world.yard_mate, world.author)
+    offset = datetime.timezone(datetime.timedelta(hours=-5))
+    stamped = vcards.render([profile], now=datetime.datetime(2026, 7, 29, 10, 4, 5, tzinfo=offset))
+    assert "REV:2026-07-29T15:04:05Z" in stamped  # 10:04 at -05:00 is 15:04 UTC
+
+
+def test_a_tab_survives_escaping_and_the_other_c0_characters_do_not(world: World) -> None:
+    # RFC 6350 §3.3 admits TAB in a text value; the rest of C0 is not valid there. Pinned
+    # because the docstring claimed all of C0 was dropped while the code kept the tab.
+    assert vcards._escape("a\tb") == "a\tb"
+    assert vcards._escape("a\x00\x01\x1fb") == "ab"
+
+
 def test_rev_is_utc_and_the_render_is_otherwise_deterministic(world: World) -> None:
     stamp = datetime.datetime(2026, 7, 29, 15, 4, 5, tzinfo=datetime.UTC)
     card = vcards.render([profiles.viewable_profile(world.yard_mate, world.author)], now=stamp)

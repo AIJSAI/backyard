@@ -60,8 +60,11 @@ def _escape(value: str) -> str:
     not re-escaped. Newlines become the literal two-character `\\n`, which is what makes
     this the injection guard rather than a formatting nicety.
 
-    C0 control characters are dropped: they are not valid in a vCard text value, and a
-    stray one from a paste turns a card into an unparseable file rather than a wrong one.
+    C0 control characters are dropped — **except TAB**, which RFC 6350 §3.3 admits in a text
+    value along with printable characters. The others are not valid there, and a stray one
+    from a paste turns a card into an unparseable file rather than a wrong one. (The earlier
+    wording said C0 was dropped without naming the tab exception; tab is 0x09, so the
+    sentence described behaviour this function does not have.)
     """
     out = value.replace("\\", "\\\\")
     out = out.replace("\r\n", "\\n").replace("\r", "\\n").replace("\n", "\\n")
@@ -178,7 +181,15 @@ def render(viewable: Iterable[ViewableProfile], *, now: datetime.datetime | None
     Takes an iterable so the whole-directory download does not need every card in a list
     first, and takes `ViewableProfile` rather than members so there is no code path here
     that could reach an unscoped field.
+
+    `now` must be timezone-aware. A naive value does NOT raise on `.astimezone()` — Python
+    reads it as system local time and converts, which measured as a **five-hour shift in the
+    REV stamp with no error at all** on a UTC-5 machine. Refusing it is better than guessing
+    UTC on the caller's behalf, which is the same silent guess wearing a different coat.
+    `timezone.now()` is aware, so nothing in the app is affected.
     """
+    if now is not None and (now.tzinfo is None or now.tzinfo.utcoffset(now) is None):
+        raise ValueError("vcards.render needs an aware `now`; a naive one silently shifts REV")
     stamp = (now or timezone.now()).astimezone(datetime.UTC)
     revised = stamp.strftime("%Y-%m-%dT%H:%M:%SZ")
     host = _uid_host()
