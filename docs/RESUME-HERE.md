@@ -193,6 +193,16 @@ mode while hovered.
 
 ## Operator actions waiting, in priority order
 
+**A decision first, because it gates nothing else and needs you: enforce admin 2FA.** T-ADMIN-1 claims "passkey or TOTP,
+enforced in the wizard so a password-only admin never exists". Nothing enforces it: a
+password-only superuser reaches every admin surface. It was deliberately left open by the
+2026-07-30 security pass because switching it on can lock the only admin out of their own
+instance, and `breakglass.py` already assumes the control exists. The safe order is enrol
+first, then enforce — which is a rollout call.
+
+The first three below are things a person must do on the box; the classifier in an agent
+session refuses `compose exec ... manage.py shell`, so they cannot be done for you.
+
 Both are blocked for an agent in this harness (the command classifier refuses
 `docker compose exec … manage.py shell`), so they are copy-paste ready rather than done.
 Set the host once — it is a placeholder rather than a literal so the box can be rebuilt without
@@ -220,15 +230,34 @@ ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST \
 Keep the `DEMO_PASSWORD=` line it prints — it is the only copy. Or wipe instead, with
 `-e BACKYARD_DEMO_WIPE=1`, if you are done with the demo family.
 
-**2. Take a backup. Production has never had one**, and the weekly health email has been
+**2. Set BACKYARD_BACKUP_PASSPHRASE on production.** It is unset, so the pre-flight dump
+written on every boot is **plaintext** -- and there are three of them on the volume right
+now, each the whole family database. The instance says so itself on every start since the
+security pass:
+
+```
+WARNING: BACKYARD_BACKUP_PASSPHRASE is unset, so the pre-flight backup is PLAINTEXT at
+/data/backups/preflight-*.dump -- that is the entire family database.
+```
+
+Add it to `~/backyard/.env` on the box, restart web, and confirm the next line reads
+`Pre-flight backup written ENCRYPTED`. Record the passphrase on the succession sheet: there
+is no key escrow, so losing it loses those archives. Then delete the plaintext dumps.
+
+**3. Take a backup. Production has never had one**, and the weekly health email has been
 saying so since it shipped. This is the largest real risk in the project: there is no backup,
 so *restore has never been exercised against production data* either.
 
 ```bash
+# `output` is POSITIONAL, not --output. And no passphrase is passed here at all: once
+# action #2 is done, BACKYARD_BACKUP_PASSPHRASE is in the container's environment and the
+# command reads it from there. backup_instance deliberately refuses a passphrase on argv so
+# it cannot reach shell history or `ps`; inlining one would walk around the protection the
+# command exists to provide.
 ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST \
   'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web \
-     sh -c "DJANGO_SECRET_KEY=\$(cat /data/secret_key) BACKYARD_BACKUP_PASSPHRASE=... \
-        python manage.py backup_instance --output /data/backup-$(date +%F).tar.enc"'
+     sh -c "DJANGO_SECRET_KEY=\$(cat /data/secret_key) \
+        python manage.py backup_instance /data/backup-$(date +%F).tar.enc"'
 # then copy it OFF the box, and record the passphrase location on the succession sheet
 scp -i ~/.ssh/backyard_vm 'ubuntu@$BACKYARD_HOST:/data/backup-*.tar.enc' ~/backyard-backups/
 ```
