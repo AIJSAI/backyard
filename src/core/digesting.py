@@ -131,7 +131,9 @@ def confirm(raw_token: str) -> DigestSubscription:
         if not raw_token or subscription is None:
             raise DigestTokenInvalid
         subscription.confirmed_at = timezone.now()
-        subscription.confirm_token_digest = ""
+        # nosec B105: an empty digest is the ABSENCE of a credential — this burns the
+        # one-time confirm token, it does not hardcode one. Scoped to B105 deliberately.
+        subscription.confirm_token_digest = ""  # nosec B105
         subscription.save(update_fields=["confirmed_at", "confirm_token_digest"])
         return subscription
 

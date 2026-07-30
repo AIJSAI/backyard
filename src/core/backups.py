@@ -239,9 +239,12 @@ def _forced_security_replay() -> dict[str, int]:
         members = Member.objects.update(token_generation=models.F("token_generation") + 1)
         sessions = Session.objects.all().delete()[0]
         invites = Invite.objects.filter(revoked_at__isnull=True).update(revoked_at=timezone.now())
-        digest_tokens = DigestSubscription.objects.exclude(
+        # nosec B106 on both calls: an empty-string digest is the ABSENCE of a credential.
+        # This clears the emailed capabilities, it does not hardcode one. Scoped to B106 so
+        # it suppresses one rule rather than everything on the line.
+        digest_tokens = DigestSubscription.objects.exclude(  # nosec B106
             confirm_token_digest="", unsubscribe_token_digest=""
-        ).update(confirm_token_digest="", unsubscribe_token_digest="")
+        ).update(confirm_token_digest="", unsubscribe_token_digest="")  # nosec B106
     return {
         "members_rotated": members,
         "sessions_flushed": sessions,
