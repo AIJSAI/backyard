@@ -280,7 +280,13 @@ jobs:
         # shape is covered by test_no_hardcoded_demo_credentials.py (ast, includes "pw") and by
         # the backyard-generic-password-assignment rule in .gitleaks.toml. Three layers, and
         # this comment records which one covers what.
-        run: uvx bandit==1.9.2 -r src scripts docs/design/tools --exclude src/core/migrations -t B105,B106,B107 -q
+        # Tests excluded: their fixtures are synthetic and are covered instead by
+        # test_no_hardcoded_demo_credentials.py, which allowlists them BY VALUE, so a
+        # genuinely new secret in a test file still fires. That is why excluding them here
+        # does not recreate the blind spot the path-based gitleaks allowlist did.
+        # The four production hits are empty-string credential CLEARS (revocation), each
+        # annotated with a scoped `# nosec B10x` and its reason.
+        run: uvx bandit==1.9.2 -r src scripts docs/design/tools --exclude src/core/migrations,src/core/tests -t B105,B106,B107 -q
       - name: SAST self-test (a planted eval AND a planted password MUST be caught)
         # The eval() plant is B307/Medium, so it only ever proved the medium floor works --
         # the same wrong-class proof as the old gitleaks selftest. The second plant is the
