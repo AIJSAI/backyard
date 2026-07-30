@@ -9,6 +9,7 @@ Three doors:
 |---|---|
 | **run it** | [self-host.md](runbooks/self-host.md) → [backup-restore.md](runbooks/backup-restore.md) → [handover.md](runbooks/handover.md) |
 | **understand why it is built this way** | the four pictures below, then [principles.md](principles.md), [ADRs](adr/), [threat-model.md](security/threat-model.md) |
+| **know what is left** | **[OUTSTANDING.md](OUTSTANDING.md)** — the single ranked backlog: operator actions, founder decisions, unfixed findings, gate gaps |
 | **see how it was actually built** | [PATH-TO-100.md](PATH-TO-100.md), [receipts/](receipts/), [audits/](audits/) |
 
 ---

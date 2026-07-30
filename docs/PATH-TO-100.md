@@ -145,6 +145,10 @@ S-502, S-903 are `tested`.** The one remaining item is a founder input, not code
    deployer docs (Phase 5). S-705 is now `tested`. The privacy posture it describes
    is already ratified and enforced in code.
 
+> **The consolidated backlog is [OUTSTANDING.md](OUTSTANDING.md).** This checklist tracks the
+> v1.0 *criteria*; OUTSTANDING tracks every open item — operator actions, founder decisions,
+> unfixed security findings, and gates that overstate — ranked, with an order to work in.
+
 ## Security pass (2026-07-30)
 
 - [x] Five-angle security fan-out (secrets/history, authz/isolation, untrusted input, infrastructure/supply-chain, and the gates themselves) plus live probing of the running instance — **one CRITICAL, four HIGH and ~20 MEDIUM findings, all fixed except T-ADMIN-1 which needs a founder rollout decision.** The headline is not a bug: **three of four gates carrying a non-vacuity proof were proving the wrong class**, which is why a working production password sat in a public repo for the project's life while every gate reported green. Two findings broke the core promise: a bridging post carried the other side of the family's replies, reactor names and reply photographs, and a yard admin could mint a credential wider than their own reach. Nine further mistakes were made *inside the fixes* and caught by review or by probing; that list is in the receipt because the pattern is the finding. evidence: docs/receipts/2026-07-30-security-fan-out.md + docs/security/threat-model.md §7.8

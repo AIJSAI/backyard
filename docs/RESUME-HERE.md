@@ -1,7 +1,14 @@
-# Resume here — session state, 2026-07-29
+# Resume here — session state, 2026-07-30
 
-Written to survive a context compaction. Read this, then `docs/PATH-TO-100.md`, then verify
-with a primary check (`git log`, `gh pr list`) rather than trusting anything below.
+Written to survive a context compaction. Read this, then **[`docs/OUTSTANDING.md`](OUTSTANDING.md)
+— the single ranked list of everything not done** — then `docs/PATH-TO-100.md`. Verify with a
+primary check (`git log`, `gh pr list`, run the probe an item names) rather than trusting
+anything written down.
+
+> **Start here after a compaction:** OUTSTANDING.md §0 is four things a person must do on the
+> box, two of which are live exposures — the leaked password still authenticates on
+> production, and production is writing plaintext dumps of the whole family database on every
+> boot. Nothing in the backlog outranks those.
 
 **`v0.1.0` is tagged.** The README installs the tag, not `main`, and `CHANGELOG.md` lists what
 does not work as prominently as what does. If you add a user-visible change, add a changelog
