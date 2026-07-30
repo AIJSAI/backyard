@@ -17,7 +17,7 @@ import pytest
 from django.http import Http404
 
 from core import profiles, scoping
-from core.models import Member, Pod, PodMembership, Yard
+from core.models import Comment, MediaAsset, Member, Pod, PodMembership, Post, Reaction, Yard
 
 pytestmark = pytest.mark.django_db
 
@@ -406,3 +406,86 @@ def test_family_dates_never_cross_a_yard(two_yards: dict[str, object]) -> None:
     bridge_view = profiles.upcoming_dates(bridge_member, start=start, days=366)
     assert paternal_member.id not in {d.member_id for d in maternal_view}
     assert paternal_member.id in {d.member_id for d in bridge_view}  # positive control
+
+
+# --- bridging posts: the audience a comment inherits is the POST's, not the viewer's ---
+#
+# T-YARD-4's committed answer is "on bridging posts, filter reactors and comments per the
+# viewer's yard", and design tension 5 accepts a weaker signal to hold that boundary. Neither
+# was implemented: visible_comments and visible_reactions filtered by post visibility alone,
+# so a post addressed to BOTH yards -- which only the bridging household can create -- carried
+# the other side's replies, reactor names and reply photographs to a single-yard member.
+#
+# The suite had bridge fixtures but no bridging-POST case, which is why it stayed green.
+
+
+def _bridging_post(two_yards: dict[str, object]) -> Post:
+    """A post from the bridging household addressed to BOTH sides -- legitimately visible
+    to every member, and the only shape where the leak can occur."""
+    bridge_member = two_yards["bridge_member"]
+    assert isinstance(bridge_member, Member)
+    post = Post.objects.create(
+        author=bridge_member,
+        pod=bridge_member.pods.first(),
+        body="A photo for both sides of the family",
+    )
+    post.audience_yards.set([two_yards["maternal"], two_yards["paternal"]])
+    return post
+
+
+def test_bridging_post_hides_the_other_yards_commenters(two_yards: dict[str, object]) -> None:
+    post = _bridging_post(two_yards)
+    maternal_member = two_yards["maternal_member"]
+    paternal_member = two_yards["paternal_member"]
+    assert isinstance(maternal_member, Member) and isinstance(paternal_member, Member)
+
+    mine = Comment.objects.create(post=post, author=maternal_member, body="ours")
+    theirs = Comment.objects.create(post=post, author=paternal_member, body="theirs")
+
+    visible = set(scoping.visible_comments(maternal_member).values_list("id", flat=True))
+    assert mine.id in visible, "a same-yard reply must still be visible"
+    assert theirs.id not in visible, (
+        "a reply from the other side of the family reached a single-yard viewer"
+    )
+    # The bridge sees both: the fix must narrow per viewer, not blank the thread for everyone.
+    bridge_member = two_yards["bridge_member"]
+    assert isinstance(bridge_member, Member)
+    both = set(scoping.visible_comments(bridge_member).values_list("id", flat=True))
+    assert {mine.id, theirs.id} <= both
+
+
+def test_bridging_post_hides_the_other_yards_reactors(two_yards: dict[str, object]) -> None:
+    post = _bridging_post(two_yards)
+    maternal_member = two_yards["maternal_member"]
+    paternal_member = two_yards["paternal_member"]
+    assert isinstance(maternal_member, Member) and isinstance(paternal_member, Member)
+
+    mine = Reaction.objects.create(post=post, member=maternal_member, kind=Reaction.HEART)
+    theirs = Reaction.objects.create(post=post, member=paternal_member, kind=Reaction.HEART)
+
+    visible = set(scoping.visible_reactions(maternal_member).values_list("id", flat=True))
+    assert mine.id in visible
+    assert theirs.id not in visible, (
+        "a reactor from the other side of the family was named to a single-yard viewer"
+    )
+
+
+def test_bridging_post_hides_media_attached_to_the_other_yards_reply(
+    two_yards: dict[str, object],
+) -> None:
+    """The worst shape: not a name, a photograph. Reply media inherits its comment's
+    audience, so if the comment leaks the picture leaks with it."""
+    post = _bridging_post(two_yards)
+    maternal_member = two_yards["maternal_member"]
+    paternal_member = two_yards["paternal_member"]
+    assert isinstance(maternal_member, Member) and isinstance(paternal_member, Member)
+
+    theirs = Comment.objects.create(post=post, author=paternal_member, body="theirs")
+    asset = MediaAsset.objects.create(
+        comment=theirs, media_kind=MediaAsset.PHOTO, content_type="image/jpeg"
+    )
+
+    visible = set(scoping.visible_media(maternal_member).values_list("id", flat=True))
+    assert asset.id not in visible, (
+        "a photograph on the other side's reply was fetchable by a single-yard viewer"
+    )

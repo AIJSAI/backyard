@@ -302,6 +302,23 @@ def test_visible_comments_exactly_matches_the_rule(world: World) -> None:
             return member.id in pod_members[post.pod_id]
         return bool(yard_ids & member_yards[member.id])
 
+    def author_visible(member: Member, comment: Comment) -> bool:
+        """The half this oracle was missing.
+
+        It encoded only "is the post visible", which is why it stayed green while a
+        bridging post carried the other side's replies to a single-yard viewer. A comment
+        is visible iff its POST is visible AND its AUTHOR is -- two independent conditions,
+        and the fixture above deliberately contains a comment that satisfies only the
+        first (a paternal cousin replying on a maternal pod-only post: data that cannot
+        arise in production, which is exactly what a differential oracle should tolerate
+        without going blind).
+        """
+        return comment.author_id in {m.id for m in scoping.visible_members(member)}
+
     for member in members:
-        expected = {c.id for c in comments if c.deleted_at is None and post_visible(member, c.post)}
+        expected = {
+            c.id
+            for c in comments
+            if c.deleted_at is None and post_visible(member, c.post) and author_visible(member, c)
+        }
         assert _visible_comment_ids(member) == expected, f"{member.display_name}: comment leak"

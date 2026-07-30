@@ -85,13 +85,27 @@ def require_visible_post(member: Member, post_id: int) -> Post:
 
 
 def visible_comments(member: Member) -> models.QuerySet[Comment]:
-    """Every comment a member may see: the non-deleted comments on posts they can
-    see. A comment has no audience of its own; it inherits its post's audience
-    through visible_posts, so it never routes around the one query (TM-2) and a
-    comment on a yard the member is not in, or on a deleted post, never reaches
-    them."""
+    """Every comment a member may see: the non-deleted comments on posts they can see,
+    **from people they can see**.
+
+    Both halves are load-bearing, and only the first used to be here. A comment has no
+    audience of its own, so it inherits its post's — but on a post addressed to BOTH
+    sides of the family (which only a bridging household can create) "the post's
+    audience" is everyone, and inheriting it alone handed a single-yard member the other
+    side's replies: names, bodies, and through visible_media the photographs attached to
+    them. The two sides are supposed to be unable to learn of each other's existence.
+
+    Intersecting with visible_members is the whole fix, and it belongs here rather than
+    in the three render sites (feed, elder page, digest) so there is still exactly one
+    audience query to reason about (TM-2). It is T-YARD-4's committed answer — "on
+    bridging posts, filter reactors and comments per the viewer's yard" — and design
+    tension 5's accepted cost: the thread reads slightly quieter on a bridging post than
+    it truly is, and the boundary holds.
+    """
     return Comment.objects.filter(
-        post__in=visible_posts(member), deleted_at__isnull=True
+        post__in=visible_posts(member),
+        author__in=visible_members(member),
+        deleted_at__isnull=True,
     ).distinct()
 
 
@@ -101,11 +115,19 @@ def require_visible_comment(member: Member, comment_id: int) -> Comment:
 
 
 def visible_reactions(member: Member) -> models.QuerySet[Reaction]:
-    """Every reaction a member may see: the reactions on posts they can see. Like
-    comments, a reaction has no audience of its own and inherits its post's through
-    visible_posts, so the reactor list (S-202: reactor lists are in the matrix) never
-    reveals who reacted on a post in a yard the member is not in."""
-    return Reaction.objects.filter(post__in=visible_posts(member)).distinct()
+    """Every reaction a member may see: the reactions on posts they can see, **from
+    people they can see**.
+
+    Same correction as visible_comments, and the docstring here used to assert the
+    property it did not have. Inheriting the post's audience alone is right for a
+    single-yard post and wrong for a bridging one, where it named the other side's
+    reactors to a viewer who cannot otherwise learn those people exist. S-602's whole
+    social backstop is that a reaction carries a name, which is exactly why the name
+    must not cross the yard boundary.
+    """
+    return Reaction.objects.filter(
+        post__in=visible_posts(member), member__in=visible_members(member)
+    ).distinct()
 
 
 def visible_media(member: Member) -> models.QuerySet[MediaAsset]:
