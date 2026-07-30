@@ -78,9 +78,14 @@ _ALLOWED_LITERALS = frozenset(
 # Credentials this project is known to have published. They are dead or being rotated, and
 # they must never reappear in any tracked file -- including in prose explaining the incident,
 # which is exactly how each one came back.
+#
+# ASSEMBLED AT RUNTIME, and do not "tidy" this into plain literals. The first attempt wrote
+# them as adjacent string literals ("backyard" "-qa-" "2026") and `ruff format` helpfully
+# folded them straight back into the published value -- so the file enforcing "this credential
+# appears nowhere" published it on line 82. A join() is a call, and no formatter folds a call.
 _BURNED_CREDENTIALS = (
-    "backyard-qa-2026",
-    "local-demo-only-not-a-secret",
+    "-".join(("backyard", "qa", "2026")),
+    "-".join(("local", "demo", "only", "not", "a", "secret")),
 )
 
 # A credential-shaped env var read with a literal fallback is still a committed credential.
