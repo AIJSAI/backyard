@@ -150,7 +150,11 @@ Deployed from `main` (`55b4b1f`) and proven by a string only the new code serves
 |---|---|---|
 | `GET /directory/vcards/` | **404** (no such route) | **302 → `/accounts/login/?next=/directory/vcards/`** |
 
-Then signed in over HTTPS as a demo member and downloaded it for real:
+Then signed in over HTTPS as a demo member and downloaded it for real. Header names are
+lower-case here and capitalised in the local block above; that is not an inconsistency to
+tidy. **This is verbatim wire output over HTTP/2, which lower-cases every field name**
+(RFC 9113 §8.2.1), while the earlier block shows the canonical form the application sets.
+Normalising the quote would make the receipt tidier and less true.
 
 ```
 content-type: text/vcard; charset=utf-8 · x-content-type-options: nosniff
