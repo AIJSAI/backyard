@@ -28,8 +28,8 @@ is the commit that published it in five files. All five audits found it independ
 Number 5 was caught only by running `git grep` on merged `main` instead of trusting a green
 test — the guard skips its own file, so it passed the whole time.
 
-**Rotation, not redaction, is the remediation.** The value is in history permanently, force-
-push is deny-listed, and it still authenticated on production at the end of this pass.
+**Rotation, not redaction, is the remediation.** The value is in history permanently, force-push
+is deny-listed, and it still authenticated on production at the end of this pass.
 That is operator action #1.
 
 Blast radius, tested rather than assumed: `demo_seed.py` creates the **instance admin** with

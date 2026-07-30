@@ -419,6 +419,10 @@ The dividing line the ruling drew is cost-structure: everything whose price rise
 
 **The residual, stated plainly:** until a trigger fires, yard isolation rides on one enforced perimeter with no database net beneath it. One read path that evades both the scoped managers and the generated S-202 matrix (a `_base_manager` traversal the fixtures missed, a drive-by PR's new route, a management command, a future admin-health aggregate) is a live cross-yard leak, caught by a human noticing rather than a database refusing. The build-now items shrink that surface but do not close it. A secondary residual: the reopening triggers are wave-retro discipline, not CI, so a skipped retro silently converts "defer with trigger" into "defer forever". The triggers, the owner (the wave retro), and the full-kit rule for how RLS ships if adopted are in ADR-004.
 
+### 7.7 How section 7 binds
+
+Like sections 2 and 3, this section is enforced through story acceptance criteria, not intentions. Each row's answer is either a present-config change that lands in the wave that owns the file, or a planned-surface acceptance test that the wave building the surface must pass. The [wave plan](../wave-plan.md) rule 8 makes reading the rows whose `binds` name a wave's stories part of that wave's kickoff. The present-config rows that are cheap and available now (the session-engine pin, `ATOMIC_REQUESTS`, dropping the gunicorn access log, `check --deploy` in CI, the log-rotation and role-split topology) land at the start of wave 1, which owns S-801. Nothing in this section is claimed as done; the proof is each row's named test, green in the wave that builds it.
+
 ### 7.8 Rows that were recorded as answered and were not (2026-07-30 audit)
 
 A five-angle security pass compared every claimed answer in this document against the code,
@@ -446,7 +450,3 @@ out of their own instance, and `breakglass.py` already assumes this control exis
 sequence is enrol-then-enforce, which is a product decision about rollout rather than a
 patch. Until it lands, T-ADMIN-1's residual is larger than this document states: the
 counterweight it prices in does not exist.
-
-## 7.7 How section 7 binds
-
-Like sections 2 and 3, this section is enforced through story acceptance criteria, not intentions. Each row's answer is either a present-config change that lands in the wave that owns the file, or a planned-surface acceptance test that the wave building the surface must pass. The [wave plan](../wave-plan.md) rule 8 makes reading the rows whose `binds` name a wave's stories part of that wave's kickoff. The present-config rows that are cheap and available now (the session-engine pin, `ATOMIC_REQUESTS`, dropping the gunicorn access log, `check --deploy` in CI, the log-rotation and role-split topology) land at the start of wave 1, which owns S-801. Nothing in this section is claimed as done; the proof is each row's named test, green in the wave that builds it.
