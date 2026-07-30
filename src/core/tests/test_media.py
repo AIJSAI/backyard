@@ -12,6 +12,7 @@ from __future__ import annotations
 import ast
 import datetime
 import io
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -619,3 +620,85 @@ def test_deleting_the_post_purges_the_rehosted_preview_image(
         media.purge_post_media(post)
     assert not MediaAsset.objects.filter(post=post).exists()
     assert not storage.exists(name)  # the re-hosted image leaves the disk too (T-MEDIA-6)
+
+
+# --- the format allowlist must gate the DECODER, not just the result (TS-PP-3) ---
+
+
+def test_a_disallowed_format_is_rejected_before_its_decoder_runs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """TS-PP-3's answer says "enforce a format allowlist at `open`". It was enforced at
+    reject -- one full decode too late.
+
+    `img.load()` ran first and the allowlist checked `img.format` afterwards, so a crafted
+    TIFF/PCX/PSD/TGA/DDS/JPEG2000 got its format-specific C decoder run to completion and
+    was then politely declined. That makes the allowlist inert as a CVE-surface control,
+    which is the entire reason pillow is floored at >=12.3 to clear the 11.3 decoder CVEs.
+
+    This asserts the ORDER by spying on the decode, because asserting only "it was
+    rejected" passes either way -- which is why this went unnoticed.
+    """
+    import io as _io
+
+    from PIL import Image as _Image
+
+    # Build the fixture BEFORE the spy: saving a new image calls load() on it too, and
+    # those calls carry format=None. Counting them would have made this assertion noisy
+    # and, worse, unfalsifiable-looking.
+    buf = _io.BytesIO()
+    _Image.new("RGB", (8, 8), "red").save(buf, format="TIFF")
+    payload = buf.getvalue()
+
+    decoded: list[str] = []
+    original_load = _Image.Image.load
+
+    def spy(self):  # type: ignore[no-untyped-def]
+        if self.format:
+            decoded.append(self.format)
+        return original_load(self)
+
+    monkeypatch.setattr(_Image.Image, "load", spy)
+
+    with pytest.raises(media.MediaRejected):
+        media._decode(payload)
+
+    assert decoded == [], f"the {decoded} decoder ran before the format allowlist rejected the file"
+
+
+# --- the parser child must not inherit the instance's secrets (TS-CO-5) ---
+
+
+def test_ffmpeg_children_do_not_inherit_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ffmpeg/ffprobe are the only processes here that run on attacker-supplied bytes.
+
+    They inherited the whole environment -- the DB password, the backup passphrase, the
+    mail provider key -- so a decode-time CVE (the risk the rlimits and the re-encode
+    exist to bound) escalated straight to reading the key that decrypts every family
+    backup, out of its own /proc/self/environ.
+
+    Asserted by planting secrets and capturing the env actually handed to the child,
+    rather than by reading the call site.
+    """
+    from core import transcoding
+
+    monkeypatch.setenv("POSTGRES_PASSWORD", "planted-db-password")
+    monkeypatch.setenv("BACKYARD_BACKUP_PASSPHRASE", "planted-backup-passphrase")
+    monkeypatch.setenv("RESEND_API_KEY", "planted-resend-key")
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+
+    captured: dict[str, dict[str, str] | None] = {}
+
+    def fake_run(argv, **kwargs):  # type: ignore[no-untyped-def]
+        captured["env"] = kwargs.get("env")
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    transcoding._run(["ffprobe", "-version"], timeout=5)
+
+    env = captured["env"]
+    assert env is not None, "the child inherited the parent environment wholesale"
+    planted = ("POSTGRES_PASSWORD", "BACKYARD_BACKUP_PASSPHRASE", "RESEND_API_KEY")
+    leaked = [name for name in planted if name in env]
+    assert not leaked, f"secrets reached the parser child: {leaked}"
+    assert env.get("PATH") == "/usr/bin:/bin", "the child still needs PATH to find ffmpeg"

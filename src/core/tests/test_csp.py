@@ -82,3 +82,30 @@ def test_csp_is_present_even_on_an_anonymous_response() -> None:
     # The middleware stamps the policy on every response, including a bare 404, so no surface
     # is left without it.
     assert "default-src 'self'" in Client().get("/does-not-exist/")["Content-Security-Policy"]
+
+
+# --- the APPEND_SLASH 301 is a token-bearing response too ---
+
+
+@pytest.mark.parametrize("prefix", ["t", "d", "media"])
+def test_the_append_slash_redirect_carries_the_token_surface_headers(
+    client: Client, prefix: str
+) -> None:
+    """A trailing-slash-less token URL 301s, and its Location echoes the credential.
+
+    That response used to carry Referrer-Policy: same-origin, no Cache-Control and no
+    X-Robots-Tag, because TokenSurfaceHeadersMiddleware was listed LAST and
+    CommonMiddleware returns this redirect from process_request -- short-circuiting, so
+    only middleware listed before it gets a response phase. A cacheable redirect echoing a
+    live elder/digest/media token, with the referrer policy that lets it ride the next
+    request's Referer. Mail clients drop trailing slashes constantly, so this is the common
+    path, not an edge case.
+
+    This pins the ORDERING by asserting the behaviour it produces.
+    """
+    response = client.get(f"/{prefix}/a-token-shaped-value")
+    assert response.status_code == 301
+    assert response.headers["Location"].endswith("/")
+    assert response.headers["Referrer-Policy"] == "no-referrer"
+    assert response.headers["Cache-Control"] == "no-store"
+    assert response.headers["X-Robots-Tag"] == "noindex, nofollow"

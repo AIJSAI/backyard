@@ -32,6 +32,14 @@ _CAPABILITY_ROUTES = (
     "join",
     "media",
     "break-glass",
+    # django-allauth's own credential-bearing paths, which arrive via include("allauth.urls")
+    # and were absent until a resolver walk found them. A wrapped or truncated reset link
+    # 404s, and `django.request` then logs the whole path at WARNING -- putting an
+    # ACCOUNT-TAKEOVER credential in plaintext in the container log the runbooks train
+    # operators to read. Found by enumeration, not by inspection: the two redaction tests
+    # only ever asserted routes already in this list, which is a self-confirming shape.
+    "accounts/password/reset/key",
+    "accounts/confirm-email",
 )
 _TOKEN_SEGMENT = re.compile(
     r"/(?P<route>" + "|".join(re.escape(route) for route in _CAPABILITY_ROUTES) + r")/[^\s?#]+"

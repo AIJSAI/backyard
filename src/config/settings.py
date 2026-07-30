@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -41,10 +42,20 @@ BASE_URL = os.environ.get("BACKYARD_BASE_URL", "http://localhost:8000").rstrip("
 # DEBUG serves tracebacks with settings to anyone; it must never be on for a real deployment.
 # Extend the refuse-to-boot posture to it (threat model TS-DJ-10): a public HTTPS base URL with
 # DEBUG on is a misconfiguration we hard-fail rather than serve.
-if DEBUG and BASE_URL.lower().startswith("https://"):
+# The HOSTNAME, parsed and compared exactly -- not a substring search. `"localhost" in
+# BASE_URL` is true for `http://localhost.evil.com`, and `"127.0.0.1" in BASE_URL` for
+# `http://127.0.0.1.evil.com`: an attacker-registrable domain that merely CONTAINS the
+# word would have been classified local and bypassed both hard-fails below, reopening
+# exactly the misconfiguration they exist to close.
+_HOSTNAME = (urlsplit(BASE_URL).hostname or "").lower()
+_is_local = _HOSTNAME in {"localhost", "127.0.0.1", "::1"}
+
+if DEBUG and not _is_local:
     raise RuntimeError(
-        "DJANGO_DEBUG is on while BASE_URL is https. DEBUG must be off in production; it leaks "
-        "settings and tracebacks. See docs/security/threat-model.md TS-DJ-10."
+        "DJANGO_DEBUG is on while BASE_URL is not local. DEBUG must be off for anything a "
+        "stranger can reach; it serves a traceback with local variables -- which on this "
+        "product means live elder tokens, invite tokens and session data in the frames -- "
+        "plus the enumerated settings. See docs/security/threat-model.md TS-DJ-10."
     )
 
 # The symmetric guard (security review MEDIUM-3): the whole HTTPS posture (secure cookies,
@@ -52,8 +63,15 @@ if DEBUG and BASE_URL.lower().startswith("https://"):
 # who fronts a real domain with TLS but forgets BACKYARD_BASE_URL (it defaults to http localhost)
 # would silently get all of that OFF. So a non-local http base URL in production is a hard-fail.
 # The local plain-HTTP repro (http://localhost) is exempt: it is the documented clean-machine path.
-_is_local = any(host in BASE_URL.lower() for host in ("localhost", "127.0.0.1"))
-if not DEBUG and not BASE_URL.lower().startswith("https://") and not _is_local:
+#
+# Note the guard above is NO LONGER gated on `not DEBUG`, and this one no longer needs to be
+# either. It used to be, which meant the two guards covered for each other and left a hole
+# exactly where it mattered: TS-DJ-10 commits to hard-failing DEBUG on an https base URL "or
+# non-localhost", but only the https half existed -- so `DJANGO_DEBUG=1` with a public HTTP
+# host booted, and setting DEBUG was itself what switched off the check written to catch that
+# operator. Verified by live repro before the fix: it booted with SESSION_COOKIE_SECURE False,
+# SECURE_HSTS_SECONDS 0, and MFA_WEBAUTHN_ALLOW_INSECURE_ORIGIN True.
+if not BASE_URL.lower().startswith("https://") and not _is_local:
     raise RuntimeError(
         "BACKYARD_BASE_URL is a non-local http URL. In production it must be https, or secure "
         "cookies, HSTS, and the SSL redirect stay off. Set BACKYARD_BASE_URL to your https URL. "
@@ -77,6 +95,19 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # TM-5: every response under a token-bearing path prefix carries the
+    # no-store/no-referrer/noindex set, including guard 404s (#36 LOW-2).
+    #
+    # It sits HERE, before CommonMiddleware, and the position is the control. Response
+    # middleware runs in reverse, and CommonMiddleware returns the APPEND_SLASH 301 from
+    # process_request -- which short-circuits, so only middleware listed BEFORE it gets a
+    # response phase at all. Listed last, this never ran on that 301: a cacheable redirect
+    # whose Location echoes a live elder/digest/media token, with Referrer-Policy
+    # same-origin instead of no-referrer and no noindex or no-store. Trailing slashes get
+    # dropped constantly by mail clients wrapping long links, so that is the common path,
+    # not an edge case. It still wins over SecurityMiddleware's Referrer-Policy, which uses
+    # setdefault.
+    "core.middleware.TokenSurfaceHeadersMiddleware",
     # Baseline CSP with a per-request nonce (S-724, TS-DJ-9). Early so request.csp_nonce is
     # set before any view renders; the header is stamped on the way out.
     "core.middleware.ContentSecurityPolicyMiddleware",
@@ -88,9 +119,6 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",  # required by allauth
-    # TM-5: every response under a token-bearing path prefix carries the
-    # no-store/no-referrer/noindex set, including guard 404s (#36 LOW-2).
-    "core.middleware.TokenSurfaceHeadersMiddleware",
 ]
 
 AUTHENTICATION_BACKENDS = [
