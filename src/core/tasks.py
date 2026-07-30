@@ -64,8 +64,11 @@ def send_health_email_task(timestamp: int) -> None:
     if result.sent == 0:
         # The one failure mode that silences the thing whose job is to break silence.
         logger.warning(
-            "no instance admin has a confirmed email address, so NOBODY received the "
-            "health email; see docs/runbooks/handover.md"
+            "NOBODY received the health email: no instance admin has a digest "
+            "subscription that is both ENABLED and CONFIRMED. An admin who confirmed an "
+            "address and then turned the digest off is also excluded — the send path "
+            "filters on enabled=True AND confirmed_at, so 'they confirmed it' is not "
+            "enough. See docs/runbooks/handover.md"
         )
 
 

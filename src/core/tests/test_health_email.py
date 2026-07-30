@@ -364,3 +364,52 @@ def test_the_opener_installs_no_extra_transports() -> None:
     # bare OpenerDirector. Each is a transport this lookup has no business speaking.
     for forbidden in ("FileHandler", "FTPHandler", "DataHandler", "HTTPHandler", "ProxyHandler"):
         assert forbidden not in installed, f"the opener can still speak {forbidden}"
+
+
+# ---------------------------------------------------------------- reviewer catches, #102
+
+
+def test_measured_is_false_for_a_field_that_carries_its_reason() -> None:
+    """Reviewer catch: `measured` compared the value to the bare marker, but every
+    unmeasured value carries its REASON — so it reported all of them as measured. Nothing
+    depended on it yet, which is exactly how it would have survived to the first caller
+    that did."""
+    fields = {f.label: f for f in health.measure()}
+    assert not fields["Failed sign-ins"].measured
+    assert not fields["Off-box backup age"].measured
+    assert fields["Disk headroom"].measured, "a real measurement reported itself unmeasured"
+
+
+def test_an_already_expired_domain_says_so_instead_of_counting_backwards() -> None:
+    """ "expires in -3 days" at the single moment this line matters most. A lapsed domain
+    hands every printed QR and elder link to a squatter (T-OP-G4)."""
+    now = timezone.now()
+    DomainStatus.objects.create(
+        domain=health.instance_domain(),
+        expires_at=now - datetime.timedelta(days=3),
+        checked_at=now,
+    )
+    field = next(f for f in health.measure(now) if f.label == "Domain")
+    assert "EXPIRED 3 days ago" in field.value
+    assert "-3" not in field.value, "it still counts backwards"
+    assert "renew it NOW" in field.value
+    assert field.alarming
+
+
+def test_an_admin_who_confirmed_then_disabled_the_digest_is_also_excluded() -> None:
+    """The send path filters on enabled AND confirmed. An admin who confirmed an address
+    and then turned the digest off receives nothing — so a warning that says only "no
+    confirmed address" would send on-call chasing the wrong thing."""
+    member = Member.objects.create(display_name="Opted Out", role=Member.INSTANCE_ADMIN)
+    DigestSubscription.objects.create(
+        member=member,
+        address="optedout@example.com",
+        enabled=False,  # confirmed, but switched off
+        confirmed_at=timezone.now(),
+        unsubscribe_token_digest="z" * 64,
+    )
+    mail.outbox.clear()
+    result = health_email.send_health_emails()
+    assert result.sent == 0
+    assert result.skipped_no_confirmed_address == 1
+    assert mail.outbox == []

@@ -48,7 +48,15 @@ class Field:
 
     @property
     def measured(self) -> bool:
-        return self.value != NOT_MEASURED
+        """Whether the app produced a real measurement.
+
+        startswith, not equality: an unmeasured value always carries its REASON
+        ("NOT MEASURED — no auth audit log exists yet"), so an equality check reported
+        every one of them as measured. Reviewer catch on #102, and a latent trap rather
+        than a visible bug — nothing depended on it yet, which is exactly how it would
+        have survived to the first caller that did.
+        """
+        return not self.value.startswith(NOT_MEASURED)
 
 
 def instance_domain() -> str:
@@ -113,6 +121,17 @@ def _domain_field(now: datetime.datetime) -> Field:
     if (now - status.checked_at).days > 14:
         # A number from a month ago presented as current is worse than no number.
         stale_note = f", last checked {(now - status.checked_at).days} days ago"
+    if days < 0:
+        # "expires in -3 days" at the single moment this line matters most. Reviewer catch
+        # on #102: a lapsed domain hands every printed QR to a squatter (T-OP-G4), so it
+        # says so in words an operator cannot misread.
+        gone = abs(days)
+        return Field(
+            "Domain",
+            f"{domain} EXPIRED {gone} day{'s' if gone != 1 else ''} ago — renew it NOW, "
+            f"or a squatter inherits every printed QR and elder link{stale_note}",
+            alarming=True,
+        )
     return Field(
         "Domain",
         f"{domain} expires in {days} days{stale_note}",
