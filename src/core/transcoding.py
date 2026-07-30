@@ -94,6 +94,25 @@ def _rlimits() -> None:  # pragma: no cover - runs only in the forked child
     resource.setrlimit(resource.RLIMIT_FSIZE, (_RLIMIT_FSIZE, _RLIMIT_FSIZE))
 
 
+def _parser_env() -> dict[str, str]:
+    """The minimal environment for a parser child (TS-CO-5's child-env half).
+
+    ffmpeg and ffprobe are the one pair of processes in this system that run on
+    attacker-supplied bytes, and they inherited the whole web/worker environment:
+    POSTGRES_PASSWORD, BACKYARD_BACKUP_PASSPHRASE, RESEND_API_KEY,
+    RESEND_INBOUND_SECRET, EMAIL_HOST_PASSWORD. A decode-time CVE -- the exact risk the
+    rlimits, the timeout and the re-encode exist to bound -- would therefore escalate
+    from code execution to reading the DB password and the key that decrypts every
+    backup the family holds, straight out of its own /proc/self/environ.
+
+    An allowlist, not a denylist: a new secret added to compose is excluded by default
+    rather than by remembering to pop it. backups._migrator_env already scrubs the
+    pg_dump child; this is the same posture for the far more exposed one.
+    """
+    keep = ("PATH", "LANG", "LC_ALL", "TMPDIR", "BACKYARD_FFMPEG_VCODEC")
+    return {name: os.environ[name] for name in keep if name in os.environ}
+
+
 def _run(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
     """Run a fixed ffmpeg/ffprobe argv with the wall-clock timeout and rlimits. Never a
     shell; raises FfmpegError on timeout so a hang becomes a failed job, not a wedge."""
@@ -104,6 +123,7 @@ def _run(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
             text=True,
             timeout=timeout,
             preexec_fn=_rlimits,  # noqa: PLW1509  # intentional child rlimits (TS-PP-2)
+            env=_parser_env(),
             check=False,
         )
     except subprocess.TimeoutExpired as exc:

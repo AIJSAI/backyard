@@ -79,6 +79,15 @@ def _decode(raw: bytes, *, max_pixels: int | None = None) -> Image.Image:
         warnings.simplefilter("error", Image.DecompressionBombWarning)
         try:
             img = Image.open(io.BytesIO(raw))
+            # The allowlist gates the DECODER, and the order is the whole control (TS-PP-3
+            # says "enforce a format allowlist at open"). Image.open reads only enough to
+            # identify the format; img.load() is what hands the bytes to a format-specific C
+            # decoder. Checking after load() meant every auto-detected decoder -- TIFF, PCX,
+            # PSD, TGA, DDS, ICNS, FLI, JPEG2000 -- ran to completion on hostile input and was
+            # then politely declined, which makes the allowlist inert as a CVE-surface control
+            # and undoes the reason pillow is floored at >=12.3.
+            if img.format not in _ALLOWED_INPUT_FORMATS:
+                raise MediaRejected(f"format {img.format!r} not accepted")
             if max_pixels is not None and img.width * img.height > max_pixels:
                 # Header dimensions are known after open, before any pixel is decoded, so
                 # this rejects the allocation rather than surviving it.
@@ -88,8 +97,6 @@ def _decode(raw: bytes, *, max_pixels: int | None = None) -> Image.Image:
             raise MediaRejected("image too large") from exc
         except (UnidentifiedImageError, OSError, ValueError) as exc:
             raise MediaRejected("undecodable image") from exc
-    if img.format not in _ALLOWED_INPUT_FORMATS:
-        raise MediaRejected(f"format {img.format!r} not accepted")
     return img
 
 
