@@ -182,6 +182,28 @@ page's bound was not copied into it. It also deliberately ignores the search box
 that silently exports a filtered subset is how someone ends up believing they have the
 family's numbers when they have four of them.
 
+## Review: one finding whose stated mechanism was wrong
+
+Copilot raised two. The docstring one was plainly right — `_escape`'s docstring said C0
+control characters are dropped while the code keeps the tab, and tab is 0x09, so the sentence
+described behaviour the function does not have. Fixed, and now pinned by a test
+(tab kept / other C0 dropped) so the two cannot drift again.
+
+The other was **real, but not for the reason given.** The claim was that a naive `now` *raises*
+on `.astimezone()`. Measured: it does not. Python reads a naive value as system local time and
+converts, which stamped `REV:2026-07-29T20:04:05Z` for an intended 15:04 on this UTC-5
+machine — **a five-hour shift with no error at all**, which is worse than the reported crash
+because nothing surfaces it.
+
+A fix was also pushed to the branch that silently treats naive as UTC, with the rationale that
+this stops a naive value "crashing the export". That premise is the false one. Reconciled as a
+**union, not one-sidedly**: the pushed docstring wording is clearer about *why* the tab
+survives, so it was kept, while the naive-`now` handling stays a **refusal** — this function
+cannot know whether the caller meant UTC or local, no caller in the app passes `now` at all,
+and guessing produces a confidently wrong stamp. That matches the house posture: `_visibility`
+fails closed to HIDDEN, `health.py` reports `NOT MEASURED` rather than omitting a field it
+cannot compute. Both tests come from this side; the pushed commit added none.
+
 ## One thing outside S-904's scope, stated rather than smuggled
 
 `p.page-action` is a new rule in `base.html` — a design-system addition, not vCard code. It
@@ -191,7 +213,13 @@ S-904 should be visible, not quietly folded in.
 
 ## Gate
 
-ruff + format + mypy(167) clean · **pytest 768 passed / 2 skipped** (740 before, +28 here) ·
+ruff + format + mypy(167) clean · **pytest 771 passed / 2 skipped** (740 before, +31 here) ·
 `check_stories` PASS · `check_digest_confinement` OK · axe 132/33/**0** · live download and
 the pod-graph discrimination above. Every guard in `src/core/tests/test_vcards.py` broken and
 restored; the one probe that did not fire is named.
+
+One honest note on that number: an intermediate run reported 18 errors, all
+`column "owner_id" of relation "core_pod" does not exist`. That was two pytest processes
+sharing one test database — a background run and a foreground run recreating the schema under
+each other — not a product failure. Re-run singly: clean. Worth recording because the error
+text looks exactly like a broken migration.

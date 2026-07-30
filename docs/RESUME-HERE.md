@@ -26,18 +26,36 @@ print('spec:', [re.search(r'id:\s*(\S+)',b).group(1) for b in blocks if re.searc
 
 ## What is actually left
 
-**Two stories**, and they are the last `spec` entries:
+**One story.** S-904 (vCard export) shipped in #103 — serializer over `ViewableProfile`,
+never a `Member`, registered as threat row **T-YARD-10**.
 
-1. **S-904 — vCard export.** Per-member and whole-visible-directory vCard downloads
-   honouring field visibility. Small. The visibility rules already exist
-   (`profiles` + the `*_visibility` fields); the work is a serializer, a route, and tests
-   that prove a HIDDEN field never reaches a card.
-2. **S-603 — ambient photo frame.** A signed display URL that rotates recent photos on an
-   old tablet with zero interaction, plus "display heartbeat counts as an elder touch".
-   **Biggest and riskiest of everything remaining**: it is a NEW always-on bearer-credential
-   class living on a device in a room. Per the threat model, *"New capability types cannot
-   ship without registering here"* — so it needs a threat-model entry (TM-1 revocation
-   registry + a T-DISPLAY-* row) **before** code.
+**S-603 — ambient photo frame** is the last `spec` entry, and the riskiest thing remaining: a
+signed display URL rotating recent photos on an old tablet with zero interaction. It is a NEW
+always-on bearer-credential class living on a device in a room, so per the threat model's own
+rule (*"New capability types cannot ship without registering here"*) it needs a threat-model
+entry — TM-1 registry + `T-DISPLAY-*` rows — **before** code. A draft of that entry, with five
+rows worked out, is in the S-603 section below.
+
+### S-603 carries a founder decision, and it is not a small one
+
+Its second acceptance criterion reads *"Display heartbeat counts as an elder touch when
+assigned to an elder."* **That criterion contradicts the metrics doc, inside one file:**
+
+- `docs/metrics.md:9` — *"'Active' means any **deliberate** touch: opening the feed, posting,
+  reacting, replying by email, or a token-link visit."*
+- `docs/metrics.md:21` — the Elder touch rate row counts *"frame display heartbeat"*, and that
+  row is described as *"The hardest segment; if elders connect, the design is working."*
+
+A heartbeat is a powered-on tablet, not a deliberate act. Every current input to
+`metrics.touched` is a human doing something. Wire a heartbeat in and the one signal that would
+tell the family Nana has gone quiet reads "active" for as long as her frame has electricity —
+and the KPI becomes unfalsifiable for any member who owns a frame.
+
+**Recommendation on record:** keep the heartbeat, record it under its own name (*"the frame in
+the kitchen has been dark for nine days"* is a real signal, arguably a better one), and keep it
+**out of `touched`**. That is the reversible direction — wiring a signal into the KPI later is
+one line; un-corrupting a metric's history is not. Founder call, because it is a measurement
+judgment, not a mechanical one.
 
 Then: **founder manual QA** (PATH-TO-100 criterion 4) is and always was the gate.
 
@@ -54,7 +72,12 @@ Then: **founder manual QA** (PATH-TO-100 criterion 4) is and always was the gate
   turned down. The colour system is v3.1's, token for token. **Do not re-warm the ground.**
 - **Lone photos are CENTRED** in their card. Left-aligning them was tried and called.
 - **Verify design by looking at a render at 1440**, not by axe. The standing lesson: axe
-  reported 154 renders / 0 violations with every desktop defect present.
+  reported 154 renders / 0 violations with every desktop defect present. It paid again in
+  #103: "Save to my contacts" sat at the contact list's own row pitch and read as a third
+  contact field. Nothing automated would have said so.
+- **Park the screenshot harness's cursor off the content** (`page.mouse.move(2, 2)`). Playwright
+  leaves the mouse where it last clicked — after a login-then-navigate that lands on a card and
+  renders it `:hover`, which reads as an inconsistent-underline bug that is not there.
 
 ## The environment recipe (non-obvious, cost real time)
 
