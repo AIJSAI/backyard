@@ -342,6 +342,14 @@ nav.rail {
 nav.rail p { margin: 0; }
 nav.rail a { text-decoration: none; }
 nav.rail a:hover { text-decoration: underline; }
+/* A page action that FOLLOWS the content rather than the heading, so it takes the rail's
+   quiet link treatment but not its negative top pull. Measured at 1440: without the
+   separation "Save to my contacts" sat 27px below the last contact line — exactly the
+   contact list's own row rhythm — and read as a third contact field rather than an
+   action you can take. */
+p.page-action { margin: 1.7rem 0 0; font-size: 0.94rem; }
+p.page-action a { text-decoration: none; }
+p.page-action a:hover { text-decoration: underline; }
 /* S-906: the newcomer's orientation. Shares the date banner's quiet green wash rather
    than inventing a new emphasis — it is complementary content that happens to appear
    once, not an alert. Its h2 drops the section-heading top margin, since it opens the

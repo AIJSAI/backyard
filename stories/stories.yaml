@@ -730,8 +730,21 @@ epics:
     story: "As a member, I can export the directory to vCard so the family's numbers in my phone stop being five years stale."
     acceptance:
     - "Per-member and whole-visible-directory vCard downloads honoring field visibility"
-    status: spec
+    status: passing     # S-904 close 2026-07-29: the serializer takes ViewableProfile and
+                        # never a Member, so a HIDDEN field is not omitted-by-care, it was
+                        # never in the object; the HTML directory and the .vcf share the one
+                        # resolver (T-YARD-10). vCard 3.0 for phone support; a birthday is
+                        # written --MMDD, because Apple's 1604 sentinel would show a false
+                        # birth year on any client not in on the convention -- omission over
+                        # fabrication. Escaping is the injection guard, not formatting: a
+                        # display name carrying CRLF + "TEL:" would otherwise write a working
+                        # phone number into every card of that member. Validated by parsing
+                        # the output with vobject, a parser this repo did not write. Two of
+                        # my own bugs came out of that: strptime("%B %d") assumes 1900 and
+                        # DROPPED a February 29 birthday silently, and the first folding test
+                        # was structurally unable to fail (str cannot hold half a codepoint).
     v1: false
+    evidence: src/core/tests/test_vcards.py + docs/receipts/2026-07-29-s904-vcard-directory.md
   - id: S-906
     epic: E9
     persona: family-member

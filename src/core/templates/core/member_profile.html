@@ -15,4 +15,5 @@
   {% else %}
     <p class="muted">No contact details shared with you.</p>
   {% endif %}
+  <p class="page-action"><a href="{% url 'member_vcard' profile.member_id %}">Save to my contacts</a></p>
 {% endblock %}

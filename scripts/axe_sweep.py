@@ -70,6 +70,10 @@ SURFACES: list[tuple[str, str, bool]] = [
     ("feed", "/feed/", False),
     ("pods", "/pods/", False),
     ("directory", "/directory/", False),
+    # One member's profile page. Absent from every earlier sweep, so the receipts' render
+    # counts never covered it — and it is where a member's contact details are actually
+    # read. The id is resolved from the directory at run time (see MEMBER_PROFILE below),
+    # because a hard-coded id 404s on any instance but the one it was written against.
     ("profile", "/settings/profile/", False),
     ("notifications", "/settings/notifications/", False),
     ("digest-settings", "/settings/digest/", False),
@@ -167,7 +171,22 @@ with sync_playwright() as p:
                 is_admin = bool(r and r.status == 200)
                 print(f"  admin surfaces reachable as {USER}: {is_admin}")
 
-            for name, path, needs_admin in SURFACES:
+            # A member profile path, resolved from this instance's own directory. Appended
+            # rather than hard-coded so the sweep covers the surface on any instance; if
+            # the viewer's directory is empty there is no such surface to sweep, and that
+            # is named in the skip list rather than passed over in silence.
+            page.goto(f"{BASE}/directory/", wait_until="networkidle")
+            member_href = page.evaluate(
+                "() => { const a = document.querySelector('ul.directory > li > a');"
+                " return a ? a.getAttribute('href') : null; }"
+            )
+            surfaces = list(SURFACES)
+            if member_href:
+                surfaces.append(("member-profile", member_href, False))
+            else:
+                skipped.append(f"member-profile ({vp_name}/{theme}): directory is empty")
+
+            for name, path, needs_admin in surfaces:
                 if needs_admin and not is_admin:
                     tag = f"{name} ({vp_name}/{theme})"
                     skipped.append(tag)
