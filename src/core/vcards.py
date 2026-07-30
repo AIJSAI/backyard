@@ -60,8 +60,10 @@ def _escape(value: str) -> str:
     not re-escaped. Newlines become the literal two-character `\\n`, which is what makes
     this the injection guard rather than a formatting nicety.
 
-    C0 control characters are dropped: they are not valid in a vCard text value, and a
-    stray one from a paste turns a card into an unparseable file rather than a wrong one.
+    C0 control characters other than horizontal tab are dropped: they are not valid in a
+    vCard text value, and a stray one from a paste turns a card into an unparseable file
+    rather than a wrong one. Horizontal tab is preserved — RFC 6350 allows it in text
+    values and a tab-separated address is a legitimate paste result.
     """
     out = value.replace("\\", "\\\\")
     out = out.replace("\r\n", "\\n").replace("\r", "\\n").replace("\n", "\\n")
@@ -179,7 +181,12 @@ def render(viewable: Iterable[ViewableProfile], *, now: datetime.datetime | None
     first, and takes `ViewableProfile` rather than members so there is no code path here
     that could reach an unscoped field.
     """
-    stamp = (now or timezone.now()).astimezone(datetime.UTC)
+    stamp = now or timezone.now()
+    if stamp.tzinfo is None:
+        # Treat naive datetimes as UTC rather than raising, so a deterministic test
+        # that passes datetime.datetime(...) without a tzinfo does not crash the export.
+        stamp = stamp.replace(tzinfo=datetime.UTC)
+    stamp = stamp.astimezone(datetime.UTC)
     revised = stamp.strftime("%Y-%m-%dT%H:%M:%SZ")
     host = _uid_host()
     lines: list[str] = []
