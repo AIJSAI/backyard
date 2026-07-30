@@ -3,6 +3,21 @@
 Written to survive a context compaction. Read this, then `docs/PATH-TO-100.md`, then verify
 with a primary check (`git log`, `gh pr list`) rather than trusting anything below.
 
+**`v0.1.0` is tagged.** The README installs the tag, not `main`, and `CHANGELOG.md` lists what
+does not work as prominently as what does. If you add a user-visible change, add a changelog
+entry under an `## [Unreleased]` heading — the install path is now a fixed point that people
+can be pointed at, and the whole value of that is it not moving under them.
+
+**Do not put a real credential in a receipt.** The `secrets` job caught exactly that: a receipt
+quoted the generated demo password as evidence, and gitleaks' `generic-api-key` rule matched a
+16-character random string on sight. Redact to a shape (`<16 url-safe random characters>`), never
+allowlist. Note the asymmetry that caused the whole pass: gitleaks is **blind** to
+`PW = "backyard-qa-2026"` and **catches** a high-entropy value, so the fix moved the credential
+into the class the gate can see. The enforcing check for the blind class is
+`src/core/tests/test_no_hardcoded_demo_credentials.py` (an `ast` check — a comment cannot defeat
+it), and it covers two shapes, the second being a literal fallback inside
+`os.environ.get(KEY, "literal")`.
+
 ---
 
 ## Where things stand
@@ -175,6 +190,39 @@ mode while hovered.
   token surface.
 - **Check the data before believing a measurement.** Four apparent defects this session were
   harness errors.
+
+## Operator actions waiting, in priority order
+
+Both are blocked for an agent in this harness (the command classifier refuses
+`docker compose exec … manage.py shell`), so they are copy-paste ready rather than done.
+
+**1. Rotate the demo accounts on production.** `scripts/demo_seed.py` used to hardcode
+`backyard-qa-2026`, and that password still works on the live instance until it is re-seeded.
+The repo no longer publishes it, which closes the disclosure half — this closes the rest. The
+re-seed mints and prints a fresh password:
+
+```bash
+ssh -i ~/.ssh/backyard_vm ubuntu@108.62.118.152 \
+  'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web \
+     sh -c "DJANGO_SECRET_KEY=\$(cat /data/secret_key) python manage.py shell"' \
+  < scripts/demo_seed.py
+```
+
+Keep the `DEMO_PASSWORD=` line it prints — it is the only copy. Or wipe instead, with
+`-e BACKYARD_DEMO_WIPE=1`, if you are done with the demo family.
+
+**2. Take a backup. Production has never had one**, and the weekly health email has been
+saying so since it shipped. This is the largest real risk in the project: there is no backup,
+so *restore has never been exercised against production data* either.
+
+```bash
+ssh -i ~/.ssh/backyard_vm ubuntu@108.62.118.152 \
+  'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web \
+     sh -c "DJANGO_SECRET_KEY=\$(cat /data/secret_key) BACKYARD_BACKUP_PASSPHRASE=... \
+        python manage.py backup_instance --output /data/backup-$(date +%F).tar.enc"'
+# then copy it OFF the box, and record the passphrase location on the succession sheet
+scp -i ~/.ssh/backyard_vm 'ubuntu@108.62.118.152:/data/backup-*.tar.enc' ~/backyard-backups/
+```
 
 ## Founder-owned, unchanged
 
