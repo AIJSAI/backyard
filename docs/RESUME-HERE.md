@@ -12,7 +12,7 @@ can be pointed at, and the whole value of that is it not moving under them.
 quoted the generated demo password as evidence, and gitleaks' `generic-api-key` rule matched a
 16-character random string on sight. Redact to a shape (`<16 url-safe random characters>`), never
 allowlist. Note the asymmetry that caused the whole pass: gitleaks is **blind** to
-`PW = "backyard-qa-2026"` and **catches** a high-entropy value, so the fix moved the credential
+`PW = "<a password a person chose>"` and **catches** a high-entropy value, so the fix moved the credential
 into the class the gate can see. The enforcing check for the blind class is
 `src/core/tests/test_no_hardcoded_demo_credentials.py` (an `ast` check — a comment cannot defeat
 it), and it covers two shapes, the second being a literal fallback inside
@@ -144,8 +144,8 @@ Traps that each wasted a cycle:
 ## Deploying (there is no automation)
 
 ```bash
-tar czf - src | ssh -i ~/.ssh/backyard_vm ubuntu@108.62.118.152 'cd ~/backyard && tar xzf -'
-ssh -i ~/.ssh/backyard_vm ubuntu@108.62.118.152 \
+tar czf - src | ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST 'cd ~/backyard && tar xzf -'
+ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST \
   'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d web worker'
 ```
 
@@ -157,7 +157,7 @@ it always was.
 Run a shell on production by piping a file, not with `-c`:
 
 ```bash
-ssh -i ~/.ssh/backyard_vm ubuntu@108.62.118.152 \
+ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST \
   'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web \
      sh -c "DJANGO_SECRET_KEY=\$(cat /data/secret_key) python manage.py shell"' < local_script.py
 ```
@@ -195,14 +195,23 @@ mode while hovered.
 
 Both are blocked for an agent in this harness (the command classifier refuses
 `docker compose exec … manage.py shell`), so they are copy-paste ready rather than done.
+Set the host once — it is a placeholder rather than a literal so the box can be rebuilt without
+editing repo history, and so a public repo is not also a target list:
+
+```bash
+export BACKYARD_HOST=<the instance IPv4 or hostname>
+```
 
 **1. Rotate the demo accounts on production.** `scripts/demo_seed.py` used to hardcode
-`backyard-qa-2026`, and that password still works on the live instance until it is re-seeded.
+a fixed password, and **that password still works on the live instance** until it is re-seeded.
+It is deliberately not repeated here: it is still live, so writing it down again is a fresh
+disclosure, in the one document that explains why not. It is in the git history of
+`scripts/demo_seed.py` if you genuinely need it.
 The repo no longer publishes it, which closes the disclosure half — this closes the rest. The
 re-seed mints and prints a fresh password:
 
 ```bash
-ssh -i ~/.ssh/backyard_vm ubuntu@108.62.118.152 \
+ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST \
   'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web \
      sh -c "DJANGO_SECRET_KEY=\$(cat /data/secret_key) python manage.py shell"' \
   < scripts/demo_seed.py
@@ -216,12 +225,12 @@ saying so since it shipped. This is the largest real risk in the project: there 
 so *restore has never been exercised against production data* either.
 
 ```bash
-ssh -i ~/.ssh/backyard_vm ubuntu@108.62.118.152 \
+ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST \
   'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web \
      sh -c "DJANGO_SECRET_KEY=\$(cat /data/secret_key) BACKYARD_BACKUP_PASSPHRASE=... \
         python manage.py backup_instance --output /data/backup-$(date +%F).tar.enc"'
 # then copy it OFF the box, and record the passphrase location on the succession sheet
-scp -i ~/.ssh/backyard_vm 'ubuntu@108.62.118.152:/data/backup-*.tar.enc' ~/backyard-backups/
+scp -i ~/.ssh/backyard_vm 'ubuntu@$BACKYARD_HOST:/data/backup-*.tar.enc' ~/backyard-backups/
 ```
 
 ## Founder-owned, unchanged

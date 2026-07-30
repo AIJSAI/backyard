@@ -1,7 +1,7 @@
 # Phase 3, step 5 — tested→passing loop against the persistent instance
 
 Date: 2026-07-22. The v1 stories were driven against the **live, persistent** instance at
-**https://backyard.family** (Ubicloud us-east-a2, `108.62.118.152`) — the real deployed app,
+**https://backyard.family** (Ubicloud us-east-a2, `<instance IPv4, redacted>`) — the real deployed app,
 through the Caddy TLS edge, in a real browser (the only path that exercises the CSRF/form
 behavior). This is the `tested → passing` transition the goal requires: `tested` = proven by the
 unit/e2e suite; `passing` = additionally proven on the persistent box. Instance stood up in
