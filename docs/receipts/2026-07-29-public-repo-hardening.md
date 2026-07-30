@@ -8,7 +8,7 @@ much better shape than its public face. One finding was live.
 `scripts/demo_seed.py` carried:
 
 ```python
-PW = "backyard-qa-2026"  # noqa: S105 - a disposable demo credential, wiped before any share
+PW = "<a fixed password a person chose>"  # noqa: S105 - a disposable demo credential, wiped before any share
 ```
 
 **That password signed in to `https://backyard.family` as a seeded member.** It was used to do
@@ -44,7 +44,7 @@ silently left standing.
   seed printed one, and the screenshots below were captured by signing in with it.
 - **Two more copies of the same mistake**, which the audit's first pass missed and the guard
   found: `docs/design/tools/seed_demo.py` and `docs/design/tools/capture.py` each hid a literal
-  inside `os.environ.get("BACKYARD_DEMO_PASSWORD", "local-demo-only-not-a-secret")`. A literal
+  inside `os.environ.get("BACKYARD_DEMO_PASSWORD", "<a literal default>")`. A literal
   default is a committed credential wearing an env var's clothes, and my own manual AST sweep
   reported both as clean because the literal is an *argument*, not the assigned value.
 - `src/core/tests/test_no_hardcoded_demo_credentials.py` is the enforcing mechanism. It uses
@@ -70,7 +70,7 @@ file:   docs/receipts/2026-07-29-public-repo-hardening.md line 44
 match:  DEMO_PASSWORD=<the actual value>
 ```
 
-Which is the whole finding in miniature. The scanner is blind to `PW = "backyard-qa-2026"` and
+Which is the whole finding in miniature. The scanner is blind to `PW = "<a low-entropy literal>"` and
 catches a 16-character url-safe random string on sight — **the fix moved the credential into the
 class the gate can see.** It also means that had the fix been rolled out on production and the
 output pasted anywhere in the repo, the gate would have stopped it.

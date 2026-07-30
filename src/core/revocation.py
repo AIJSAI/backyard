@@ -92,7 +92,9 @@ def _cancel_digest_subscription(member: Member) -> int:
     send path's own liveness re-check inside its transaction (TS-DJ-11 shape) —
     this step makes that re-check find nothing.
     """
-    return DigestSubscription.objects.filter(member=member).update(
+    # nosec B106: these empty strings REVOKE the emailed capabilities — the absence of a
+    # credential, not a hardcoded one. Scoped to B106 so it suppresses one rule, not the line.
+    return DigestSubscription.objects.filter(member=member).update(  # nosec B106
         enabled=False, confirm_token_digest="", unsubscribe_token_digest=""
     )
 
