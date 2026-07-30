@@ -86,7 +86,7 @@ the v3.1 design pass. Its own rule now, with a comment saying why.
 === 1. ELDER: exchange token for a session, then load her page ===
   /t/<token>/ -> 302
   /e/ -> 200
-    <img class="photo" src="/media/DJoGmlfXKRiKD0GmQjMnIKDaTwo1P2q3FYk4ijYQlgg/"
+    <img class="photo" src="/media/<43-char media token, redacted>/"
     said: She caught the biggest fish.
 === 2. ELDER fetches the actual photo bytes ===
     HTTP/1.1 200 OK

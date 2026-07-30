@@ -51,11 +51,42 @@ if [ "$ROLE" = web ]; then
       -U backyard_migrator -Fc \
       -f "/data/backups/preflight-$STAMP.dump" "${POSTGRES_DB:-backyard}" \
       || { echo "Pre-flight backup FAILED; refusing to migrate (set BACKYARD_SKIP_PREFLIGHT_BACKUP=1 to override)."; exit 1; }
-    # Keep the last three pre-flight dumps; older ones rotate out.
-    ls -1t /data/backups/preflight-*.dump 2>/dev/null | tail -n +4 | while read -r old; do
+    # Encrypt it if we can. This dump is the ENTIRE family database -- every table, every
+    # token hash, the whole directory and social graph -- and it was written in plaintext on
+    # every single container start, three copies deep. The runbook justified that with
+    # "nothing can be holding a passphrase at that moment", which is not true: compose passes
+    # BACKYARD_BACKUP_PASSPHRASE into this very container, so the process running the dump
+    # has it. Anyone who reads /data -- a stolen disk, a resold NAS, a provider snapshot, a
+    # mis-scoped bind mount -- got the whole archive with no passphrase, which is verbatim
+    # T-BACKUP-1 and T-MEDIA-5: the threats TM-7's encrypt-by-default exists to answer.
+    if [ -n "${BACKYARD_BACKUP_PASSPHRASE:-}" ]; then
+      if python -c '
+import os, sys
+sys.path.insert(0, "/app/src")
+from core.backup_crypto import encrypt
+src, dst = sys.argv[1], sys.argv[2]
+fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with open(src, "rb") as plain, open(fd, "wb") as out:
+    encrypt(plain, out, os.environ["BACKYARD_BACKUP_PASSPHRASE"])
+' "/data/backups/preflight-$STAMP.dump" "/data/backups/preflight-$STAMP.dump.enc"; then
+        rm -f "/data/backups/preflight-$STAMP.dump"
+        echo "Pre-flight backup written ENCRYPTED: preflight-$STAMP.dump.enc"
+      else
+        # Never silently leave a plaintext family archive behind on a failure path.
+        rm -f "/data/backups/preflight-$STAMP.dump.enc"
+        echo "WARNING: pre-flight backup encryption FAILED; the PLAINTEXT dump remains at" \
+             "/data/backups/preflight-$STAMP.dump. Treat that file as the whole database."
+      fi
+    else
+      echo "WARNING: BACKYARD_BACKUP_PASSPHRASE is unset, so the pre-flight backup is" \
+           "PLAINTEXT at /data/backups/preflight-$STAMP.dump -- that is the entire family" \
+           "database. Set BACKYARD_BACKUP_PASSPHRASE to encrypt it."
+    fi
+
+    # Keep the last three pre-flight backups, in either shape; older ones rotate out.
+    ls -1t /data/backups/preflight-* 2>/dev/null | tail -n +4 | while read -r old; do
       rm -f "$old"
     done
-    echo "Pre-flight backup written: preflight-$STAMP.dump"
   fi
 
   # Migrations run as backyard_migrator, the only role with DDL (ADR-004, TS-PG-1).

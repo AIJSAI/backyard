@@ -88,3 +88,55 @@ def test_the_registry_guard_is_non_vacuous() -> None:
     # A classified-but-absent name is caught as stale, so a deleted model cannot linger.
     _, stale2 = _classification_gap({"Post"}, {"Post", "Removed"}, set())
     assert stale2 == {"Removed"}
+
+
+# --- the redaction filter must cover every credential-bearing route, by ENUMERATION ---
+
+
+def test_every_credential_bearing_route_is_covered_by_log_redaction() -> None:
+    """Walk the real URL resolver and fail on any registered route that captures a
+    credential-shaped value but is not in _CAPABILITY_ROUTES.
+
+    The two existing redaction tests assert that routes ALREADY in the list get redacted --
+    a self-confirming shape that can never discover an omission. It missed
+    `accounts/password/reset/key/<uidb36>-<key>`, so a wrapped or truncated reset link 404'd
+    and `django.request` logged an account-takeover credential in plaintext. This test is the
+    mechanism the threat model's own TS-EDGE-LOG residual asked for ("redaction is only as
+    good as its filter... re-run as routes change") and which was never built.
+    """
+    import re
+    from collections.abc import Iterator
+
+    from django.urls import get_resolver
+
+    from config.log_redaction import _TOKEN_SEGMENT
+
+    credential_like = re.compile(r"(?i)(token|key|uidb|secret|code)")
+
+    def walk(resolver: object, prefix: str = "") -> Iterator[str]:
+        for pattern in resolver.url_patterns:  # type: ignore[attr-defined]
+            text = prefix + str(getattr(pattern, "pattern", ""))
+            if hasattr(pattern, "url_patterns"):
+                yield from walk(pattern, text)
+            else:
+                yield text
+
+    patterns = list(walk(get_resolver()))
+    assert len(patterns) > 50, f"resolver walk found only {len(patterns)} patterns"
+
+    uncovered = []
+    for raw in patterns:
+        if not credential_like.search(raw):
+            continue
+        sample = "/" + re.sub(r"\(\?P<[^>]+>[^)]*\)", "LIVECREDENTIAL", raw)
+        sample = re.sub(r"\[[^\]]*\][+*?]?", "x", sample).replace("^", "").replace("$", "")
+        sample = sample.replace("\\", "")
+        if "LIVECREDENTIAL" in _TOKEN_SEGMENT.sub(
+            lambda m: f"/{m.group('route')}/[redacted]", sample
+        ):
+            uncovered.append(raw)
+
+    assert not uncovered, (
+        "these registered routes carry a credential and are NOT redacted from logs:\n  "
+        + "\n  ".join(uncovered)
+    )
