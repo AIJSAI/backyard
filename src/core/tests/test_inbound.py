@@ -367,3 +367,79 @@ def test_no_envelope_falls_back_to_the_header(world: World) -> None:
     """Raw-bytes sources (fixture, a future IMAP poll) pass no envelope and keep
     the existing MTA-prepended-header behavior."""
     assert inbound.process_inbound(_email(world, message_id="env3@x")).outcome == "posted"
+
+
+# --- a multipart bomb must quarantine, never blow the stack (TS-PP-7) ---
+
+
+def _nested_multipart(depth: int) -> bytes:
+    """A genuinely nested message: each level needs its OWN boundary, or the parser reads
+    them as siblings and nothing recurses (my first reproduction attempt did exactly that
+    and looked like the bug was absent)."""
+    body = b"the payload\n"
+    for level in range(depth):
+        boundary = f"b{level}".encode()
+        body = (
+            b'Content-Type: multipart/mixed; boundary="'
+            + boundary
+            + b'"\n\n--'
+            + boundary
+            + b"\n"
+            + body
+            + b"\n--"
+            + boundary
+            + b"--\n"
+        )
+    return body
+
+
+def test_a_deeply_nested_message_quarantines_instead_of_raising() -> None:
+    """1500 levels in ~98KB raises RecursionError inside message_from_bytes -- comfortably
+    under the 256KB size cap, so that never fired, and RecursionError is a RuntimeError so
+    the `except (ValueError, UnicodeError, LookupError)` never caught it.
+
+    The depth is measured, not guessed: the threshold under CPython's default limit of 1000
+    is around 1200 levels here. An earlier version of this test used 600 and PASSED with the
+    fix removed -- quarantined by the in-tree depth>5 walk instead, for the wrong reason.
+
+    It propagated to Anymail, became a Django 500, and the provider RETRIED -- each retry
+    re-running the untimed fetch. That is the poison-retry loop the message=None guard was
+    added to avoid, reopened by a different door.
+    """
+    payload = _nested_multipart(1500)
+    assert len(payload) < 256 * 1024, "the size cap must not be what stops this"
+
+    result = inbound.process_inbound(payload, envelope_recipient="")
+
+    assert result.outcome == "quarantined"
+    assert InboundQuarantine.objects.filter(reason=InboundQuarantine.MALFORMED).exists()
+
+
+def test_ordinary_nesting_still_gets_through() -> None:
+    """The cap must not reject real mail: a forwarded thread with a signature and an
+    attachment nests a few levels deep. Without this the fix could be 'reject everything'."""
+    payload = _nested_multipart(3)
+    inbound.process_inbound(payload, envelope_recipient="")
+    # No valid capability in the fixture, so this bounces rather than posting -- the point
+    # is that it got PAST the depth gate rather than being quarantined as malformed.
+    assert not InboundQuarantine.objects.filter(reason=InboundQuarantine.MALFORMED).exists()
+
+
+def test_malformed_quarantine_rows_are_bounded_per_hour() -> None:
+    """The malformed branches write a DB row BEFORE any capability is resolved, so anyone
+    who learns the inbound address could grow the table without limit -- on a box whose
+    whole monitoring story is disk headroom (T-MON-1). Worse, the admin panel shows only
+    the newest 100, so a burst pushes the genuine From-mismatch rows (the T-EMAIL-1
+    detection surface) out of view."""
+    oversized = b"x" * (256 * 1024 + 1)
+    for _ in range(inbound._MALFORMED_ROWS_PER_HOUR + 25):
+        inbound.process_inbound(oversized, envelope_recipient="")
+
+    written = InboundQuarantine.objects.filter(reason=InboundQuarantine.MALFORMED).count()
+    assert written <= inbound._MALFORMED_ROWS_PER_HOUR, (
+        f"{written} rows written from an unauthenticated sender; the quota is "
+        f"{inbound._MALFORMED_ROWS_PER_HOUR}"
+    )
+    # Not vacuous in the other direction: the first ones must still be recorded, or the
+    # admin loses the signal entirely.
+    assert written > 0

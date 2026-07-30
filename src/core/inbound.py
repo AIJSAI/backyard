@@ -43,6 +43,15 @@ from .models import DigestSubscription, InboundLedger, InboundQuarantine
 # MTA-edge shapes (T-EMAIL-4, TS-PP-7): applied before real parsing.
 _MAX_MESSAGE_BYTES = 256 * 1024
 _MAX_PARTS = 20
+# Nesting depth, enforced on the RAW BYTES before the parser sees them. The in-tree walk
+# below also caps depth at 5, but it runs after message_from_bytes has already recursed --
+# which is the bug. This bound is deliberately looser than 5: it only has to sit far below
+# Python's recursion limit while leaving ordinary mail (a forwarded thread with a signature
+# and an attachment nests perhaps 3-4 deep) untouched.
+_MAX_PART_DEPTH = 20
+# Malformed-quarantine rows an hour, instance-wide. They are written BEFORE any capability
+# check, so this is the only thing bounding an unauthenticated writer.
+_MALFORMED_ROWS_PER_HOUR = 50
 _MAX_BODY_CHARS = 2000  # a reply is a comment; the composer's cap applies
 _EXCERPT_CHARS = 500  # what a quarantine row retains for the admin
 # Per-capability inbound ceiling, on the shared DatabaseCache (TS-DJ-13).
@@ -97,7 +106,7 @@ def _walk_capped(message: Message) -> list[Message]:
     parts: list[Message] = []
 
     def walk(node: Message, depth: int) -> None:
-        if depth > 5:
+        if depth > 5:  # the in-tree cap; _MAX_PART_DEPTH is the pre-parse one
             raise ValueError("nesting too deep")
         if node.is_multipart():
             for child in node.get_payload():
@@ -167,6 +176,34 @@ def _strip_control(text: str) -> str:
     return "".join(ch for ch in text if ch in ("\n", "\t") or ch.isprintable())
 
 
+def _malformed_quota_exhausted() -> bool:
+    """True once this hour's malformed-quarantine budget is spent.
+
+    Counts in the shared cache rather than the database, so the cheap path for an abusive
+    sender stays cheap: no row, no write, no growth.
+    """
+    key = "inbound-malformed-quota"
+    used = cache.get_or_set(key, 0, timeout=3600)
+    if used >= _MALFORMED_ROWS_PER_HOUR:  # type: ignore[operator]
+        return True
+    try:
+        cache.incr(key)
+    except ValueError:  # culled between get_or_set and incr; restart the window
+        cache.set(key, 1, timeout=3600)
+    return False
+
+
+def _boundary_depth_exceeds(raw: bytes, limit: int) -> bool:
+    """Count nested multipart declarations in the raw bytes, cheaply and without parsing.
+
+    Deliberately crude: every `Content-Type: multipart/...` header line is one level of
+    potential nesting. A flat message with a handful of parts is far below the limit, and a
+    bomb is far above it, so precision here buys nothing -- what matters is that it runs
+    BEFORE Python's email parser recurses.
+    """
+    return raw.lower().count(b"content-type: multipart/") > limit
+
+
 def process_inbound(raw: bytes, *, envelope_recipient: str = "") -> InboundResult:
     """One inbound message through the whole pipeline. Never raises for
     message-shaped problems: every failure is a bounce or a quarantine row.
@@ -177,12 +214,33 @@ def process_inbound(raw: bytes, *, envelope_recipient: str = "") -> InboundResul
     raw-bytes sources (fixture, a future IMAP poll) pass it empty and fall back
     to the MTA-prepended header, per the mail_sources IMAP contract.
     """
+    # The malformed branches below write a DB row, and they run before any capability is
+    # resolved -- so anyone who learns the inbound address could write one row per message,
+    # for ever, on a box whose entire monitoring story is disk headroom (T-MON-1). Worse,
+    # the admin panel renders only the newest 100, so a burst pushes the genuine
+    # From-mismatch and no-separator rows -- the T-EMAIL-1 detection surface -- out of view.
+    #
+    # These rows carry no content and exist only to say "something malformed arrived", so
+    # one per hour per source is as informative as a thousand.
+    if _malformed_quota_exhausted():
+        return InboundResult(outcome="quarantined")
     if len(raw) > _MAX_MESSAGE_BYTES:
+        return _quarantine(InboundQuarantine.MALFORMED)
+    # Depth is checked on the RAW BYTES, before the parse. TS-PP-7's depth and part caps
+    # lived in _walk_capped, which runs after message_from_bytes has already built the whole
+    # tree -- so a deeply nested message blew the stack before any cap was consulted.
+    # Measured: 600 levels in 38KB raises RecursionError, comfortably under the 256KB size
+    # cap, and RecursionError is a RuntimeError so the except below never caught it. It
+    # propagated to Anymail -> a Django 500 -> a provider RETRY, and each retry re-ran the
+    # untimed fetch: the poison-retry loop the message=None guard was added to avoid.
+    if _boundary_depth_exceeds(raw, _MAX_PART_DEPTH):
         return _quarantine(InboundQuarantine.MALFORMED)
     try:
         message = message_from_bytes(raw)
         body = _plain_text_of(message)
-    except (ValueError, UnicodeError, LookupError):
+    except (ValueError, UnicodeError, LookupError, RecursionError):
+        # RecursionError explicitly: a message-shaped failure must always end as a
+        # quarantine row, never as a 500 the provider will retry.
         return _quarantine(InboundQuarantine.MALFORMED)
 
     local_part = (
