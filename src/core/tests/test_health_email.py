@@ -312,3 +312,55 @@ def test_the_domain_lookup_is_registered_on_the_worker_not_the_edge() -> None:
         source = inspect.getsource(module)
         assert "domain_expiry" not in source, f"the outbound lookup reached core.{name}"
     assert domain_expiry.fetch_expiry.__module__ == "core.domain_expiry"
+
+
+def test_a_redirect_to_a_non_https_scheme_is_refused() -> None:
+    """bandit B310, answered by construction rather than by nosec.
+
+    rdap.org is a third-party REDIRECTOR — the second URL in the exchange is chosen by
+    someone else — and Python's default handler permits `ftp:` even though it blocks
+    `file:`. A control that is only claimed in a comment is the vacuity pattern this
+    project keeps finding, so the restriction is exercised here.
+    """
+    import urllib.error
+    import urllib.request
+
+    from core import domain_expiry
+
+    handler = domain_expiry._HttpsOnlyRedirects()
+    request = urllib.request.Request("https://rdap.org/domain/example.family")
+
+    for hostile in ("ftp://evil.example/x", "file:///etc/passwd", "http://evil.example/x"):
+        with pytest.raises(urllib.error.URLError, match="non-HTTPS"):
+            handler.redirect_request(request, None, 302, "Found", {}, hostile)
+
+
+def test_a_redirect_to_https_is_still_followed() -> None:
+    """The other half: refusing everything would break the real lookup, which genuinely
+    depends on rdap.org redirecting to the registry that serves the TLD."""
+    import urllib.request
+
+    from core import domain_expiry
+
+    handler = domain_expiry._HttpsOnlyRedirects()
+    request = urllib.request.Request("https://rdap.org/domain/example.family")
+    followed = handler.redirect_request(
+        request, None, 302, "Found", {}, "https://rdap.identitydigital.services/rdap/domain/x"
+    )
+    assert followed is not None, "a legitimate https redirect was refused"
+    assert followed.full_url.startswith("https://rdap.identitydigital.services")
+
+
+def test_the_opener_installs_no_extra_transports() -> None:
+    """No proxy handler, no unknown-scheme handler: the only transport it can speak is the
+    one installed on purpose."""
+    from core import domain_expiry
+
+    # `handlers` exists at runtime but not in the typeshed stub for OpenerDirector.
+    installed = {type(h).__name__ for h in domain_expiry._OPENER.handlers}  # type: ignore[attr-defined]
+    assert "HTTPSHandler" in installed
+    assert "_HttpsOnlyRedirects" in installed
+    # These are what `build_opener` silently added, and why the opener is now built from a
+    # bare OpenerDirector. Each is a transport this lookup has no business speaking.
+    for forbidden in ("FileHandler", "FTPHandler", "DataHandler", "HTTPHandler", "ProxyHandler"):
+        assert forbidden not in installed, f"the opener can still speak {forbidden}"

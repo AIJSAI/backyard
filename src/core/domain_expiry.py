@@ -41,6 +41,61 @@ class DomainLookupFailed(Exception):
     """The registry did not give us a usable expiry."""
 
 
+class _HttpsOnlyRedirects(urllib.request.HTTPRedirectHandler):
+    """Follow redirects only to https.
+
+    rdap.org is a REDIRECTOR: it answers with a 302 to whichever registry serves the TLD
+    (for .family, rdap.identitydigital.services). So the second URL in this exchange is
+    chosen by a third party, not by us — which is exactly the case bandit's B310 warns
+    about. Python's default handler already refuses `file:`, but it permits `ftp:`, and a
+    redirect we follow to a scheme we never intended is a real hole rather than a
+    theoretical one.
+
+    Restricting it here makes the property true by CONSTRUCTION instead of true by
+    argument in a comment, which is the difference between a control and a nosec.
+    """
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: object,
+        code: int,
+        msg: str,
+        headers: object,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        if not newurl.lower().startswith("https://"):
+            raise urllib.error.URLError(f"refusing a redirect to a non-HTTPS scheme: {newurl!r}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)  # type: ignore[arg-type]
+
+
+def _build_opener() -> urllib.request.OpenerDirector:
+    """An opener that can speak HTTPS and nothing else.
+
+    Built from a bare OpenerDirector rather than `build_opener`, which was the first
+    attempt: `build_opener` ADDS the defaults on top of whatever you hand it, so that
+    opener still carried FileHandler, FTPHandler, HTTPHandler and DataHandler. The comment
+    claiming "no extra transports" was simply false, and the test asserting it is what
+    found that out.
+
+    Only these four: HTTPS, the https-only redirect policy, and the two error handlers
+    redirect processing needs. No proxy handler either — an opener that honoured http_proxy
+    would route this lookup through whatever the environment said.
+    """
+    opener = urllib.request.OpenerDirector()
+    for handler in (
+        urllib.request.HTTPSHandler(),
+        _HttpsOnlyRedirects(),
+        urllib.request.HTTPErrorProcessor(),
+        urllib.request.HTTPDefaultErrorHandler(),
+    ):
+        opener.add_handler(handler)
+    return opener
+
+
+_OPENER = _build_opener()
+
+
 def _parse_expiry(payload: dict[str, object]) -> datetime.datetime:
     """Pull the expiry out of an RDAP response.
 
@@ -71,12 +126,17 @@ def _parse_expiry(payload: dict[str, object]) -> datetime.datetime:
 
 def fetch_expiry(domain: str) -> datetime.datetime:
     """The domain's expiry, or raise DomainLookupFailed. Network call; worker only."""
-    request = urllib.request.Request(  # noqa: S310 - fixed https scheme, no user input
-        _RDAP.format(domain=domain),
-        headers={"Accept": "application/rdap+json", "User-Agent": _UA},
+    url = _RDAP.format(domain=domain)
+    if not url.startswith("https://"):  # pragma: no cover - _RDAP is a literal
+        raise DomainLookupFailed("the RDAP endpoint must be https")
+    request = urllib.request.Request(  # noqa: S310 - https literal, opener is https-only
+        url, headers={"Accept": "application/rdap+json", "User-Agent": _UA}
     )
     try:
-        with urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS) as response:  # noqa: S310
+        # _OPENER, not urlopen: it installs no proxy or unknown-scheme handler and refuses
+        # a redirect to anything but https (see _HttpsOnlyRedirects). bandit's B310 is about
+        # exactly this risk and the restriction above is the answer to it.
+        with _OPENER.open(request, timeout=_TIMEOUT_SECONDS) as response:
             raw = response.read(_MAX_BYTES + 1)
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise DomainLookupFailed(f"registry unreachable: {exc}") from exc
