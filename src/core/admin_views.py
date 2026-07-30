@@ -149,7 +149,20 @@ class DigestRow:
     values for the template (the FeedItem pattern)."""
 
     subscription: DigestSubscription
+    # The address the TEMPLATE renders, already masked or not per the viewer's role. The
+    # template must never reach through to subscription.address, or the masking becomes a
+    # thing every future template has to remember -- the shape T-YARD-6 warns about.
+    address: str
     deliveries: list[DigestDelivery]
+
+
+def _mask_address(address: str) -> str:
+    """`priya@example.com` -> `p•••@example.com`. Enough to identify the row and the
+    provider for delivery debugging, not enough to write to someone."""
+    local, _, domain = address.partition("@")
+    if not domain:
+        return "•••"
+    return f"{local[:1]}•••@{domain}"
 
 
 @login_required
@@ -172,9 +185,18 @@ def digests(request: HttpRequest) -> HttpResponse:
         .select_related("member")
         .order_by("member__display_name")
     )
+    # A yard admin sees the address MASKED. It is a personal email the member entered for
+    # delivery, and this panel's job is "did it arrive, did it bounce" -- which a masked
+    # address answers, since it still identifies the row and the provider. Showing it in
+    # full handed a yard admin an address the member may have set HIDDEN on their profile,
+    # the same class as T-YARD-6 (a second surface bypassing per-field visibility). The
+    # instance admin sees it whole: they hold the database anyway, and T-OP-G1 discloses
+    # that plainly rather than pretending otherwise.
+    mask = not permissions.is_instance_admin(actor)
     rows = [
         DigestRow(
             subscription=subscription,
+            address=_mask_address(subscription.address) if mask else subscription.address,
             deliveries=list(
                 DigestDelivery.objects.filter(
                     issue__member_id=subscription.member_id,

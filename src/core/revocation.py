@@ -82,10 +82,24 @@ def _void_invites(member: Member) -> int:
     return reachable.update(revoked_at=now)
 
 
+def _void_digest_capabilities(member: Member) -> int:
+    """Void both emailed digest capabilities, WITHOUT touching the subscription itself.
+
+    Clearing the digests kills the confirm and unsubscribe links already sitting in a
+    mailbox. `enabled` is a PREFERENCE, not a bearer credential, so it is untouched here —
+    backups._forced_security_replay already draws exactly this line for a restore.
+    """
+    # nosec B106: empty strings REVOKE the emailed capabilities — the absence of a
+    # credential, not a hardcoded one.
+    return DigestSubscription.objects.filter(member=member).update(  # nosec B106
+        confirm_token_digest="", unsubscribe_token_digest=""
+    )
+
+
 def _cancel_digest_subscription(member: Member) -> int:
     """Drop the member from digest recipients and void both emailed capabilities.
 
-    Disabling stops every future send (due-recipient resolution filters on
+    Removal only. Disabling stops every future send (due-recipient resolution filters on
     enabled + live membership); clearing the digests kills the confirm and
     unsubscribe links already sitting in a mailbox, so a removed member holds no
     live digest capability of any kind (TM-1). A send already queued dies at the
@@ -145,6 +159,18 @@ _REVOCATION_STEPS = (
     _void_elder_tokens,
 )
 
+# The same registry with the digest SUBSCRIPTION left alone. Regenerating an elder's link
+# is meant to be socially cheap and frequent (T-TOKEN-G1: she forwarded it, she lost the
+# phone, reprint the QR) -- but it ran the removal-shaped handler, which set enabled=False
+# AND blanked both digest tokens. An elder has no login by design (TM-10) and
+# digest_settings is login_required and self-only, so there was no way back: one click of
+# "regenerate her link" ended her only content channel permanently, and silenced her reply
+# nudges with it. That contradicts S-501 and T-EMAIL-6, which forbid silent severing.
+_REGENERATION_STEPS = tuple(
+    _void_digest_capabilities if step is _cancel_digest_subscription else step
+    for step in _REVOCATION_STEPS
+)
+
 
 def revoke_member_credentials(member: Member) -> None:
     """The one revocation act (TM-1). Runs every registered step plus the
@@ -160,8 +186,22 @@ def revoke_member_credentials(member: Member) -> None:
     memberships, so revoking after teardown would silently miss the reachable
     invites and reopen T-AUTH-G3. S-702 revokes first, then removes memberships.
     """
+    _run_steps(member, _REVOCATION_STEPS)
+
+
+def regenerate_member_credentials(member: Member) -> None:
+    """Every credential class dies, but the member KEEPS their digest subscription.
+
+    For regeneration and any other flow where the member is still here. Same classes, same
+    generation bump, same single transaction as revoke_member_credentials -- the one
+    difference is that a preference is not treated as a credential.
+    """
+    _run_steps(member, _REGENERATION_STEPS)
+
+
+def _run_steps(member: Member, steps: tuple[object, ...]) -> None:
     with transaction.atomic():
         locked = Member.objects.select_for_update().get(pk=member.pk)
-        for step in _REVOCATION_STEPS:
-            step(locked)
+        for step in steps:
+            step(locked)  # type: ignore[operator]
         _bump_generation(locked)
