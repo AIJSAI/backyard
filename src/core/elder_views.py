@@ -80,7 +80,13 @@ def elder_feed(request: HttpRequest) -> HttpResponse:
         scoping.visible_posts(member)
         .select_related("author", "pod")
         .prefetch_related(
-            Prefetch("reactions", queryset=Reaction.objects.select_related("member")),
+            # scoping.visible_reactions, not Reaction.objects: an unscoped prefetch named
+            # the other side of the family's reactors on a bridging post, on the one surface
+            # built for someone who cannot be expected to notice.
+            Prefetch(
+                "reactions",
+                queryset=scoping.visible_reactions(member).select_related("member"),
+            ),
             # Photos and replies are the reason she opens this page. Both were absent
             # until now, so she read "Camp dump, finally" with the five camp photos and
             # the three replies invisible — the product's central promise undelivered on

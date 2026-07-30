@@ -45,7 +45,12 @@ def provision_elder(request: HttpRequest, member_id: int) -> HttpResponse:
     # instance admin, yard-scoped for a yard admin); the manage check then refuses one they
     # can see but may not administer (e.g. a yard admin on a bridge or admin member).
     target = get_object_or_404(permissions.administrable_members(actor), pk=member_id)
-    if not permissions.can_manage_member(actor, target):
+    # can_provision_token, not can_manage_member: minting is a wider authority than
+    # managing. The token carries the TARGET's whole visibility, so a yard admin who
+    # could otherwise administer this member is still refused when the member belongs to
+    # a pod the admin is not in -- otherwise minting is a read into that private pod, and
+    # a way to react in someone else's name.
+    if not permissions.can_provision_token(actor, target):
         raise PermissionDenied
     if target.is_supervised:
         # The elder path is never a supervised child's surface (TM-10). Named

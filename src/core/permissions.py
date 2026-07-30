@@ -89,6 +89,35 @@ def can_manage_member(actor: Member, target: Member) -> bool:
     return False
 
 
+def can_provision_token(actor: Member, target: Member) -> bool:
+    """May `actor` mint a bearer credential that carries `target`'s visibility?
+
+    Deliberately stricter than can_manage_member, because it is a different authority.
+    Removing or re-roling a member grants the admin nothing; minting an elder link grants
+    them a working no-login credential for **the target's whole scope**, which they can
+    open themselves.
+
+    can_manage_member's yard-admin branch compares YARD sets only, so a yard admin could
+    mint a link for a member of an ad-hoc pod the admin is not in — then read that private
+    pod and react in that member's name, defeating S-602's named-attribution backstop.
+    T-MINOR-2 grants yard admins pod existence and rosters, never pod CONTENT.
+
+    So a yard admin may provision only for a target whose pods are a subset of their own:
+    the credential can then carry nothing the actor could not already see. Anything wider
+    is the instance admin's call.
+    """
+    if not can_manage_member(actor, target):
+        return False
+    if is_instance_admin(actor):
+        return True
+    return scoping.member_pod_ids(target) <= scoping.member_pod_ids(actor)
+
+
+def require_can_provision_token(actor: Member, target: Member) -> None:
+    if not can_provision_token(actor, target):
+        raise PermissionDenied
+
+
 def can_edit_profile_of(actor: Member, target: Member) -> bool:
     """May `actor` edit `target`'s profile fields (S-901 acceptance 3)?
 

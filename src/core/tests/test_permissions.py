@@ -208,3 +208,58 @@ def test_yardless_pod_is_never_issuable_by_a_yard_admin(world: dict[str, object]
     orphan = Pod.objects.create(name="Not placed yet")  # no .yards.set(...)
     assert not permissions.can_issue_invite(ya, orphan)
     assert permissions.can_issue_invite(admin, orphan)
+
+
+# --- minting a credential is not the same authority as managing a member (H-2) ---
+#
+# can_manage_member's yard-admin branch compares YARD sets only. That is right for removal
+# and re-roling, which grant the admin nothing. It is wrong for minting an elder token,
+# because that token grants the TARGET's whole visibility -- including any ad-hoc pod the
+# admin is not in. A yard admin could mint a link for such a member, open it, read a private
+# pod they have no membership in, and react in that member's name.
+
+
+def _pod_in(yard: Yard, name: str) -> Pod:
+    pod = Pod.objects.create(name=name)
+    pod.yards.set([yard])
+    return pod
+
+
+def test_yard_admin_cannot_provision_a_token_for_a_member_of_a_pod_they_are_not_in() -> None:
+    yard = Yard.objects.create(name="Mom's side", slug="moms")
+    admin_pod = _pod_in(yard, "Admin household")
+    cousins = _pod_in(yard, "The Cousins")  # an ad-hoc pod the admin is NOT in
+
+    admin = Member.objects.create(display_name="Yard admin", role=Member.YARD_ADMIN)
+    PodMembership.objects.create(member=admin, pod=admin_pod)
+    cousin = Member.objects.create(display_name="Cousin")
+    PodMembership.objects.create(member=cousin, pod=cousins)
+
+    # The admin may still administer them -- same yard, and removal grants nothing.
+    assert permissions.can_manage_member(admin, cousin) is True
+    # But minting a credential that carries the cousin's visibility is escalation.
+    assert permissions.can_provision_token(admin, cousin) is False
+
+
+def test_yard_admin_may_provision_for_a_member_whose_pods_they_share() -> None:
+    yard = Yard.objects.create(name="Mom's side", slug="moms")
+    household = _pod_in(yard, "Our house")
+
+    admin = Member.objects.create(display_name="Yard admin", role=Member.YARD_ADMIN)
+    PodMembership.objects.create(member=admin, pod=household)
+    nana = Member.objects.create(display_name="Nana")
+    PodMembership.objects.create(member=nana, pod=household)
+
+    # Not vacuous: the rule must still permit the ordinary case it exists for.
+    assert permissions.can_provision_token(admin, nana) is True
+
+
+def test_instance_admin_may_provision_for_anyone() -> None:
+    yard = Yard.objects.create(name="Mom's side", slug="moms")
+    cousins = _pod_in(yard, "The Cousins")
+    boss = Member.objects.create(display_name="Instance admin", role=Member.INSTANCE_ADMIN)
+    PodMembership.objects.create(member=boss, pod=_pod_in(yard, "Admin household"))
+    cousin = Member.objects.create(display_name="Cousin")
+    PodMembership.objects.create(member=cousin, pod=cousins)
+
+    assert permissions.can_provision_token(boss, cousin) is True
