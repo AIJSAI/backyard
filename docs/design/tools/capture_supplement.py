@@ -4,13 +4,15 @@ the hand-over artifact page, the two digest token surfaces, and break-glass reco
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import sys
 
 from playwright.sync_api import sync_playwright
 
 BASE = "http://localhost:8000"
-ROOT = pathlib.Path("/private/tmp/claude-501/-Users-james/9368f9e0-d430-4f66-94e6-87051c456148/scratchpad")
+# Was hardcoded to one machine's per-session scratch dir; same override as capture.py.
+ROOT = pathlib.Path(os.environ.get("BACKYARD_CAPTURE_DIR", "/tmp/backyard-capture"))
 SHOTS = ROOT / "shots"
 STATE = ROOT / "state"
 VIEWPORTS = {"mobile": (390, 844, 2), "desktop": (1440, 900, 1)}

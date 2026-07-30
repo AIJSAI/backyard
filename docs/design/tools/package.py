@@ -12,12 +12,14 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import pathlib
 import shutil
 
 from PIL import Image
 
-ROOT = pathlib.Path("/private/tmp/claude-501/-Users-james/9368f9e0-d430-4f66-94e6-87051c456148/scratchpad")
+# Was hardcoded to one machine's per-session scratch dir; same override as capture.py.
+ROOT = pathlib.Path(os.environ.get("BACKYARD_CAPTURE_DIR", "/tmp/backyard-capture"))
 SHOTS = ROOT / "shots"
 PKG = ROOT / "package"
 

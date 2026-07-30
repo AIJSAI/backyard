@@ -53,10 +53,11 @@ from core.models import (
 random.seed(20260725)
 User = get_user_model()
 NOW = timezone.now()
-# Local demo fixtures only - this seeds a throwaway docker-compose instance and never runs
-# against a real deployment. Override with BACKYARD_DEMO_PASSWORD; the default exists so the
-# capture harness is reproducible, and the value is written to the manifest either way.
-PW = os.environ.get("BACKYARD_DEMO_PASSWORD", "local-demo-only-not-a-secret")
+# Local demo fixtures only. The old default was a literal, justified by "never runs against a
+# real deployment" - a promise, not a guard, and its twin in scripts/demo_seed.py turned out to
+# be live on the internet. What this harness reproduces is the RENDERING, and no screenshot
+# depends on the password, so it is generated and written to the manifest like everything else.
+PW = os.environ.get("BACKYARD_DEMO_PASSWORD") or secrets.token_urlsafe(12)
 
 
 def sha(raw: str) -> str:

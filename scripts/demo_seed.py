@@ -17,13 +17,23 @@ Run:   docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_ke
          python manage.py shell' < scripts/demo_seed.py
 Wipe:  same, with BACKYARD_DEMO_WIPE=1 in the environment.
 
-EVERY account below is disposable and shares one well-known password. Wipe before the
-instance is shared with anyone real.
+EVERY account below is disposable and shares one password, **minted fresh on each run and
+printed once at the end**. Set BACKYARD_DEMO_PASSWORD to choose your own.
+
+This used to be a hardcoded literal, and the comment beside it said "wiped before any
+share" — a promise about the future guarding a credential that worked, that minute, on the
+live internet-reachable instance. Anyone reading the public repository could sign in as a
+demo member. The comment was doing the security work, and a comment is not a guard: gitleaks
+scanned 287 commits and found nothing, because a human-chosen password assigned to `PW` does
+not look like a provider key. `test_no_hardcoded_demo_credentials.py` is the actual guard now.
+
+Wipe before the instance is shared with anyone real, regardless.
 """
 
 import datetime
 import io
 import os
+import secrets
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -33,7 +43,9 @@ from core import elder_tokens, media, supervised
 from core.models import Comment, Member, Pod, PodMembership, Post, Reaction, Yard
 
 U = get_user_model()
-PW = "backyard-qa-2026"  # noqa: S105 - a disposable demo credential, wiped before any share
+# Generated, never stored in the repository. Printed at the end of a successful run, which
+# is the only place it exists — re-run the seed if you lose it.
+PW = os.environ.get("BACKYARD_DEMO_PASSWORD") or secrets.token_urlsafe(12)
 
 if os.environ.get("BACKYARD_DEMO_WIPE") == "1":
     Yard.objects.filter(slug__in=["moms-side", "dads-side"]).delete()
@@ -163,3 +175,6 @@ print(
     f"SEEDED members={Member.objects.count()} "
     f"pods={Pod.objects.count()} posts={Post.objects.count()}"
 )
+# Last line, and the only copy. Every seeded login shares it; your own account keeps the
+# password it already had.
+print(f"DEMO_PASSWORD={PW}")
