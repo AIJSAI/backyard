@@ -7,7 +7,10 @@
   <nav class="rail" aria-label="Your profile and data">
     <p>
       <a href="{% url 'profile_edit' %}">Edit my profile</a> ·
-      <a href="{% url 'export_data' %}">Export my data</a>
+      <a href="{% url 'export_data' %}">Export my data</a> ·
+      {% comment %} Says "contacts" and not "vCard": the filename is the format, the
+         link is what it does to your phone. {% endcomment %}
+      <a href="{% url 'directory_vcards' %}">Save everyone to my contacts</a>
     </p>
   </nav>
 

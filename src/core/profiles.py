@@ -38,9 +38,23 @@ _MONTHS = (
     "December",
 )
 
+# The inverse of _date_text, for exporters that need the month back as a number (S-904's
+# `BDAY:--MMDD`). Derived from the same tuple rather than written out again: two month
+# tables is how "February" comes to mean 2 in one place and nothing in another.
+MONTH_NUMBER: dict[str, int] = {name: number for number, name in enumerate(_MONTHS) if name}
+
 
 @dataclass
 class ContactField:
+    """One contact detail the viewer is scoped for.
+
+    `kind` is the machine key ("phone", "email", "address"); `label` is what a person
+    reads. Both exist because the directory renders the label while the vCard export
+    (S-904) has to pick a typed property — TEL, EMAIL or ADR — and guessing that back
+    out of a human label would be a second, driftable mapping.
+    """
+
+    kind: str
     label: str
     value: str
 
@@ -104,13 +118,13 @@ def viewable_profile(
     if viewer_pod_ids is None:
         viewer_pod_ids = scoping.member_pod_ids(viewer)
     fields = [
-        (member.phone, member.phone_visibility, "Phone"),
-        (member.contact_email, member.contact_email_visibility, "Email"),
-        (member.address, member.address_visibility, "Address"),
+        ("phone", member.phone, member.phone_visibility, "Phone"),
+        ("email", member.contact_email, member.contact_email_visibility, "Email"),
+        ("address", member.address, member.address_visibility, "Address"),
     ]
     contacts = [
-        ContactField(label=label, value=value)
-        for value, visibility, label in fields
+        ContactField(kind=kind, label=label, value=value)
+        for kind, value, visibility, label in fields
         if value and _can_see_field(viewer, member, visibility, viewer_pod_ids)
     ]
     # Dates are gated exactly like contact fields (S-903): a date the viewer is not

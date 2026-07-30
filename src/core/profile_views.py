@@ -15,8 +15,9 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.http import FileResponse, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
+from django.utils.text import slugify
 
-from . import export, permissions, profiles, scoping
+from . import export, permissions, profiles, scoping, vcards
 from .feed_views import _acting_member
 from .models import Member
 
@@ -63,6 +64,47 @@ def member_profile(request: HttpRequest, member_id: int) -> HttpResponse:
         "core/member_profile.html",
         {"member": viewer, "profile": profiles.viewable_profile(viewer, target)},
     )
+
+
+def _vcard_response(body: str, filename: str) -> HttpResponse:
+    """A `.vcf` download. The filename is slugified, never the raw display name: a name
+    is member-controlled text and this value lands in a response header."""
+    response = HttpResponse(body, content_type=vcards.CONTENT_TYPE)
+    response["Content-Disposition"] = f'attachment; filename="{filename}.vcf"'
+    return response
+
+
+@login_required
+def member_vcard(request: HttpRequest, member_id: int) -> HttpResponse:
+    """One member's contact card (S-904). Resolved through the same guard as their
+    profile page, so a cross-yard member is the same byte-identical 404 — the download
+    is not a second route into the directory."""
+    viewer = _acting_member(request)
+    target = scoping.require_visible_member(viewer, member_id)
+    profile = profiles.viewable_profile(viewer, target)
+    return _vcard_response(
+        vcards.render([profile]),
+        slugify(profile.display_name) or f"member-{profile.member_id}",
+    )
+
+
+@login_required
+def directory_vcards(request: HttpRequest) -> HttpResponse:
+    """Everyone the viewer can see, as one `.vcf` (S-904).
+
+    Deliberately the whole visible directory and not the current search result: a button
+    that silently exports a filtered subset is how someone ends up believing they have
+    the family's numbers when they have four of them. It is also uncapped, unlike the
+    directory page's 200-row render — a truncated address book is the same lie.
+    """
+    viewer = _acting_member(request)
+    members = scoping.visible_members(viewer).exclude(id=viewer.id).order_by("display_name", "id")
+    viewer_pod_ids = scoping.member_pod_ids(viewer)  # once, not per row (MEDIUM-2)
+    body = vcards.render(
+        profiles.viewable_profile(viewer, other, viewer_pod_ids=viewer_pod_ids)
+        for other in members.iterator()
+    )
+    return _vcard_response(body, "backyard-family")
 
 
 @login_required

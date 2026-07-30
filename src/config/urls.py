@@ -62,7 +62,14 @@ urlpatterns = [
     path("pods/<int:pod_id>/leave/", pod_views.pod_leave, name="pod_leave"),
     # Profiles and the family directory (S-901, S-902).
     path("directory/", profile_views.directory, name="directory"),
+    # vCard downloads (S-904): the whole visible directory, and one member.
+    path("directory/vcards/", profile_views.directory_vcards, name="directory_vcards"),
     path("directory/<int:member_id>/", profile_views.member_profile, name="member_profile"),
+    path(
+        "directory/<int:member_id>/vcard/",
+        profile_views.member_vcard,
+        name="member_vcard",
+    ),
     path("settings/profile/", profile_views.profile_edit, name="profile_edit"),
     # Editing on someone's behalf (S-901): a supervised child's managing parent, or an
     # admin standing in for an elder who has no login by design.
