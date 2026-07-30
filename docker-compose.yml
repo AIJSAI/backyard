@@ -45,6 +45,15 @@ services:
     # video pre-flight), so it too gets a memory and pid ceiling (TS-CO-6).
     mem_limit: 768m
     pids_limit: 512
+    # TS-CO-7 container hardening. cap_drop and no-new-privileges are free here --
+    # nothing setuid is needed -- and no-new-privileges specifically blocks the standard
+    # post-RCE escalation primitive on the one service that runs parsers over
+    # member-uploaded video. read_only is deliberately NOT set yet: it needs collectstatic
+    # moved to build time, which is its own change.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     environment:
       DJANGO_DEBUG: ${DJANGO_DEBUG:-0}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
@@ -108,6 +117,12 @@ services:
     # transcode home gets the larger share; sized for the target hardware, founder-tunable.
     mem_limit: 1500m
     pids_limit: 512
+    # TS-CO-7, and this is the container that matters most for it: the worker is where
+    # ffmpeg runs on member-uploaded video, so it is the likeliest place a decode CVE lands.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     environment:
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
       BACKYARD_BASE_URL: ${BACKYARD_BASE_URL:-http://localhost:8000}

@@ -262,3 +262,51 @@ def test_leftover_rows_are_gone_after_removal(member_with_everything: Credential
     assert not DigestToken.objects.filter(member=creds.member).exists()
     assert ReplyAddress.objects.filter(member=creds.member, voided_at__isnull=True).count() == 0
     assert not DigestSubscription.objects.filter(member=creds.member, enabled=True).exists()
+
+
+# --- regeneration is not removal: a preference is not a bearer credential ---
+
+
+def test_regenerate_keeps_her_digest_subscription_but_kills_its_links(
+    member_with_everything: Credentials,
+) -> None:
+    """Re-issuing an elder's link must not end her digest forever.
+
+    regenerate ran the removal-shaped handler, which set enabled=False AND blanked both
+    digest tokens. An elder has no login by design (TM-10) and digest_settings is
+    login_required and self-only, so there was no way back: one click of "regenerate her
+    link" -- the flow T-TOKEN-G1 wants to be socially cheap and frequent -- permanently
+    ended her only content channel and silenced her reply nudges with it. S-501 and
+    T-EMAIL-6 both forbid silent severing.
+
+    Both halves are asserted: the emailed capabilities must still die (they are
+    credentials), and the subscription must survive (it is a preference).
+    """
+    creds = member_with_everything
+    subscription = DigestSubscription.objects.get(member=creds.member)
+    assert subscription.enabled is True
+    assert subscription.confirm_token_digest or subscription.unsubscribe_token_digest
+
+    elder_tokens.regenerate(creds.member)
+
+    subscription.refresh_from_db()
+    assert subscription.enabled is True, "regeneration severed her digest permanently"
+    assert subscription.confirm_token_digest == "", "the emailed confirm link must still die"
+    assert subscription.unsubscribe_token_digest == "", "the emailed unsubscribe link must die"
+
+
+def test_removal_still_disables_the_subscription(
+    member_with_everything: Credentials,
+) -> None:
+    """The other side of the split, so the fix cannot be satisfied by never disabling.
+
+    A removed member is gone: the subscription is disabled AND its links die.
+    """
+    from core.removal import remove_member
+
+    creds = member_with_everything
+    remove_member(creds.member, content=removal.KEEP)
+    subscription = DigestSubscription.objects.get(member=creds.member)
+    assert subscription.enabled is False
+    assert subscription.confirm_token_digest == ""
+    assert subscription.unsubscribe_token_digest == ""

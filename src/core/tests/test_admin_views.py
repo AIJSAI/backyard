@@ -13,7 +13,7 @@ from django.test import Client
 from django.urls import reverse
 
 from core import supervised
-from core.models import Member, Pod, PodMembership, Yard
+from core.models import DigestSubscription, Member, Pod, PodMembership, Yard
 
 pytestmark = pytest.mark.django_db
 User = get_user_model()
@@ -151,3 +151,36 @@ def test_roster_visibly_flags_supervised_members_to_admins(world: dict[str, obje
     assert flag in content  # and is flagged
     # exactly one flag: the supervised child, never the full members (MemberA/AAdmin/Admin)
     assert content.count(flag) == 1
+
+
+# --- a yard admin does not get a member's delivery address in full ---
+
+
+def test_yard_admin_sees_the_digest_address_masked_and_instance_admin_does_not() -> None:
+    """The digest panel rendered subscription.address in full to any admin.
+
+    It is a personal email the member entered for delivery, and the panel's job -- did it
+    arrive, did it bounce -- is answered by a masked address, which still identifies the
+    row and the provider. In full it handed a yard admin an address the member may have set
+    HIDDEN on their profile: the same class as T-YARD-6, a second surface bypassing
+    per-field visibility.
+
+    The instance admin still sees it whole. They hold the database anyway and T-OP-G1
+    discloses that; pretending otherwise would be theatre.
+    """
+    yard = Yard.objects.create(name="Mom's side", slug="moms")
+    pod = Pod.objects.create(name="Our house")
+    pod.yards.set([yard])
+
+    member = _member_with_user(pod, "Priya")
+    DigestSubscription.objects.create(member=member, address="priya@example.com", enabled=True)
+
+    yard_admin = _member_with_user(pod, "Yard admin", role=Member.YARD_ADMIN)
+    boss = _member_with_user(pod, "Instance admin", role=Member.INSTANCE_ADMIN)
+
+    as_yard_admin = _client_for(yard_admin).get(reverse("member_digests")).content.decode()
+    assert "priya@example.com" not in as_yard_admin, "the full address reached a yard admin"
+    assert "p•••@example.com" in as_yard_admin, "the masked form must still identify the row"
+
+    as_instance_admin = _client_for(boss).get(reverse("member_digests")).content.decode()
+    assert "priya@example.com" in as_instance_admin

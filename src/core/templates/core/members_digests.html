@@ -14,7 +14,7 @@
       {% for row in rows %}
         <tr>
           <td data-label="Member">{{ row.subscription.member.display_name }}</td>
-          <td data-label="Address">{{ row.subscription.address }}</td>
+          <td data-label="Address">{{ row.address }}</td>
           <td data-label="Cadence">{{ row.subscription.get_cadence_display }}</td>
           <td data-label="State">
             {% if not row.subscription.enabled %}off{% elif not row.subscription.confirmed_at %}awaiting confirmation{% else %}on{% endif %}

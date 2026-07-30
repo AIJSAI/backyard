@@ -25,11 +25,17 @@ where some classes are dead and others alive (TS-DJ-2's kill-test asserts this).
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from django.contrib.sessions.models import Session
 from django.db import models, transaction
 from django.utils import timezone
 
 from .models import DigestSubscription, DigestToken, Invite, Member, Yard
+
+# Every registry entry takes the locked Member and returns a count (or None for the
+# generation bump). Named so both registries below type-check without an escape hatch.
+RevocationStep = Callable[[Member], object]
 
 
 def _revoke_sessions(member: Member) -> int:
@@ -82,10 +88,24 @@ def _void_invites(member: Member) -> int:
     return reachable.update(revoked_at=now)
 
 
+def _void_digest_capabilities(member: Member) -> int:
+    """Void both emailed digest capabilities, WITHOUT touching the subscription itself.
+
+    Clearing the digests kills the confirm and unsubscribe links already sitting in a
+    mailbox. `enabled` is a PREFERENCE, not a bearer credential, so it is untouched here —
+    backups._forced_security_replay already draws exactly this line for a restore.
+    """
+    # nosec B106: empty strings REVOKE the emailed capabilities — the absence of a
+    # credential, not a hardcoded one.
+    return DigestSubscription.objects.filter(member=member).update(  # nosec B106
+        confirm_token_digest="", unsubscribe_token_digest=""
+    )
+
+
 def _cancel_digest_subscription(member: Member) -> int:
     """Drop the member from digest recipients and void both emailed capabilities.
 
-    Disabling stops every future send (due-recipient resolution filters on
+    Removal only. Disabling stops every future send (due-recipient resolution filters on
     enabled + live membership); clearing the digests kills the confirm and
     unsubscribe links already sitting in a mailbox, so a removed member holds no
     live digest capability of any kind (TM-1). A send already queued dies at the
@@ -136,7 +156,7 @@ def _bump_generation(member: Member) -> None:
 # The registry, in execution order. A new credential class ships by adding its
 # revocation step here (and its 404-or-bounce assertion to the completeness test),
 # never by adding a second handler somewhere else.
-_REVOCATION_STEPS = (
+_REVOCATION_STEPS: tuple[RevocationStep, ...] = (
     _revoke_sessions,
     _void_invites,
     _cancel_digest_subscription,
@@ -145,23 +165,59 @@ _REVOCATION_STEPS = (
     _void_elder_tokens,
 )
 
+# The same registry with the digest SUBSCRIPTION left alone. Regenerating an elder's link
+# is meant to be socially cheap and frequent (T-TOKEN-G1: she forwarded it, she lost the
+# phone, reprint the QR) -- but it ran the removal-shaped handler, which set enabled=False
+# AND blanked both digest tokens. An elder has no login by design (TM-10) and
+# digest_settings is login_required and self-only, so there was no way back: one click of
+# "regenerate her link" ended her only content channel permanently, and silenced her reply
+# nudges with it. That contradicts S-501 and T-EMAIL-6, which forbid silent severing.
+_REGENERATION_STEPS: tuple[RevocationStep, ...] = tuple(
+    _void_digest_capabilities if step is _cancel_digest_subscription else step
+    for step in _REVOCATION_STEPS
+)
+
 
 def revoke_member_credentials(member: Member) -> None:
     """The one revocation act (TM-1). Runs every registered step plus the
     generation bump in a single transaction: after it commits, every credential
     class the member held is dead on its next use; if it raises, none are.
 
-    Fired by removal, voluntary leave, pod-leaves-yard, deceased marking, and
-    any regeneration; those lifecycle flows land in their stories (S-702, S-706)
+    Fired by removal, voluntary leave, pod-leaves-yard and deceased marking: the flows
+    where the member is GONE. Those lifecycle flows land in their stories (S-702, S-706)
     and all call this, never their own partial subset.
+
+    NOT for regeneration -- use regenerate_member_credentials, which keeps the digest
+    subscription. This function disables it, and an elder has no login to turn it back on.
 
     Ordering contract (security review H-1): call this BEFORE tearing down the
     member's PodMembership rows. _void_invites resolves the yard scope from live
     memberships, so revoking after teardown would silently miss the reachable
     invites and reopen T-AUTH-G3. S-702 revokes first, then removes memberships.
     """
+    _run_steps(member, _REVOCATION_STEPS)
+
+
+def regenerate_member_credentials(member: Member) -> None:
+    """Every credential class dies, but the member KEEPS their digest subscription.
+
+    For regeneration and any other flow where the member is still here. Same classes, same
+    generation bump, same single transaction as revoke_member_credentials -- the one
+    difference is that a preference is not treated as a credential.
+    """
+    _run_steps(member, _REGENERATION_STEPS)
+
+
+def _run_steps(member: Member, steps: tuple[RevocationStep, ...]) -> None:
+    """Run a registry of steps plus the generation bump in ONE transaction.
+
+    Typed concretely rather than as `tuple[object, ...]` with a `type: ignore[operator]`:
+    that ignore turned off exactly the check that matters here, since a non-callable
+    slipping into a revocation registry is precisely the mistake that would leave a
+    credential class alive.
+    """
     with transaction.atomic():
         locked = Member.objects.select_for_update().get(pk=member.pk)
-        for step in _REVOCATION_STEPS:
+        for step in steps:
             step(locked)
         _bump_generation(locked)

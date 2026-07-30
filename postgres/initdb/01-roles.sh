@@ -28,6 +28,14 @@ CREATE ROLE backyard_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS
   PASSWORD :'app_pw';
 
 -- The migrator owns what migrations create; ownership is what grants it DDL.
+-- TS-PG-5: a per-role statement timeout. Without one, three pathological queries (a big
+-- unindexed scan, a lock wait) wedge all three synchronous gunicorn workers and the family's
+-- site is down with no attacker code involved. Role-level so it survives restarts and needs
+-- no extra container. The migrator is exempt: a migration on a large table legitimately runs
+-- long, and it is not reachable from a request.
+ALTER ROLE backyard_app SET statement_timeout = '15s';
+ALTER ROLE backyard_migrator SET statement_timeout = 0;
+
 ALTER DATABASE :"db" OWNER TO backyard_migrator;
 ALTER SCHEMA public OWNER TO backyard_migrator;
 GRANT USAGE ON SCHEMA public TO backyard_app;

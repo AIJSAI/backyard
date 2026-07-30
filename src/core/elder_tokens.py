@@ -68,7 +68,10 @@ def regenerate(member: Member) -> str:
     """The total regenerate (TM-1, T-TOKEN-5): one act revokes EVERY credential
     the member holds — old token, live elder sessions, digest links, reply
     addresses — then mints fresh under the new generation."""
-    revocation.revoke_member_credentials(member)
+    # regenerate_, not revoke_: she is still here. The removal-shaped handler also set
+    # enabled=False on her digest subscription, and an elder has no login to turn it back
+    # on (TM-10), so re-issuing her link silently ended her only content channel forever.
+    revocation.regenerate_member_credentials(member)
     member.refresh_from_db()
     return mint(member)
 
