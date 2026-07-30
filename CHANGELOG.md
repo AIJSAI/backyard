@@ -1,0 +1,79 @@
+# Changelog
+
+Notable changes, newest first. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
+versions follow [semantic versioning](https://semver.org/), and `0.x` means no stability
+promise yet — the schema and the URLs may still move.
+
+**Install a tag, not `main`.** `main` is where the work happens and it changes daily; a tag is
+a point somebody deliberately stopped at, with a full green gate behind it.
+
+## [0.1.0] — 2026-07-29
+
+The first fixed point. **Pre-release: it runs, and it has not been handed to a family yet.**
+The author's own QA walk ([`docs/runbooks/founder-qa.md`](docs/runbooks/founder-qa.md)) is the
+gate, and it has not happened. Treat this as "reproducible enough to read and try", not
+"trusted with your family's photographs".
+
+### What works
+
+- **Pods and yards.** Every household is a pod; each side of the family is a yard with its own
+  shared feed. A household can belong to both sides without fusing them, and cross-yard access
+  answers a byte-identical 404 — no existence signal.
+- **A feed that ends.** Chronological, no algorithm, no engagement mechanics. Links, photos,
+  video, short updates, comments, one reaction.
+- **The elder path.** One link, no account, no app store. Large single-column type with a
+  bigger-text toggle. Photos and video are reachable through it.
+- **Photos and video.** Client-side resize, server-side re-encode, metadata stripped at ingest,
+  every byte served through one access-checked path. Photos and clips work on replies too, so a
+  wedding is one thread rather than a scatter of posts.
+- **Email digest, out and in.** A weekly per-yard digest built through the same audience query
+  as the web feed. Replying to a digest opens the app at the thread.
+- **Installable PWA** on iOS and Android, no store.
+- **The family directory.** Profiles with per-field visibility (nobody / my pods / my yards),
+  birthdays as month-and-day with no year and no age ever, and vCard download so the numbers in
+  your phone stop being stale.
+- **Admin that a non-technical person can hold.** Five documented roles with the permissions
+  written beside the control, household invites, member removal that asks what happens to their
+  posts, single-item takedown, break-glass recovery.
+- **Export.** Every member can download everything they authored, always, ungated.
+- **Encrypted backups** with a restore that ends in a forced security replay, so a restore
+  never resurrects a removed member's credentials.
+- **A weekly health email** reporting last-backup age, disk headroom and domain days-remaining
+  — and reporting `NOT MEASURED` for the two it genuinely cannot see, rather than omitting them.
+- **Handover and shutdown runbooks**, with a `decommission_instance` command that exports for at
+  least two named people *before* it revokes anything.
+- **Accessibility.** WCAG 2.1 AA and 2.2 AA across 34 surfaces, verified with axe in a real
+  browser at desktop and mobile, light and dark, including a deliberate hover pass. Forced-colors
+  and `prefers-contrast` supported.
+
+### What does not work yet
+
+- **Reply-by-email needs one manual step.** Until the inbound webhook is registered with the
+  mail provider, a reply is accepted with a `250` and silently goes nowhere. See
+  [`self-host.md`](docs/runbooks/self-host.md).
+- **The ambient photo-frame display (S-603) is not built.** It is the one unbuilt story.
+- **Push notifications are out of scope** for 0.x, by decision — the digest is the notification.
+- **No published container images.** You build from source with `docker compose`.
+- **One instance has ever been deployed**, by the author. Hardware beyond a 2-vCPU Ubicloud VM
+  is untested, and no NAS platform has been tried.
+- **No independent security review.** The threat model is thorough and entirely self-authored.
+
+### Security
+
+- Credential literals removed from the seed and capture tooling. `scripts/demo_seed.py` carried
+  a fixed password that **worked on the live instance**, in a public repository; it is now
+  generated per run and printed once. Two more copies of the same mistake, hidden in
+  `os.environ.get(KEY, "literal")` fallbacks, went with it. gitleaks had reported the history
+  clean and was right by its own rules — it matches provider-shaped keys, not the password a
+  person picks — so the enforcing check is now an `ast` guard,
+  `src/core/tests/test_no_hardcoded_demo_credentials.py`.
+- Baseline Content-Security-Policy with a nonce for the few inline scripts; `script-src` is not
+  `unsafe-inline`.
+- Every bearer credential is at least 128-bit CSPRNG, stored only as a hash, and anchored to a
+  per-member generation so one revocation kills every derived credential on its next use.
+- Dependency CVE scanning, SAST and secret scanning run on every push.
+
+<!-- Points at the tag's tree rather than a Releases page: a bare annotated tag always renders
+     here, whereas /releases/tag/ depends on a Release object existing, and publishing GHCR
+     images and formal releases is still Phase 5 work. -->
+[0.1.0]: https://github.com/AIJSAI/backyard/tree/v0.1.0
