@@ -111,7 +111,13 @@ def test_every_credential_bearing_route_is_covered_by_log_redaction() -> None:
 
     from config.log_redaction import _TOKEN_SEGMENT
 
+    # Matched against the CAPTURED PARAMETER NAME, never the surrounding path text.
+    # Matching the whole pattern flagged `accounts/2fa/webauthn/keys/<int:pk>/remove/`
+    # because the word "keys" appears in the path, while the captured value is a primary
+    # key. A guard that cries wolf on pks is one somebody switches off.
     credential_like = re.compile(r"(?i)(token|key|uidb|secret|code)")
+    # A pk is an object id, not a capability. `int` converters are never credentials.
+    NOT_A_CREDENTIAL_CONVERTER = ("int:",)
 
     def walk(resolver: object, prefix: str = "") -> Iterator[str]:
         for pattern in resolver.url_patterns:  # type: ignore[attr-defined]
@@ -121,14 +127,37 @@ def test_every_credential_bearing_route_is_covered_by_log_redaction() -> None:
             else:
                 yield text
 
+    def credential_captures(raw: str) -> list[str]:
+        """Capture names in this pattern that name a credential, in BOTH syntaxes.
+
+        re_path() renders a named group as `(?P<key>...)`; path() renders a converter as
+        `<str:token>`. Handling only the first made this guard vacuous for every
+        path()-style route -- which is all of /t/, /d/, /media/ and /join/, i.e. exactly
+        the surfaces it exists to protect. Proven at the time by deleting "t" from
+        _CAPABILITY_ROUTES and watching this test still pass.
+        """
+        names = re.findall(r"\(\?P<([^>]+)>", raw)
+        for converter in re.findall(r"<([^>]+)>", raw):
+            if converter.startswith(NOT_A_CREDENTIAL_CONVERTER):
+                continue
+            names.append(converter.split(":")[-1])
+        return [n for n in names if credential_like.search(n)]
+
     patterns = list(walk(get_resolver()))
     assert len(patterns) > 50, f"resolver walk found only {len(patterns)} patterns"
+    # Guard the guard: if the shapes above ever stop matching, this test must not quietly
+    # become an empty loop. The token surfaces alone put this well above zero.
+    assert sum(bool(credential_captures(p)) for p in patterns) >= 5, (
+        "the resolver walk recognised almost no credential captures -- the pattern "
+        "syntax probably changed and this guard has gone vacuous"
+    )
 
     uncovered = []
     for raw in patterns:
-        if not credential_like.search(raw):
+        if not credential_captures(raw):
             continue
         sample = "/" + re.sub(r"\(\?P<[^>]+>[^)]*\)", "LIVECREDENTIAL", raw)
+        sample = re.sub(r"<[^>]+>", "LIVECREDENTIAL", sample)
         sample = re.sub(r"\[[^\]]*\][+*?]?", "x", sample).replace("^", "").replace("$", "")
         sample = sample.replace("\\", "")
         if "LIVECREDENTIAL" in _TOKEN_SEGMENT.sub(

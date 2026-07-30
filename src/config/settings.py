@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -41,7 +42,14 @@ BASE_URL = os.environ.get("BACKYARD_BASE_URL", "http://localhost:8000").rstrip("
 # DEBUG serves tracebacks with settings to anyone; it must never be on for a real deployment.
 # Extend the refuse-to-boot posture to it (threat model TS-DJ-10): a public HTTPS base URL with
 # DEBUG on is a misconfiguration we hard-fail rather than serve.
-_is_local = any(host in BASE_URL.lower() for host in ("localhost", "127.0.0.1"))
+# The HOSTNAME, parsed and compared exactly -- not a substring search. `"localhost" in
+# BASE_URL` is true for `http://localhost.evil.com`, and `"127.0.0.1" in BASE_URL` for
+# `http://127.0.0.1.evil.com`: an attacker-registrable domain that merely CONTAINS the
+# word would have been classified local and bypassed both hard-fails below, reopening
+# exactly the misconfiguration they exist to close.
+_HOSTNAME = (urlsplit(BASE_URL).hostname or "").lower()
+_is_local = _HOSTNAME in {"localhost", "127.0.0.1", "::1"}
+
 if DEBUG and not _is_local:
     raise RuntimeError(
         "DJANGO_DEBUG is on while BASE_URL is not local. DEBUG must be off for anything a "
