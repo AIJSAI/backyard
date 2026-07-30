@@ -1,6 +1,8 @@
 # Contributing
 
-Backyard is pre-alpha and moving fast; expect churn until v0.1.
+Backyard is at [`v0.1.0`](CHANGELOG.md) and still moving fast; `0.x` means the schema and the
+URLs may change under you. Work from a tag if you want stable ground, from `main` if you want
+to contribute.
 
 ## Ground rules
 
@@ -12,7 +14,18 @@ Backyard is pre-alpha and moving fast; expect churn until v0.1.
 
 ## What helps most right now
 
-Product feedback grounded in real family use, deployment testing on real homelab hardware, and accessibility review of the elder path. Code contributions become practical once the architecture ADR lands.
+Product feedback grounded in real family use, deployment testing on real homelab hardware, and accessibility review of the elder path — **especially the elder path**, which has been verified entirely by one person driving a browser and never by an actual elder.
+
+**Code contributions are practical now.** The stack is settled ([ADR-002](docs/adr/ADR-002-stack.md)) and the architecture is documented: start at [docs/README.md](docs/README.md), which has diagrams of the data model, the elder path, and the one audience query everything routes through. Run the gate before you open a PR:
+
+```bash
+uv run ruff check src && uv run ruff format --check src && uv run mypy src && uv run pytest
+```
+
+Tests need their own Postgres — the compose one does not publish 5432. The recipe is in
+[docs/RESUME-HERE.md](docs/RESUME-HERE.md) under "the environment recipe".
+
+**The highest-value contribution is an adversarial one:** read the [threat model](docs/security/threat-model.md) and try to break a claim in it. It has never had an outside reader.
 
 ## Privacy line
 
