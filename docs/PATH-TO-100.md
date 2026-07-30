@@ -145,6 +145,12 @@ S-502, S-903 are `tested`.** The one remaining item is a founder input, not code
    deployer docs (Phase 5). S-705 is now `tested`. The privacy posture it describes
    is already ratified and enforced in code.
 
+## Security pass (2026-07-30)
+
+- [x] Five-angle security fan-out (secrets/history, authz/isolation, untrusted input, infrastructure/supply-chain, and the gates themselves) plus live probing of the running instance — **one CRITICAL, four HIGH and ~20 MEDIUM findings, all fixed except T-ADMIN-1 which needs a founder rollout decision.** The headline is not a bug: **three of four gates carrying a non-vacuity proof were proving the wrong class**, which is why a working production password sat in a public repo for the project's life while every gate reported green. Two findings broke the core promise: a bridging post carried the other side of the family's replies, reactor names and reply photographs, and a yard admin could mint a credential wider than their own reach. Nine further mistakes were made *inside the fixes* and caught by review or by probing; that list is in the receipt because the pattern is the finding. evidence: docs/receipts/2026-07-30-security-fan-out.md + docs/security/threat-model.md §7.8
+- [ ] **T-ADMIN-1: enforce a second factor for admin roles.** The threat model claims it is "enforced in the wizard so a password-only admin never exists"; no such enforcement exists. Deliberately left open — enabling it can lock the only admin out, and break-glass already assumes the control is there. Enrol-then-enforce is a founder rollout decision.
+- [ ] **Rotate the demo accounts on production.** The leaked password still authenticates. Command in docs/RESUME-HERE.md, operator action #1.
+
 ## Phase 3: Story loop
 
 - [x] Every v1 story tested against the live app with receipts; loop until 100% passing — 39/39 v1 stories `passing` against the persistent instance; the loop caught + fixed a real export bug (S-704). evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
