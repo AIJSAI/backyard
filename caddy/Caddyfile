@@ -22,6 +22,19 @@
 {
 	admin off
 	auto_https off
+	# TS-CA-6: without these, a slow-header (slowloris) connection is never closed, and slow
+	# request bodies stream straight to three synchronous gunicorn workers and pin them for an
+	# unbounded window. The row's own acceptance criterion -- "a connection that sends no
+	# headers is closed within about ten seconds" -- was failing.
+	#
+	# `write` is deliberately left unset: a small write timeout would cut off legitimately slow
+	# elder-video and export downloads, which is the trade TS-CA-6 already reasoned through.
+	servers {
+		timeouts {
+			read_header 10s
+			read_body 5m
+		}
+	}
 }
 
 :8000 {
