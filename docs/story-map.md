@@ -33,8 +33,17 @@ Re-decided individually, on that bar:
   much energy into the reply by email thing... it would be better if it just opened the app
   to where they reply."* Email-attachment ingest is the same untrusted-input path, and the
   need it served is met better by S-404 (photos on a reply) reached through an app link.
-- **S-904** vCard export, **S-804** handover/succession, **S-603** ambient frame — carried
-  forward as real pre-share work, no longer excused by the KPI.
+- **S-804** handover/succession — BUILT (#102), together with the weekly health email
+  (S-806) its own acceptance depended on and which did not exist.
+- **S-904** vCard export — BUILT (#103). The serializer takes a `ViewableProfile` and never
+  a `Member`, so it cannot reach a field the viewer is not scoped for; registered as threat
+  row **T-YARD-10**, since a second output format over the directory is exactly how a
+  second visibility implementation gets in.
+- **S-603** ambient frame — the last one, and the only remaining `spec` story. It introduces
+  a **new always-on bearer credential living on a device in a room**, so per the threat
+  model's own rule (*"New capability types cannot ship without registering here"*) it needs
+  a threat-model entry — TM-1 revocation registry plus a `T-DISPLAY-*` row — **before** any
+  code.
 
 Eighteen stories also carry a `security:` block: threat-model acceptance criteria bound to specific threats, layered on top of the original product acceptance rather than replacing it. Those are the criteria the Phase 3 story loop tests.
 
