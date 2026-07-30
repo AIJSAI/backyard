@@ -15,3 +15,8 @@ staticfiles/
 # Fetched, never vendored: scripts/axe_sweep.py documents the pinned URL, and a
 # 553KB minified third-party blob does not belong in a family app's history.
 scripts/axe.min.js
+
+# Agent worktrees: full repo copies, one `git add -A` away from being committed.
+# They also flooded a secret scan with 238 duplicate findings, which is how a
+# useful gate gets dismissed as noisy and then ignored.
+.claude/worktrees/

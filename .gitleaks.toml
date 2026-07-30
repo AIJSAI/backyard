@@ -1,17 +1,90 @@
-# Extends the default gitleaks ruleset (never replaces it). The only additions are
-# allowlists for unit-test fixtures: fake passwords and a fake setup secret that exist
-# so the first-run wizard tests can run. They are not real credentials.
+# Extends the default gitleaks ruleset (never replaces it).
 #
-# This does NOT weaken the gate: the CI `secrets` job's selftest plants a real-shaped
-# AWS key in a throwaway repo (which this config does not cover) and fails the build if
-# gitleaks misses it, so the scan is still proven non-vacuous on every run.
+# WHY THIS FILE WAS REWRITTEN, 2026-07-30. It used to allowlist the PATH
+# `src/core/tests/.*` — all 72 files, every rule — to silence four synthetic fixtures.
+# Measured cost of that convenience, on a throwaway repo with one realistic AWS-shaped
+# key committed to two paths:
+#
+#     gitleaks defaults       -> reports scripts/outside.py AND src/core/tests/test_leak.py
+#     the old config here     -> reports scripts/outside.py ONLY
+#
+# So a REAL provider key committed anywhere under src/core/tests/ scanned clean forever.
+# Not hypothetical: the remediation for a leaked production password re-published the
+# literal into src/core/tests/test_no_hardcoded_demo_credentials.py, where this allowlist
+# hid it while every gate reported green.
+#
+# The old header also claimed the gate was still proven non-vacuous because the CI selftest
+# "plants a real-shaped AWS key in a throwaway repo (which this config does not cover)".
+# That parenthetical was the defect, not the reassurance: gitleaks discovers its config from
+# the scan directory, so a selftest run somewhere else exercises the DEFAULTS and can never
+# observe a mistake in this file. The selftest now plants inside a copy of the real tree and
+# passes `-c` explicitly, so it measures the config that ships.
+#
+# Allowlists below are scoped to VALUES, not paths. A new secret in a test file fires; only
+# these named synthetic strings are exempt.
 [extend]
 useDefault = true
 
 [[allowlists]]
-description = "Unit-test fixtures in core tests are synthetic, not real secrets"
-paths = ['''src/core/tests/.*''']
+description = """Synthetic credential fixtures, enumerated by value rather than by path.
+Each is an invented passphrase that exists so the first-run wizard and admin tests can run.
+Adding a fixture means naming it here on purpose — which is the point."""
+regexes = [
+  '''a-Strong-passphrase-9''',
+  '''a-fine-passphrase-1234''',
+  '''correct-horse-battery-staple-42''',
+  '''old-Passphrase-9''',
+  '''aX9!mnpq2ffz''',
+  '''a-literal-password''',
+  '''correct horse battery staple''',
+  '''a-drill-migrator-passphrase-1''',
+  '''a-fine-password-1234''',
+  '''solitude-92''',
+]
 
 [[allowlists]]
 description = "False positive: the literal phrase 'SHA-256-digest' in a design doc is not a key"
 regexes = ['''SHA-256-digest''']
+
+# The class that actually leaked, added as a first-class rule. gitleaks' own generic-api-key
+# needs a credential keyword adjacent to a HIGH-ENTROPY value, so `PW = "a-word-someone-chose"`
+# never matched — which is exactly the shape a person commits. Low entropy is the point here,
+# so this rule has no entropy floor and accepts a short human-readable value.
+[[rules]]
+id = "backyard-generic-password-assignment"
+description = "A credential-shaped name assigned a quoted literal, at any entropy"
+regex = '''(?i)\b(pw|passwd|password|passphrase|secret|credential)\b\s*[:=]\s*["']([^"'\n]{6,})["']'''
+# The VALUE, not the whole `password = "..."` match, so the synthetic-fixture allowlist
+# above compares against the credential itself rather than the surrounding syntax.
+secretGroup = 2
+tags = ["password", "generic"]
+
+[[allowlists]]
+description = """False positives of the generic-password rule, enumerated by value.
+migrator_pw / app_pw are psql VARIABLE NAMES in postgres/initdb/01-roles.sh
+(PASSWORD :'migrator_pw'), interpolated from required env vars -- not credentials.
+hunter2 and a-password-a-person-chose are deliberate plants in this repo's own guard tests
+and in the CI selftest. The angle-bracket forms are redaction placeholders written where a
+real credential used to be quoted, so the rule that finds credentials also finds the marker
+left behind when one is removed."""
+regexes = [
+  '''migrator_pw''',
+  '''app_pw''',
+  '''hunter2''',
+  '''a-password-a-person-chose''',
+  '''<[^>]*[Pp]assword[^>]*>''',
+  '''<a low-entropy literal>''',
+  '''<a literal default>''',
+]
+
+[[allowlists]]
+description = """THE BURNED PRODUCTION PASSWORD -- in this repo's history permanently.
+Allowlisted for one reason: `git push --force` is deny-listed in this environment, so history
+cannot be rewritten, and a gate that can never go green is a gate people route around.
+Redaction is NOT the remediation. ROTATION is, and it is operator action #1 in
+docs/RESUME-HERE.md.
+This entry covers HISTORY ONLY. It does not protect the working tree: if the value reappears
+in any tracked file, test_no_burned_credential_reappears_in_any_tracked_file fails -- the
+guard that would have caught all three times it came back after being "removed". Never add a
+value here to silence that test."""
+regexes = ['''backyard-qa-2026''']
