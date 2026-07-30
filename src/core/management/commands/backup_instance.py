@@ -18,8 +18,10 @@ from pathlib import Path
 from typing import Any
 
 from django.core.management.base import BaseCommand, CommandError
+from django.db import DatabaseError
 
 from core import backup_crypto, backups
+from core.models import BackupRun
 
 ENV_VAR = "BACKYARD_BACKUP_PASSPHRASE"
 
@@ -150,6 +152,20 @@ class Command(BaseCommand):
             raise CommandError(str(exc)) from exc
 
         shape = "PLAINTEXT" if options["no_encrypt"] else "encrypted"
-        self.stdout.write(
-            f"instance backup written ({shape}): {output} ({output.stat().st_size} bytes)"
-        )
+        byte_count = output.stat().st_size
+
+        # Recorded AFTER the rename and the decrypt check, never before (S-806): a row
+        # written on entry would make a crashed or undecryptable backup look successful,
+        # and the health email's "last backup" line would then reassure an operator about
+        # a backup that does not exist. A failure to record must not fail the backup
+        # itself — the archive on disk is the thing that matters.
+        try:
+            BackupRun.objects.create(byte_count=byte_count, encrypted=not options["no_encrypt"])
+        except DatabaseError as exc:  # pragma: no cover - the archive is already safe
+            self.stderr.write(
+                self.style.WARNING(
+                    f"backup written, but recording it for the health email failed: {exc}"
+                )
+            )
+
+        self.stdout.write(f"instance backup written ({shape}): {output} ({byte_count} bytes)")

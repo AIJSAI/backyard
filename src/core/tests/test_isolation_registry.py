@@ -43,6 +43,14 @@ _ISOLATION_EXEMPT: dict[str, str] = {
     "YardWeekMetrics": "instance-admin-only counts-only aggregate (S-705); no per-person content",
     "PodWeekMetrics": "instance-admin-only counts-only aggregate (S-705); no per-person content",
     "MemberWeekPresence": "instance-admin-only KPI presence input (S-705); an aggregate",
+    "BackupRun": (
+        "instance-level ops record (S-806): a timestamp and a byte count, "
+        "no member data at all, no read route"
+    ),
+    "DomainStatus": (
+        "instance-level ops record (S-806): the instance's OWN domain expiry, "
+        "no member data, no read route"
+    ),
 }
 
 

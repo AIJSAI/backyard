@@ -599,6 +599,58 @@ class InviteRedemption(models.Model):
         return f"{self.member} joined via invite {self.invite_id}"
 
 
+class BackupRun(models.Model):
+    """One completed backup (S-806, T-MON-1).
+
+    Nothing recorded that a backup had ever run, so "last-backup age" — the first field
+    T-MON-1's health email asks for — was not answerable at all. A dead backup cron was
+    indistinguishable from a healthy one, which is precisely the "nothing is watching"
+    condition that gives every other threat unlimited dwell time.
+
+    Written by the backup command AFTER the archive is complete, never before: a row
+    written on entry would make a crashed backup look like a successful one, which is
+    worse than no row at all.
+    """
+
+    finished_at = models.DateTimeField(auto_now_add=True)
+    byte_count = models.BigIntegerField()
+    encrypted = models.BooleanField()
+
+    class Meta:
+        ordering = ["-finished_at"]
+
+    def __str__(self) -> str:
+        kind = "encrypted" if self.encrypted else "PLAINTEXT"
+        return f"{kind} backup of {self.byte_count} bytes at {self.finished_at:%Y-%m-%d %H:%M}"
+
+
+class DomainStatus(models.Model):
+    """The instance domain's expiry, refreshed on the worker (S-806, T-OP-G4).
+
+    A lapsed domain hands every printed QR and bookmarked elder link to a squatter, and a
+    bearer URL cannot be bound to the new-versus-old host — so renewal discipline plus
+    detection is the whole control. This row is the detection half.
+
+    Cached rather than looked up when the email is built: an outbound lookup inside the
+    send path would make a registry outage a missing health email, which is the one moment
+    the operator most needs to hear from the instance. `checked_at` and `error` make a
+    STALE answer visible as stale instead of passing an old number off as current.
+    """
+
+    domain = models.CharField(max_length=253, unique=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    checked_at = models.DateTimeField(null=True, blank=True)
+    error = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        verbose_name_plural = "domain statuses"
+
+    def __str__(self) -> str:
+        return (
+            f"{self.domain} expires {self.expires_at:%Y-%m-%d}" if self.expires_at else self.domain
+        )
+
+
 class DigestSubscription(models.Model):
     """A member's digest enrollment (S-501): where, how often, and whether at all.
 

@@ -47,6 +47,48 @@ def rollup_metrics_task(timestamp: int) -> None:
         rollup_week(yard, week_start)
 
 
+@app.periodic(cron="20 7 * * 1")  # Mondays 07:20, after the metrics rollup
+@app.task(name="send_health_email")
+def send_health_email_task(timestamp: int) -> None:
+    """The weekly admin health email (S-806, T-MON-1): a dead backup cron or a filling
+    disk must not go unnoticed for months."""
+    from . import health_email
+
+    result = health_email.send_health_emails()
+    logger.info(
+        "health email sent=%s skipped_no_confirmed_address=%s alarming=%s",
+        result.sent,
+        result.skipped_no_confirmed_address,
+        result.alarming,
+    )
+    if result.sent == 0:
+        # The one failure mode that silences the thing whose job is to break silence.
+        logger.warning(
+            "NOBODY received the health email: no instance admin has a digest "
+            "subscription that is both ENABLED and CONFIRMED. An admin who confirmed an "
+            "address and then turned the digest off is also excluded — the send path "
+            "filters on enabled=True AND confirmed_at, so 'they confirmed it' is not "
+            "enough. See docs/runbooks/handover.md"
+        )
+
+
+@app.periodic(cron="40 6 * * 1")  # Mondays 06:40, before the health email reads it
+@app.task(name="refresh_domain_status")
+def refresh_domain_status_task(timestamp: int) -> None:
+    """Refresh the cached domain expiry (S-806, T-OP-G4). On the WORKER, never the edge
+    (S-725): a hanging registry must not hold a web process, and a failure degrades one
+    field rather than the whole email."""
+    from . import domain_expiry
+
+    status = domain_expiry.refresh()
+    logger.info(
+        "domain status refreshed domain=%s expires_at=%s error=%r",
+        status.domain,
+        status.expires_at,
+        status.error,
+    )
+
+
 @app.periodic(cron="15 4 * * *")  # daily 04:15
 @app.task(name="clear_sessions")
 def clear_sessions_task(timestamp: int) -> None:

@@ -13,6 +13,25 @@ exercise. Where something is unfinished, it says so rather than being left out.
 - **A Linux box with a public IP.** Two vCPU and 2 GB RAM is comfortable for a family of
   40. Video transcoding is the only hungry part, and it runs one job at a time on purpose.
 - **A domain name** you can point at that box. Backyard serves one domain.
+
+  **Treat the domain as a family asset, not a subscription** (threat row T-OP-G4). Every
+  printed QR code, every bookmarked elder link and every link in an old digest points at
+  this hostname, and a bearer URL cannot tell your host from the next one — so if the
+  registration lapses, whoever re-registers it inherits *working* credentials and can stand
+  up a convincing phishing surface plus your family's mail. That is the single worst
+  outcome available to a self-hoster here, and it happens by forgetting rather than by
+  attack. So, at registration time and not later:
+
+  | | |
+  |---|---|
+  | Auto-renew | **on**, with a payment method that outlives one person's expiring card |
+  | Term | **multi-year**, not annual |
+  | Registrar lock | **on**, so no transfer happens unasked |
+  | Account access | **two people**, not one |
+
+  The instance watches it for you: the weekly health email reports **domain days-remaining**
+  and flags it inside 45 days. Write the registrar, the login and the renewal date on the
+  [succession sheet](backup-recovery-sheet.md).
 - **Docker** with the Compose plugin.
 - **~4× your media in disk.** The instance holds your photos, a backup holds them again,
   and a restore stages a third copy briefly.
