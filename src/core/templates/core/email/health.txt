@@ -1,0 +1,12 @@
+This is the weekly health check for {{ domain }}. Nothing here needs doing unless a
+line is marked [!].
+
+{% for field in fields %}{% if field.alarming %}[!] {% else %}    {% endif %}{{ field.label }}: {{ field.value }}
+{% endfor %}
+{% if alarming %}The lines marked [!] want your attention.
+{% else %}Nothing above needs attention this week.
+{% endif %}
+This is instance health, not activity: it never reports who posted, read, or signed in.
+
+Backup and restore: docs/runbooks/backup-restore.md
+Handing this instance to someone else: docs/runbooks/handover.md

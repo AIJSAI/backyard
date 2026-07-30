@@ -197,6 +197,17 @@ def restore_backup(source: IO[bytes], *, force: bool) -> dict[str, int]:
         ) from exc
 
 
+def revoke_every_credential() -> dict[str, int]:
+    """Kill every bearer credential on the instance. ONE implementation, two callers.
+
+    A restore calls it so it cannot resurrect a revoked token (TM-7 / T-OP-G5); a
+    decommission calls it so a shut-down instance's printed QRs and bookmarked elder links
+    stop working before the volumes go (S-804). A second implementation for the second
+    caller is exactly how one of them would come to miss a credential class.
+    """
+    return _forced_security_replay()
+
+
 def _forced_security_replay() -> dict[str, int]:
     """The TM-7 / T-OP-G5 forced security-replay: a restore ends here so it can never
     silently resurrect a revoked token or an expelled ex-partner's live link. It kills every

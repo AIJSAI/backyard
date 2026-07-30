@@ -842,6 +842,37 @@ epics:
     status: passing
     v1: true
     evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-806
+    epic: E8
+    persona: self-hoster
+    story: "As the family tech person, a weekly health email tells me the instance is still healthy, so it cannot die of neglect without warning."
+    acceptance:
+    - "A weekly admin email over the S-501 delivery machinery reporting last-backup age, disk headroom, and domain days-remaining"
+    - "A field with no instrumentation is reported as NOT MEASURED, never omitted, so a silent gap cannot read as healthy"
+    - "The domain lookup runs on the worker, never the edge process, and a failure degrades the field rather than the email"
+    - "Nothing in it is per-person activity: it is instance health, not surveillance (P1)"
+    status: passing     # S-806 close 2026-07-29. T-MON-1 is rated HIGH and its stated
+                        # mitigation did not exist at all — no health email, no story, and
+                        # S-804's acceptance referenced it as though built. Of the five
+                        # fields T-MON-1 names, only disk headroom was computable: nothing
+                        # recorded that a backup had ever run, so a dead cron was
+                        # indistinguishable from a healthy one. BackupRun records completed
+                        # backups (AFTER the rename and decrypt check, so a crashed backup
+                        # never looks successful); DomainStatus caches the RDAP expiry,
+                        # refreshed on the WORKER (S-725) and keeping its last good value
+                        # when a lookup fails. The load-bearing rule is the NEGATIVE one:
+                        # a field with no instrumentation reads NOT MEASURED, never omitted,
+                        # because an email that silently drops a signal reads as "fine" —
+                        # the exact T-MON-1 failure wearing a feature's costume. Four probes,
+                        # each failing the right test. Two real bugs found by the tests: a
+                        # backup taken seconds ago rendered "-1 days ago", and disk headroom
+                        # died outright when MEDIA_ROOT did not exist yet (making a healthy
+                        # instance shout). Live RDAP against the real domain: expires
+                        # 2027-07-20, and a transient timeout during testing demonstrated
+                        # the graceful degradation working.
+    v1: false
+    evidence: src/core/tests/test_health_email.py + docs/receipts/2026-07-29-s804-s806-succession.md
+
   - id: S-804
     epic: E8
     persona: self-hoster
@@ -851,8 +882,25 @@ epics:
     - a handover runbook rotates every secret, regenerates all tokens, and transfers registrar and host accounts
     - the wizard's recovery sheet is a succession sheet naming a second admin, registrar and VPS accounts, and the backup passphrase location
     - deploy docs treat the domain as a family asset (auto-renew, multi-year, registrar lock) and the health email reports domain days-remaining
-    status: spec
+    status: passing     # S-804 close 2026-07-29. The threat model calls single-maintainer
+                        # abandonment the likeliest way this instance ends, so the ORDER is
+                        # the safety property: manage.py decommission_instance exports for
+                        # at least two NAMED members FIRST, then revokes every credential
+                        # while the box is still up to answer an old bearer URL with a 404
+                        # (T-OP-G4), and refuses to pretend it destroyed volumes or provider
+                        # snapshots — that needs credentials this process has no business
+                        # holding. Revocation is the SAME implementation a restore uses
+                        # (backups.revoke_every_credential), because two would let one miss
+                        # a credential class. It refuses on no confirmation, one custodian,
+                        # the same name twice, an unknown name and an ambiguous name, and
+                        # writes NOTHING when it refuses — all driven live. handover.md and
+                        # shutdown.md are the two runbooks; backup-recovery-sheet.md is now
+                        # a SUCCESSION sheet naming the second admin, the registrar, the
+                        # host and where the off-box copy lives; self-host.md treats the
+                        # domain as a family asset. The health-email half needed S-806,
+                        # which did not exist and is built alongside.
     v1: false
+    evidence: src/core/tests/test_decommission.py + docs/runbooks/handover.md + docs/runbooks/shutdown.md + docs/receipts/2026-07-29-s804-s806-succession.md
     security:
       threat_refs:
       - TM-7
