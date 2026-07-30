@@ -25,11 +25,19 @@ crossed to test it.
     docker compose exec -T -e BACKYARD_DEMO_WIPE=1 web sh -c \
       'DJANGO_SECRET_KEY=$(cat /data/secret_key) python manage.py shell' < scripts/demo_seed.py
 
-Seeded logins (`priya`, `sam`, `dave`) share one throwaway password, printed in the
-script. `sam` and `dave` sit on OPPOSITE sides — that pair is what makes section D real.
-The elder token is printed when the seed runs.
+Seeded logins (`priya`, `sam`, `dave`) share one throwaway password. **It is generated on
+each run and printed as the last line — `DEMO_PASSWORD=…` — and that is the only copy.**
+Keep the seed output in front of you, or re-run the seed to mint a new one. Your own account
+keeps the password it already had. `sam` and `dave` sit on OPPOSITE sides, and that pair is
+what makes section D real. The elder token prints on the same run.
 
-**Wipe it before the first invite.** These are disposable accounts with a known password.
+It used to be a fixed password written into the script, which meant it was also written into
+the **public** repository — and it worked, that minute, on the live instance. Anyone reading
+the repo could sign in. Fixed, and guarded by
+`src/core/tests/test_no_hardcoded_demo_credentials.py` so it cannot come back.
+
+**Wipe before the first invite anyway.** Disposable accounts on a real instance are still
+accounts on a real instance.
 
 ## Before you start: the one thing that will lie to you
 
