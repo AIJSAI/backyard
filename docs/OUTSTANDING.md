@@ -14,8 +14,9 @@ State at the time of writing: `main` = `ffe6196` · 0 open PRs · **799 passing 
 
 ## 0. Do these first — a person has to, on the box
 
-An agent session cannot: the command classifier refuses `docker compose exec … manage.py
-shell`. Commands are in [`RESUME-HERE.md`](RESUME-HERE.md) under "Operator actions waiting".
+An agent session cannot do these: the command classifier refuses
+`docker compose exec … manage.py shell`. The commands are in
+[`RESUME-HERE.md`](RESUME-HERE.md) under "Operator actions waiting".
 
 | # | Action | Why it is first |
 |---|---|---|

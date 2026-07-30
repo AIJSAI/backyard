@@ -1,4 +1,4 @@
-# Resume here — session state, 2026-07-29
+# Resume here — session state, 2026-07-30
 
 Written to survive a context compaction. Read this, then **[`docs/OUTSTANDING.md`](OUTSTANDING.md)
 — the single ranked list of everything not done** — then `docs/PATH-TO-100.md`. Verify with a
