@@ -423,13 +423,17 @@ def _bridging_post(two_yards: dict[str, object]) -> Post:
     """A post from the bridging household addressed to BOTH sides -- legitimately visible
     to every member, and the only shape where the leak can occur."""
     bridge_member = two_yards["bridge_member"]
+    maternal, paternal = two_yards["maternal"], two_yards["paternal"]
     assert isinstance(bridge_member, Member)
+    assert isinstance(maternal, Yard) and isinstance(paternal, Yard)
+    bridge_pod = bridge_member.pods.first()
+    assert bridge_pod is not None
     post = Post.objects.create(
         author=bridge_member,
-        pod=bridge_member.pods.first(),
+        pod=bridge_pod,
         body="A photo for both sides of the family",
     )
-    post.audience_yards.set([two_yards["maternal"], two_yards["paternal"]])
+    post.audience_yards.set([maternal, paternal])
     return post
 
 
