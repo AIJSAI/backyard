@@ -73,4 +73,7 @@ gate, and it has not happened. Treat this as "reproducible enough to read and tr
   per-member generation so one revocation kills every derived credential on its next use.
 - Dependency CVE scanning, SAST and secret scanning run on every push.
 
-[0.1.0]: https://github.com/AIJSAI/backyard/releases/tag/v0.1.0
+<!-- Points at the tag's tree rather than a Releases page: a bare annotated tag always renders
+     here, whereas /releases/tag/ depends on a Release object existing, and publishing GHCR
+     images and formal releases is still Phase 5 work. -->
+[0.1.0]: https://github.com/AIJSAI/backyard/tree/v0.1.0

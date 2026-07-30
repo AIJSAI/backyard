@@ -26,7 +26,11 @@ BASE = os.environ.get("BACKYARD_BASE_URL", "http://localhost:8000")
 # env var's clothes. See src/core/tests/test_no_hardcoded_demo_credentials.py.
 DEMO_PW = os.environ.get("BACKYARD_DEMO_PASSWORD")
 if not DEMO_PW:
-    raise SystemExit("Set BACKYARD_DEMO_PASSWORD to the DEMO_PASSWORD seed_demo.py printed.")
+    raise SystemExit(
+        "Set BACKYARD_DEMO_PASSWORD to the password seed_demo.py used. It writes it to "
+        '/data/seed_manifest.json (the "password" field) and prints only counts, so read it '
+        "from there — or set BACKYARD_DEMO_PASSWORD for both scripts and skip the lookup."
+    )
 # Was hardcoded to one machine's per-session scratch dir, so this committed tool could not run
 # for anyone else - including a later session on the same machine.
 ROOT = pathlib.Path(os.environ.get("BACKYARD_CAPTURE_DIR", "/tmp/backyard-capture"))
