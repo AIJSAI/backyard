@@ -11,3 +11,7 @@ staticfiles/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Fetched, never vendored: scripts/axe_sweep.py documents the pinned URL, and a
+# 553KB minified third-party blob does not belong in a family app's history.
+scripts/axe.min.js
