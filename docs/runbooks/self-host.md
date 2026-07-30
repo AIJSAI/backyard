@@ -201,6 +201,32 @@ Read the release notes before pulling. This is pre-1.0: it is not yet promised t
 upgrade is seamless, only that your data survives it (there is a CI guard that migrates a
 database seeded at the oldest schema all the way to head).
 
+### One-off, if your instance predates 2026-07-30
+
+Postgres runs the scripts in `postgres/initdb/` **only when it initialises an empty data
+directory**. So role-level settings added after your instance was created never reach it,
+and pulling alone will not apply them. There is exactly one so far -- a query timeout that
+stops a pathological query wedging every worker:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres \
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+  "ALTER ROLE backyard_app SET statement_timeout = '15s';
+   ALTER ROLE backyard_migrator SET statement_timeout = 0;"
+```
+
+Check it took -- an upgrade step nobody verifies is an upgrade step nobody did:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres \
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
+  "select rolname, rolconfig from pg_roles where rolname like 'backyard_%';"
+# backyard_migrator|{statement_timeout=0}
+# backyard_app|{statement_timeout=15s}
+```
+
+A fresh install gets this automatically and needs nothing.
+
 ---
 
 ## Monitoring
