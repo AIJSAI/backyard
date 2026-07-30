@@ -208,19 +208,25 @@ directory**. So role-level settings added after your instance was created never 
 and pulling alone will not apply them. There is exactly one so far -- a query timeout that
 stops a pathological query wedging every worker:
 
+Note the `sh -c`. `$POSTGRES_USER` and `$POSTGRES_DB` exist **inside the container**, not in
+your shell: compose reads `.env` for its own substitution and does not export those into your
+session, so the obvious-looking version runs `psql -U ""` and fails confusingly. Verified on a
+real box — `echo $POSTGRES_USER` on the host prints nothing; inside the container it prints
+the user. `ON_ERROR_STOP=1` so a failure cannot be mistaken for success.
+
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres \
-  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
-  "ALTER ROLE backyard_app SET statement_timeout = '15s';
-   ALTER ROLE backyard_migrator SET statement_timeout = 0;"
+  sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+    ALTER ROLE backyard_app SET statement_timeout = '"'"'15s'"'"';
+    ALTER ROLE backyard_migrator SET statement_timeout = 0;"'
 ```
 
 Check it took -- an upgrade step nobody verifies is an upgrade step nobody did:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres \
-  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
-  "select rolname, rolconfig from pg_roles where rolname like 'backyard_%';"
+  sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
+    "select rolname, rolconfig from pg_roles where rolname like '"'"'backyard_%'"'"';"'
 # backyard_migrator|{statement_timeout=0}
 # backyard_app|{statement_timeout=15s}
 ```
