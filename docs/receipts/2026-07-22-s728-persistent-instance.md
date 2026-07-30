@@ -8,7 +8,7 @@ the precondition for the `tested → passing` loop and founder QA.
 ## What is live
 
 - **VM:** Ubicloud `backyard` in **us-east-a2** (closest US region for the Omaha founding family) —
-  `ubuntu-noble` (24.04.2 LTS), `standard-2` (2 vCPU / 7.8 GiB), 40 GiB. Public IPv4 `108.62.118.152`.
+  `ubuntu-noble` (24.04.2 LTS), `standard-2` (2 vCPU / 7.8 GiB), 40 GiB. Public IPv4 `<instance IPv4, redacted>`.
   Provisioned via the Ubicloud REST API (`POST /project/{id}/location/us-east-a2/vm/backyard`).
 - **DNS:** `backyard.family` A → the VM (Cloudflare, DNS-only so Caddy owns TLS).
 - **TLS:** Caddy fetched a **Let's Encrypt** cert automatically (valid to Oct 20 2026, auto-renewing).

@@ -81,7 +81,7 @@ make setup-secret  # prints the one-time first-admin secret from the web logs
 ## B. Persistent instance deploy + the tested→passing loop (step 5)
 
 > **VERIFIED 2026-07-22** — the instance is live at https://backyard.family (Ubicloud us-east-a2,
-> `108.62.118.152`). Receipt: `docs/receipts/2026-07-22-s728-persistent-instance.md`. All secrets via
+> `$BACKYARD_HOST`). Receipt: `docs/receipts/2026-07-22-s728-persistent-instance.md`. All secrets via
 > `op read "op://Backyard/…"` (Ubicloud API, Cloudflare DNS Token, Resend, first-admin secret). Run
 > multi-value shell loops under **bash**, not zsh (zsh does not word-split unquoted `$var`), and use
 > `/usr/bin/curl` (curl is not on the zsh-eval PATH).
