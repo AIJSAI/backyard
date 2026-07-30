@@ -207,31 +207,42 @@ jobs:
             || { echo "gitleaks checksum mismatch"; exit 1; }
           tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
           sudo install /tmp/gitleaks /usr/local/bin/gitleaks
-      - name: Selftest, against THIS repo's config and inside its most-exempted path
-        # Rewritten 2026-07-30. The previous version planted a key in a bare $RUNNER_TEMP
-        # repo with no .gitleaks.toml, so gitleaks discovered no config and the selftest
-        # exercised the DEFAULT ruleset. It therefore proved the BINARY works and could
-        # never observe a mistake in our own config -- while our config was allowlisting
-        # the whole of src/core/tests/, where a live credential then sat unreported.
-        # A selftest that validates a configuration nothing ships is worse than none: it
-        # manufactures confidence. This one plants inside a copy of the real tree, in the
-        # directory most likely to be exempted, and passes -c explicitly.
+      - name: Selftest, per-rule, against THIS repo's config and its most-exempted path
+        # Rewritten twice. Version 1 planted in a bare $RUNNER_TEMP repo with no
+        # .gitleaks.toml, so gitleaks discovered no config and the selftest exercised the
+        # DEFAULT ruleset -- proving the binary works while our own config hid a live
+        # credential. Version 2 planted inside the real tree but used a password value that
+        # our own allowlist exempts, so the AWS half alone made the gate fail and the
+        # low-entropy half proved nothing. Review caught that; it is the same wrong-class
+        # defect this job exists to prevent, twice.
+        #
+        # So: assert PER RULE. Each plant must be attributed to the specific rule that is
+        # supposed to catch it, or one half can never silently carry the other.
         run: |
           set -euo pipefail
           probe="$RUNNER_TEMP/leakprobe"
           rm -rf "$probe" && cp -r . "$probe" && cd "$probe"
-          # Two plants: a provider-shaped key (the class gitleaks was built for) and a
-          # low-entropy human password (the class that actually leaked here).
-          printf 'aws_access_key_id = AKIA''Q3EGRIJKZVYWXHNM\n' > src/core/tests/test_zz_leak_probe.py
-          printf '%s = "%s"\n' PW a-password-a-person-chose >> src/core/tests/test_zz_leak_probe.py
+          # Provider-shaped key -> must be caught by gitleaks' own aws rule.
+          # Low-entropy human password, deliberately NOT in our allowlist -> must be caught
+          # by our backyard-generic-password-assignment rule. That is the class that leaked.
+          printf 'aws_access_key_id = AKIA''Q3EGRIJKZVYWXHNM\n' > src/core/tests/test_zz_probe.py
+          printf '%s = "%s"\n' PW sunflower-kitchen-tuesday >> src/core/tests/test_zz_probe.py
           git config user.email ci@local && git config user.name ci
-          git add -f src/core/tests/test_zz_leak_probe.py
+          git add -f src/core/tests/test_zz_probe.py
           git commit -qm "plant (selftest, never pushed)"
-          if gitleaks git --no-banner --redact -c "$probe/.gitleaks.toml" "$probe" >/dev/null 2>&1; then
-            echo "VACUOUS GATE: this repo's gitleaks config did not catch a planted secret" >&2
-            echo "in src/core/tests/ -- check .gitleaks.toml allowlists." >&2
-            exit 1
-          fi
+          gitleaks git --no-banner -c "$probe/.gitleaks.toml" -f json -r "$probe/out.json" "$probe" || true
+          python3 - "$probe/out.json" <<'PY'
+          import json, sys
+          rules = {f["RuleID"] for f in json.load(open(sys.argv[1]))}
+          required = {"aws-access-token", "backyard-generic-password-assignment"}
+          missing = required - rules
+          if missing:
+              print(f"VACUOUS GATE: this repo's gitleaks config did not fire {sorted(missing)} "
+                    f"on a plant in src/core/tests/. Rules that did fire: {sorted(rules)}",
+                    file=sys.stderr)
+              raise SystemExit(1)
+          print(f"gate proven per-rule: {sorted(required)}")
+          PY
       - name: Scan full history
         # -c is explicit rather than discovered, so this and the selftest above can
         # never diverge on which ruleset they used.

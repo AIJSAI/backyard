@@ -63,15 +63,14 @@ tags = ["password", "generic"]
 description = """False positives of the generic-password rule, enumerated by value.
 migrator_pw / app_pw are psql VARIABLE NAMES in postgres/initdb/01-roles.sh
 (PASSWORD :'migrator_pw'), interpolated from required env vars -- not credentials.
-hunter2 and a-password-a-person-chose are deliberate plants in this repo's own guard tests
-and in the CI selftest. The angle-bracket forms are redaction placeholders written where a
+hunter2 is a deliberate plant in this repo's own guard tests. The CI selftest's password
+plant is deliberately NOT allowlisted -- allowlisting it made that half of the proof vacuous. The angle-bracket forms are redaction placeholders written where a
 real credential used to be quoted, so the rule that finds credentials also finds the marker
 left behind when one is removed."""
 regexes = [
   '''migrator_pw''',
   '''app_pw''',
   '''hunter2''',
-  '''a-password-a-person-chose''',
   '''<[^>]*[Pp]assword[^>]*>''',
   '''<a low-entropy literal>''',
   '''<a literal default>''',
@@ -83,8 +82,16 @@ Allowlisted for one reason: `git push --force` is deny-listed in this environmen
 cannot be rewritten, and a gate that can never go green is a gate people route around.
 Redaction is NOT the remediation. ROTATION is, and it is operator action #1 in
 docs/RESUME-HERE.md.
-This entry covers HISTORY ONLY. It does not protect the working tree: if the value reappears
-in any tracked file, test_no_burned_credential_reappears_in_any_tracked_file fails -- the
-guard that would have caught all three times it came back after being "removed". Never add a
-value here to silence that test."""
-regexes = ['''backyard-qa-2026''']
+IMPORTANT, and corrected after review: a gitleaks allowlist applies to EVERY scan mode, not
+just history. So this entry also stops gitleaks reporting the value if it is reintroduced into
+a new file. Do not read it as history-only protection -- gitleaks will NOT catch a
+reintroduction of this specific value.
+
+What catches that is test_no_burned_credential_reappears_in_any_tracked_file in
+src/core/tests/test_no_hardcoded_demo_credentials.py, which greps every tracked file, code and
+prose, for exactly these burned values. That test is the load-bearing guard here, and it is the
+one that would have caught all three times this value came back after being "removed". Never
+add a value to that test's allowlist to make it pass."""
+# Written as a PATTERN, not the literal, so this file does not itself republish the value --
+# which the burned-credential test correctly flagged when it started scanning .toml files.
+regexes = ['''backyard-qa-20[0-9]{2}''']

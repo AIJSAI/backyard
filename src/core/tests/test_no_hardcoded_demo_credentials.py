@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import ast
 import pathlib
+import subprocess
 
 # "key" is deliberately absent: it collides with dictionary-key locals and would make the
 # guard noisy enough that someone eventually allowlists their way around it.
@@ -142,6 +143,29 @@ def _doc_files() -> list[pathlib.Path]:
     return files
 
 
+def _tracked_files() -> list[pathlib.Path]:
+    """Files git actually tracks, because "tracked" is what the disclosure claim is about.
+
+    Said "tracked" while walking the filesystem before review pointed it out: `rglob` picks up
+    untracked local work (agent worktrees, a local .env, __pycache__) and would fail the build
+    on files that were never published, which is how a real guard gets dismissed as noisy.
+    Falls back to the filesystem walk when there is no git -- a source tarball still gets
+    checked, just less precisely.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "-z"],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return _scanned_files() + _doc_files()
+    paths = [_REPO_ROOT / rel for rel in out.split("\0") if rel]
+    return [p for p in paths if p.suffix in {".py", ".md", ".yml", ".yaml", ".toml", ".sh"}]
+
+
 def test_every_scanned_directory_actually_has_files() -> None:
     """Per-directory, not a global count.
 
@@ -154,7 +178,10 @@ def test_every_scanned_directory_actually_has_files() -> None:
         root = _REPO_ROOT / directory
         assert root.is_dir(), f"{directory} is gone -- the guard's scope shrank silently"
         pattern = "*.md" if directory in _SCANNED_DOC_DIRS else "*.py"
-        assert list(root.rglob(pattern)), f"{directory} matched no {pattern} files"
+        # next(), not list(): this only has to prove non-emptiness, and `src/` is a big walk.
+        assert next(root.rglob(pattern), None) is not None, (
+            f"{directory} matched no {pattern} files"
+        )
 
 
 def test_the_seed_and_qa_tooling_carries_no_credential_literal() -> None:
@@ -177,7 +204,7 @@ def test_no_burned_credential_reappears_in_any_tracked_file() -> None:
     is invisible to both an `ast` check and to a scanner tuned for high entropy.
     """
     hits: list[str] = []
-    for path in _scanned_files() + _doc_files():
+    for path in _tracked_files():
         rel = path.relative_to(_REPO_ROOT).as_posix()
         if rel == "src/core/tests/test_no_hardcoded_demo_credentials.py":
             continue  # this file names them, split, in _BURNED_CREDENTIALS
