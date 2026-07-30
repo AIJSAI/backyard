@@ -49,8 +49,9 @@ _MAX_PARTS = 20
 # Python's recursion limit while leaving ordinary mail (a forwarded thread with a signature
 # and an attachment nests perhaps 3-4 deep) untouched.
 _MAX_PART_DEPTH = 20
-# Malformed-quarantine rows an hour, instance-wide. They are written BEFORE any capability
-# check, so this is the only thing bounding an unauthenticated writer.
+# Malformed-quarantine rows an hour, INSTANCE-WIDE -- one global counter, not per sender,
+# because a malformed message has no trustworthy sender to key on. They are written before
+# any capability check, so this is the only thing bounding an unauthenticated writer.
 _MALFORMED_ROWS_PER_HOUR = 50
 _MAX_BODY_CHARS = 2000  # a reply is a comment; the composer's cap applies
 _EXCERPT_CHARS = 500  # what a quarantine row retains for the admin
@@ -176,21 +177,30 @@ def _strip_control(text: str) -> str:
     return "".join(ch for ch in text if ch in ("\n", "\t") or ch.isprintable())
 
 
-def _malformed_quota_exhausted() -> bool:
-    """True once this hour's malformed-quarantine budget is spent.
+def _quarantine_malformed() -> InboundResult:
+    """Record a malformed message, up to an hourly instance-wide budget.
 
-    Counts in the shared cache rather than the database, so the cheap path for an abusive
-    sender stays cheap: no row, no write, no growth.
+    The quota lives HERE, on the malformed path, and not at the top of process_inbound.
+    The first version gated every inbound message and incremented on each one, so after
+    _MALFORMED_ROWS_PER_HOUR messages of ANY kind the next legitimate family reply was
+    returned as "quarantined" and dropped -- a self-inflicted denial of service on
+    reply-by-email, strictly worse than the unbounded table it was meant to fix. Proven by
+    probe: 50 oversized messages, then a normal one came back "quarantined" instead of
+    "bounced".
+
+    Counted in the shared cache rather than the database, so once the budget is spent an
+    abusive sender costs no write at all. The outcome stays "quarantined" either way: the
+    message really was refused, and only the bookkeeping is skipped.
     """
     key = "inbound-malformed-quota"
     used = cache.get_or_set(key, 0, timeout=3600)
     if used >= _MALFORMED_ROWS_PER_HOUR:  # type: ignore[operator]
-        return True
+        return InboundResult(outcome="quarantined")
     try:
         cache.incr(key)
     except ValueError:  # culled between get_or_set and incr; restart the window
         cache.set(key, 1, timeout=3600)
-    return False
+    return _quarantine(InboundQuarantine.MALFORMED)
 
 
 def _boundary_depth_exceeds(raw: bytes, limit: int) -> bool:
@@ -214,18 +224,8 @@ def process_inbound(raw: bytes, *, envelope_recipient: str = "") -> InboundResul
     raw-bytes sources (fixture, a future IMAP poll) pass it empty and fall back
     to the MTA-prepended header, per the mail_sources IMAP contract.
     """
-    # The malformed branches below write a DB row, and they run before any capability is
-    # resolved -- so anyone who learns the inbound address could write one row per message,
-    # for ever, on a box whose entire monitoring story is disk headroom (T-MON-1). Worse,
-    # the admin panel renders only the newest 100, so a burst pushes the genuine
-    # From-mismatch and no-separator rows -- the T-EMAIL-1 detection surface -- out of view.
-    #
-    # These rows carry no content and exist only to say "something malformed arrived", so
-    # one per hour per source is as informative as a thousand.
-    if _malformed_quota_exhausted():
-        return InboundResult(outcome="quarantined")
     if len(raw) > _MAX_MESSAGE_BYTES:
-        return _quarantine(InboundQuarantine.MALFORMED)
+        return _quarantine_malformed()
     # Depth is checked on the RAW BYTES, before the parse. TS-PP-7's depth and part caps
     # lived in _walk_capped, which runs after message_from_bytes has already built the whole
     # tree -- so a deeply nested message blew the stack before any cap was consulted.
@@ -234,14 +234,14 @@ def process_inbound(raw: bytes, *, envelope_recipient: str = "") -> InboundResul
     # propagated to Anymail -> a Django 500 -> a provider RETRY, and each retry re-ran the
     # untimed fetch: the poison-retry loop the message=None guard was added to avoid.
     if _boundary_depth_exceeds(raw, _MAX_PART_DEPTH):
-        return _quarantine(InboundQuarantine.MALFORMED)
+        return _quarantine_malformed()
     try:
         message = message_from_bytes(raw)
         body = _plain_text_of(message)
     except (ValueError, UnicodeError, LookupError, RecursionError):
         # RecursionError explicitly: a message-shaped failure must always end as a
         # quarantine row, never as a 500 the provider will retry.
-        return _quarantine(InboundQuarantine.MALFORMED)
+        return _quarantine_malformed()
 
     local_part = (
         _local_part_of(envelope_recipient) if envelope_recipient else _capability_of(message)

@@ -419,9 +419,11 @@ def test_ordinary_nesting_still_gets_through() -> None:
     """The cap must not reject real mail: a forwarded thread with a signature and an
     attachment nests a few levels deep. Without this the fix could be 'reject everything'."""
     payload = _nested_multipart(3)
-    inbound.process_inbound(payload, envelope_recipient="")
-    # No valid capability in the fixture, so this bounces rather than posting -- the point
-    # is that it got PAST the depth gate rather than being quarantined as malformed.
+    result = inbound.process_inbound(payload, envelope_recipient="")
+    # Assert the OUTCOME, not just the absence of a row: without this the test would still
+    # pass if a future change started rejecting ordinary nesting by some other route.
+    # No valid capability in the fixture, so the correct answer is a bounce.
+    assert result.outcome == "bounced"
     assert not InboundQuarantine.objects.filter(reason=InboundQuarantine.MALFORMED).exists()
 
 
@@ -443,3 +445,26 @@ def test_malformed_quarantine_rows_are_bounded_per_hour() -> None:
     # Not vacuous in the other direction: the first ones must still be recorded, or the
     # admin loses the signal entirely.
     assert written > 0
+
+
+def test_the_malformed_quota_never_drops_a_legitimate_message() -> None:
+    """The regression this quota introduced, pinned.
+
+    The first version gated EVERY inbound message and incremented on each one, so after
+    _MALFORMED_ROWS_PER_HOUR messages of any kind the next real family reply came back
+    "quarantined" and was dropped -- a self-inflicted denial of service on reply-by-email,
+    strictly worse than the unbounded table it was meant to fix.
+    """
+    oversized = b"x" * (256 * 1024 + 1)
+    for _ in range(inbound._MALFORMED_ROWS_PER_HOUR + 10):
+        inbound.process_inbound(oversized, envelope_recipient="")
+
+    ordinary = b"From: someone@example.test\nTo: r-nope@backyard.family\nSubject: hi\n\nhello\n"
+    result = inbound.process_inbound(ordinary, envelope_recipient="")
+
+    # Bounced, because the fixture carries no live capability -- NOT quarantined, which
+    # would mean a well-formed message was silently swallowed because someone else had
+    # spent the malformed budget.
+    assert result.outcome == "bounced", (
+        "a well-formed message was dropped because the malformed quota was exhausted"
+    )
