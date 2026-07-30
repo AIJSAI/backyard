@@ -419,6 +419,34 @@ The dividing line the ruling drew is cost-structure: everything whose price rise
 
 **The residual, stated plainly:** until a trigger fires, yard isolation rides on one enforced perimeter with no database net beneath it. One read path that evades both the scoped managers and the generated S-202 matrix (a `_base_manager` traversal the fixtures missed, a drive-by PR's new route, a management command, a future admin-health aggregate) is a live cross-yard leak, caught by a human noticing rather than a database refusing. The build-now items shrink that surface but do not close it. A secondary residual: the reopening triggers are wave-retro discipline, not CI, so a skipped retro silently converts "defer with trigger" into "defer forever". The triggers, the owner (the wave retro), and the full-kit rule for how RLS ships if adopted are in ADR-004.
 
-### 7.7 How section 7 binds
+### 7.8 Rows that were recorded as answered and were not (2026-07-30 audit)
+
+A five-angle security pass compared every claimed answer in this document against the code,
+and found that several rows described a control nobody had built. They are listed here rather
+than silently edited into the tables above, because "the row says it is handled" is exactly
+what stopped anyone looking.
+
+| row | what the row claimed | what was true | now |
+|---|---|---|---|
+| TS-DJ-10 | hard-fail on `DEBUG` with an https base URL **or non-localhost** | only the https half existed, and the symmetric http guard was itself gated on `not DEBUG`, so setting DEBUG switched off the check meant to catch it | DEBUG refused for any non-local base URL; hostname parsed exactly, not substring-matched |
+| TS-PP-3 | "enforce a format allowlist **at `open`**" | enforced after `img.load()`, so every auto-detected Pillow decoder ran to completion on hostile bytes first | allowlist sits between `open()` and `load()` |
+| TS-PP-7 | reject oversized messages and cap part depth **before parse** | both caps ran after `message_from_bytes` had built the tree; a 78KB nested message raised `RecursionError`, which was not in the caught tuple, and became a 500 the provider retried | depth checked on raw bytes; `RecursionError` caught |
+| TS-CO-5 | "ensure ffmpeg subprocesses do not inherit secret env" | only the file-mode half shipped; the parser children inherited the DB password, the backup passphrase and the mail key | allowlisted env for parser children |
+| TS-CO-7 | container hardening | no `cap_drop`, `security_opt`, or `read_only` anywhere | `cap_drop: ALL` + `no-new-privileges` on web and worker |
+| TS-CA-6 | "a connection that sends no headers is closed within about ten seconds" | no timeouts in either Caddyfile | `read_header 10s`, `read_body 5m` |
+| TS-PG-5 | a statement timeout | absent repo-wide | app role 15s, migrator 0 |
+| TM-7 | backups encrypt by default | true of `backup_instance`, false of the pre-flight dump written on **every boot**, three copies deep, justified by a runbook claim that no passphrase was available — while compose passes one into that container | pre-flight dump encrypted when a passphrase is present, and loud about it when not |
+| TS-EDGE-LOG | "redaction is only as good as its filter... re-run as routes change" | the mechanism was never built; two allauth routes carrying an account-takeover credential were unredacted | a test walks the live resolver and fails on any uncovered credential route |
+| T-YARD-4 | "on bridging posts, filter reactors and comments per the viewer's yard" | not implemented; a bridging post carried the other side's replies, reactor names and reply photographs | intersected with `visible_members` inside the one audience query |
+| T-ADMIN-1 | "admin roles require passkey or TOTP, enforced in the wizard" | **still not implemented** — a password-only superuser reaches every admin surface | OPEN, founder decision (see below) |
+
+**T-ADMIN-1 is deliberately still open.** Enforcing a second factor can lock the only admin
+out of their own instance, and `breakglass.py` already assumes this control exists ("a web
+'recover admin' form is exactly the front door mandatory admin 2FA closes"). The safe
+sequence is enrol-then-enforce, which is a product decision about rollout rather than a
+patch. Until it lands, T-ADMIN-1's residual is larger than this document states: the
+counterweight it prices in does not exist.
+
+## 7.7 How section 7 binds
 
 Like sections 2 and 3, this section is enforced through story acceptance criteria, not intentions. Each row's answer is either a present-config change that lands in the wave that owns the file, or a planned-surface acceptance test that the wave building the surface must pass. The [wave plan](../wave-plan.md) rule 8 makes reading the rows whose `binds` name a wave's stories part of that wave's kickoff. The present-config rows that are cheap and available now (the session-engine pin, `ATOMIC_REQUESTS`, dropping the gunicorn access log, `check --deploy` in CI, the log-rotation and role-split topology) land at the start of wave 1, which owns S-801. Nothing in this section is claimed as done; the proof is each row's named test, green in the wave that builds it.
