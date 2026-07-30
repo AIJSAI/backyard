@@ -1,0 +1,164 @@
+# Resume here — session state, 2026-07-29
+
+Written to survive a context compaction. Read this, then `docs/PATH-TO-100.md`, then verify
+with a primary check (`git log`, `gh pr list`) rather than trusting anything below.
+
+---
+
+## Where things stand
+
+| | |
+|---|---|
+| `main` | verify with `git log --oneline -1` |
+| production | `https://backyard.family`, deployed from `main` after every merge this session |
+| stories | **45 passing · 2 superseded · 2 spec** — verify with the snippet below |
+| open PRs | `gh pr list` |
+| gate | ruff + format + mypy(165) clean · **pytest 737 passed / 2 skipped** |
+
+```bash
+uv run --with pyyaml python -c "
+import re,collections,pathlib
+t=pathlib.Path('stories/stories.yaml').read_text()
+print(dict(collections.Counter(re.findall(r'status:\s*(\S+)', t))))
+blocks=re.split(r'\n(?=\s*-\s*id:)', t)
+print('spec:', [re.search(r'id:\s*(\S+)',b).group(1) for b in blocks if re.search(r'status:\s*spec\b',b)])"
+```
+
+## What is actually left
+
+**Two stories**, and they are the last `spec` entries:
+
+1. **S-904 — vCard export.** Per-member and whole-visible-directory vCard downloads
+   honouring field visibility. Small. The visibility rules already exist
+   (`profiles` + the `*_visibility` fields); the work is a serializer, a route, and tests
+   that prove a HIDDEN field never reaches a card.
+2. **S-603 — ambient photo frame.** A signed display URL that rotates recent photos on an
+   old tablet with zero interaction, plus "display heartbeat counts as an elder touch".
+   **Biggest and riskiest of everything remaining**: it is a NEW always-on bearer-credential
+   class living on a device in a room. Per the threat model, *"New capability types cannot
+   ship without registering here"* — so it needs a threat-model entry (TM-1 revocation
+   registry + a T-DISPLAY-* row) **before** code.
+
+Then: **founder manual QA** (PATH-TO-100 criterion 4) is and always was the gate.
+
+## Founder decisions made this session — do not re-litigate
+
+- **The `v1: false` flag on five stories was inherited, not decided.** `story-map.md`
+  justified it with *"None is required to pass the alpha KPI"* — a KPI the founder
+  superseded on 2026-07-22. Corrected in place; each story re-decided individually.
+- **S-706 (deceased-member state) — SUPERSEDED.** *"No to the passed away thing... it can
+  just be a deactivation from admin controls. That is not sensitive at all."*
+- **S-503 (email-photo-to-pod) — SUPERSEDED.** *"I wouldn't put too much energy into the
+  reply by email thing... it would be better if it just opened the app to where they reply."*
+- **The warm/cream palette was REJECTED on sight** as belonging to a design run already
+  turned down. The colour system is v3.1's, token for token. **Do not re-warm the ground.**
+- **Lone photos are CENTRED** in their card. Left-aligning them was tried and called.
+- **Verify design by looking at a render at 1440**, not by axe. The standing lesson: axe
+  reported 154 renders / 0 violations with every desktop defect present.
+
+## The environment recipe (non-obvious, cost real time)
+
+The compose Postgres does **not** publish 5432, so tests need their own database.
+
+```bash
+docker run -d --rm --name bk-test-pg -p 127.0.0.1:55433:5432 \
+  -e POSTGRES_DB=backyard -e POSTGRES_USER=backyard -e POSTGRES_PASSWORD=ci-not-a-secret \
+  postgres:18-alpine
+
+export DJANGO_SECRET_KEY=local-not-a-secret-deadbeef-cafe-1234567890 \
+       POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=55433 POSTGRES_PASSWORD=ci-not-a-secret
+
+uv run ruff check src && uv run ruff format --check src && uv run mypy src && uv run pytest -q
+uv run --with pyyaml python scripts/check_stories.py        # needs pyyaml, not in the venv
+uv run --with pyyaml python scripts/check_digest_confinement.py
+```
+
+For a **live** instance (design work, live repro):
+
+```bash
+cd src
+export MEDIA_ROOT=/tmp/by-media BACKYARD_BASE_URL=http://127.0.0.1:8765 \
+       DJANGO_DEBUG=1 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+../.venv/bin/python ../manage.py migrate
+../.venv/bin/python ../manage.py shell < ../scripts/demo_seed.py   # prints the elder token
+../.venv/bin/python ../manage.py runserver 127.0.0.1:8765 --noreload
+```
+
+Traps that each wasted a cycle:
+
+- **`BACKYARD_BASE_URL` must point at the dev server.** Unset, invite links are minted for
+  `localhost:8000` — where a *stale container* may answer, so links appear to 404 for
+  mysterious reasons.
+- **`MEDIA_ROOT` defaults to `/data/media`**, which is read-only outside the container.
+- **Seeding after `migrate` leaves demo members unstamped**, so they see the S-906
+  orientation. That is correct behaviour, not a bug.
+- **allauth rate-limits logins per IP** (`30/5m`, and `10/1h` for *failures*). A sweep that
+  logs in repeatedly will trip it. Do **not** probe the limit with wrong passwords — that
+  burns the failure budget for an hour. Clear it with
+  `docker exec bk-test-pg psql -U backyard -d backyard -c "TRUNCATE backyard_cache;"`.
+- **Playwright: `form[action*='comment']` also matches the delete-comment forms.** Use
+  `form[action$="/comment/"]`.
+- **A yard-wide compose goes through the TM-3 widen-confirmation hop** — the click after
+  Post lands on a confirm page, not the feed.
+- **Count rendered elements on a FRESH page load.** Counting right after a submit reports
+  stale numbers; this produced two phantom "rendering bugs" that the database disproved.
+
+## Deploying (there is no automation)
+
+```bash
+tar czf - src | ssh -i ~/.ssh/backyard_vm ubuntu@108.62.118.152 'cd ~/backyard && tar xzf -'
+ssh -i ~/.ssh/backyard_vm ubuntu@108.62.118.152 \
+  'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d web worker'
+```
+
+**Rebuild, never just restart** (the image ships `staticfiles`). `main` moving proves
+nothing — verify by fetching a string only the new code serves. The manifest's
+`background_color` is **no longer** a useful proof: the palette reverted, so it is the value
+it always was.
+
+Run a shell on production by piping a file, not with `-c`:
+
+```bash
+ssh -i ~/.ssh/backyard_vm ubuntu@108.62.118.152 \
+  'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web \
+     sh -c "DJANGO_SECRET_KEY=\$(cat /data/secret_key) python manage.py shell"' < local_script.py
+```
+
+## Accessibility verification
+
+`scripts/axe_sweep.py` is committed now (it used to be rewritten every session). Fetch
+`scripts/axe.min.js` first — it is not vendored:
+
+```bash
+curl -sSL -o scripts/axe.min.js https://cdn.jsdelivr.net/npm/axe-core@4.10.2/axe.min.js
+uv run --with playwright python scripts/axe_sweep.py http://127.0.0.1:8765 /tmp/axe.json \
+    <admin> <password> [elder-token] [mfa-user] [mfa-password]
+```
+
+It runs a **deliberate hover pass** and **names what it skipped**. Both exist because a
+resting-only sweep reported 0 violations twice while every primary button was 3.92:1 in dark
+mode while hovered.
+
+## Method that kept paying off
+
+- **Prove every new guard fires** by breaking the thing it guards, then restoring. Several
+  guards written this session were vacuous until probed — including one where removing a
+  URL from an on-origin check failed no test at all.
+- **Assert behaviour, not prose.** Three separate tests broke on legitimate copy because
+  they searched for a bare word (`"photo"`, `"posted"`, `"role-key"`) that the page says for
+  good reasons. Anchor on the rule, or on the rendered element.
+- **Comments ship.** A CSS comment quoting a removed tagline kept sending it to every
+  client; another mentioning "manifest" broke a guard asserting that word was absent from a
+  token surface.
+- **Check the data before believing a measurement.** Four apparent defects this session were
+  harness errors.
+
+## Founder-owned, unchanged
+
+1. The **90-minute QA walk** (`docs/runbooks/founder-qa.md`) — the gate.
+2. **Post something to a whole side of the family BEFORE handing out elder links**, or a
+   grandparent opens her link to an empty page and nobody can preview it for her.
+3. **Wipe the demo family** (`BACKYARD_DEMO_WIPE=1`) before the first real invite.
+4. The **S-601** decision: may an elder follow a link off her page? (Recommendation on
+   record: keep the rule.)
+5. The **go-public** decision (criterion 7).

@@ -8,6 +8,7 @@ Gates:
   4. Self-test: both guards must FAIL on known-bad fixtures, proving the
      gate is non-vacuous before it is trusted on real data.
 """
+
 from __future__ import annotations
 
 import re
