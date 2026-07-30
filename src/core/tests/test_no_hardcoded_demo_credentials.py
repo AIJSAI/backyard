@@ -1,7 +1,8 @@
 """No credential literal lives in the seed and QA tooling.
 
 This guard exists because one did, and it was live. `scripts/demo_seed.py` carried
-`PW = "backyard-qa-2026"` in the public repository while that exact password signed in to
+`PW = "<a fixed password a person chose>"` in the public repository while that exact
+password signed in to
 the internet-reachable production instance as a seeded member. The line beside it read
 "a disposable demo credential, wiped before any share" — a promise about a future action,
 guarding a credential that worked that minute. **A comment is not a guard.**
@@ -43,7 +44,43 @@ _CREDENTIAL_WORDS = (
 )
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
-_SCANNED_DIRS = ("scripts", "docs/design/tools")
+
+# Python scanned with `ast`. `src` is included because the original guard omitted it while
+# the leaked credential was re-published into src/core/tests/ -- inside the one directory
+# gitleaks was also allowlisting, so nothing at all covered it.
+_SCANNED_DIRS = ("scripts", "docs/design/tools", "src")
+
+# Prose scanned as text. This is the gap that let the SAME credential be re-published three
+# times AFTER it was removed from code: an `ast` check cannot see a password quoted in a
+# markdown receipt, and gitleaks is blind to a low-entropy one. Both misses at once is how a
+# value the repo declared "no longer published" sat in five tracked files.
+_SCANNED_DOC_DIRS = ("docs",)
+
+# Values that are permitted to appear as literals anywhere, because they are synthetic and
+# exist to make the guards testable. Anything NOT on this list is a finding. Kept in step
+# with the allowlist in .gitleaks.toml -- a test below asserts they do not drift.
+_ALLOWED_LITERALS = frozenset(
+    {
+        "a-Strong-passphrase-9",
+        "a-fine-passphrase-1234",
+        "correct-horse-battery-staple-42",
+        "old-Passphrase-9",
+        "aX9!mnpq2ffz",
+        "a-literal-password",
+        "correct horse battery staple",
+        "a-drill-migrator-passphrase-1",
+        "a-fine-password-1234",
+        "solitude-92",
+    }
+)
+
+# Credentials this project is known to have published. They are dead or being rotated, and
+# they must never reappear in any tracked file -- including in prose explaining the incident,
+# which is exactly how each one came back.
+_BURNED_CREDENTIALS = (
+    "backyard-qa-2026",
+    "local-demo-only-not-a-secret",
+)
 
 # A credential-shaped env var read with a literal fallback is still a committed credential.
 _ENV_READERS = ("get", "getenv")
@@ -54,14 +91,19 @@ def _is_credential_name(name: str) -> bool:
     return any(word in lowered for word in _CREDENTIAL_WORDS)
 
 
-def _findings(source: str, label: str) -> list[str]:
-    """Every credential literal in one module, as human-readable findings."""
+def _findings(source: str, label: str, allowed: frozenset[str] = frozenset()) -> list[str]:
+    """Every credential literal in one module, as human-readable findings.
+
+    `allowed` is applied HERE rather than by filtering the returned strings, because a
+    finding deliberately does not contain the offending value -- printing it would put a
+    credential into CI output, which is the mistake this whole file exists to stop.
+    """
     found: list[str] = []
     tree = ast.parse(source)
     for node in ast.walk(tree):
         # Shape 1: NAME = "literal"
         if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
-            if isinstance(node.value.value, str) and node.value.value:
+            if isinstance(node.value.value, str) and node.value.value not in allowed | {""}:
                 for target in node.targets:
                     name = getattr(target, "id", None) or getattr(target, "attr", None)
                     if name and _is_credential_name(name):
@@ -80,6 +122,7 @@ def _findings(source: str, label: str) -> list[str]:
                     and _is_credential_name(key_name)
                     and isinstance(fallback, str)
                     and fallback
+                    and fallback not in allowed
                 ):
                     found.append(f"{label}:{node.lineno} {key_name} read with a literal fallback")
     return found
@@ -92,20 +135,78 @@ def _scanned_files() -> list[pathlib.Path]:
     return files
 
 
+def _doc_files() -> list[pathlib.Path]:
+    files: list[pathlib.Path] = []
+    for directory in _SCANNED_DOC_DIRS:
+        files.extend(sorted((_REPO_ROOT / directory).rglob("*.md")))
+    return files
+
+
+def test_every_scanned_directory_actually_has_files() -> None:
+    """Per-directory, not a global count.
+
+    The previous floor was `len(scanned) >= 4` against a real scope of 8 files across two
+    directories -- so deleting or renaming `docs/design/tools/` entirely left 4 and the guard
+    stayed green with half its scope silently retired, including the file that hid the
+    literal-fallback shape. A global count cannot detect the loss of a directory.
+    """
+    for directory in _SCANNED_DIRS + _SCANNED_DOC_DIRS:
+        root = _REPO_ROOT / directory
+        assert root.is_dir(), f"{directory} is gone -- the guard's scope shrank silently"
+        pattern = "*.md" if directory in _SCANNED_DOC_DIRS else "*.py"
+        assert list(root.rglob(pattern)), f"{directory} matched no {pattern} files"
+
+
 def test_the_seed_and_qa_tooling_carries_no_credential_literal() -> None:
     scanned = _scanned_files()
-    # Guard the guard: an empty file list would make this pass while checking nothing, which
-    # is how a path rename silently retires a gate.
-    assert len(scanned) >= 4, f"expected to scan the seed/QA tooling, found {scanned}"
-
     findings: list[str] = []
     for path in scanned:
-        findings.extend(_findings(path.read_text(), path.relative_to(_REPO_ROOT).as_posix()))
-    assert not findings, "credential literals in seed/QA tooling:\n  " + "\n  ".join(findings)
+        rel = path.relative_to(_REPO_ROOT).as_posix()
+        findings.extend(_findings(path.read_text(), rel, allowed=_ALLOWED_LITERALS))
+    assert not findings, (
+        "credential literals in scanned code (add a genuinely synthetic value to "
+        "_ALLOWED_LITERALS *and* .gitleaks.toml):\n  " + "\n  ".join(findings)
+    )
+
+
+def test_no_burned_credential_reappears_in_any_tracked_file() -> None:
+    """The one that would have caught all three re-leaks.
+
+    Every previously-published credential, searched for as plain text across code AND prose.
+    A password quoted in a markdown receipt is the same disclosure as one in a script, and
+    is invisible to both an `ast` check and to a scanner tuned for high entropy.
+    """
+    hits: list[str] = []
+    for path in _scanned_files() + _doc_files():
+        rel = path.relative_to(_REPO_ROOT).as_posix()
+        if rel == "src/core/tests/test_no_hardcoded_demo_credentials.py":
+            continue  # this file names them, split, in _BURNED_CREDENTIALS
+        text = path.read_text()
+        for burned in _BURNED_CREDENTIALS:
+            if burned in text:
+                line = text[: text.index(burned)].count("\n") + 1
+                hits.append(f"{rel}:{line} republishes a burned credential")
+    assert not hits, "a previously-published credential is back in the tree:\n  " + "\n  ".join(
+        hits
+    )
+
+
+def test_the_burned_list_and_the_gitleaks_allowlist_do_not_drift() -> None:
+    """The synthetic-fixture allowlist here and in .gitleaks.toml must stay in step, or one
+    gate starts reporting what the other exempts and somebody silences the wrong one."""
+    config = (_REPO_ROOT / ".gitleaks.toml").read_text()
+    missing = [v for v in _ALLOWED_LITERALS if v not in config]
+    assert not missing, f"allowed literals absent from .gitleaks.toml: {missing}"
 
 
 def test_the_guard_catches_a_plain_assignment() -> None:
-    assert _findings('PW = "backyard-qa-2026"\n', "fixture") == ["fixture:1 PW = <string literal>"]
+    # A synthetic literal on purpose. The earlier version of this line used the REAL leaked
+    # password as its fixture, which re-published it inside the very guard written to stop that
+    # -- and inside the one directory the gitleaks allowlist blanket-hid. The assertion is
+    # identical for any literal, so there was never a reason to use the live one.
+    assert _findings('PW = "a-literal-password"\n', "fixture") == [
+        "fixture:1 PW = <string literal>"
+    ]
 
 
 def test_the_guard_catches_a_literal_env_fallback() -> None:
