@@ -193,7 +193,7 @@ mode while hovered.
 
 ## Operator actions waiting, in priority order
 
-**4. Enforce admin 2FA — a decision, not a patch.** T-ADMIN-1 claims "passkey or TOTP,
+**A decision first, because it gates nothing else and needs you: enforce admin 2FA.** T-ADMIN-1 claims "passkey or TOTP,
 enforced in the wizard so a password-only admin never exists". Nothing enforces it: a
 password-only superuser reaches every admin surface. It was deliberately left open by the
 2026-07-30 security pass because switching it on can lock the only admin out of their own
@@ -249,14 +249,15 @@ saying so since it shipped. This is the largest real risk in the project: there 
 so *restore has never been exercised against production data* either.
 
 ```bash
-# --passphrase-file, not an inline env assignment: backup_instance deliberately refuses a
-# passphrase on argv so it cannot reach shell history or `ps`, and inlining it here would
-# walk around the protection the command was written to provide.
+# `output` is POSITIONAL, not --output. And no passphrase is passed here at all: once
+# action #2 is done, BACKYARD_BACKUP_PASSPHRASE is in the container's environment and the
+# command reads it from there. backup_instance deliberately refuses a passphrase on argv so
+# it cannot reach shell history or `ps`; inlining one would walk around the protection the
+# command exists to provide.
 ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST \
   'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web \
      sh -c "DJANGO_SECRET_KEY=\$(cat /data/secret_key) \
-        python manage.py backup_instance --passphrase-file /data/backup-passphrase \
-        --output /data/backup-$(date +%F).tar.enc"'
+        python manage.py backup_instance /data/backup-$(date +%F).tar.enc"'
 # then copy it OFF the box, and record the passphrase location on the succession sheet
 scp -i ~/.ssh/backyard_vm 'ubuntu@$BACKYARD_HOST:/data/backup-*.tar.enc' ~/backyard-backups/
 ```
