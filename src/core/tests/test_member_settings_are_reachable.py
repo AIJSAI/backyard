@@ -53,15 +53,20 @@ def _hrefs(html: str) -> set[str]:
 
 
 def _without_comments(source: str) -> str:
-    """Template source with `{% comment %}` blocks and HTML comments removed.
+    """Template source with EVERY comment form Django understands removed.
 
     Learned the hard way, in this very file: the first version of the structural check below
     passed with the digest link deleted, because the COMMENT explaining the bug quoted
     `{% url 'digest_settings' %}` as prose and satisfied the regex. A source-text assertion
     that a comment can satisfy is not an assertion. Prose must never be able to answer a
     question about behaviour.
+
+    All three forms, not two: review caught that the first fix stripped `{% comment %}` and
+    `<!-- -->` but not `{# ... #}`, which would have reopened the identical hole one syntax
+    down. Half-closing a hole of this shape is how it comes back.
     """
     source = re.sub(r"\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}", "", source, flags=re.S)
+    source = re.sub(r"\{#.*?#\}", "", source, flags=re.S)
     return re.sub(r"<!--.*?-->", "", source, flags=re.S)
 
 
@@ -94,18 +99,42 @@ def test_a_member_can_reach_the_digest_settings_by_following_links() -> None:
 @pytest.mark.django_db
 def test_the_digest_link_is_not_shown_when_an_admin_edits_someone_else() -> None:
     """A digest address is the member's own; an admin editing another profile must not be
-    offered a control that would set where THAT person's family email goes."""
-    client = _logged_in_member()
-    html = client.get(reverse("profile_edit")).content.decode()
-    assert reverse("digest_settings") in _hrefs(html)  # denominator: it IS there normally
+    offered a control that would point THAT person's family email somewhere else.
 
-    rendered_for_other = client.get(reverse("profile_edit"), {"editing_other": "1"})
-    # The flag is set by the view, not the query string -- this only guards the template
-    # branch existing at all, so the real assertion is the source check below.
-    assert rendered_for_other.status_code == 200
-    source = (_TEMPLATES / "profile_edit.html").read_text()
-    assert "{% if not editing_other %}" in source, (
-        "the digest link must be inside a not-editing_other branch"
+    Rendered through the real managed-edit route (S-901's third path), not asserted against
+    template source. The first version of this test passed a query string the view ignores
+    and then fell back to grepping for `{% if not editing_other %}` -- which is precisely
+    the source-text-assertion weakness the rest of this file exists to avoid, and it could
+    have passed with the link shown to everyone. Review caught it.
+    """
+    yard = Yard.objects.create(name="Y", slug="y")
+    pod = Pod.objects.create(name="P")
+    pod.yards.set([yard])
+
+    admin_user = User.objects.create_user(username="admin")
+    admin = Member.objects.create(
+        display_name="Admin", user=admin_user, role=Member.INSTANCE_ADMIN
+    )
+    PodMembership.objects.create(member=admin, pod=pod)
+
+    other_user = User.objects.create_user(username="other")
+    other = Member.objects.create(display_name="Other", user=other_user)
+    PodMembership.objects.create(member=other, pod=pod)
+
+    client = Client()
+    client.force_login(admin_user, backend=_BACKEND)
+    digest_url = reverse("digest_settings")
+
+    # Denominator: the admin DOES see it on their own profile, so an absence below means
+    # the branch fired rather than the link having vanished everywhere.
+    own = client.get(reverse("profile_edit"))
+    assert digest_url in _hrefs(own.content.decode())
+
+    managed = client.get(reverse("managed_profile_edit", args=[other.pk]))
+    assert managed.status_code == 200, managed.status_code
+    assert digest_url not in _hrefs(managed.content.decode()), (
+        "an admin editing someone else's profile was offered a link that sets where THAT "
+        "person's family email is delivered"
     )
 
 
@@ -122,7 +151,15 @@ def test_no_member_facing_page_is_linked_only_from_itself() -> None:
         "directory": "directory.html",
     }
     templates = {p.name: _without_comments(p.read_text()) for p in _TEMPLATES.glob("*.html")}
-    assert len(templates) > 20, f"only {len(templates)} templates found; glob is wrong"
+    # Denominator, asserted on the templates this check actually reads rather than on a
+    # count: a bare `len(...) > 20` would fail on an unrelated template being removed and
+    # would pass on the glob pointing somewhere plausible but wrong. Naming them makes the
+    # failure say what is missing. (Review caught the brittle version.)
+    for required in ("base.html", "profile_edit.html", "digest_settings.html"):
+        assert required in templates, (
+            f"{required} not found in {_TEMPLATES} -- the glob is pointing at the wrong "
+            "directory, which would make every assertion below vacuous"
+        )
 
     unreachable = []
     for url_name, own_template in must_be_reachable.items():
