@@ -108,8 +108,7 @@ hard to fire by accident.
 On a fresh instance (no members yet):
 
 ```sh
-docker compose exec \
-  -e POSTGRES_MIGRATOR_PASSWORD="$MIGRATOR_PW" \
+docker compose exec -T \
   web python manage.py restore_instance /data/backups/backup-YYYY-MM-DD.bak
 
 # Restore auto-detects the archive shape. An encrypted one needs the same
@@ -129,7 +128,7 @@ docker compose exec \
 To overwrite an instance that still has data (you have decided to roll back),
 add `--force`.
 
-## The restore drill (before every release)
+## The restore drill (run it on your own box, before you need it)
 
 Prove the backup is restorable without touching live data, by restoring into a
 throwaway scratch database. The migrator cannot create databases, so the
@@ -140,11 +139,21 @@ migrator, and the migrator restores into it.
 # 1. Take a backup (as above).
 # 2. Create a scratch DB owned by the migrator (superuser, inside postgres).
 docker compose exec postgres createdb -U "$POSTGRES_SUPERUSER" -O backyard_migrator drill_scratch
-# 3. Restore the dump into the scratch DB (as the migrator).
-docker compose exec web sh -c '
-  cd /tmp && tar xf /data/backups/backup-YYYY-MM-DD.tar database.dump
+# 3. Decrypt the archive, then extract the dump from it.
+#    Backups are ENCRYPTED by default, so `tar xf` on the archive itself fails:
+#    it is ciphertext, not a tar. Decrypt to a temp file first.
+docker compose exec -T web sh -c '
+  python -c "
+import os, sys
+sys.path.insert(0, \"/app/src\")
+from core.backup_crypto import decrypt
+with open(\"/data/backups/backup-YYYY-MM-DD.bak\", \"rb\") as src, open(\"/tmp/drill.tar\", \"wb\") as out:
+    decrypt(src, out, os.environ[\"BACKYARD_BACKUP_PASSPHRASE\"])
+"
+  cd /tmp && tar xf drill.tar database.dump
   PGPASSWORD="$POSTGRES_MIGRATOR_PASSWORD" pg_restore -h postgres -U backyard_migrator \
-    --clean --if-exists --no-owner -d drill_scratch database.dump'
+    --clean --if-exists --no-owner -d drill_scratch database.dump
+  rm -f /tmp/drill.tar /tmp/database.dump'
 # 4. Verify the data restored, e.g. member count matches the source.
 docker compose exec postgres psql -U "$POSTGRES_SUPERUSER" -d drill_scratch \
   -tAc "select count(*) from core_member"
@@ -152,6 +161,12 @@ docker compose exec postgres psql -U "$POSTGRES_SUPERUSER" -d drill_scratch \
 docker compose exec postgres dropdb -U "$POSTGRES_SUPERUSER" drill_scratch
 ```
 
-This exact drill runs green in `scripts`-driven live verification: a canary
-member and its media survive the round-trip, and the destructive restore is
-proven to refuse a populated database without `--force`.
+Step 3 leaves a **plaintext** copy of the whole database in `/tmp` inside the
+container while the drill runs; that is why it removes both files at the end, and
+why a drill belongs on a box you control rather than a shared one.
+
+This section used to claim *"This exact drill runs green in `scripts`-driven live
+verification."* There was no such script and there never had been. What is
+actually verified, on every push, is the round trip in CI's `code` job — seed,
+back up, delete, restore, assert — against a real Postgres. That is a narrower
+claim than the one it replaces, and it is true.
