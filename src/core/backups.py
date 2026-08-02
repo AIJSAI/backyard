@@ -8,11 +8,17 @@ the inverse and is deliberately destructive, so it refuses to run against a
 database that still has family data unless forced: a restore is for a fresh box
 or a drill, never a casual overwrite.
 
-The archive is a plain tar of two members plus a manifest, so an operator can
-open it, verify it, and encrypt or ship it with their own tools. Nothing here
-holds a key; at-rest encryption is the operator's storage layer (documented in
-the runbook), kept out of the app so the app never holds long-lived key
-material (the T-EMAIL-5 spirit: the fewer secrets the app custodies, the better).
+Inside, the archive is a tar of two members plus a manifest — but it is
+ENCRYPTED AT REST BY DEFAULT (S-802): `backup_instance` refuses to write
+plaintext unless `--no-encrypt` is passed explicitly, and takes the passphrase
+from `BACKYARD_BACKUP_PASSPHRASE` or `--passphrase-file`, never from argv. See
+`backup_crypto.py` for the AES-256-GCM + scrypt construction.
+
+This docstring used to say "Nothing here holds a key; at-rest encryption is the
+operator's storage layer." Do not restore that sentence. It outlived the design
+it described, and it is the precise claim a prior audit found a plaintext family
+archive shipping under — a stale comment that reads as a deliberate decision is
+how the wrong thing keeps getting justified.
 
 TRUST BOUNDARY (#47 review MEDIUM): a restore archive is executed against the
 database as the migrator (DDL) role, so restoring one is equivalent to handing

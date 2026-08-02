@@ -1,14 +1,23 @@
-# Resume here — session state, 2026-07-30
+# Resume here — session state, 2026-08-01
 
-Written to survive a context compaction. Read this, then **[`docs/OUTSTANDING.md`](OUTSTANDING.md)
-— the single ranked list of everything not done** — then `docs/PATH-TO-100.md`. Verify with a
-primary check (`git log`, `gh pr list`, run the probe an item names) rather than trusting
-anything written down.
+Written to survive a context compaction. Read this, then
+**[`docs/OUTSTANDING.md`](OUTSTANDING.md) — the ranked backlog, whose §6 carries what the
+2026-08-01 readiness audit added** — then `docs/PATH-TO-100.md`. Verify with a primary check
+(`git log`, `gh pr list`, run the probe an item names) rather than trusting anything written
+down. That instruction earned its keep: OUTSTANDING.md called itself "the single list" and
+a re-measurement found ~30 items it did not contain.
 
 > **Start here after a compaction:** OUTSTANDING.md §0 is four things a person must do on the
 > box, two of which are live exposures — the leaked password still authenticates on
 > production, and production is writing plaintext dumps of the whole family database on every
 > boot. Nothing in the backlog outranks those.
+>
+> Set the backup passphrase only on a tree that includes **PR #118**: before it, CI asserted
+> the *plaintext* pre-flight filename, so setting the passphrase would have turned CI red.
+>
+> **Do not link, post or submit the repo anywhere until the demo password is rotated** — the
+> `v0.1.0` tag that `README.md` tells strangers to clone still carries the burned credential
+> in three files (OUTSTANDING §6, C2).
 
 **`v0.1.0` is tagged.** The README installs the tag, not `main`, and `CHANGELOG.md` lists what
 does not work as prominently as what does. If you add a user-visible change, add a changelog
@@ -265,8 +274,13 @@ ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST \
   'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web \
      sh -c "DJANGO_SECRET_KEY=\$(cat /data/secret_key) \
         python manage.py backup_instance /data/backup-$(date +%F).tar.enc"'
-# then copy it OFF the box, and record the passphrase location on the succession sheet
-scp -i ~/.ssh/backyard_vm 'ubuntu@$BACKYARD_HOST:/data/backup-*.tar.enc' ~/backyard-backups/
+# then copy it OFF the box, and record the passphrase location on the succession sheet.
+# DOUBLE quotes: single ones stop $BACKYARD_HOST expanding, so this used to try to reach a
+# host literally named "$BACKYARD_HOST" and fail -- on the step that turns a backup sitting
+# on the same disk into an actual backup. Double quotes still stop the LOCAL shell
+# expanding the glob, which is what scp needs (the remote end expands it).
+mkdir -p ~/backyard-backups
+scp -i ~/.ssh/backyard_vm "ubuntu@$BACKYARD_HOST:/data/backup-*.tar.enc" ~/backyard-backups/
 ```
 
 ## Founder-owned, unchanged

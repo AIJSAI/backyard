@@ -1,8 +1,12 @@
 # Backup and restore runbook (S-704, S-802)
 
 Backing up and restoring a whole Backyard instance is one command each, and the
-restore is exercised as a drill before every release. This is the documented,
-tested path.
+round trip — back up, delete the row, restore, assert it came back — runs in CI on
+every push, in the `code` job's "Compose live probe" step against a real Postgres.
+
+**What that gate does not cover:** it exercises the code path against a real
+Postgres, not *your* archive on *your* box. A backup you have never restored is
+a hypothesis. Run a restore drill against a scratch instance before you need one.
 
 ## What a backup contains
 
@@ -11,11 +15,15 @@ One archive holds the two stateful things:
 - the **database** (`pg_dump -Fc` custom-format dump), and
 - the **media tree** (`MEDIA_ROOT`, every uploaded photo and derivative).
 
-It is a plain tar of three members: `backup-manifest.json`, `database.dump`,
-and `media.tar.gz`. Open it, verify it, and encrypt or ship it with your own
-tools. The app holds no encryption key; at-rest encryption is your storage
-layer's job (`age`, `gpg`, or an encrypted volume), kept out of the app so the
-app never custodies long-lived key material.
+Inside, it is a tar of three members: `backup-manifest.json`, `database.dump`,
+and `media.tar.gz` — but that tar is **encrypted at rest by default** (S-802),
+so what lands on disk is ciphertext unless you explicitly passed `--no-encrypt`.
+See "Trust and safety" below for how the passphrase is supplied.
+
+> This paragraph used to read *"The app holds no encryption key; at-rest
+> encryption is your storage layer's job."* That stopped being true when S-802
+> shipped, and it is the exact sentence a prior audit caught a plaintext archive
+> shipping under. If you are reading a copy that still says it, the copy is stale.
 
 ## Trust and safety
 
@@ -33,24 +41,43 @@ the command line, where it would land in shell history and every process listing
 There is no key escrow: **lose the passphrase and the archive is gone.** Write it
 on the recovery sheet and keep that somewhere a house fire would not take with it.
 
-The **pre-flight dumps** taken by the entrypoint before each migration are still
-plaintext on `/data`, because they exist to save you when a migration fails and
-nothing can be holding a passphrase at that moment. Read access to `/data` still
-yields those. Treat the volume as sensitive regardless.
+The **pre-flight dumps** taken by the entrypoint before each migration are
+**encrypted too, whenever `BACKYARD_BACKUP_PASSPHRASE` is set** — compose passes
+it into the web container, so the process taking the dump has it.
+
+This used to say they were "still plaintext … because nothing can be holding a
+passphrase at that moment". That reasoning was wrong, and it was load-bearing: it
+justified writing an unencrypted dump of the entire family database on every
+container start, three copies deep, which is verbatim T-BACKUP-1 and T-MEDIA-5.
+
+**If the passphrase is unset, the dumps are plaintext and the instance says so on
+every boot.** That warning is the fix working, not a cosmetic nag. Read access to
+`/data` yields those dumps whole. Set the passphrase.
 
 ## Back up
 
-Run in the migrator's environment (the compose stack already has
-`POSTGRES_MIGRATOR_PASSWORD` for the migrate step):
+Compose already places `POSTGRES_MIGRATOR_PASSWORD` in the web service's
+environment, so you do **not** need to pass it — and passing it with `-e` puts a
+database password in your shell history and every process listing, which is the
+same mistake this document forbids two paragraphs above for the passphrase:
 
 ```sh
-docker compose exec \
-  -e POSTGRES_MIGRATOR_PASSWORD="$MIGRATOR_PW" \
+docker compose exec -T \
   web python manage.py backup_instance /data/backups/backup-$(date +%F).bak
 
-# The passphrase never goes on the command line. Prefer a keyfile:
+# The passphrase never goes on the command line. The command reads
+# BACKYARD_BACKUP_PASSPHRASE, which compose passes in from `.env` — that is the
+# documented path and it needs no extra flag.
+#
+# `--passphrase-file` is the tighter option, but the path is read INSIDE the
+# container, and the one place you must NOT put it is `/data`: that is the volume
+# holding the archives, so a stolen disk or provider snapshot would carry the key
+# next to the ciphertext and the encryption would buy nothing (T-BACKUP-1 is
+# exactly that threat). Mount a host keyfile read-only instead:
 #   printf '%s' 'your four-word diceware phrase' > /root/backyard.key
 #   chmod 600 /root/backyard.key        # the command refuses a group/world-readable key
+#   # add to the web service in docker-compose.prod.yml:
+#   #   volumes: [ "/root/backyard.key:/run/secrets/backyard.key:ro" ]
 #   docker compose exec -T web python manage.py backup_instance \
 #     /data/backups/backup-$(date +%F).bak --passphrase-file /run/secrets/backyard.key
 #
@@ -81,8 +108,7 @@ hard to fire by accident.
 On a fresh instance (no members yet):
 
 ```sh
-docker compose exec \
-  -e POSTGRES_MIGRATOR_PASSWORD="$MIGRATOR_PW" \
+docker compose exec -T \
   web python manage.py restore_instance /data/backups/backup-YYYY-MM-DD.bak
 
 # Restore auto-detects the archive shape. An encrypted one needs the same
@@ -102,7 +128,7 @@ docker compose exec \
 To overwrite an instance that still has data (you have decided to roll back),
 add `--force`.
 
-## The restore drill (before every release)
+## The restore drill (run it on your own box, before you need it)
 
 Prove the backup is restorable without touching live data, by restoring into a
 throwaway scratch database. The migrator cannot create databases, so the
@@ -113,11 +139,21 @@ migrator, and the migrator restores into it.
 # 1. Take a backup (as above).
 # 2. Create a scratch DB owned by the migrator (superuser, inside postgres).
 docker compose exec postgres createdb -U "$POSTGRES_SUPERUSER" -O backyard_migrator drill_scratch
-# 3. Restore the dump into the scratch DB (as the migrator).
-docker compose exec web sh -c '
-  cd /tmp && tar xf /data/backups/backup-YYYY-MM-DD.tar database.dump
+# 3. Decrypt the archive, then extract the dump from it.
+#    Backups are ENCRYPTED by default, so `tar xf` on the archive itself fails:
+#    it is ciphertext, not a tar. Decrypt to a temp file first.
+docker compose exec -T web sh -c '
+  python -c "
+import os, sys
+sys.path.insert(0, \"/app/src\")
+from core.backup_crypto import decrypt
+with open(\"/data/backups/backup-YYYY-MM-DD.bak\", \"rb\") as src, open(\"/tmp/drill.tar\", \"wb\") as out:
+    decrypt(src, out, os.environ[\"BACKYARD_BACKUP_PASSPHRASE\"])
+"
+  cd /tmp && tar xf drill.tar database.dump
   PGPASSWORD="$POSTGRES_MIGRATOR_PASSWORD" pg_restore -h postgres -U backyard_migrator \
-    --clean --if-exists --no-owner -d drill_scratch database.dump'
+    --clean --if-exists --no-owner -d drill_scratch database.dump
+  rm -f /tmp/drill.tar /tmp/database.dump'
 # 4. Verify the data restored, e.g. member count matches the source.
 docker compose exec postgres psql -U "$POSTGRES_SUPERUSER" -d drill_scratch \
   -tAc "select count(*) from core_member"
@@ -125,6 +161,12 @@ docker compose exec postgres psql -U "$POSTGRES_SUPERUSER" -d drill_scratch \
 docker compose exec postgres dropdb -U "$POSTGRES_SUPERUSER" drill_scratch
 ```
 
-This exact drill runs green in `scripts`-driven live verification: a canary
-member and its media survive the round-trip, and the destructive restore is
-proven to refuse a populated database without `--force`.
+Step 3 leaves a **plaintext** copy of the whole database in `/tmp` inside the
+container while the drill runs; that is why it removes both files at the end, and
+why a drill belongs on a box you control rather than a shared one.
+
+This section used to claim *"This exact drill runs green in `scripts`-driven live
+verification."* There was no such script and there never had been. What is
+actually verified, on every push, is the round trip in CI's `code` job — seed,
+back up, delete, restore, assert — against a real Postgres. That is a narrower
+claim than the one it replaces, and it is true.
