@@ -1,13 +1,20 @@
-# Outstanding — the single list
+# Outstanding — the security-pass backlog, plus what a readiness audit added
 
-Everything not done, ranked, with who owns it. Written 2026-07-30 after the security pass so
-it survives a context compaction.
+> **Read this first.** This file was written 2026-07-30 and titled "the single list". It was
+> not one. It is an accurate **security-pass** backlog, and reading it as a *complete* one is
+> what left backups, monitoring, audit logging and the product's only notification channel
+> invisible. A six-axis readiness audit on 2026-08-01 found roughly thirty items it did not
+> contain, seven of them critical — see [§6](#6-what-the-2026-08-01-readiness-audit-added).
+>
+> Two of those criticals are now fixed (PR #118). The rest are open.
+
+Everything not done, ranked, with who owns it.
 
 **Read this, then verify with a primary check** (`git log`, `gh pr list`, run the probe named
 in the item) rather than trusting the state below. Items are marked with the audit finding
 they came from so you can go back to the source.
 
-State at the time of writing: `main` = `ffe6196` · 0 open PRs · **799 passing / 2 skipped** ·
+State on 2026-08-01: `main` = `bb54411` · **811 passing / 2 skipped** on PR #118 ·
 46 stories passing, 2 superseded, **1 spec** · PATH-TO-100 30 checked / 15 open.
 
 ---
@@ -21,7 +28,7 @@ An agent session cannot do these: the command classifier refuses
 | # | Action | Why it is first |
 |---|---|---|
 | 1 | **Rotate the demo accounts** | The leaked password **still authenticated on production** at the end of the security pass. Re-tested repeatedly; it is live. |
-| 2 | **Set `BACKYARD_BACKUP_PASSPHRASE`** | Production is writing **plaintext dumps of the entire family database on every boot** — three on the volume. The instance warns about it on every start. |
+| 2 | **Set `BACKYARD_BACKUP_PASSPHRASE`** | Production is writing **plaintext dumps of the entire family database on every boot** — three on the volume. The instance warns about it on every start. **Do this only on a tree that includes PR #118**: before it, CI asserted the *plaintext* pre-flight filename, so setting the passphrase would have turned the gate red. |
 | 3 | **Take a backup** | Production has never had one, so restore has never been exercised against real data either. |
 | 4 | **Register the Resend inbound webhook** | Until then a reply-by-email is accepted with a `250` and **silently goes nowhere**. |
 
@@ -157,6 +164,66 @@ awesome-selfhosted PR · API + MCP endpoint · launch posts.
 
 **Phase 6, rollout** (4): pod-by-pod invites · opening the shared backyard layer · full-clan
 invite · the `v1.0` tag.
+
+---
+
+## 6. What the 2026-08-01 readiness audit added
+
+Six independent read-only axes, each re-measured against the tree rather than re-reading this
+file. Verdicts: ops **RED**, product **RED**, OSS-artifact **RED**, critic **RED**, security
+**YELLOW**, gates **YELLOW**.
+
+### Fixed in PR #118
+
+- **C1 — the decommission runbook destroyed data.** `shutdown.md` documented
+  `backup_instance --output …`; `output` is positional, so it exited "unrecognized
+  arguments" — one step before `docker compose down -v`. `self-host.md` had the correct
+  form all along. Guard added: `test_runbook_commands_are_runnable.py` parses every
+  documented invocation with the command's real parser, across every runbook.
+- **C3 — restore had never executed against a real Postgres**, anywhere. CI now runs a
+  full round trip (seed → back up → delete → restore → assert), verified in the log.
+- **C4 — the encrypted pre-flight path had never run in any gate**, and the assertion
+  depended on backups staying plaintext.
+- Plus **S7** (`cryptography` undeclared), **G8**, **G9**, the plaintext-justifying doc
+  drift, an unrunnable restore drill (`tar xf` on ciphertext), and a `scripts`-driven
+  verifier that never existed.
+
+### Still open — criticals
+
+- **C2 — `v0.1.0` still publishes the burned credential** in 3 tracked files. The tag
+  predates the removal by ten hours and `README.md` tells strangers to clone it, so the
+  documented install path is the distribution vector. **Decision taken: re-tag `v0.1.1`
+  from clean `main` and delete `v0.1.0`.**
+- **C5 — GitHub private vulnerability reporting is disabled** (`{"enabled": false}`) while
+  `SECURITY.md` names it the only channel and forbids public issues. One click, founder-only.
+- **C6 — `/settings/digest/` is routed but linked from nowhere.** The only notification
+  channel cannot be enabled by any member, and because `health_email.admin_recipients()`
+  needs a *confirmed* subscription, **the weekly health email very likely sends to nobody** —
+  the most plausible reason the plaintext-dump warnings never reached anyone.
+- **C7 — invite-joined members can be locked out permanently.** `join.html` collects no
+  email, so password reset reports success and sends nothing.
+
+### Still open — newly measured
+
+- **No scheduled backup exists** (`tasks.py` has six periodics; none backs up).
+- **The monitor lives inside the monitored thing**: only `postgres` has a healthcheck;
+  `web`/`worker`/`caddy` have none, and the health email is a *worker* periodic.
+- **65KB uncompressed on every anonymous page** — 26,041 bytes (40.1%) is developer CSS
+  commentary, and Caddy has no `encode` directive at all. The elder path is standalone and
+  unaffected.
+- **No audit log exists** (27 models, none records actions), and
+  `remove_member(content="delete")` hard-purges photos behind one session POST with no
+  reauth, no confirmation and no undo.
+- **The privacy note never reaches the family**: `family-privacy-note.md` is referenced by
+  zero files under `src/`, while S-705 sits at `passing`.
+- **AGPL §13 source-offer unsatisfied** — no repo URL or licence reference in `src/` or on
+  the live page.
+
+### Ordering error in §0 above
+
+§0 ranks **operator action #4 (register the Resend webhook)** as a launch prerequisite. A
+reply-by-email is a reply *to a digest*, and nobody can subscribe to a digest — so #4 buys
+nothing until **C6** is fixed and belongs after it.
 
 ---
 
