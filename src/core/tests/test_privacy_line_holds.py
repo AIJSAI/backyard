@@ -62,14 +62,23 @@ def test_the_surname_does_not_reach_shipping_source_or_docs() -> None:
         *(_ROOT / "src").rglob("*.py"),
         *(_ROOT / "src").rglob("*.html"),
         *(_ROOT / "docs" / "receipts").rglob("*.md"),
+        # The README is the first surface a stranger reads and the one that carries the
+        # privacy claim itself, so leaving it out was the wrong scope. Review caught it.
+        _ROOT / "README.md",
+        _ROOT / "CONTRIBUTING.md",
     ]
     assert len(searched) > 50, f"only {len(searched)} files searched; the globs are wrong"
 
     offenders = []
+    needle = _AUTHOR_SURNAME.casefold()
     for path in searched:
         if path.name == Path(__file__).name:
             continue  # this file names the surname in order to forbid it
-        if _AUTHOR_SURNAME in path.read_text(encoding="utf-8", errors="replace"):
+        # casefold, not a substring of the original: the first version of this check was
+        # case-SENSITIVE and passed while `priya-shehan.vcf` sat in a receipt -- a real,
+        # live instance of exactly what it exists to forbid. Proving a guard fires against
+        # the one mutation you thought of does not prove it catches the class.
+        if needle in path.read_text(encoding="utf-8", errors="replace").casefold():
             offenders.append(str(path.relative_to(_ROOT)))
     assert not offenders, (
         f"the author's real surname reached files a stranger reads: {offenders}. "
