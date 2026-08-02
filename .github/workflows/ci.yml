@@ -95,6 +95,11 @@ jobs:
           POSTGRES_PASSWORD: ci-not-a-secret
           POSTGRES_MIGRATOR_PASSWORD: ci-migrator-not-a-secret
           POSTGRES_APP_PASSWORD: ci-app-not-a-secret
+          # Without this the entrypoint's ENCRYPT branch never executes, and the
+          # pre-flight assertion below silently tests the plaintext path instead --
+          # i.e. the gate depended on backups staying unencrypted, so setting the
+          # passphrase on a real instance would have BROKEN CI. Throwaway CI value.
+          BACKYARD_BACKUP_PASSPHRASE: ci-backup-passphrase-not-a-secret
         run: |
           set -eu
           docker compose up -d --build
@@ -130,8 +135,20 @@ jobs:
           docker compose exec -T web sh -c \
             'python -c "import socket; socket.create_connection((\"postgres\",5432),3)"' \
             || { echo "web cannot reach postgres (split too aggressive)"; exit 1; }
-          echo "--- pre-flight backup ran before migrate (TS-CO-2) ---"
-          docker compose exec -T web sh -c 'ls /data/backups/preflight-*.dump' | grep -q preflight
+          echo "--- pre-flight backup ran before migrate, and is ENCRYPTED (TS-CO-2, T-BACKUP-1) ---"
+          # This used to assert `preflight-*.dump`, which the ENCRYPTED branch never
+          # writes (it produces .dump.enc and rm -f's the plaintext). Both halves are
+          # asserted so the check cannot pass in the wrong configuration: the ciphertext
+          # must exist AND no plaintext dump may be left behind.
+          docker compose exec -T web sh -c 'ls /data/backups/preflight-*.dump.enc' | grep -q preflight
+          if docker compose exec -T web sh -c 'ls /data/backups/preflight-*.dump' 2>/dev/null | grep -q '\.dump$'; then
+            echo "LEAK: a PLAINTEXT pre-flight dump of the whole database remains on the volume"; exit 1
+          fi
+          # It must be real ciphertext, not an empty or truncated file: a pg_dump custom
+          # archive starts with the magic "PGDMP", and the encrypted one must not.
+          if docker compose exec -T web sh -c 'head -c 5 /data/backups/preflight-*.dump.enc' | grep -q PGDMP; then
+            echo "NOT ENCRYPTED: the .enc pre-flight dump is a plaintext PGDMP archive"; exit 1
+          fi
           echo "--- the app role can read AND write the rate-limit cache (TS-DJ-13) ---"
           # As the real backyard_app runtime role, not a superuser: proves the ADR-004
           # default-privilege grant reaches backyard_cache, so allauth's shared rate
@@ -152,6 +169,44 @@ jobs:
             "SELECT count(*) FROM pg_proc p JOIN pg_roles r ON p.proowner=r.oid WHERE r.rolname='backyard_migrator' AND p.prosecdef")
           [ "$SECDEF" = "0" ] || { echo "LEAK: migrator owns $SECDEF SECURITY DEFINER routine(s); app role EXECUTE is an escalation path"; exit 1; }
           echo "migrator owns $MIGRATOR_ROUTINES routines, 0 SECURITY DEFINER (grant is safe)"
+
+          echo "--- backup -> restore round trip against a REAL Postgres (S-802, S-704) ---"
+          # Until this existed, `pg_restore` had never executed anywhere: the unit tests
+          # stub pg_dump/pg_restore entirely, and production has never taken a backup. The
+          # first real restore would have happened on the day the data was already gone.
+          # A Yard is the isolation primitive, so its survival is a meaningful assertion
+          # rather than a row count.
+          RUNSHELL='DJANGO_SECRET_KEY="$(cat /data/secret_key)" python manage.py'
+          docker compose exec -T web sh -c "$RUNSHELL shell -c \"
+          from core.models import Yard
+          Yard.objects.create(name='CI Roundtrip Yard', slug='ci-roundtrip')
+          print('seeded', Yard.objects.filter(slug='ci-roundtrip').count())\""
+
+          docker compose exec -T web sh -c "$RUNSHELL backup_instance /data/backups/ci-roundtrip.bak"
+
+          # The archive must be encrypted at rest by DEFAULT, with no --no-encrypt passed.
+          # Asserted on backup_crypto's magic header rather than on `tar -tf` failing:
+          # a missing `tar` in the image would make a failure-based check pass vacuously,
+          # which is the exact defect class that let three gates prove the wrong thing.
+          MAGIC=$(docker compose exec -T web sh -c 'head -c 14 /data/backups/ci-roundtrip.bak')
+          [ "$MAGIC" = "BACKYARD-ENC/1" ] || {
+            echo "NOT ENCRYPTED: archive header is '$MAGIC', expected BACKYARD-ENC/1"; exit 1; }
+
+          # Destroy the marker, so a restore that silently does nothing cannot pass.
+          docker compose exec -T web sh -c "$RUNSHELL shell -c \"
+          from core.models import Yard
+          Yard.objects.filter(slug='ci-roundtrip').delete()
+          assert Yard.objects.filter(slug='ci-roundtrip').count() == 0
+          print('marker deleted')\""
+
+          docker compose exec -T web sh -c "$RUNSHELL restore_instance /data/backups/ci-roundtrip.bak --force"
+
+          docker compose exec -T web sh -c "$RUNSHELL shell -c \"
+          from core.models import Yard
+          n = Yard.objects.filter(slug='ci-roundtrip').count()
+          assert n == 1, f'restore did not bring the yard back: {n}'
+          print('RESTORE VERIFIED: the yard survived the round trip')\""
+
           docker compose down -v
 
   e2e:

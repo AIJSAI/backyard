@@ -265,8 +265,13 @@ ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST \
   'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web \
      sh -c "DJANGO_SECRET_KEY=\$(cat /data/secret_key) \
         python manage.py backup_instance /data/backup-$(date +%F).tar.enc"'
-# then copy it OFF the box, and record the passphrase location on the succession sheet
-scp -i ~/.ssh/backyard_vm 'ubuntu@$BACKYARD_HOST:/data/backup-*.tar.enc' ~/backyard-backups/
+# then copy it OFF the box, and record the passphrase location on the succession sheet.
+# DOUBLE quotes: single ones stop $BACKYARD_HOST expanding, so this used to try to reach a
+# host literally named "$BACKYARD_HOST" and fail -- on the step that turns a backup sitting
+# on the same disk into an actual backup. Double quotes still stop the LOCAL shell
+# expanding the glob, which is what scp needs (the remote end expands it).
+mkdir -p ~/backyard-backups
+scp -i ~/.ssh/backyard_vm "ubuntu@$BACKYARD_HOST:/data/backup-*.tar.enc" ~/backyard-backups/
 ```
 
 ## Founder-owned, unchanged

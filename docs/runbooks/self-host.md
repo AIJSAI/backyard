@@ -163,13 +163,32 @@ reputation. Set SPF, DKIM and DMARC. Ask the first few people to mark it "not sp
 
 **Take one before you need one, and test restoring it.**
 
-```bash
-# Keyfile, not an inline variable: an inline one lands in your shell history.
-printf '%s' 'four random words you can write down' > /root/backyard.key
-chmod 600 /root/backyard.key
+You already set `BACKYARD_BACKUP_PASSPHRASE` in `.env` above, and compose passes it
+into the container — so a backup is one command with no secret on it:
 
+```bash
 docker compose exec -T web python manage.py backup_instance \
-  /data/backups/backup-$(date +%F).bak --passphrase-file /root/backyard.key
+  /data/backups/backup-$(date +%F).bak
+```
+
+The archive path is **positional**; there is no `--output` flag.
+
+Never assign the passphrase inline in front of a `docker compose` command — that lands
+in your shell history and in every process listing. Set it in `.env`, or use a keyfile.
+
+A keyfile is tighter than the env var, because the env value is visible to
+`docker inspect`. The path is read **inside** the container, so mount it read-only — and
+never onto `/data`, which is the volume the archives live on: a key beside the ciphertext
+is not encryption, and a stolen disk or provider snapshot would carry both.
+
+```bash
+printf '%s' 'four random words you can write down' > /root/backyard.key
+chmod 600 /root/backyard.key        # the command refuses a group/world-readable key
+
+# add to the web service in docker-compose.prod.yml:
+#   volumes: [ "/root/backyard.key:/run/secrets/backyard.key:ro" ]
+docker compose exec -T web python manage.py backup_instance \
+  /data/backups/backup-$(date +%F).bak --passphrase-file /run/secrets/backyard.key
 ```
 
 Backups are **encrypted by default**; the command refuses to write plaintext unless you
@@ -267,8 +286,10 @@ Stated plainly, because finding out later is worse:
   The post appears immediately and the video fills in.
 - **Profiles are thin.** Names, kinship names, birthdays and contact fields with per-field
   visibility — but no profile photo and no work/school history yet.
-- **Pre-flight migration dumps are plaintext** on the data volume. They exist to save a
-  failed migration, when nothing can be holding a passphrase.
+- **Pre-flight migration dumps are plaintext only if you leave
+  `BACKYARD_BACKUP_PASSPHRASE` unset.** Set it and the entrypoint encrypts them too; leave
+  it unset and the instance warns on every boot that it just wrote an unencrypted dump of
+  the whole database to the data volume.
 
 The current, deliberately harsh list is
 [the self-audit](../audits/2026-07-26-honest-100-audit.md).

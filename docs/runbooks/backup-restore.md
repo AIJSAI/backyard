@@ -1,8 +1,12 @@
 # Backup and restore runbook (S-704, S-802)
 
 Backing up and restoring a whole Backyard instance is one command each, and the
-restore is exercised as a drill before every release. This is the documented,
-tested path.
+round trip — back up, delete the row, restore, assert it came back — runs in CI on
+every push, in the `code` job's "Compose live probe" step against a real Postgres.
+
+**What that gate does not cover:** it exercises the code path against a real
+Postgres, not *your* archive on *your* box. A backup you have never restored is
+a hypothesis. Run a restore drill against a scratch instance before you need one.
 
 ## What a backup contains
 
@@ -11,11 +15,15 @@ One archive holds the two stateful things:
 - the **database** (`pg_dump -Fc` custom-format dump), and
 - the **media tree** (`MEDIA_ROOT`, every uploaded photo and derivative).
 
-It is a plain tar of three members: `backup-manifest.json`, `database.dump`,
-and `media.tar.gz`. Open it, verify it, and encrypt or ship it with your own
-tools. The app holds no encryption key; at-rest encryption is your storage
-layer's job (`age`, `gpg`, or an encrypted volume), kept out of the app so the
-app never custodies long-lived key material.
+Inside, it is a tar of three members: `backup-manifest.json`, `database.dump`,
+and `media.tar.gz` — but that tar is **encrypted at rest by default** (S-802),
+so what lands on disk is ciphertext unless you explicitly passed `--no-encrypt`.
+See "Trust and safety" below for how the passphrase is supplied.
+
+> This paragraph used to read *"The app holds no encryption key; at-rest
+> encryption is your storage layer's job."* That stopped being true when S-802
+> shipped, and it is the exact sentence a prior audit caught a plaintext archive
+> shipping under. If you are reading a copy that still says it, the copy is stale.
 
 ## Trust and safety
 
@@ -33,24 +41,43 @@ the command line, where it would land in shell history and every process listing
 There is no key escrow: **lose the passphrase and the archive is gone.** Write it
 on the recovery sheet and keep that somewhere a house fire would not take with it.
 
-The **pre-flight dumps** taken by the entrypoint before each migration are still
-plaintext on `/data`, because they exist to save you when a migration fails and
-nothing can be holding a passphrase at that moment. Read access to `/data` still
-yields those. Treat the volume as sensitive regardless.
+The **pre-flight dumps** taken by the entrypoint before each migration are
+**encrypted too, whenever `BACKYARD_BACKUP_PASSPHRASE` is set** — compose passes
+it into the web container, so the process taking the dump has it.
+
+This used to say they were "still plaintext … because nothing can be holding a
+passphrase at that moment". That reasoning was wrong, and it was load-bearing: it
+justified writing an unencrypted dump of the entire family database on every
+container start, three copies deep, which is verbatim T-BACKUP-1 and T-MEDIA-5.
+
+**If the passphrase is unset, the dumps are plaintext and the instance says so on
+every boot.** That warning is the fix working, not a cosmetic nag. Read access to
+`/data` yields those dumps whole. Set the passphrase.
 
 ## Back up
 
-Run in the migrator's environment (the compose stack already has
-`POSTGRES_MIGRATOR_PASSWORD` for the migrate step):
+Compose already places `POSTGRES_MIGRATOR_PASSWORD` in the web service's
+environment, so you do **not** need to pass it — and passing it with `-e` puts a
+database password in your shell history and every process listing, which is the
+same mistake this document forbids two paragraphs above for the passphrase:
 
 ```sh
-docker compose exec \
-  -e POSTGRES_MIGRATOR_PASSWORD="$MIGRATOR_PW" \
+docker compose exec -T \
   web python manage.py backup_instance /data/backups/backup-$(date +%F).bak
 
-# The passphrase never goes on the command line. Prefer a keyfile:
+# The passphrase never goes on the command line. The command reads
+# BACKYARD_BACKUP_PASSPHRASE, which compose passes in from `.env` — that is the
+# documented path and it needs no extra flag.
+#
+# `--passphrase-file` is the tighter option, but the path is read INSIDE the
+# container, and the one place you must NOT put it is `/data`: that is the volume
+# holding the archives, so a stolen disk or provider snapshot would carry the key
+# next to the ciphertext and the encryption would buy nothing (T-BACKUP-1 is
+# exactly that threat). Mount a host keyfile read-only instead:
 #   printf '%s' 'your four-word diceware phrase' > /root/backyard.key
 #   chmod 600 /root/backyard.key        # the command refuses a group/world-readable key
+#   # add to the web service in docker-compose.prod.yml:
+#   #   volumes: [ "/root/backyard.key:/run/secrets/backyard.key:ro" ]
 #   docker compose exec -T web python manage.py backup_instance \
 #     /data/backups/backup-$(date +%F).bak --passphrase-file /run/secrets/backyard.key
 #

@@ -46,6 +46,7 @@ name = "backyard"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "django" },
     { name = "django-allauth", extra = ["mfa"] },
     { name = "django-anymail", extra = ["resend"] },
@@ -69,6 +70,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", specifier = ">=45,<50" },
     { name = "django", specifier = ">=5.2,<5.3" },
     { name = "django-allauth", extras = ["mfa"], specifier = ">=65.14,<66" },
     { name = "django-anymail", extras = ["resend"], specifier = ">=15,<16" },
