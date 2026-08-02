@@ -53,7 +53,7 @@ regexes = ['''SHA-256-digest''']
 [[rules]]
 id = "backyard-generic-password-assignment"
 description = "A credential-shaped name assigned a quoted literal, at any entropy"
-regex = '''(?i)\b(pw|passwd|password|passphrase|secret|credential)\b\s*[:=]\s*["']([^"'\n]{6,})["']'''
+regex = '''(?i)[a-z0-9_.-]{0,40}(pw|passwd|password|passphrase|secret|credential)[a-z0-9_.-]{0,40}\s*[:=]\s*["']([^"'$\n]{6,})["']'''
 # The VALUE, not the whole `password = "..."` match, so the synthetic-fixture allowlist
 # above compares against the credential itself rather than the surrounding syntax.
 secretGroup = 2
@@ -95,3 +95,18 @@ add a value to that test's allowlist to make it pass."""
 # Written as a PATTERN, not the literal, so this file does not itself republish the value --
 # which the burned-credential test correctly flagged when it started scanning .toml files.
 regexes = ['''backyard-qa-20[0-9]{2}''']
+
+[[rules]]
+id = "backyard-unquoted-env-credential-assignment"
+description = "A SHOUTY_SNAKE credential name assigned an unquoted literal in env/compose shape"
+regex = '''(?m)^[\s-]*[A-Z][A-Z0-9_]*(?:PW|PASSWD|PASSWORD|PASSPHRASE|SECRET|CREDENTIAL)[A-Z0-9_]*\s*[:=][ \t]+([^$\s"'#(\[][^\n#(\[]{5,})'''
+secretGroup = 1
+tags = ["password", "generic", "env"]
+
+[[allowlists]]
+description = "Structurally-not-a-credential values for the two generic rules."
+regexes = [
+  '''not-a-secret''',
+  '''^whsec_live$''',
+  '''^(os\.environ|sys\.argv|getattr|globals|locals)''',
+]
