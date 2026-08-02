@@ -8,10 +8,12 @@ down. That instruction earned its keep: OUTSTANDING.md called itself "the single
 a re-measurement found ~30 items it did not contain.
 
 > **Start here after a compaction:** the two live production exposures are **CLOSED** as of
-> 2026-08-01 (OUTSTANDING §0). The burned credential no longer authenticates — verified over
-> HTTPS against the live site — pre-flight dumps are encrypted, and the instance has its first
-> verified backup, held off-box and proven to decrypt. No plaintext copy of the family
-> database exists anywhere any more.
+> the evening of 2026-08-01 US Central — which is **2026-08-02 UTC**, the date the box stamped
+> on its own artefacts (`backup-2026-08-02.bak`). Same moment; compare in UTC when matching a
+> runbook entry to a file on the box (OUTSTANDING §0). The burned credential no longer
+> authenticates — verified over HTTPS against the live site — pre-flight dumps are encrypted,
+> and the instance has its first verified backup, held off-box and proven to decrypt. No
+> plaintext copy of the family database exists anywhere any more.
 >
 > Secrets live in the **1Password `Backyard` vault**. There is **no key escrow** for
 > `BACKYARD_BACKUP_PASSPHRASE`: if that item is lost, every backup taken with it is

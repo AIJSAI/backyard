@@ -20,11 +20,18 @@ State on 2026-08-01: `main` = `162c620` (#118 merged) · **811 passing / 2 skipp
 
 ---
 
-## 0. Operator actions — 1–3 DONE 2026-08-01, one left
+## 0. Operator actions — 1–3 DONE 2026-08-01 (CDT) / 2026-08-02 (UTC), one left
 
 Done over SSH with founder authorisation, each verified rather than assumed. Secrets live in
 the **1Password `Backyard` vault**; no secret value is in this repo, on a command line, or in
 a shell history.
+
+> **On the two dates.** The work happened on the evening of **2026-08-01 US Central**, which
+> was already **2026-08-02 UTC**. The box runs UTC, so artefacts it named itself carry the
+> later date — `backup-2026-08-02.bak`, `preflight-20260802023148.dump.enc`. Both are correct;
+> they are the same moment. Worth stating because it recurs every evening, and an operator
+> log whose dates disagree with its own filenames is one an operator stops trusting. **When
+> you correlate a runbook entry with a file on the box, compare in UTC.**
 
 | # | Action | State |
 |---|---|---|
