@@ -72,10 +72,14 @@ is not a recoverable mistake.
    command finds it without an inline assignment that would land in your shell history.
 
    **Check the file exists and is non-empty before step 3.** The whole point of this step
-   is that it is the last copy:
+   is that it is the last copy, and the next one destroys the volume. `test -s` *enforces*
+   non-empty and exits non-zero if not — `ls -l` only shows you a number you have to
+   notice, which is the wrong thing to rely on at the end of a decommission:
    ```bash
    docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web \
-     ls -l /data/final-backup.tar.enc
+     test -s /data/final-backup.tar.enc \
+     && echo "OK: final backup present and non-empty" \
+     || echo "STOP: final backup missing or EMPTY — do not run step 3"
    ```
    Keep the passphrase with the archive's *location*, never in the same place as the
    archive. There is no key escrow: lose it and that file is gone.
