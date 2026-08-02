@@ -112,9 +112,7 @@ def test_the_digest_link_is_not_shown_when_an_admin_edits_someone_else() -> None
     pod.yards.set([yard])
 
     admin_user = User.objects.create_user(username="admin")
-    admin = Member.objects.create(
-        display_name="Admin", user=admin_user, role=Member.INSTANCE_ADMIN
-    )
+    admin = Member.objects.create(display_name="Admin", user=admin_user, role=Member.INSTANCE_ADMIN)
     PodMembership.objects.create(member=admin, pod=pod)
 
     other_user = User.objects.create_user(username="other")
