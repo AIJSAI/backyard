@@ -107,5 +107,20 @@
 
     <button type="submit">Save</button>
   </form>
+
+  {% comment %} The digest was routed at /settings/digest/ and linked from NOWHERE: the only
+     `{% url 'digest_settings' %}` in the codebase was that page's own form action, so the
+     one notification channel the product has could not be switched on by anybody. It also
+     took the weekly health email down with it, because admin_recipients() requires a
+     CONFIRMED subscription -- so an instance with an unreachable digest page reports its
+     own disk and backup status to nobody. Not shown when an admin is editing someone
+     else's profile: a digest address is that person's to set. {% endcomment %}
+  {% if not editing_other %}
+    <p class="settings-link">
+      <a href="{% url 'digest_settings' %}">Your weekly email from the family</a> —
+      choose where it goes and how often.
+    </p>
+  {% endif %}
+
   <p class="back-link"><a class="back" href="{% url 'directory' %}">Back to the directory</a></p>
 {% endblock %}
