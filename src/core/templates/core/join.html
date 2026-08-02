@@ -24,6 +24,14 @@
     <label for="password">Password</label>
     <input type="password" id="password" name="password" autocomplete="new-password" required>
 
+    <label for="email">Email <span class="optional">(optional)</span></label>
+    <input type="email" id="email" name="email" autocomplete="email" maxlength="254"
+           aria-describedby="email-help">
+    <p class="field-help" id="email-help">
+      The only way to get back in if you forget your password. Without it nobody —
+      not even an admin — can reset your account. You can also get the weekly digest here.
+    </p>
+
     <button type="submit">Join</button>
   </form>
 {% endblock %}
