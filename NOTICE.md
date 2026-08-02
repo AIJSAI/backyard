@@ -18,23 +18,34 @@ Licensed under the **SIL Open Font License, Version 1.1**.
 - Full licence text: [`src/core/static/backyard/fonts/OFL.txt`](src/core/static/backyard/fonts/OFL.txt)
 - Upstream: <https://www.brailleinstitute.org/freefont>
 
-The copyright line above was read out of the font binary's own `name` table (nameID 0), not
-copied from a third-party summary.
+**What was and was not missing, precisely.** OFL §2 requires each redistributed copy to carry
+the copyright notice *and* the licence, and it explicitly accepts "machine-readable metadata
+fields within text or binary files" as a location. Measured against the actual binaries:
 
-OFL §2 requires that **every** redistributed copy carry the copyright notice and the licence.
-That includes this repository, the static files a running instance serves, and any container
-image built from it — the licence file sits beside the fonts so it is collected and shipped by
-the same `collectstatic` step, rather than depending on someone remembering.
+| OpenType `name` field | | |
+|---|---|---|
+| nameID 0, copyright | **present** in all three faces | §2's copyright half already satisfied, on every copy, everywhere it travels |
+| nameID 13, licence text | **absent** | the gap |
+| nameID 14, licence URL | present | a pointer to the licence, not the licence |
+
+So the fonts were never unattributed — the copyright line above was read out of the binaries
+themselves. What is missing is the licence *text*, which a URL references rather than
+includes. `OFL.txt` closes that, and sits beside the fonts so `collectstatic` ships it with
+them into any container image rather than the obligation depending on someone remembering.
 
 The font is not incidental: it was chosen for legibility on the elder path, where the whole
 point is that someone with imperfect sight can read the page.
 
 ## Why this file exists
 
-It did not, and the fonts were redistributed without their licence for the project's life — a
-straightforward OFL violation, in a public repository, under a project whose own README makes
-a point of its licensing rigour. It was found by an all-angles exposure audit on 2026-08-01,
-not by anyone reading the licence.
+An all-angles exposure audit on 2026-08-01 first reported this as "three fonts with no licence
+and no attribution — a straightforward violation." That was **wrong**, and its own verification
+pass caught it: the copyright notice is embedded in every face and OFL §2 accepts exactly that
+location. The real gap is the narrower one above.
+
+Recording the correction rather than the original claim, because the overstated version is the
+more quotable one and this project has been bitten before by a finding that was real with a
+false mechanism.
 
 The exposure grows rather than shrinks: publishing container images (roadmap Phase 5) turns
 this from a source-tree omission into a **binary redistribution** with attribution duties, and

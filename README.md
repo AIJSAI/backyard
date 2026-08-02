@@ -98,4 +98,4 @@ New here? **[docs/README.md](docs/README.md)** is the map.
 [AGPL-3.0](LICENSE). Rationale in [ADR-000](docs/adr/ADR-000-license.md). Contributions require a DCO sign-off; see [CONTRIBUTING](CONTRIBUTING.md).
 
 Third-party material redistributed here — currently the Atkinson Hyperlegible font, under
-the SIL Open Font License — is attributed in [NOTICE.md](NOTICE.md).
+the SIL Open Font License — is inventoried in [NOTICE.md](NOTICE.md).
