@@ -7,17 +7,20 @@ Written to survive a context compaction. Read this, then
 down. That instruction earned its keep: OUTSTANDING.md called itself "the single list" and
 a re-measurement found ~30 items it did not contain.
 
-> **Start here after a compaction:** OUTSTANDING.md §0 is four things a person must do on the
-> box, two of which are live exposures — the leaked password still authenticates on
-> production, and production is writing plaintext dumps of the whole family database on every
-> boot. Nothing in the backlog outranks those.
+> **Start here after a compaction:** the two live production exposures are **CLOSED** as of
+> 2026-08-01 (OUTSTANDING §0). The burned credential no longer authenticates — verified over
+> HTTPS against the live site — pre-flight dumps are encrypted, and the instance has its first
+> verified backup, held off-box and proven to decrypt. No plaintext copy of the family
+> database exists anywhere any more.
 >
-> Set the backup passphrase only on a tree that includes **PR #118**: before it, CI asserted
-> the *plaintext* pre-flight filename, so setting the passphrase would have turned CI red.
+> Secrets live in the **1Password `Backyard` vault**. There is **no key escrow** for
+> `BACKYARD_BACKUP_PASSPHRASE`: if that item is lost, every backup taken with it is
+> permanently unreadable.
 >
-> **Do not link, post or submit the repo anywhere until the demo password is rotated** — the
-> `v0.1.0` tag that `README.md` tells strangers to clone still carries the burned credential
-> in three files (OUTSTANDING §6, C2).
+> **The repo still must not be linked, posted or submitted anywhere.** Rotation closed the
+> *live* half; the `v0.1.0` tag that `README.md` tells strangers to clone still carries the
+> burned credential in three files. Re-tag `v0.1.1` from clean `main` first
+> (OUTSTANDING §6, C2).
 
 **`v0.1.0` is tagged.** The README installs the tag, not `main`, and `CHANGELOG.md` lists what
 does not work as prominently as what does. If you add a user-visible change, add a changelog

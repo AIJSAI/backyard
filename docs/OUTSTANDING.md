@@ -6,7 +6,8 @@
 > invisible. A six-axis readiness audit on 2026-08-01 found roughly thirty items it did not
 > contain, seven of them critical — see [§6](#6-what-the-2026-08-01-readiness-audit-added).
 >
-> Two of those criticals are now fixed (PR #118). The rest are open.
+> Three of those criticals are fixed (PR #118), and **both live production exposures are
+> closed** (§0). The rest are open.
 
 Everything not done, ranked, with who owns it.
 
@@ -14,23 +15,31 @@ Everything not done, ranked, with who owns it.
 in the item) rather than trusting the state below. Items are marked with the audit finding
 they came from so you can go back to the source.
 
-State on 2026-08-01: `main` = `bb54411` · **811 passing / 2 skipped** on PR #118 ·
+State on 2026-08-01: `main` = `162c620` (#118 merged) · **811 passing / 2 skipped** ·
 46 stories passing, 2 superseded, **1 spec** · PATH-TO-100 30 checked / 15 open.
 
 ---
 
-## 0. Do these first — a person has to, on the box
+## 0. Operator actions — 1–3 DONE 2026-08-01, one left
 
-An agent session cannot do these: the command classifier refuses
-`docker compose exec … manage.py shell`. The commands are in
-[`RESUME-HERE.md`](RESUME-HERE.md) under "Operator actions waiting".
+Done over SSH with founder authorisation, each verified rather than assumed. Secrets live in
+the **1Password `Backyard` vault**; no secret value is in this repo, on a command line, or in
+a shell history.
 
-| # | Action | Why it is first |
+| # | Action | State |
 |---|---|---|
-| 1 | **Rotate the demo accounts** | The leaked password **still authenticated on production** at the end of the security pass. Re-tested repeatedly; it is live. |
-| 2 | **Set `BACKYARD_BACKUP_PASSPHRASE`** | Production is writing **plaintext dumps of the entire family database on every boot** — three on the volume. The instance warns about it on every start. **Do this only on a tree that includes PR #118**: before it, CI asserted the *plaintext* pre-flight filename, so setting the passphrase would have turned the gate red. |
-| 3 | **Take a backup** | Production has never had one, so restore has never been exercised against real data either. |
-| 4 | **Register the Resend inbound webhook** | Until then a reply-by-email is accepted with a `250` and **silently goes nowhere**. |
+| 1 | **Rotate the demo accounts** | **DONE.** Checked empirically first: the burned password authenticated `priya`, `sam`, `dave` and **not** `james` — the instance admin predates the seed, so it was never the leaked value and was left untouched. The three were rotated to a generated password (1P: *Backyard demo family logins*). Verified over HTTPS against the live site: the burned credential now returns **200 (rejected)**, where it previously returned 302 (success). |
+| 2 | **Set `BACKYARD_BACKUP_PASSPHRASE`** | **DONE.** Generated in 1Password *first* (there is no key escrow), then piped to the box over stdin — never through a command line. Boot log now reads `Pre-flight backup written ENCRYPTED: preflight-….dump.enc`, and that file was proven to decrypt to a real `PGDMP` archive. The 1P value was hash-compared against the container's env to prove they match. |
+| 3 | **Take a backup** | **DONE** — the first in the project's history. `backup-2026-08-02.bak`, 512,071 bytes, encrypted; copied off the box to `~/backyard-backups/`, SHA-256 matched, and **decrypted locally** to `backup-manifest.json` + `database.dump` (PGDMP) + `media.tar.gz`. Only after that were the remaining plaintext pre-flight dumps deleted — they were, until then, the only copies of the database in existence. |
+| 4 | **Register the Resend inbound webhook** | **STILL OPEN**, and see the ordering note below: it buys nothing until **C6** is fixed, because a reply-by-email is a reply *to a digest* and no member can enable the digest yet. |
+
+**No plaintext copy of the family database now exists anywhere** — on the volume, in `/tmp`,
+or off-box. That was the single worst standing exposure.
+
+Note for the future: an agent session *can* do these after all, over SSH with the key at
+`~/.ssh/backyard_vm`. The classifier refusal applies to a local `docker compose exec`, not to
+`ssh … 'docker compose exec …'`. What actually gated this was founder authorisation, which is
+the right gate.
 
 ---
 

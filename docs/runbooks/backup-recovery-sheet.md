@@ -64,6 +64,18 @@ admin (Members → Set role → Instance admin) and write their name below. One 
 
       ____________________________________________________________
 
+    ...or, if it lives in a password manager, name the vault and item here
+    instead of copying the value:
+
+      ____________________________________________________________
+
+    > A password manager is a fine place for it — but only if **somebody else can
+    > reach it**. If the passphrase exists solely inside an account that dies with
+    > you, you have moved the single point of failure, not removed it. Set up
+    > emergency access / a legacy contact, or write the value on this sheet too.
+    > The archive does not care which; it cares that exactly one person is not the
+    > only route to it.
+
     Date set: ____________________   Set by: ______________________
 
     Where backups are written: ____________________________________
