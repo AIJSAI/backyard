@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import pytest
 from allauth.account.models import EmailAddress
-from django.contrib.auth import get_user_model
 from django.core import mail
 from django.test import Client
 from django.urls import reverse
@@ -28,7 +27,6 @@ from django.urls import reverse
 from core.invites import mint_invite
 from core.models import Member, Pod, Yard
 
-User = get_user_model()
 _PW = "a-Strong-passphrase-9"
 
 
@@ -117,6 +115,45 @@ def test_a_malformed_address_is_refused_rather_than_silently_dropped() -> None:
     )
     assert retry.status_code == 302, "the rejected attempt consumed the invite"
     assert EmailAddress.objects.filter(email="reed@example.com").exists()
+
+
+@pytest.mark.django_db
+def test_an_over_long_address_is_rejected_not_silently_truncated() -> None:
+    """The view used to do `.strip()[:254]` BEFORE validating.
+
+    That made the length check unreachable and, far worse, would have stored a DIFFERENT
+    address from the one typed: a 260-character address becomes a valid-looking
+    254-character one belonging to nobody, on the single field whose entire purpose is
+    getting the member back into their account. Silently altering a recovery address is the
+    exact failure this feature exists to prevent. Review caught it.
+    """
+    pod = _pod()
+    _, raw = mint_invite(pod, None)
+    long_local = "r" * 250
+    address = f"{long_local}@example.com"  # 262 characters
+    assert len(address) > 254
+    response = Client().post(
+        reverse("join", args=[raw]),
+        {
+            "display_name": "Cousin Reed",
+            "username": "cousinreed",
+            "password": _PW,
+            "email": address,
+        },
+    )
+    assert response.status_code == 200, "an over-long address must re-render, not redirect"
+    assert not Member.objects.filter(display_name="Cousin Reed").exists()
+    assert not EmailAddress.objects.filter(email__startswith=long_local[:20]).exists()
+
+    # Assert on the LENGTH error specifically, not merely that the join was refused.
+    # Truncating before validation makes `len(email) > 254` unreachable, and the truncated
+    # value here happens to be malformed too -- so a status-only assertion passes either
+    # way and proves nothing. This is the discriminating signal: the first version of this
+    # test passed with the bug reintroduced.
+    assert "too long" in response.content.decode().lower(), (
+        "the over-long address was refused for the wrong reason -- the length check is "
+        "unreachable, which means the value is being truncated before it is validated"
+    )
 
 
 @pytest.mark.django_db

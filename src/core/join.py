@@ -20,6 +20,7 @@ view establishes the account with a password so the member can always get back i
 from __future__ import annotations
 
 import logging
+from functools import partial
 from typing import cast
 
 from allauth.account.models import EmailAddress
@@ -113,6 +114,30 @@ def _create_account(
         return member
 
 
+def _send_confirmation(request: HttpRequest, member: Member, email: str) -> None:
+    """Send the address-confirmation mail, on commit and never before.
+
+    Sitting after the inner `transaction.atomic()` block is NOT enough: settings.py sets
+    `ATOMIC_REQUESTS = True`, so the whole request is already inside a transaction and code
+    after the inner block still runs within it. An earlier version of this claimed in a
+    comment to be "after the transaction, never inside it" and was simply wrong -- review
+    caught it. A mail sent from inside a request that later rolls back would point a real
+    person at an account that does not exist.
+
+    A send failure only warns: the member is already signed in and in their feed, an
+    unconfirmed address is recoverable, and a lost join is not.
+    """
+    try:
+        address = EmailAddress.objects.get(user=member.user, email=email)
+        address.send_confirmation(request, signup=True)
+    except Exception:  # noqa: BLE001 -- provider/transport failure, not our logic
+        logger.warning(
+            "join: confirmation email failed for member %s; the address is saved but "
+            "unverified, so they can still use password reset once they confirm it",
+            member.pk,
+        )
+
+
 def join(request: HttpRequest, token: str) -> HttpResponse:
     # An already-signed-in member does not burn an invite by re-hitting the link; send
     # them to their feed, the member's landing surface (S-101), not the bare root.
@@ -134,7 +159,12 @@ def join(request: HttpRequest, token: str) -> HttpResponse:
         display_name = request.POST.get("display_name", "").strip()
         username = request.POST.get("username", "").strip()
         password = request.POST.get("password", "")
-        email = request.POST.get("email", "").strip()[:254]
+        # NOT truncated before validation. `[:254]` here made the length check below
+        # unreachable and, worse, would have silently stored a DIFFERENT address from the
+        # one typed -- a 260-character address becomes a valid-looking 254-character one
+        # that belongs to nobody. For a field whose entire purpose is account recovery,
+        # silently altering the value is the failure this change exists to prevent.
+        email = request.POST.get("email", "").strip()
         errors = _validate(display_name, username, password, email)
         if not errors:
             try:
@@ -147,20 +177,10 @@ def join(request: HttpRequest, token: str) -> HttpResponse:
             else:
                 login(request, member.user, backend=_MODEL_BACKEND)
                 if email:
-                    # AFTER the transaction, never inside it: a confirmation sent from within
-                    # would survive a rollback and point at an account that does not exist.
-                    # A mail failure must not undo a completed join either -- they are signed
-                    # in and in the feed; an unconfirmed address is recoverable, a lost join
-                    # is not.
-                    try:
-                        address = EmailAddress.objects.get(user=member.user, email=email)
-                        address.send_confirmation(request, signup=True)
-                    except Exception:  # noqa: BLE001 -- provider/transport, not our logic
-                        logger.warning(
-                            "join: confirmation email failed for member %s; the address is "
-                            "saved but unverified",
-                            member.pk,
-                        )
+                    # partial, not a lambda closing over the loop-free locals: mypy cannot
+                    # infer a lambda with a default-arg binding, and partial states the
+                    # captured values explicitly.
+                    transaction.on_commit(partial(_send_confirmation, request, member, email))
                 # S-101 acceptance: completing signup lands DIRECTLY in the pod feed, the
                 # member's home surface, never a community-setup screen or a bare root.
                 return redirect("feed")
