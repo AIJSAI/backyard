@@ -51,11 +51,17 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 # gitleaks was also allowlisting, so nothing at all covered it.
 _SCANNED_DIRS = ("scripts", "docs/design/tools", "src")
 
-# Skipped by _tracked_files(): binary formats that cannot carry a readable credential and
-# would only cost decode errors. Everything else is scanned, including file types nobody
-# has thought of yet -- that is the point of a denylist here.
+# Skipped by _tracked_files(): raster and font formats, where a text scan is decode errors and
+# noise rather than signal. NOT a claim that they cannot carry a credential -- review pointed
+# out the first version of this comment asserted exactly that, and it is false: plenty of
+# binary containers hold readable text. `.pdf` was in this list on the strength of that wrong
+# claim and has been removed, because a PDF is mostly text and is the one format here a
+# credential could plausibly be pasted into.
+#
+# Everything not listed is scanned, including file types nobody has thought of yet -- which is
+# the whole reason this is a denylist and not the extension allowlist it replaced.
 _BINARY_SUFFIXES = frozenset(
-    {".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp", ".woff", ".woff2", ".ttf", ".otf", ".pdf"}
+    {".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp", ".woff", ".woff2", ".ttf", ".otf"}
 )
 
 # Prose scanned as text. This is the gap that let the SAME credential be re-published three
