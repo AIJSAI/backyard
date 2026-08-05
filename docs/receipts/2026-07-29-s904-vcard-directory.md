@@ -167,8 +167,8 @@ A single card, fetched from production, with the name split and the slugified fi
 working on real data:
 
 ```
-content-disposition: attachment; filename="priya-shehan.vcf"
-BEGIN:VCARD / VERSION:3.0 / N:Shehan;Priya;;; / FN:Priya Shehan
+content-disposition: attachment; filename="priya-whitfield.vcf"
+BEGIN:VCARD / VERSION:3.0 / N:Whitfield;Priya;;; / FN:Priya Whitfield
 CATEGORIES:Backyard family / UID:backyard-9@backyard.family / REV:2026-07-30T02:36:55Z
 ```
 

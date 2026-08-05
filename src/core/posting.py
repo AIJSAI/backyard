@@ -90,8 +90,9 @@ def announce_arrival(member: Member, pod: Pod) -> Post:
         this product does not have those.
       * NO NOTIFICATION. It is a post, not a comment, and S-305's opt-in only
         fires on replies to your own post — so nothing is pushed at anyone.
-      * The body carries no name. The byline already says who this is; "Priya
-        Shehan joined" under a byline reading "Priya Shehan" reads as a bug.
+      * The body carries no name. The byline already says who this is; a body
+        reading "Priya Whitfield joined" under a byline already reading "Priya
+        Whitfield" reads as a bug.
 
     The pod is a PARAMETER, not something this function works out. The first cut
     inferred it as the member's lowest-id pod, which is correct only because the

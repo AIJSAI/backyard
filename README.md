@@ -25,8 +25,11 @@ Linux box, with TLS. Read the honest limitations there first, especially about e
 </tr>
 </table>
 
-*The images in that post are the demo family's generated fixtures, not photographs — no real
-family content appears anywhere in this repository, and [that rule has no exceptions](CONTRIBUTING.md#privacy-line).*
+*The images in that post are the demo family's generated fixtures, not photographs. No real
+family member's name, likeness or content appears anywhere in this repository — the demo
+family is invented, and [that rule has no exceptions](CONTRIBUTING.md#privacy-line). The
+author's own name appears in the demo seed and in every commit's authorship, which is his to
+give.*
 
 ## Install
 
