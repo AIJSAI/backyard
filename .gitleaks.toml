@@ -68,9 +68,13 @@ plant is deliberately NOT allowlisted -- allowlisting it made that half of the p
 real credential used to be quoted, so the rule that finds credentials also finds the marker
 left behind when one is removed."""
 regexes = [
-  '''migrator_pw''',
-  '''app_pw''',
-  '''hunter2''',
+  # ANCHORED. These were bare substrings, so any value merely CONTAINING them was
+  # allowlisted -- `app_pw` would have exempted a real secret like `app_pw_9fJ2...`.
+  # They are psql variable NAMES in postgres/initdb/01-roles.sh, so the whole value is
+  # the name and nothing longer should ever match.
+  '''^migrator_pw$''',
+  '''^app_pw$''',
+  '''^hunter2$''',
   '''<[^>]*[Pp]assword[^>]*>''',
   '''<a low-entropy literal>''',
   '''<a literal default>''',
@@ -99,7 +103,7 @@ regexes = ['''backyard-qa-20[0-9]{2}''']
 [[rules]]
 id = "backyard-unquoted-env-credential-assignment"
 description = "A SHOUTY_SNAKE credential name assigned an unquoted literal in env/compose shape"
-regex = '''(?m)^[\s-]*[A-Z][A-Z0-9_]*(?:PW|PASSWD|PASSWORD|PASSPHRASE|SECRET|CREDENTIAL)[A-Z0-9_]*\s*[:=][ \t]+([^$\s"'#(\[][^\n#(\[]{5,})'''
+regex = '''(?m)^[\s-]*[A-Z][A-Z0-9_]*(?:PW|PASSWD|PASSWORD|PASSPHRASE|SECRET|CREDENTIAL)[A-Z0-9_]*\s*[:=][ \t]*([^$\s"'#(\[.<][^\n#(\[]{5,})'''
 secretGroup = 1
 tags = ["password", "generic", "env"]
 
