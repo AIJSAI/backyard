@@ -119,7 +119,7 @@ written here.
 - **S25** — **26KB, 40% of every page, is developer CSS commentary** served to unauthenticated visitors, disclosing internal story IDs, founder feedback, and `django-allauth`. Strip comments at render time; do not delete them.
 - **S26** — Ubicloud project id and Cloudflare zone id in `runbooks/live-repro.md`; the prod IP was parameterised there but these were not.
 - **S27** — Maintainer's real email in `receipts/2026-07-22-wave-4-close.md`. Already public via git author metadata, but the receipt is a distinct disclosure naming it as the live inbox.
-- **S28** — **`Priya Shehan` in the demo seed carries the maintainer's real surname.** Every other demo name is invented. If she is a real family member this violates CONTRIBUTING's privacy line. **Only the founder can answer.**
+- **S28** — **DONE 2026-08-01.** The demo relative carrying the author's real surname is now `Priya Whitfield`, matching the fictional family the design tooling already used. It had also reached a shipping `posting.py` comment and two receipts, and the README carried a blanket "no real family content" claim that was false a few files away — both corrected. Guarded by `src/core/tests/test_privacy_line_holds.py`.
 - **S29** — No `/.well-known/security.txt` despite a SECURITY.md and an invitation to self-host. No `Permissions-Policy`, `CORP`, `COEP`.
 
 ---

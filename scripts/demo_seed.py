@@ -91,7 +91,7 @@ _u = U.objects.filter(username="james").first() or U.objects.create_user(
 )
 james = Member.objects.create(display_name="James Shehan", user=_u, role=Member.INSTANCE_ADMIN)
 PodMembership.objects.create(member=james, pod=ours)
-priya = member("Priya Shehan", ours, login="priya")
+priya = member("Priya Whitfield", ours, login="priya")
 nana = member("Rose Whitfield", nanas, kin="Nana")  # elder, no login
 sam = member("Sam Whitfield", cous, login="sam")  # mom's side only
 dave = member("Dave Ferrara", dadsfam, login="dave")  # dad's side only

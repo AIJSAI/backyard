@@ -42,8 +42,8 @@ finding. Either the member exists with an arrival card, or neither exists.
   a broadcast, and this product does not have those.
 - **No notification.** It is a post, not a comment; S-305's opt-in only fires on replies
   to your own post.
-- **No name in the body.** The byline already says who this is — *"Priya Shehan joined"*
-  under a byline reading *"Priya Shehan"* reads as a bug. The body is `Just joined.`
+- **No name in the body.** The byline already says who this is — *"Priya Whitfield joined"*
+  under a byline reading *"Priya Whitfield"* reads as a bug. The body is `Just joined.`
 
 ## Tests, and proof they bite
 
