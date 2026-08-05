@@ -7,6 +7,48 @@ promise yet — the schema and the URLs may still move.
 **Install a tag, not `main`.** `main` is where the work happens and it changes daily; a tag is
 a point somebody deliberately stopped at, with a full green gate behind it.
 
+## [0.1.1] — 2026-08-05
+
+Everything here is a correction, not a feature. `v0.1.0` is **withdrawn**: install this one.
+
+### Security
+
+- **A bridging post leaked the other side of the family, photographs included.** The audience
+  query filtered comments and reactions by *post* visibility alone, so on a post addressed to
+  both sides a single-yard member received the other side's replies and the images attached to
+  them. Fixed inside the one audience query. This is the defect that makes `v0.1.0` withdrawn
+  rather than merely superseded.
+- **A yard admin could mint a credential wider than their own reach** — an elder link for a
+  member of a pod they were not in.
+- **`DEBUG` could boot on a public host**, and setting it disabled the guard meant to prevent
+  exactly that.
+- **Pre-flight database dumps are encrypted** when a backup passphrase is set. They were
+  written in plaintext on every container start, three deep.
+- **`cryptography` is a declared dependency and pinned past `PYSEC-2026-3552`.** The backup
+  guarantee previously rested on a transitive dependency of an MFA extra.
+- Log redaction now covers the password-reset key; Pillow's format allowlist runs *before* the
+  decode; ffmpeg no longer inherits the environment; a malformed multipart message is rejected
+  instead of becoming a 500 and a provider retry loop.
+
+### Fixed
+
+- **The digest could not be switched on by anybody.** `/settings/digest/` was routed and
+  linked from nowhere, so the only notification channel the product has was unreachable — and
+  the weekly health email, which needs a confirmed subscription, was reaching nobody.
+- **An invite-joined member had no way back in.** The join form collected no address, so
+  password reset had nothing to send to and said "check your inbox" regardless.
+- **The decommission runbook destroyed data.** It documented a flag the command does not
+  accept, one step before `docker compose down -v`.
+- The restore drill could not run — it untarred an archive that is encrypted by default.
+
+### Changed
+
+- Backup and restore are exercised end to end in CI against a real Postgres, not stubs.
+- The demo family is fully invented; no real relative's name appears.
+- Fonts ship with their licence text (SIL OFL 1.1).
+
+[0.1.1]: https://github.com/AIJSAI/backyard/tree/v0.1.1
+
 ## [0.1.0] — 2026-07-29
 
 The first fixed point. **Pre-release: it runs, and it has not been handed to a family yet.**

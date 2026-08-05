@@ -4,9 +4,9 @@
 
 | Version | Supported |
 |---|---|
-| `v0.1.0` | ✅ current |
+| `v0.1.1` | ✅ current |
 | `main` | ⚠️ moving target — fixes land here first, but it may be mid-refactor when you arrive |
-| anything earlier | there is nothing earlier; `v0.1.0` is the first tag |
+| `v0.1.0` | ❌ withdrawn — superseded by `v0.1.1`; do not install |
 
 `0.x` carries no stability promise. Security fixes go to `main` and into the next tag; there
 is no backporting, because there is nothing to backport to.
