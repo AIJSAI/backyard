@@ -51,6 +51,19 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 # gitleaks was also allowlisting, so nothing at all covered it.
 _SCANNED_DIRS = ("scripts", "docs/design/tools", "src")
 
+# Skipped by _tracked_files(): raster and font formats, where a text scan is decode errors and
+# noise rather than signal. NOT a claim that they cannot carry a credential -- review pointed
+# out the first version of this comment asserted exactly that, and it is false: plenty of
+# binary containers hold readable text. `.pdf` was in this list on the strength of that wrong
+# claim and has been removed, because a PDF is mostly text and is the one format here a
+# credential could plausibly be pasted into.
+#
+# Everything not listed is scanned, including file types nobody has thought of yet -- which is
+# the whole reason this is a denylist and not the extension allowlist it replaced.
+_BINARY_SUFFIXES = frozenset(
+    {".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp", ".woff", ".woff2", ".ttf", ".otf"}
+)
+
 # Prose scanned as text. This is the gap that let the SAME credential be re-published three
 # times AFTER it was removed from code: an `ast` check cannot see a password quoted in a
 # markdown receipt, and gitleaks is blind to a low-entropy one. Both misses at once is how a
@@ -168,7 +181,13 @@ def _tracked_files() -> list[pathlib.Path]:
     except (OSError, subprocess.CalledProcessError):
         return _scanned_files() + _doc_files()
     paths = [_REPO_ROOT / rel for rel in out.split("\0") if rel]
-    return [p for p in paths if p.suffix in {".py", ".md", ".yml", ".yaml", ".toml", ".sh"}]
+    # DENYLIST, not an allowlist. The suffix allowlist here was {.py .md .yml .yaml .toml
+    # .sh}, which left 77 tracked files unscanned -- every HTML template, .env.example, the
+    # Dockerfile and both Caddyfiles. Those are not exotic: a demo credential in a template
+    # is exactly how a "just for the mockup" value ships, and .env.example is where a
+    # credential looks most at home. An allowlist of extensions silently excludes whatever
+    # nobody thought of, which is the class of file a leak actually lands in.
+    return [p for p in paths if p.suffix.lower() not in _BINARY_SUFFIXES]
 
 
 def test_every_scanned_directory_actually_has_files() -> None:

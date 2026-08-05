@@ -282,21 +282,55 @@ jobs:
           # by our backyard-generic-password-assignment rule. That is the class that leaked.
           printf 'aws_access_key_id = AKIA''Q3EGRIJKZVYWXHNM\n' > src/core/tests/test_zz_probe.py
           printf '%s = "%s"\n' PW sunflower-kitchen-tuesday >> src/core/tests/test_zz_probe.py
+          # The two shapes the previous rule was STRUCTURALLY blind to, planted in the file
+          # types they really occur in. Measured before this change: of six realistic plants
+          # (backup passphrase, DB passwords, webhook secret across compose + .env), exactly
+          # ONE was caught -- and the one caught was bare quoted `PASSWORD`, the single shape
+          # the old selftest planted. A selftest calibrated to the covered case cannot
+          # observe a blind spot, which is why this gate reported green over both.
+          #
+          # (a) UNDERSCORE-PREFIXED name: Go RE2 counts `_` as a word character, so the old
+          #     rule's leading \b never fired before PASSWORD in POSTGRES_APP_PASSWORD.
+          printf '%s: "%s"\n' POSTGRES_APP_PASSWORD lantern-quarry-marigold > compose-probe.yml
+          # (b) UNQUOTED env assignment: the old rule required quotes, and `.env` does not
+          #     use them. BACKYARD_BACKUP_PASSPHRASE is the worst case in this repo -- the
+          #     one credential with no key escrow (docs/runbooks/backup-restore.md).
+          printf '%s=%s\n' BACKYARD_BACKUP_PASSPHRASE lantern-quarry-marigold > env-probe.example
           git config user.email ci@local && git config user.name ci
-          git add -f src/core/tests/test_zz_probe.py
+          git add -f src/core/tests/test_zz_probe.py compose-probe.yml env-probe.example
           git commit -qm "plant (selftest, never pushed)"
           gitleaks git --no-banner -c "$probe/.gitleaks.toml" -f json -r "$probe/out.json" "$probe" || true
           python3 - "$probe/out.json" <<'PY'
           import json, sys
-          rules = {f["RuleID"] for f in json.load(open(sys.argv[1]))}
-          required = {"aws-access-token", "backyard-generic-password-assignment"}
+          findings = json.load(open(sys.argv[1]))
+          rules = {f["RuleID"] for f in findings}
+          # Asserted PER RULE, and now per SHAPE: the underscore and unquoted plants are the
+          # two the gate was blind to, so a pass has to attribute a finding to each of them
+          # by name. Without the by-name split, the quoted .py plant alone would satisfy a
+          # bare "did anything fire" check and carry the other two silently -- the exact
+          # defect that let this gate report green while it caught 1 realistic plant in 6.
+          required = {
+              "aws-access-token",
+              "backyard-generic-password-assignment",
+              "backyard-unquoted-env-credential-assignment",
+          }
           missing = required - rules
           if missing:
               print(f"VACUOUS GATE: this repo's gitleaks config did not fire {sorted(missing)} "
-                    f"on a plant in src/core/tests/. Rules that did fire: {sorted(rules)}",
-                    file=sys.stderr)
+                    f"on plants in src/core/tests/, compose-probe.yml and env-probe.example. "
+                    f"Rules that did fire: {sorted(rules)}", file=sys.stderr)
               raise SystemExit(1)
-          print(f"gate proven per-rule: {sorted(required)}")
+          # And the underscore-named plant must be attributed, not merely "some finding
+          # somewhere": the quoted rule is what has to catch POSTGRES_APP_PASSWORD now that
+          # the \b is gone, so name the file it must be found in.
+          files = {f["File"] for f in findings}
+          for f_needed in ("compose-probe.yml", "env-probe.example"):
+              if f_needed not in files:
+                  print(f"VACUOUS GATE: nothing fired on {f_needed}; the blind spot it "
+                        f"represents is still open. Files with findings: {sorted(files)}",
+                        file=sys.stderr)
+                  raise SystemExit(1)
+          print(f"gate proven per-rule and per-shape: {sorted(required)}")
           PY
       - name: Scan full history
         # -c is explicit rather than discovered, so this and the selftest above can
