@@ -34,7 +34,7 @@ give.*
 ## Install
 
 ```bash
-git clone --branch v0.1.0 https://github.com/AIJSAI/backyard.git && cd backyard
+git clone --branch v0.1.1 https://github.com/AIJSAI/backyard.git && cd backyard
 cp .env.example .env        # then set the three POSTGRES_* passwords
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
@@ -98,7 +98,15 @@ New here? **[docs/README.md](docs/README.md)** is the map.
 
 ## License
 
-[AGPL-3.0](LICENSE). Rationale in [ADR-000](docs/adr/ADR-000-license.md). Contributions require a DCO sign-off; see [CONTRIBUTING](CONTRIBUTING.md).
+Copyright (C) 2026 James Shehan.
 
-Third-party material redistributed here — currently the Atkinson Hyperlegible font, under
-the SIL Open Font License — is inventoried in [NOTICE.md](NOTICE.md).
+[AGPL-3.0-or-later](LICENSE). Rationale in [ADR-000](docs/adr/ADR-000-license.md). Contributions require a DCO sign-off; see [CONTRIBUTING](CONTRIBUTING.md).
+
+This program is free software: you can redistribute it and/or modify it under the terms of the
+GNU Affero General Public License as published by the Free Software Foundation, either version
+3 of the License, or (at your option) any later version. It is distributed WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+PURPOSE. See the [licence](LICENSE) for details.
+
+Third-party material redistributed here — currently the Atkinson Hyperlegible font, under the
+SIL Open Font License — is inventoried in [NOTICE.md](NOTICE.md).

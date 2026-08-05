@@ -19,12 +19,12 @@ a re-measurement found ~30 items it did not contain.
 > `BACKYARD_BACKUP_PASSPHRASE`: if that item is lost, every backup taken with it is
 > permanently unreadable.
 >
-> **The repo still must not be linked, posted or submitted anywhere.** Rotation closed the
-> *live* half; the `v0.1.0` tag that `README.md` tells strangers to clone still carries the
-> burned credential in three files. Re-tag `v0.1.1` from clean `main` first
-> (OUTSTANDING §6, C2).
+> **`v0.1.0` is WITHDRAWN.** It carried the burned credential in three tracked files and the
+> cross-yard disclosure fixed in #110. `v0.1.1` replaces it and the README installs that.
+> The credential itself is rotated and dead, so this is hygiene rather than a live exposure —
+> but do not point anyone at the old tag.
 
-**`v0.1.0` is tagged.** The README installs the tag, not `main`, and `CHANGELOG.md` lists what
+**`v0.1.1` is the current tag** (`v0.1.0` withdrawn). The README installs the tag, not `main`, and `CHANGELOG.md` lists what
 does not work as prominently as what does. If you add a user-visible change, add a changelog
 entry under an `## [Unreleased]` heading — the install path is now a fixed point that people
 can be pointed at, and the whole value of that is it not moving under them.

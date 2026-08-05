@@ -1,6 +1,6 @@
 # Contributing
 
-Backyard is at [`v0.1.0`](CHANGELOG.md) and still moving fast; `0.x` means the schema and the
+Backyard is at [`v0.1.1`](CHANGELOG.md) and still moving fast; `0.x` means the schema and the
 URLs may change under you. Work from a tag if you want stable ground, from `main` if you want
 to contribute.
 

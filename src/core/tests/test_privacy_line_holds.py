@@ -78,9 +78,22 @@ def test_the_surname_does_not_reach_shipping_source_or_docs() -> None:
         # case-SENSITIVE and passed while `priya-shehan.vcf` sat in a receipt -- a real,
         # live instance of exactly what it exists to forbid. Proving a guard fires against
         # the one mutation you thought of does not prove it catches the class.
-        if needle in path.read_text(encoding="utf-8", errors="replace").casefold():
-            offenders.append(str(path.relative_to(_ROOT)))
+        for lineno, line in enumerate(
+            path.read_text(encoding="utf-8", errors="replace").splitlines(), 1
+        ):
+            if needle not in line.casefold():
+                continue
+            # A COPYRIGHT NOTICE is the one place the author's own name belongs on a
+            # reader-facing surface -- AGPL requires an identified copyright holder, so a
+            # guard that forbade it would forbid the thing the licence demands. This guard
+            # caught exactly that when the notice was added, which is the check working:
+            # it forced the scope to be stated rather than assumed. Narrow on purpose --
+            # the exemption is the word "copyright" on the same line, not the whole file.
+            if "copyright" in line.casefold():
+                continue
+            offenders.append(f"{path.relative_to(_ROOT)}:{lineno}")
     assert not offenders, (
         f"the author's real surname reached files a stranger reads: {offenders}. "
-        "It belongs in git authorship, not in shipping source or receipts."
+        "It belongs in git authorship and the copyright notice, not in shipping source, "
+        "receipts, or demo data."
     )
