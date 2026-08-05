@@ -2,17 +2,25 @@
 
 The defect this exists for is one this repo was about to create. `v0.1.0` was withdrawn and
 deleted, and eight documents named it — README's clone command, SECURITY.md's supported-versions
-table, CONTRIBUTING, the changelog link, RESUME-HERE. Deleting the tag without updating them
-leaves the install path pointing at nothing:
+table, CONTRIBUTING, the changelog link. Deleting the tag without updating them leaves the
+install path pointing at nothing:
 
     git clone --branch v0.1.0 ...   ->   fatal: Remote branch v0.1.0 not found
 
 Nothing caught that, because no gate reads a version out of prose and checks it.
 
-Scope is deliberately the READER-FACING documents. Receipts and audits under `docs/receipts/`
-and `docs/audits/` name old tags on purpose — they are dated records of what was true when
-they were written, and rewriting one to keep a grep clean is how a project loses the ability
-to trust its own history.
+Scope is the documents that tell a stranger WHAT TO INSTALL, listed in `_READER_FACING`.
+Three kinds of file sit outside it, and the distinction is the point:
+
+* `docs/receipts/` and `docs/audits/` are dated records of what was true when written.
+  Rewriting one to keep a grep clean is how a project loses the ability to trust its history.
+* `docs/RESUME-HERE.md` is an internal handoff note that names withdrawn versions ON PURPOSE
+  ("`v0.1.0` is WITHDRAWN") so the next session does not point anyone at them. Guarding it
+  would fail the build for saying the true and useful thing.
+
+An earlier version of this docstring listed RESUME-HERE among the guarded documents while
+`_READER_FACING` did not. Review caught the contradiction; the list was right and the prose
+was wrong, which is the safer direction for the two to disagree in but still worth fixing.
 """
 
 from __future__ import annotations

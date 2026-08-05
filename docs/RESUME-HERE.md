@@ -21,7 +21,7 @@ a re-measurement found ~30 items it did not contain.
 >
 > **`v0.1.0` is WITHDRAWN.** It carried the burned credential in three tracked files and the
 > cross-yard disclosure fixed in #110. `v0.1.1` replaces it and the README installs that.
-> The credential itself is rotated and dead, so this is hygiene rather than an live exposure —
+> The credential itself is rotated and dead, so this is hygiene rather than a live exposure —
 > but do not point anyone at the old tag.
 
 **`v0.1.1` is the current tag** (`v0.1.0` withdrawn). The README installs the tag, not `main`, and `CHANGELOG.md` lists what
