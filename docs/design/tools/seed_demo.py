@@ -161,8 +161,13 @@ POD_SPEC = [
     ),
 ]
 for key, name, yards, kind, rule in POD_SPEC:
+    # Matched on (name, seeded_by), not name alone. `Pod.name` has no unique constraint, so
+    # looking up by name could adopt a REAL household that happens to be called "The
+    # Whitfields" and then rewrite its kind and house rule — and, because the marker only
+    # applies on create, leave it unmarked and mutated. Including the marker in the lookup
+    # means this can only ever find a pod THIS file made.
     p, _ = Pod.objects.get_or_create(
-        name=name, defaults={"kind": kind, "house_rule": rule, "seeded_by": SEEDED_BY}
+        name=name, seeded_by=SEEDED_BY, defaults={"kind": kind, "house_rule": rule}
     )
     p.kind = kind
     p.house_rule = rule
@@ -200,7 +205,9 @@ for key, name, kin, podkey, role, username, sup, bday, anniv in MEMBER_SPEC:
         user.set_password(PW)
         user.email = f"{username}@example.test"
         user.save()
-    m, _ = Member.objects.get_or_create(display_name=name, defaults={"seeded_by": SEEDED_BY})
+    # Same reasoning as the pods above: `display_name` is not unique, so matching on it
+    # alone could adopt a real relative who happens to share a name with a fixture one.
+    m, _ = Member.objects.get_or_create(display_name=name, seeded_by=SEEDED_BY)
     m.user = user
     m.kinship_name = kin or ""
     m.role = role

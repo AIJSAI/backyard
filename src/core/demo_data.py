@@ -61,6 +61,27 @@ class DemoDataError(RuntimeError):
     """Refused: the requested wipe would have reached something a real person made."""
 
 
+def _require_a_real_marker(marker: str) -> str:
+    """A blank marker is the one value that must never be allowed through.
+
+    `seeded_by` defaults to `""`, which is what EVERY row a real person creates carries.
+    So `wipe("")` — or `--marker ""`, or `--marker "  "` — selects the entire family and
+    deletes it. The scoped wipe would have shipped with the unscoped one hiding inside its
+    own parameter, which is a worse version of the defect this module replaced: it looks
+    safe at every call site and is armed by an empty string.
+
+    Caught in review. It is the first thing every entry point does now.
+    """
+    cleaned = marker.strip()
+    if not cleaned:
+        raise DemoDataError(
+            "Refusing to act on a blank marker. `seeded_by` is empty on everything a real "
+            "person created, so a blank marker selects the whole family. Pass the marker "
+            f"the seed stamps ({SEED_MARKER!r}), or the one your own generator uses."
+        )
+    return cleaned
+
+
 def _collect(marker: str) -> dict[Any, list[Any]]:
     """The real deletion closure, from Django's own collector.
 
@@ -73,6 +94,7 @@ def _collect(marker: str) -> dict[Any, list[Any]]:
     per call — hand it a mixed list and it validates the second model's instances against
     the first model's options and raises. The results are merged, not the inputs.
     """
+    marker = _require_a_real_marker(marker)
     grouped: dict[Any, list[Any]] = {}
     for model in _MARKED_MODELS:
         roots = list(model.objects.filter(seeded_by=marker))
@@ -144,6 +166,7 @@ def _refuse_if_it_strands_anyone(collected: dict[Any, list[Any]], marker: str) -
 
 def preview(marker: str = SEED_MARKER) -> Counter[str]:
     """Rows that `wipe()` would delete, per model. Touches nothing."""
+    marker = _require_a_real_marker(marker)
     collected = _collect(marker)
     _refuse_if_it_reaches_real_data(collected, marker)
     _refuse_if_it_strands_anyone(collected, marker)
@@ -210,6 +233,7 @@ def wipe(marker: str = SEED_MARKER) -> Counter[str]:
     Returns what was removed, per model, so the caller can print a receipt rather than
     "DEMO DATA WIPED" over an unknown blast radius.
     """
+    marker = _require_a_real_marker(marker)
     collected = _collect(marker)
     _refuse_if_it_reaches_real_data(collected, marker)
     _refuse_if_it_strands_anyone(collected, marker)

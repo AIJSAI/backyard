@@ -107,6 +107,12 @@ _u = U.objects.filter(username="james").first() or U.objects.create_user(
 james, _ = Member.objects.get_or_create(
     user=_u, defaults={"display_name": "James Shehan", "role": Member.INSTANCE_ADMIN}
 )
+# `defaults` only apply on CREATE, so re-running the seed against an existing Member left
+# whatever role that row already had. QA depends on the founder being an instance admin —
+# half these steps are admin-only — so it is asserted every run rather than assumed.
+if james.role != Member.INSTANCE_ADMIN:
+    Member.objects.filter(pk=james.pk).update(role=Member.INSTANCE_ADMIN)
+    james.refresh_from_db()
 
 # A household of his own, OUTSIDE the fixture data, if he does not already have one.
 #

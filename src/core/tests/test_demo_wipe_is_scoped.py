@@ -388,3 +388,28 @@ def test_an_unmarked_instance_is_told_so_rather_than_wiped() -> None:
     call_command("wipe_demo_data", "--yes", stdout=out)
     assert "Nothing is marked" in out.getvalue()
     assert Pod.objects.count() == 1, "an unmarked pod was deleted"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("blank", ["", "   ", "\t"])
+def test_a_blank_marker_is_refused_rather_than_matching_every_real_row(
+    two_families: dict[str, Family], blank: str
+) -> None:
+    """The scoped wipe had the unscoped one hiding inside its own parameter.
+
+    `seeded_by` defaults to `""` — which is what every row a real person creates carries.
+    So `wipe("")`, or `wipe_demo_data --marker ""`, selected the entire family and deleted
+    it. Every call site looked safe; the whole thing was armed by an empty string. Caught in
+    review, and it is the first thing both entry points do now.
+    """
+    for call in (demo_data.preview, demo_data.wipe):
+        with pytest.raises(demo_data.DemoDataError, match="blank marker"):
+            call(blank)
+
+    real = two_families["real"]
+    assert Member.objects.filter(pk=real.author.pk).exists(), "a blank marker deleted real data"
+    assert Pod.objects.filter(pk=real.pod.pk).exists(), "a blank marker deleted real data"
+
+    with pytest.raises(CommandError, match="blank marker"):
+        call_command("wipe_demo_data", "--marker", blank, "--yes")
+    assert Member.objects.filter(pk=real.author.pk).exists()
