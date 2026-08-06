@@ -136,6 +136,21 @@ p.clip-status { margin: 18px 0; color: #4c5a52; }
     <p class="post">Nothing new right now. Your family's posts will appear here.</p>
   {% endfor %}
   <p class="back-wrap"><a class="back" href="{% url 'elder_feed' %}">Back to the top of your family's page</a></p>
+  {% comment %} The AGPL section 13 source offer, repeated here because this template is
+     STANDALONE by design and does not extend base.html. An offer that renders on every page
+     except the one an elder actually uses is not an offer to her -- and she is the network
+     user this clause exists for.
+
+     WRITTEN AS TEXT, NOT A LINK, and that is not a style choice. S-601 gives this surface no
+     way off itself: every href here must be the elder feed, so an accidental tap cannot
+     strand a grandmother on GitHub with no idea how she got there or how to return. Three
+     tests enforce that, and they caught the anchor version of this line.
+
+     Section 13 requires that a network user be OFFERED the source; it does not require the
+     offer be clickable. A URL she can read, type, or show to someone is an offer. The
+     obligation is met and the surface keeps its shape. {% endcomment %}
+  <p class="source-note">Backyard is free software (AGPL-3.0-or-later).
+    Source code: github.com/AIJSAI/backyard</p>
 </main>
 </body>
 </html>

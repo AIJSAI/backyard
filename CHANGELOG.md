@@ -49,7 +49,7 @@ Everything here is a correction, not a feature. `v0.1.0` is **withdrawn**: insta
 
 [0.1.1]: https://github.com/AIJSAI/backyard/tree/v0.1.1
 
-## [0.1.0] — 2026-07-29
+## 0.1.0 — 2026-07-29 (withdrawn)
 
 The first fixed point. **Pre-release: it runs, and it has not been handed to a family yet.**
 The author's own QA walk ([`docs/runbooks/founder-qa.md`](docs/runbooks/founder-qa.md)) is the
@@ -118,4 +118,7 @@ gate, and it has not happened. Treat this as "reproducible enough to read and tr
 <!-- Points at the tag's tree rather than a Releases page: a bare annotated tag always renders
      here, whereas /releases/tag/ depends on a Release object existing, and publishing GHCR
      images and formal releases is still Phase 5 work. -->
-[0.1.0]: https://github.com/AIJSAI/backyard/tree/v0.1.0
+<!-- 0.1.0 deliberately has NO link. The tag was deleted when the release was withdrawn, so
+     /tree/v0.1.0 404s -- and repointing it at the commit the tag named would hand a reader a
+     working path to the tree the withdrawal exists to take away, burned credential and
+     cross-yard disclosure included. The notes below stay as history; the way in does not. -->

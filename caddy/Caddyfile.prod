@@ -29,8 +29,23 @@
 	}
 }
 
+# A request whose Host does not match the site block above falls through to here. Without
+# this it was answered by Caddy's implicit fallback: an empty 200 carrying a bare
+# `Server: Caddy` and NONE of the headers below -- so the one response that skipped every
+# security header was also the one that advertised what was serving it. It reaches no
+# application content (measured: 0 bytes on /, /healthz and /accounts/login/ alike), so this
+# is fingerprinting rather than a bypass, and `abort` closes the connection without a reply.
+:443 {
+	tls {$ACME_EMAIL}
+	abort
+}
+
 {$BACKYARD_DOMAIN} {
 	reverse_proxy web:8000
+	# 65KB per anonymous page, uncompressed, on every hit -- and no `encode` at all, so a
+	# client offering gzip got none. Worst on the elder path, which is the surface most
+	# likely to be read over a slow phone connection. zstd first, gzip for everything older.
+	encode zstd gzip
 	# Hard edge ceiling on the request body (TS-CA-4): rejects an oversized or many-file
 	# POST with a 413 before the multipart parser writes temp files, above the largest
 	# legitimate post (4 clips at 100MB + photos). The per-file app caps are the fine control.
@@ -42,5 +57,31 @@
 	header {
 		X-Content-Type-Options nosniff
 		-Server
+		# `-Server` was stripped for fingerprinting reasons and then Caddy re-announced
+		# itself in `Via: 1.1 Caddy` on every response, which gave back exactly what the
+		# line above removes.
+		-Via
+	}
+
+	# Django's build manifest, mapping every asset to its hashed name. Not a secret, but an
+	# inventory of the deployed static tree handed to anyone who asks, at a predictable path.
+	# Nothing needs it over HTTP: CompressedManifestStaticFilesStorage reads it from disk
+	# inside the process. Blocked at the edge because that is where it is reachable.
+	handle /static/staticfiles.json {
+		respond 404
+	}
+
+	# The RFC 9116 disclosure address. Served from the edge rather than Django so it stays
+	# reachable when the app is down -- which is when someone most needs to reach a human.
+	# Points at GitHub private vulnerability reporting, which is the channel SECURITY.md
+	# names and which was disabled until 2026-08-01.
+	handle /.well-known/security.txt {
+		header Content-Type "text/plain; charset=utf-8"
+		respond `Contact: https://github.com/AIJSAI/backyard/security/advisories/new
+Policy: https://github.com/AIJSAI/backyard/blob/main/SECURITY.md
+Preferred-Languages: en
+Canonical: https://{$BACKYARD_DOMAIN}/.well-known/security.txt
+Expires: 2027-08-01T00:00:00.000Z
+` 200
 	}
 }

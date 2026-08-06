@@ -37,7 +37,17 @@ _ROOT = Path(__file__).resolve().parents[3]
 # instruction, not a record.
 _READER_FACING = ("README.md", "SECURITY.md", "CONTRIBUTING.md", "CHANGELOG.md")
 
-_VERSION = re.compile(r"\bv\d+\.\d+\.\d+\b")
+# ACTIONABLE references only: a command a reader runs, or a URL they click. A bare mention
+# is not one, and conflating the two is what the first version of this check did -- it failed
+# on SECURITY.md's "v0.1.0 | withdrawn - do not install" row and on the CHANGELOG's historical
+# `## [0.1.0]` heading, i.e. on the documents CORRECTLY telling a reader a version is gone.
+# A guard that fires on saying "do not install this" is pushing toward deleting the warning.
+_ACTIONABLE = re.compile(
+    r"""(?x)
+    (?: --branch \s+ | git\ checkout \s+ | /tree/ | /releases/tag/ )
+    (v\d+\.\d+\.\d+)
+    """
+)
 
 
 def _tags() -> set[str]:
@@ -48,7 +58,21 @@ def _tags() -> set[str]:
 
 
 def _versions_in(path: Path) -> set[str]:
-    return set(_VERSION.findall(path.read_text(encoding="utf-8")))
+    """Versions a reader could ACT on: clone commands and tree/tag URLs.
+
+    HTML comments are stripped FIRST. A comment is not something a reader clicks, and the
+    comment in CHANGELOG.md explaining why 0.1.0 deliberately has no link quotes
+    `/tree/v0.1.0` in order to say it 404s — which satisfied this check and failed the build
+    for documenting the decision correctly.
+
+    That is the third time in one session that prose defeated a source-text assertion in this
+    repo (a `{% url %}` in a template comment, a `{# #}` variant of the same, now this).
+    The rule generalises: if a check reads source text, strip every comment syntax that
+    source has before matching, or the check is answerable by writing about it.
+    """
+    from core.tests.comment_stripping import without_comments
+
+    return set(_ACTIONABLE.findall(without_comments(path.read_text(encoding="utf-8"))))
 
 
 def _release_in_flight() -> str | None:
@@ -73,21 +97,38 @@ def test_the_reader_facing_documents_actually_name_a_version() -> None:
     """
     named = {v for name in _READER_FACING for v in _versions_in(_ROOT / name)}
     assert named, (
-        f"no vX.Y.Z reference found in any of {_READER_FACING} — the extractor is broken, "
-        "so the check below cannot fail and proves nothing"
+        f"no ACTIONABLE vX.Y.Z reference (clone command or tree/tag URL) found in any of "
+        f"{_READER_FACING} — the extractor is broken, so the check below cannot fail and "
+        "proves nothing"
     )
 
 
 @pytest.mark.parametrize("document", _READER_FACING)
 def test_every_version_a_document_tells_you_to_install_exists(document: str) -> None:
-    """A reader-facing version must resolve to a real tag.
+    """An ACTIONABLE version reference must resolve to a real tag.
 
     CHANGELOG is included on purpose: its `[x.y.z]: .../tree/vX.Y.Z` links are what a reader
-    follows to see what a release contained, and a link to a deleted tag is a 404.
+    follows to see what a release contained, and a link to a deleted tag is a 404. Verified
+    live while writing this -- `/tree/v0.1.0` returned 404 the moment the tag was deleted.
     """
     tags = _tags()
     if not tags:
-        pytest.skip("no tags in this checkout (shallow clone); nothing to resolve against")
+        # A skip here is exactly how this guard went quiet: `actions/checkout` fetches
+        # shallowly WITHOUT tags, so CI hit this branch on every run and the check never
+        # executed on a runner -- decorative in the one place it needed to hold. CI now sets
+        # `fetch-tags: true`, so no-tags means something is wrong rather than expected.
+        #
+        # Still a skip and not a failure, because a legitimate tagless checkout exists (a
+        # source tarball, a fresh clone before the first tag). But it is LOUD: if the
+        # CHANGELOG names a released version, tags should exist, and their absence is a
+        # broken checkout rather than a young repository.
+        if _release_in_flight():
+            pytest.fail(
+                "no git tags in this checkout, but CHANGELOG.md names a release. In CI this "
+                "means the checkout is not fetching tags (`fetch-tags: true`), which makes "
+                "this whole check skip silently -- which is how it went unnoticed before."
+            )
+        pytest.skip("no tags and no released version yet; nothing to resolve against")
 
     pending = _release_in_flight()
     missing = sorted(v for v in _versions_in(_ROOT / document) if v not in tags and v != pending)

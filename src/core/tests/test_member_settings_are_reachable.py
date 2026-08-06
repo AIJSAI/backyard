@@ -26,6 +26,7 @@ from django.test import Client
 from django.urls import reverse
 
 from core.models import Member, Pod, PodMembership, Yard
+from core.tests.comment_stripping import without_comments
 
 _BACKEND = "django.contrib.auth.backends.ModelBackend"
 _TEMPLATES = Path(__file__).resolve().parents[1] / "templates" / "core"
@@ -50,24 +51,6 @@ def _logged_in_member() -> Client:
 
 def _hrefs(html: str) -> set[str]:
     return set(re.findall(r'href="([^"]+)"', html))
-
-
-def _without_comments(source: str) -> str:
-    """Template source with EVERY comment form Django understands removed.
-
-    Learned the hard way, in this very file: the first version of the structural check below
-    passed with the digest link deleted, because the COMMENT explaining the bug quoted
-    `{% url 'digest_settings' %}` as prose and satisfied the regex. A source-text assertion
-    that a comment can satisfy is not an assertion. Prose must never be able to answer a
-    question about behaviour.
-
-    All three forms, not two: review caught that the first fix stripped `{% comment %}` and
-    `<!-- -->` but not `{# ... #}`, which would have reopened the identical hole one syntax
-    down. Half-closing a hole of this shape is how it comes back.
-    """
-    source = re.sub(r"\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}", "", source, flags=re.S)
-    source = re.sub(r"\{#.*?#\}", "", source, flags=re.S)
-    return re.sub(r"<!--.*?-->", "", source, flags=re.S)
 
 
 @pytest.mark.django_db
@@ -148,7 +131,7 @@ def test_no_member_facing_page_is_linked_only_from_itself() -> None:
         "profile_edit": "profile_edit.html",
         "directory": "directory.html",
     }
-    templates = {p.name: _without_comments(p.read_text()) for p in _TEMPLATES.glob("*.html")}
+    templates = {p.name: without_comments(p.read_text()) for p in _TEMPLATES.glob("*.html")}
     # Denominator, asserted on the templates this check actually reads rather than on a
     # count: a bare `len(...) > 20` would fail on an unrelated template being removed and
     # would pass on the glob pointing somewhere plausible but wrong. Naming them makes the
