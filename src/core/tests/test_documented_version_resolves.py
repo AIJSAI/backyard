@@ -113,7 +113,22 @@ def test_every_version_a_document_tells_you_to_install_exists(document: str) -> 
     """
     tags = _tags()
     if not tags:
-        pytest.skip("no tags in this checkout (shallow clone); nothing to resolve against")
+        # A skip here is exactly how this guard went quiet: `actions/checkout` fetches
+        # shallowly WITHOUT tags, so CI hit this branch on every run and the check never
+        # executed on a runner -- decorative in the one place it needed to hold. CI now sets
+        # `fetch-tags: true`, so no-tags means something is wrong rather than expected.
+        #
+        # Still a skip and not a failure, because a legitimate tagless checkout exists (a
+        # source tarball, a fresh clone before the first tag). But it is LOUD: if the
+        # CHANGELOG names a released version, tags should exist, and their absence is a
+        # broken checkout rather than a young repository.
+        if _release_in_flight():
+            pytest.fail(
+                "no git tags in this checkout, but CHANGELOG.md names a release. In CI this "
+                "means the checkout is not fetching tags (`fetch-tags: true`), which makes "
+                "this whole check skip silently -- which is how it went unnoticed before."
+            )
+        pytest.skip("no tags and no released version yet; nothing to resolve against")
 
     pending = _release_in_flight()
     missing = sorted(v for v in _versions_in(_ROOT / document) if v not in tags and v != pending)
