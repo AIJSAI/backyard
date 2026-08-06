@@ -10,7 +10,6 @@
 #
 # Do NOT add a `log` directive here: request lines carry bearer tokens in their paths
 # (/d/, /join/, /media/, /digest/*, /break-glass/ — threat model TS-EDGE-LOG).
-
 {
 	admin off
 	email {$ACME_EMAIL}
@@ -36,7 +35,6 @@
 # application content (measured: 0 bytes on /, /healthz and /accounts/login/ alike), so this
 # is fingerprinting rather than a bypass, and `abort` closes the connection without a reply.
 :443 {
-	tls {$ACME_EMAIL}
 	abort
 }
 
