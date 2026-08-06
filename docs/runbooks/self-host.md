@@ -50,6 +50,44 @@ and needs the name to already resolve.
 backyard.example.com.   A   203.0.113.10
 ```
 
+### Three more records, and why they matter here specifically
+
+Skip these and nothing breaks — which is the problem. They are the records whose absence is
+only visible when someone abuses it.
+
+```
+; This domain sends no mail (your provider's subdomain does). Say so.
+backyard.example.com.          TXT   "v=spf1 -all"
+
+; Tell receivers what to do with mail that forges your domain.
+_dmarc.backyard.example.com.   TXT   "v=DMARC1; p=reject; sp=quarantine; adkim=r; aspf=r"
+
+; Only these CAs may issue certificates for you.
+backyard.example.com.          CAA   0 issue "letsencrypt.org"
+backyard.example.com.          CAA   0 issue "sectigo.com"
+```
+
+**DMARC is the one that matters most for this product**, and not for the usual deliverability
+reasons. The elder path is *a link in an email*: Nana taps what arrives and she is in, with no
+password to get wrong. That design is the whole point — and it means a convincing forged email
+from your family's domain is the single most effective attack against it. Without a DMARC
+policy, a receiving mail server has nothing telling it to reject that forgery.
+
+`p=reject` on the apex is free if, like the default setup here, the apex sends nothing.
+`sp=quarantine` is deliberately softer for the sending subdomain: if alignment is imperfect,
+a real digest lands in spam rather than being destroyed. Tighten it to `reject` once you have
+seen a real message pass — add `rua=mailto:...` to collect reports first, on an address you
+are willing to publish in DNS, because that record is public.
+
+**Both CAA lines, not just Let's Encrypt.** Caddy tries Let's Encrypt and falls back to
+ZeroSSL, whose CA is Sectigo. Authorising only Let's Encrypt works fine until the day it
+fails over — and then issuance is blocked by your own CAA record and the site loses TLS,
+weeks after you wrote the record and with no obvious connection to it.
+
+If your DNS is on Cloudflare with Universal SSL, expect `dig CAA` to return more issuers than
+you added; Cloudflare injects its own so its certificates keep working. That is still a
+restricted set rather than "any CA on earth", which is what you have with no CAA at all.
+
 ## 2. Configure
 
 ```bash
