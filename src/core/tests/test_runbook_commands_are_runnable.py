@@ -129,3 +129,65 @@ def test_every_documented_invocation_parses(book: str, command: str, argv: list[
             "An operator finds this out at the moment they need it — which for "
             "backup_instance is one step before `docker compose down -v`."
         )
+
+
+# --- The layer the argparse check above cannot see -------------------------------------
+
+_CONTAINER_EXEC = re.compile(r"compose\s+exec[^\n]*", re.M)
+
+
+def _container_manage_invocations() -> list[tuple[str, str]]:
+    """Every `docker compose exec … manage.py …` line in the runbooks, joined and decommented."""
+    found = []
+    for book in _RUNBOOKS:
+        cleaned = "\n".join(
+            ln.strip().lstrip("#").strip() if ln.strip().startswith("#") else ln
+            for ln in book.read_text().splitlines()
+        )
+        joined = re.sub(r"\\\n\s*", " ", cleaned)
+        for line in joined.splitlines():
+            if "compose" in line and "exec" in line and "manage.py" in line:
+                found.append((book.name, line.strip()))
+    return found
+
+
+def test_the_container_invocation_scan_finds_something() -> None:
+    """Denominator, named: these runbooks DO drive manage.py inside the container."""
+    books = {name for name, _ in _container_manage_invocations()}
+    for required in ("backup-restore.md", "self-host.md"):
+        assert required in books, (
+            f"no container manage.py invocation found in {required}; the extractor is broken, "
+            "so the check below would pass vacuously"
+        )
+
+
+@pytest.mark.parametrize(
+    ("book", "line"),
+    [
+        pytest.param(book, cmd, id=f"{book}::{i}")
+        for i, (book, cmd) in enumerate(_container_manage_invocations())
+    ],
+)
+def test_every_container_command_supplies_the_secret_key(book: str, line: str) -> None:
+    """A documented command must be able to START, not merely parse its arguments.
+
+    The argparse check above validates the SHAPE of the arguments. It cannot see this,
+    because `config/settings.py` raises before argparse is ever reached:
+
+        RuntimeError: DJANGO_SECRET_KEY is empty, a placeholder, or too short
+
+    The entrypoint generates the key at boot, writes it to /data/secret_key and exports it
+    for gunicorn only. A fresh `docker compose exec` gets the container's CONFIGURED
+    environment, which has never contained it -- so every documented command that omits
+    `DJANGO_SECRET_KEY=$(cat /data/secret_key)` dies before doing anything.
+
+    Verified against the live production instance: the bare form returns that RuntimeError,
+    the sourced form returns the command's own --help. Seven invocations across four files
+    were broken this way, including the printed emergency recovery card -- the one someone
+    reads when the instance is already gone.
+    """
+    assert "secret_key" in line, (
+        f"docs/runbooks/{book} runs manage.py in the container without supplying "
+        f"DJANGO_SECRET_KEY, so it exits with a RuntimeError before it starts:\n\n    {line}\n\n"
+        "Wrap it: sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) python manage.py …'"
+    )

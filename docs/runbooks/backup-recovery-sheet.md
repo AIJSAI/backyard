@@ -95,7 +95,8 @@ admin (Members → Set role → Instance admin) and write their name below. One 
 
 3. Restore:
 
-       docker compose exec -T web python manage.py restore_instance \
+       docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+         python manage.py restore_instance \
          /data/backups/<archive>.bak --passphrase-file /root/backyard.key --force
 
 4. **A restore is a security event (TM-7).** The command will tell you what it did: every
