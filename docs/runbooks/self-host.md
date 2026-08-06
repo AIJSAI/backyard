@@ -52,8 +52,8 @@ backyard.example.com.   A   203.0.113.10
 
 ### Three more records, and why they matter here specifically
 
-Skip these and nothing breaks — which is the problem. They are the records whose absence is
-only visible when someone abuses it.
+Skip them and nothing breaks — which is the problem. These are records whose absence stays
+invisible until someone abuses it.
 
 ```
 ; This domain sends no mail (your provider's subdomain does). Say so.
@@ -74,10 +74,16 @@ from your family's domain is the single most effective attack against it. Withou
 policy, a receiving mail server has nothing telling it to reject that forgery.
 
 `p=reject` on the apex is free if, like the default setup here, the apex sends nothing.
-`sp=quarantine` is deliberately softer for the sending subdomain: if alignment is imperfect,
-a real digest lands in spam rather than being destroyed. Tighten it to `reject` once you have
-seen a real message pass — add `rua=mailto:...` to collect reports first, on an address you
-are willing to publish in DNS, because that record is public.
+
+**`sp=` covers every subdomain**, not just the one that sends — any subdomain without its own
+`_dmarc` record inherits it. That is why it is `quarantine` and not `reject` here: if
+alignment turns out imperfect anywhere, a real digest lands in spam rather than being
+destroyed, and your family's only notification channel is a poor thing to bet on an untested
+assumption. A subdomain can override with its own `_dmarc.<subdomain>` record if you want
+different policies for different senders.
+
+Tighten to `reject` once you have seen a real message pass — add `rua=mailto:...` to collect
+reports first, on an address you are willing to publish, because that record is public.
 
 **Both CAA lines, not just Let's Encrypt.** Caddy tries Let's Encrypt and falls back to
 ZeroSSL, whose CA is Sectigo. Authorising only Let's Encrypt works fine until the day it
