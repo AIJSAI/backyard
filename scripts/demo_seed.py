@@ -176,8 +176,14 @@ p1 = post(
     photos=3,
     days_ago=1,
 )
+# Authored by a SEEDED member, not by the founder. The founder is deliberately unmarked
+# (the wipe must leave him standing), so a post of his inside a marked pod is real content
+# in fixture territory — and `demo_data` now refuses the whole wipe rather than deleting
+# somebody's photographs on a guess. Keeping the seed self-consistently wipeable means its
+# posts belong to its own people. Anything the founder writes during QA is his, and the
+# wipe will say so.
 p2 = post(
-    james,
+    priya,
     ours,
     "Ollie lost his first tooth. He is extremely pleased about the economics.",
     yards=[moms],
@@ -197,7 +203,7 @@ p5 = post(
     days_ago=5,
 )
 p6 = post(
-    james,
+    priya,
     ours,
     "Found this and thought of Dad: https://example.com/vintage-tractors",
     yards=[dads],
@@ -212,7 +218,7 @@ Comment.objects.create(post=p1, author=sam, body="That is a proper fish. Well do
 Comment.objects.create(
     post=p2, author=nana, body="Tell him the tooth fairy is inflation-adjusted these days."
 )
-for m in (nana, sam, james):
+for m in (nana, sam, priya):
     Reaction.objects.get_or_create(post=p1, member=m, kind=Reaction.HEART)
 Reaction.objects.get_or_create(post=p2, member=nana, kind=Reaction.HEART)
 

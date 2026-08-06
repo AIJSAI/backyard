@@ -413,3 +413,98 @@ def test_a_blank_marker_is_refused_rather_than_matching_every_real_row(
     with pytest.raises(CommandError, match="blank marker"):
         call_command("wipe_demo_data", "--marker", blank, "--yes")
     assert Member.objects.filter(pk=real.author.pk).exists()
+
+
+@pytest.mark.django_db
+def test_real_content_inside_a_fixture_pod_stops_the_wipe(
+    two_families: dict[str, Family],
+) -> None:
+    """The one that was actually deleting people's photographs.
+
+    The refusal originally iterated `(Yard, Pod, Member)` — the three models that carry the
+    marker. But the destruction travels through `Post.pod`, `Comment.post`, `Reaction.post`
+    and `MediaAsset.post`, none of which carry a marker and none of which were inspected.
+    So the check could never fire on the thing that mattered.
+
+    Measured before the fix, with a real relative in a fixture pod AND their own household
+    (so the stranding guard passed too):
+
+        wipe refused? False
+        their POST survives: False    photo rows: 0    comments: 0
+
+    Somebody's holiday photographs, from a command whose entire job is not to do that.
+    """
+    real = two_families["real"]
+    demo = two_families["demo"]
+
+    # The real relative is invited into the fixture household — `can_issue_invite` allows
+    # exactly this — and posts there, while keeping their own home.
+    PodMembership.objects.create(member=real.author, pod=demo.pod)
+    their_post = Post.objects.create(
+        author=real.author, pod=demo.pod, body="our holiday photographs"
+    )
+    media.ingest_photo(post=their_post, raw=_jpeg())
+    Comment.objects.create(post=their_post, author=real.author, body="look at her face")
+
+    with pytest.raises(demo_data.DemoDataError, match="written by someone real"):
+        demo_data.wipe(MARKER)
+
+    assert Post.objects.filter(pk=their_post.pk).exists(), "it deleted despite refusing"
+    assert Pod.objects.filter(pk=demo.pod.pk).exists(), "it deleted despite refusing"
+
+    # And once that content is gone, the wipe proceeds — so the refusal is a condition on
+    # the data, not a permanent block.
+    their_post.delete()
+    demo_data.wipe(MARKER)
+    assert not Pod.objects.filter(pk=demo.pod.pk).exists()
+    assert Member.objects.filter(pk=real.author.pk).exists()
+
+
+@pytest.mark.django_db
+def test_a_member_who_was_already_pod_less_does_not_block_the_wipe(
+    two_families: dict[str, Family],
+) -> None:
+    """`removal.remove_member` deletes memberships and KEEPS the Member row, by design.
+
+    `set() <= anything` is True, so the first version of the stranding check treated every
+    person ever removed through the S-702 flow as being stranded by this wipe — blocking
+    `wipe_demo_data` permanently on the strength of one departed ex. Its error told the
+    operator to "put them in a household of their own first", which would hand somebody
+    removed for cause their yard visibility back.
+    """
+    Member.objects.create(display_name="A Removed Ex")  # no PodMembership, as removal leaves
+
+    removed = demo_data.wipe(MARKER)
+
+    assert removed, "a member who was already pod-less blocked the wipe"
+    assert Member.objects.filter(display_name="A Removed Ex").exists(), "it deleted them"
+
+
+@pytest.mark.django_db
+def test_a_real_household_left_with_no_yard_stops_the_wipe() -> None:
+    """Stranding is a YARD property, not only a pod one.
+
+    Yard membership is derived — the union of the yards of a member's pods
+    (`scoping.member_yard_ids`) — so deleting a fixture yard leaves a real household
+    attached to nothing, and its members resolve nobody, including themselves. Reachable
+    today: `invite_household` lets an admin put a real household into a demo yard.
+
+    Measured before the fix: the surviving member's yards were `set()`, and
+    `visible_members(them).filter(pk=them.pk)` was empty — they could not see themselves.
+    """
+    demo_yard = Yard.objects.create(name="Demo side", slug="demo-side", seeded_by=MARKER)
+    demo_pod = Pod.objects.create(name="Demo house", seeded_by=MARKER)
+    demo_pod.yards.set([demo_yard])
+    Member.objects.create(display_name="Demo Person", seeded_by=MARKER)
+
+    real_pod = Pod.objects.create(name="The Reeds")  # a real household...
+    real_pod.yards.set([demo_yard])  # ...whose only side of the family is the fixture one
+    reed = Member.objects.create(display_name="A Reed")
+    PodMembership.objects.create(member=reed, pod=real_pod)
+
+    with pytest.raises(demo_data.DemoDataError, match="no pod at all"):
+        demo_data.wipe(MARKER)
+
+    from core import scoping
+
+    assert scoping.member_yard_ids(reed), "the Reed was stranded despite the refusal"

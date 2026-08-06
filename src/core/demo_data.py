@@ -47,7 +47,7 @@ from django.db.models.deletion import Collector
 from django.utils import timezone
 
 from core import media
-from core.models import MediaAsset, Member, Pod, Yard
+from core.models import Comment, MediaAsset, Member, Pod, Post, Reaction, Yard
 
 # What `scripts/demo_seed.py` stamps on everything it creates. A different generator should
 # use a different marker so the two can be removed independently.
@@ -122,12 +122,45 @@ def _refuse_if_it_reaches_real_data(collected: dict[Any, list[Any]], marker: str
         for instance in collected.get(model, []):
             if getattr(instance, "seeded_by", "") != marker:
                 trespass.append(f"{model.__name__}(pk={instance.pk}, name={instance!s})")
+
+    # The half that was missing, and it was the whole point.
+    #
+    # Checking only the three MARKED models cannot fire: selection is by marker, so the
+    # closure never contains an unmarked root. Meanwhile the destruction travels through
+    # `Post.pod`, `Comment.post`, `Reaction.post` and `MediaAsset.post` — none of which
+    # carry a marker, none of which were inspected. A real person's posts and photographs
+    # inside a fixture pod were deleted with no refusal and no distinguishable count.
+    #
+    # Measured before this fix, with a real relative in a fixture pod AND their own
+    # household (so the stranding guard passed too): "wipe refused? False · their POST
+    # survives: False · photo rows: 0 · comments: 0". That is somebody's holiday
+    # photographs, gone, from a command whose entire job is not to do that.
+    #
+    # Authorship is the test, because it is the only thing that distinguishes real content
+    # from fixture content: `Post` has no marker of its own, and giving it one would put a
+    # column on the hottest table in the schema to answer a question its author already
+    # answers.
+    doomed_members = {member.pk for member in collected.get(Member, [])}
+    authored: tuple[tuple[Any, str, str], ...] = (
+        (Post, "author_id", "post"),
+        (Comment, "author_id", "reply"),
+        (Reaction, "member_id", "reaction"),
+    )
+    for authored_model, attribute, noun in authored:
+        for instance in collected.get(authored_model, []):
+            if getattr(instance, attribute) not in doomed_members:
+                trespass.append(
+                    f"a {noun} written by someone real ({authored_model.__name__} pk={instance.pk})"
+                )
+
     if trespass:
         raise DemoDataError(
             "Refusing to wipe: the deletion would reach objects that are not marked "
             f"`seeded_by={marker!r}`, i.e. things a real person made — "
-            f"{', '.join(trespass[:10])}. Something has linked real data to fixture data; "
-            "resolve that by hand rather than deleting through it."
+            f"{', '.join(trespass[:10])}.\n\nSomething real is living inside the fixture "
+            "family — most often because a person posted into a demo pod. Move or delete "
+            "that content first (its author can, from the feed); this command will not "
+            "decide for you which of somebody's photographs were only a rehearsal."
         )
 
 
@@ -147,20 +180,52 @@ def _refuse_if_it_strands_anyone(collected: dict[Any, list[Any]], marker: str) -
     """
     doomed_pods = {pod.pk for pod in collected.get(Pod, [])}
     doomed_members = {member.pk for member in collected.get(Member, [])}
-    if not doomed_pods:
+    doomed_yards = {yard.pk for yard in collected.get(Yard, [])}
+    if not doomed_pods and not doomed_yards:
         return
-    stranded = [
-        member
-        for member in Member.objects.exclude(pk__in=doomed_members).prefetch_related("pods")
-        if {pod.pk for pod in member.pods.all()} <= doomed_pods
-    ]
+
+    stranded = []
+    # Loads every member at family scale, which is the right trade for a check that runs
+    # once, before something irreversible.
+    for member in Member.objects.exclude(pk__in=doomed_members).prefetch_related("pods__yards"):
+        pods = list(member.pods.all())
+        if not pods:
+            # Already in no pod before this wipe — `removal.remove_member` deletes
+            # memberships and KEEPS the Member row by design, so every person ever removed
+            # through the S-702 flow looks stranded here. `set() <= anything` is True, so
+            # the first version of this check blocked every future wipe permanently on the
+            # strength of one departed ex — and told the operator to "put them in a
+            # household of their own first", which would hand a removed person their yard
+            # visibility back. This wipe is not what stranded them.
+            continue
+        surviving_pods = [pod for pod in pods if pod.pk not in doomed_pods]
+        if not surviving_pods:
+            stranded.append(member)
+            continue
+        # A pod survives, but its YARDS may not. Yard membership is derived — it is the
+        # union of the yards of a member's pods (`scoping.member_yard_ids`) — so deleting a
+        # fixture yard leaves a real household attached to nothing and its members
+        # resolving nobody, including themselves. Reachable today: `invite_household` lets
+        # an admin put a real household into a demo yard. Measured before this fix: yards
+        # `set()`, and `visible_members(reed).filter(pk=reed.pk)` empty.
+        surviving_yards = {
+            yard.pk
+            for pod in surviving_pods
+            for yard in pod.yards.all()
+            if yard.pk not in doomed_yards
+        }
+        if not surviving_yards:
+            stranded.append(member)
+
     if stranded:
         names = ", ".join(f"{member.display_name} (pk={member.pk})" for member in stranded[:10])
         raise DemoDataError(
             f"Refusing to wipe: {names} would be left in no pod at all. A member in no pod "
             "belongs to no yard and resolves nobody, including themselves — no feed, no "
-            "directory, and no self-service way back. Put them in a household of their own "
-            f"first (one that is not marked `seeded_by={marker!r}`), then wipe."
+            "directory, and no self-service way back. Give them a household (and a side of "
+            f"the family) that is not marked `seeded_by={marker!r}`, then wipe. Members who "
+            "were ALREADY in no pod — anyone removed through the S-702 flow — are not "
+            "counted here; this wipe is not what stranded them."
         )
 
 
