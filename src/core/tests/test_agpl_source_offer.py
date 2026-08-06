@@ -71,11 +71,13 @@ def test_the_offer_is_not_only_on_one_template() -> None:
     """
     from pathlib import Path
 
+    from core.tests.comment_stripping import without_comments
+
     templates = Path(__file__).resolve().parents[1] / "templates" / "core"
     for name in ("base.html", "elder_feed.html"):
-        source = (templates / name).read_text()
-        # Comments stripped first: prose about the offer must not satisfy a check for it.
-        import re
-
-        source = re.sub(r"\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}", "", source, flags=re.S)
+        # ALL comment syntaxes, via the shared helper. This test originally stripped only
+        # `{% comment %}` -- the identical hole that had already been fixed twice this
+        # session, reintroduced by hand in a brand-new file. Both templates use `{# ... #}`
+        # too, so the offer could have been moved into one and still satisfied the check.
+        source = without_comments((templates / name).read_text())
         assert _REPO in source, f"{name} carries no source offer outside its comments"

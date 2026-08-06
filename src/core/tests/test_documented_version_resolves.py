@@ -70,8 +70,9 @@ def _versions_in(path: Path) -> set[str]:
     The rule generalises: if a check reads source text, strip every comment syntax that
     source has before matching, or the check is answerable by writing about it.
     """
-    source = re.sub(r"<!--.*?-->", "", path.read_text(encoding="utf-8"), flags=re.S)
-    return set(_ACTIONABLE.findall(source))
+    from core.tests.comment_stripping import without_comments
+
+    return set(_ACTIONABLE.findall(without_comments(path.read_text(encoding="utf-8"))))
 
 
 def _release_in_flight() -> str | None:

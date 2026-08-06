@@ -49,7 +49,7 @@ Everything here is a correction, not a feature. `v0.1.0` is **withdrawn**: insta
 
 [0.1.1]: https://github.com/AIJSAI/backyard/tree/v0.1.1
 
-## [0.1.0] — 2026-07-29
+## 0.1.0 — 2026-07-29 (withdrawn)
 
 The first fixed point. **Pre-release: it runs, and it has not been handed to a family yet.**
 The author's own QA walk ([`docs/runbooks/founder-qa.md`](docs/runbooks/founder-qa.md)) is the
