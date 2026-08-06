@@ -30,17 +30,52 @@ _PROVIDER_LINE = re.compile(
 )
 
 
+# Documents that MUST be in scope, named rather than counted. `len(docs) > 40` was the first
+# version and is brittle both ways: it breaks when an unrelated doc is deleted, and it passes
+# when the scan points somewhere plausible but wrong. Review flagged the identical brittleness
+# in a sibling guard earlier today and I reintroduced it here -- naming the files makes a
+# failure say WHAT is missing, and two of these are where the identifiers actually leaked.
+_MUST_SCAN = (
+    "README.md",
+    "docs/runbooks/live-repro.md",
+    "docs/audits/2026-07-26-honest-100-audit.md",
+)
+
+
 def _tracked_docs() -> list[Path]:
-    out = subprocess.run(
-        ["git", "ls-files", "-z", "*.md"], cwd=_ROOT, capture_output=True, text=True, check=True
-    ).stdout
-    return [_ROOT / rel for rel in out.split("\0") if rel]
+    """Tracked markdown, with a filesystem fallback when git is unavailable.
+
+    `check=True` with no fallback would CRASH the suite in a source tarball or any checkout
+    without git metadata -- turning a disclosure guard into a build break for someone who has
+    done nothing wrong. The credential guard already handles that case
+    (`test_no_hardcoded_demo_credentials._tracked_files`); this now matches it rather than
+    inventing a second convention.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "-z", "*.md"],
+            cwd=_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        paths = [_ROOT / rel for rel in out.split("\0") if rel]
+        if paths:
+            return paths
+    except (OSError, subprocess.CalledProcessError):
+        pass
+    skip = {".git", ".venv", "node_modules", ".claude", "staticfiles", "__pycache__"}
+    return [p for p in _ROOT.rglob("*.md") if not any(part in skip for part in p.parts)]
 
 
 def test_the_scan_actually_reads_the_documents() -> None:
-    """Denominator: a broken glob would make the check below silently pass."""
-    docs = _tracked_docs()
-    assert len(docs) > 40, f"only {len(docs)} tracked .md files found; the glob is wrong"
+    """Denominator, by NAME: the check below is vacuous if the scan misses these."""
+    scanned = {p.relative_to(_ROOT).as_posix() for p in _tracked_docs()}
+    missing = [name for name in _MUST_SCAN if name not in scanned]
+    assert not missing, (
+        f"these documents are not being scanned: {missing}. Two of them are where the "
+        "identifiers leaked, so their absence would make this guard silently vacuous."
+    )
 
 
 def test_no_provider_identifier_is_published() -> None:
