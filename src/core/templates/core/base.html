@@ -1206,6 +1206,20 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
          "Ask whoever in the family set this up" is intact, so the two tests in
          test_accessibility_modes.py still hold this sentence without being moved. {% endcomment %}
       <span class="help">Stuck? Ask whoever in the family set this up.</span>
+      {% comment %} AGPL section 13: a network user must be OFFERED the source. This app is
+         AGPL-3.0-or-later and told a remote user nothing at all — no licence, no repository,
+         nothing in any served page. The offer has to be in the running program, not only in
+         the repository, because the person owed it is the one using it over a network and may
+         never see the repository.
+
+         TEXT, not an anchor, matching the elder surface. This footer is asserted to carry no
+         links at all (test_accessibility_modes.py, WCAG 2.2 SC 3.2.6): the help affordance is
+         a sentence rather than a link, because a link to a help page that does not exist is
+         worse than none. A licence link is not that affordance — but loosening a WCAG
+         invariant so this line can be clickable would be trading a real guarantee for a
+         convenience, and section 13 asks that the source be OFFERED, not hyperlinked. {% endcomment %}
+      <span class="source">Backyard is free software (AGPL-3.0-or-later).
+        Source code: github.com/AIJSAI/backyard</span>
     </div>
   </footer>
   {% if user.is_authenticated %}

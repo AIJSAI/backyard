@@ -370,6 +370,15 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 # (TokenSurfaceHeadersMiddleware, serve_media); SecurityMiddleware's setdefault leaves those
 # overrides intact. Pinned explicitly, not left to the framework default (TS-EDGE-LOG / TM-5).
 SECURE_REFERRER_POLICY = "same-origin"
+
+# WhiteNoise sends `Access-Control-Allow-Origin: *` on every static asset by default, so it
+# can serve fonts to a different origin. Nothing here is cross-origin -- the fonts, CSS and
+# JS are all same-origin on the one domain this app serves -- so the wildcard was the single
+# hole in an otherwise strict same-origin posture, and it applied to every file WhiteNoise
+# handled. Verified on production before changing it: the header was present on the
+# Atkinson Hyperlegible woff2.
+WHITENOISE_ALLOW_ALL_ORIGINS = False
+
 CSRF_TRUSTED_ORIGINS = [BASE_URL]
 if _HTTPS:
     SESSION_COOKIE_SECURE = True
