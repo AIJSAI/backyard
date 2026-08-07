@@ -193,6 +193,34 @@ ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST \
   'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d web worker'
 ```
 
+**This ships `src/` and nothing else.** Most of what lives outside it — `docs/`,
+`stories/`, `.github/`, `README.md`, `Makefile`, `.gitleaks.toml` — has no effect on the
+running box. Seven paths do:
+
+| path | why it matters at runtime |
+|---|---|
+| `pyproject.toml`, `uv.lock` | the dependency set `--build` installs |
+| `Dockerfile` | how the image is built at all |
+| `docker-compose.yml`, `docker-compose.prod.yml` | services, ports, env |
+| `caddy/` | the edge config, including every security header |
+| `scripts/` | the seed and the operational scripts you run on the box |
+
+A `--build` after a `src`-only push rebuilds with the OLD dependencies, the OLD Caddyfile
+and the OLD Dockerfile, silently and with a green-looking deploy. Check before pushing:
+
+```bash
+git diff --name-only <deployed-ref>..HEAD \
+  -- pyproject.toml uv.lock Dockerfile 'docker-compose*.yml' caddy scripts
+```
+
+Empty output means the `src` tar is the whole deploy. Anything listed has to be copied too.
+
+Run for `v0.1.1..main` while preparing `v0.1.2` it returned `pyproject.toml`, `uv.lock`,
+`caddy/Caddyfile.prod` and three `scripts/`. Of those, only the caddy config and the seed
+change behaviour — the pyproject/lock delta is `pytest`, a dev dependency — and production
+already carried the current Caddyfile, verified from outside: no `Server`, no `Via`, and
+`content-encoding: zstd` on the front page.
+
 **Rebuild, never just restart** (the image ships `staticfiles`). `main` moving proves
 nothing — verify by fetching a string only the new code serves. The manifest's
 `background_color` is **no longer** a useful proof: the palette reverted, so it is the value
