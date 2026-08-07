@@ -110,7 +110,7 @@
              created from anywhere in the product, by anybody. The story reads `passing`.
              Placed per-row because the endpoint's first argument is the PARENT: this is
              "give <name> a child account", not a free-standing form. {% endcomment %}
-          {% if not row.member.is_supervised and assignable_pods %}
+          {% if not row.member.is_supervised and row.own_pods %}
             <details class="supervised-disclosure">
               <summary>Add a child account managed by {{ row.member.display_name }}&hellip;</summary>
               <form method="post" action="{% url 'create_supervised' %}">
@@ -119,13 +119,15 @@
                 <label for="child-name-{{ row.member.id }}">Their name</label>
                 <input id="child-name-{{ row.member.id }}" type="text" name="display_name"
                        maxlength="100" required>
-                {% comment %} "Which household" was wrong: `assignable_pods` is
-                   `scoping.visible_pods(actor)`, which includes ad-hoc groups as well as
-                   households, so the label promised a narrower list than the control
-                   offers. {% endcomment %}
-                <label for="child-pod-{{ row.member.id }}">Which pod they belong to</label>
+                {% comment %} The PARENT's households, not every pod the admin can see.
+                   This offered `assignable_pods` — `scoping.visible_pods(actor)`, which for
+                   an instance admin is every pod on the instance — so picking the wrong line
+                   placed a child in a family their own parent is not in, where the parent
+                   cannot see them. `supervised.create_supervised_member` refuses that too,
+                   for a POST that did not come from this page. {% endcomment %}
+                <label for="child-pod-{{ row.member.id }}">Which of their households</label>
                 <select id="child-pod-{{ row.member.id }}" name="pod_id">
-                  {% for pod in assignable_pods %}
+                  {% for pod in row.own_pods %}
                     <option value="{{ pod.id }}">{{ pod.name }}</option>
                   {% endfor %}
                 </select>
