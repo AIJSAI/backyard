@@ -569,18 +569,42 @@ def test_the_preview_counts_the_rows_the_receipt_reports(
     demo = two_families["demo"]
     demo_post = Post.objects.create(author=demo.author, pod=demo.pod, body="x")
     Reaction.objects.create(post=demo_post, member=demo.author, kind="love")
+    # A PHOTOGRAPH, which this test did not have and which is the case it missed.
+    #
+    # `_purge` deletes MediaAsset rows itself, so by the time Member/Pod/Yard cascade there
+    # are none left to report — the preview promised four and the receipt listed none. A
+    # live rehearsal caught that; this fixture could not, because it contained no media.
+    # Every model the preview can name has to be in here or the comparison is decorative.
+    media.ingest_photo(post=demo_post, raw=_jpeg())
 
     before = demo_data.preview(MARKER)
     after = demo_data.wipe(MARKER)
 
-    # The receipt carries rows the preview cannot know about (files, sessions, auth users are
-    # counted separately), so compare the MODEL rows both claim to describe.
-    model_rows = {key: value for key, value in after.items() if key.startswith("core.")}
-    missing = {label: count for label, count in model_rows.items() if before.get(label, 0) != count}
-    assert not missing, (
+    # The receipt carries rows the preview cannot know about (files, sessions and auth users
+    # are counted separately), so compare the MODEL rows both claim to describe — in BOTH
+    # directions.
+    #
+    # The first version iterated the receipt only, so it caught "deleted more than promised"
+    # and was blind to "promised more than it reports". That second direction is the one that
+    # was actually wrong: `_purge` deletes MediaAsset rows itself, so by the time the cascade
+    # runs there are none left to count, and the preview's `4 core.MediaAsset` simply vanished
+    # from the receipt. A live rehearsal caught it; this test could not, and adding a
+    # photograph to the fixture did not help until the comparison went both ways.
+    #
+    # One-directional again, in a test written this same day to catch one-directional gates.
+    receipt = {key: value for key, value in after.items() if key.startswith("core.")}
+    promised = {key: value for key, value in before.items() if key.startswith("core.")}
+
+    unannounced = {k: v for k, v in receipt.items() if promised.get(k, 0) != v}
+    assert not unannounced, (
         "the wipe deleted rows the preview did not mention, so the operator confirmed a "
-        f"blast radius they were never shown: {missing}\npreview: {dict(before)}\n"
-        f"receipt: {dict(model_rows)}"
+        f"blast radius they were never shown: {unannounced}\npreview: {promised}\n"
+        f"receipt: {receipt}"
+    )
+    unreported = {k: v for k, v in promised.items() if receipt.get(k, 0) != v}
+    assert not unreported, (
+        "the preview promised rows the receipt never accounts for, so the operator cannot "
+        f"tell whether they went: {unreported}\npreview: {promised}\nreceipt: {receipt}"
     )
 
 
