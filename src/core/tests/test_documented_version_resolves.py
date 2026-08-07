@@ -125,8 +125,10 @@ def _release_in_flight(tags: set[str]) -> str | None:
             # treating that as in-flight would exempt, forever, the exact version this file
             # exists to stop a stranger installing.
             #
-            # The CHANGELOG already distinguishes them: a live entry is a bracketed heading
-            # with a link at the foot of the file, a withdrawn one loses both and says so.
+            # The CHANGELOG already distinguishes them, and what this function READS is the
+            # bracketed heading plus the absence of a `(withdrawn)` marker. Live entries also
+            # carry a link at the foot of the file, but nothing here depends on that, and
+            # saying otherwise would invite a future edit to treat the link as load-bearing.
             # `test_a_withdrawn_release_keeps_the_shape_that_marks_it` makes that a rule
             # rather than a habit, because this function reads it as one.
             if _is_withdrawn(f"{found.group(1)}"):
@@ -287,10 +289,14 @@ def test_a_withdrawn_release_keeps_the_shape_that_marks_it() -> None:
     its tag deleted. `v0.1.0` is the second. Treating it as the first would exempt, forever,
     the exact version this file exists to stop a stranger installing.
 
-    The CHANGELOG distinguishes them by shape: a live entry is a bracketed heading with a
-    link reference at the foot of the file; a withdrawn one has neither and says
-    `(withdrawn)` in the heading. That was a habit maintained by hand. Since a function now
-    depends on it, it is asserted.
+    The CHANGELOG distinguishes them by shape: a live entry is a BRACKETED heading, a
+    withdrawn one is unbracketed and carries `(withdrawn)`. That was a habit maintained by
+    hand; since a function now depends on it, it is asserted.
+
+    Live entries also carry a link reference at the foot of the file. That is convention and
+    NOT something `_release_in_flight` reads, so this test deliberately does not assert it —
+    a guard should pin what the function actually depends on, or the next person hardens an
+    invariant nothing needs and leaves the real one unguarded.
     """
     body = (_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     headings = re.findall(r"^##\s+(.+)$", body, re.M)
