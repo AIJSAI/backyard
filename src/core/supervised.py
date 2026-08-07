@@ -26,6 +26,13 @@ def create_supervised_member(*, parent: Member, display_name: str, pod: Pod) -> 
     core.permissions.can_create_supervised; this service just builds the record
     correctly: flagged, parent-managed, no User, SUPERVISED role.
     """
+    # Why this exists, kept out of the message: the view checks only that the POD is visible
+    # to whoever submitted the form, which for an instance admin is every pod on the
+    # instance. Without this, picking the wrong household placed a child in a family their
+    # own managing parent is not in. The message itself reaches a person through
+    # `PermissionDenied(str(exc))`, so it says what is wrong and nothing else.
+    if not PodMembership.objects.filter(member=parent, pod=pod).exists():
+        raise ValueError(f"{parent.display_name} is not in {pod.name}.")
     with transaction.atomic():
         child = Member.objects.create(
             display_name=display_name,

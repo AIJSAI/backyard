@@ -121,11 +121,17 @@ on, under `Settings`.
   people. Mint a new one — **`Members` → `Outstanding invites`** shows what is still live
   and lets you revoke anything you would rather kill.
 - **Someone joined with the wrong name.** They can fix it themselves: **`Settings`** in the
-  top nav, then change the name field and save. If they cannot, an admin can fix it from
-  **`Members` → `Edit profile`** on their row.
+  top nav, then change the name field and save. If they cannot do it themselves, ask whoever
+  runs the server — editing somebody else's profile needs the instance admin, and **you
+  cannot do it** even though `Edit profile` appears on your own row.
 - **You handed a grandparent link to the wrong person.** Mint a new one for that grandparent
-  immediately — **`Members` → their row → `Elder link`**. Minting a new one kills the old
-  one straight away.
+  immediately — find them on **`Members`** and use **`Elder link`** on their row. Minting a
+  new one kills the old one straight away.
+
+  `Elder link` only appears for grandparents in **households you are in yourself**. That is
+  deliberate: the link is a working no-login credential for everything that person can see,
+  so minting one for a household you are not in would hand you its contents. If you cannot
+  see the control for someone, ask whoever runs the server.
 - **Somebody forgot their password and gave no email address.** Ask whoever runs the server;
   there is a recovery path, but it needs them.
 - **Anything else.** Ask whoever runs the server. That is a relative, not a support desk,

@@ -55,10 +55,15 @@
           {% if row.can_edit_profile %}
             <a href="{% url 'managed_profile_edit' row.member.id %}">Edit profile</a>
           {% endif %}
+          {% comment %} Gated on can_provision_token, NOT on manageable. Minting an elder
+             link hands over a working no-login credential for that person's whole scope, so
+             a yard admin may only do it for someone whose pods are a subset of their own —
+             stricter than "may I administer them". Measured before this change: a yard admin
+             saw this link on every row in their yard and got a 403 on click. {% endcomment %}
+          {% if row.can_provision_elder %}
+            <a href="{% url 'provision_elder' row.member.id %}">Elder link</a>
+          {% endif %}
           {% if row.manageable %}
-            {% if not row.member.is_supervised %}
-              <a href="{% url 'provision_elder' row.member.id %}">Elder link</a>
-            {% endif %}
             {% if row.assignable_roles %}
               <form method="post" action="{% url 'assign_role' row.member.id %}" class="inline">
                 {% csrf_token %}
@@ -105,7 +110,7 @@
              created from anywhere in the product, by anybody. The story reads `passing`.
              Placed per-row because the endpoint's first argument is the PARENT: this is
              "give <name> a child account", not a free-standing form. {% endcomment %}
-          {% if not row.member.is_supervised and assignable_pods %}
+          {% if not row.member.is_supervised and row.own_pods %}
             <details class="supervised-disclosure">
               <summary>Add a child account managed by {{ row.member.display_name }}&hellip;</summary>
               <form method="post" action="{% url 'create_supervised' %}">
@@ -114,13 +119,15 @@
                 <label for="child-name-{{ row.member.id }}">Their name</label>
                 <input id="child-name-{{ row.member.id }}" type="text" name="display_name"
                        maxlength="100" required>
-                {% comment %} "Which household" was wrong: `assignable_pods` is
-                   `scoping.visible_pods(actor)`, which includes ad-hoc groups as well as
-                   households, so the label promised a narrower list than the control
-                   offers. {% endcomment %}
-                <label for="child-pod-{{ row.member.id }}">Which pod they belong to</label>
+                {% comment %} The PARENT's households, not every pod the admin can see.
+                   This offered `assignable_pods` — `scoping.visible_pods(actor)`, which for
+                   an instance admin is every pod on the instance — so picking the wrong line
+                   placed a child in a family their own parent is not in, where the parent
+                   cannot see them. `supervised.create_supervised_member` refuses that too,
+                   for a POST that did not come from this page. {% endcomment %}
+                <label for="child-pod-{{ row.member.id }}">Which of their households</label>
                 <select id="child-pod-{{ row.member.id }}" name="pod_id">
-                  {% for pod in assignable_pods %}
+                  {% for pod in row.own_pods %}
                     <option value="{{ pod.id }}">{{ pod.name }}</option>
                   {% endfor %}
                 </select>

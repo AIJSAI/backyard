@@ -97,15 +97,43 @@ def member(name, pod_, *, login=None, kin="", role=Member.MEMBER):
     return m
 
 
-# The founder's own account. Deliberately NOT stamped `seeded_by`: the wipe must leave it
-# and its pod membership alone, or clearing the demo family locks him out of the product —
-# a member in no pod resolves nobody, including themselves, and `/setup/` is closed for good
-# once a superuser exists. Re-running the seed re-attaches him to the bridging household.
-_u = U.objects.filter(username="james").first() or U.objects.create_user(
-    username="james", password=PW
-)
+# The OPERATOR's own account — whoever runs this instance. Deliberately NOT stamped
+# `seeded_by`: the wipe must leave it and its pod membership alone, or clearing the demo
+# family locks them out of the product — a member in no pod resolves nobody, including
+# themselves, and `/setup/` is closed for good once a superuser exists. Re-running the seed
+# re-attaches them to the bridging household.
+#
+# Selected by `is_superuser`, never by username. Keying this to the literal "james" had two
+# edges on anybody else's instance, and they are the same two the old wipe had when it
+# deleted auth accounts called "sam" and "dave":
+#
+#   * no such user -> the seed CREATED one, gave it INSTANCE_ADMIN, left it unmarked so no
+#     wipe would ever remove it, and printed its password. A permanent admin account with a
+#     published credential, on a stranger's family instance.
+#   * such a user exists but is an ordinary relative who happens to be called James -> the
+#     seed promotes THEM to instance admin. A name is not an identity.
+#
+# The trailing "your own account keeps the password it already had" was false in the first
+# case, which is the one where it mattered.
+_u = U.objects.filter(is_superuser=True).order_by("pk").first()
+_minted_operator = _u is None
+if _u is None:
+    # No superuser at all: a bare database — a test, or a drill box — where the first-run
+    # wizard has not run. Creating one here is the only way the seed can produce a coherent
+    # instance, so it is done loudly rather than silently, and never on a populated box.
+    if U.objects.exists():
+        raise SystemExit(
+            "Refusing to seed: this database has user accounts but no superuser, so there "
+            "is no operator to attach the demo family to. Run `manage.py createsuperuser` "
+            "(or open /setup/) first — the seed will not mint an admin account on an "
+            "instance that already belongs to somebody."
+        )
+    _u = U.objects.create_superuser(
+        username=os.environ.get("BACKYARD_SEED_OPERATOR", "operator"), password=PW
+    )
+operator_name = os.environ.get("BACKYARD_SEED_OPERATOR_NAME") or _u.username
 james, _ = Member.objects.get_or_create(
-    user=_u, defaults={"display_name": "James Shehan", "role": Member.INSTANCE_ADMIN}
+    user=_u, defaults={"display_name": operator_name, "role": Member.INSTANCE_ADMIN}
 )
 # `defaults` only apply on CREATE, so re-running the seed against an existing Member left
 # whatever role that row already had. QA depends on the founder being an instance admin —
@@ -227,6 +255,15 @@ print(
     f"SEEDED members={Member.objects.count()} "
     f"pods={Pod.objects.count()} posts={Post.objects.count()}"
 )
-# Last line, and the only copy. Every seeded login shares it; your own account keeps the
-# password it already had.
+# Last line, and the only copy. Every seeded login shares it.
+#
+# Your own account keeps the password it already had — unless this run had no superuser to
+# attach to and minted one, which is said plainly rather than left to be inferred from a
+# comment that was written when the founder's account always existed.
+if _minted_operator:
+    print(
+        f"CREATED SUPERUSER {_u.username!r} — no superuser existed on this database. "
+        "It shares the demo password below and is NOT removed by `wipe_demo_data`. "
+        "Change it before this instance is used by anyone."
+    )
 print(f"DEMO_PASSWORD={PW}")
