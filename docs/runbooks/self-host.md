@@ -97,10 +97,14 @@ restricted set rather than "any CA on earth", which is what you have with no CAA
 ## 2. Configure
 
 ```bash
-git clone https://github.com/AIJSAI/backyard.git
+git clone --branch v0.1.2 https://github.com/AIJSAI/backyard.git
 cd backyard
 cp .env.example .env
 ```
+
+**Clone the tag, not `main`**, exactly as the README says. `main` changes daily and may be
+mid-refactor when you arrive. This step used to clone `main` while every other document
+insisted on a tag; the two disagreed, and the one an operator actually runs was the wrong one.
 
 Edit `.env`. The three database passwords have **no defaults** — compose refuses to start
 until you set them, deliberately, so an instance can never come up on a shipped credential:
@@ -255,9 +259,24 @@ otherwise resurrect the credentials of someone you removed.
 
 ```bash
 cd backyard
-git pull
+git fetch --tags
+git checkout v0.1.2          # or whichever tag CHANGELOG.md says you want
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
+
+**Not `git pull`.** You cloned a tag, so you are on a detached HEAD, and this is not a
+detail — it is the difference between upgrading and believing you upgraded. Both shapes
+were run against this repository to check:
+
+| what you cloned | `git pull` does |
+|---|---|
+| `git clone --branch <tag> …` (what the README tells you to run) | fails: *"You are not currently on a branch."* |
+| the same with `--depth 1` | prints **"Already up to date"** and does nothing, forever — the fetch refspec is narrowed to `+refs/tags/<tag>:refs/tags/<tag>`, so there is nothing else it can even see |
+
+The second is the dangerous one: an operator runs it, is told they are current, and stays
+on the version they installed for as long as the instance lives. `git fetch --tags` plus an
+explicit `git checkout` says out loud which version you are moving to, which is also what
+the release notes are for.
 
 The entrypoint takes a pre-flight database dump **before** any migration and refuses to
 migrate if that dump fails, so a broken upgrade cannot take the data with it. The last
