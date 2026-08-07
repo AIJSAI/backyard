@@ -22,25 +22,40 @@ been wrong before, in this exact header, about exactly the kind of claim it make
 | | |
 |---|---|
 | `main` | 33 commits past `v0.1.1` — the same quantity as the row below, counted the other way. If they ever disagree, one of them has drifted |
-| **`v0.1.2` is NOT cut** | `git tag --list` shows only `v0.1.1`. README, `self-host.md` and CHANGELOG all name `v0.1.2` |
+| **`v0.1.2` is NOT cut** | `git tag --list` shows only `v0.1.1`. `README.md`, `docs/runbooks/self-host.md` and `CHANGELOG.md` all name `v0.1.2` |
 | open PR | **#162** — this handoff. #161 merged 2026-08-07 |
 | this release | **33 PRs**: `#127`–`#161`, except `#138` and `#142` (CLOSED unmerged, superseded by `#139` and `#143`). Re-derive rather than trusting this row: `git log --oneline v0.1.1..origin/main \| grep -oE '\(#[0-9]+\)$'` |
 
-**The next two commands, in order**, once #162 merges:
+**The next two steps, in order**, once #162 merges. Step 1 is several commands and they are
+deliberately NOT chained — read each result:
 
 ```bash
-cd ~/projects/backyard && git checkout main && git pull
-# 1. Full gate on the exact tree being tagged. READ each result — chaining with && and
-#    reading the tail as evidence about the head is how "lint ok" got reported over nine
-#    lint findings. Check `ps aux | grep pytest` is empty first (shared test database).
-uv run ruff check src scripts && uv run ruff format --check src scripts
-uv run mypy src && uv run pytest -q && uv run pytest -q -m e2e && make gates
-# 2. Tag
-git tag -a v0.1.2 -m "v0.1.2" && git push origin v0.1.2
+cd ~/projects/backyard
+git checkout main
+git pull
+
+# Preconditions: Docker up (Postgres is a container), and no other pytest running —
+# the local lane shares one test database and a concurrent run produces false reds.
+docker ps >/dev/null || echo "START DOCKER FIRST"
+ps aux | grep "[p]ytest"          # must print nothing
+
+# Step 1 — the full gate, ONE COMMAND AT A TIME. Read each result.
+# Chaining these with && and reading the tail as evidence about the head is how
+# "lint ok" got reported over a tree with nine lint findings.
+uv run ruff check src scripts
+uv run ruff format --check src scripts
+uv run mypy src
+uv run pytest -q
+uv run pytest -q -m e2e
+make gates
+
+# Step 2 — tag, only once every line above was read and green.
+git tag -a v0.1.2 -m "v0.1.2"
+git push origin v0.1.2
 ```
 
 Tagging turns the version gate back ON: `_release_in_flight` exempts the newest CHANGELOG
-version only while it has no tag, so every `--branch v0.1.2` in README and `self-host.md`
+version only while it has no tag, so every `--branch v0.1.2` in `README.md` and `docs/runbooks/self-host.md`
 starts being checked against a real tag the moment it exists.
 
 ### What is DONE
@@ -105,9 +120,13 @@ The defects that would have reached the family, each measured not reasoned:
 
 * **`git checkout -- <file>` discards uncommitted work.** It destroyed a template edit
   mid-probe. Back probes up to the scratchpad and restore from there.
-* **Never edit a running bash script.** Bash reads incrementally from a byte offset. The
-  merge train was edited eight times while live; harmless by luck. It takes its queue as
-  ARGUMENTS now: `merge-train.sh 161 162`.
+* **Never edit a running bash script.** Bash reads it incrementally from a byte offset, so
+  an edit can make it resume mid-line. A merge-train helper was edited eight times while
+  live; harmless by luck, not by design. Whatever you rebuild, have it take its queue as
+  ARGUMENTS rather than as a constant you edit in place. (The 2026-08-07 helper lived in the
+  session scratchpad, which is wiped between sessions — it is gone, and that is the second
+  lesson: session-scoped tooling does not survive, so anything worth keeping goes in the
+  repo.)
 * **`gh` reports an in-progress check as the empty STRING**, and jq's `//` defaults only on
   null — so `"" // "RUNNING"` is `""`. The train announced "all five green" over a running
   job because of it.
