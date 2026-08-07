@@ -44,6 +44,20 @@ pod only if every yard it is in was named, a member only if every pod they are i
 So a bridging household that reaches a real side is left alone, and so is a relative who
 joined a demo pod during QA but has their own household.
 
+First list the yards, because two different seed scripts have run against this project and
+they use different slugs — `moms-side` / `dads-side` from `scripts/demo_seed.py`, and
+`whitfield-side` / `ferreira-nakamura-side` from `docs/design/tools/seed_demo.py`. Read what
+is actually on YOUR box rather than trusting either list:
+
+    docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+      python manage.py shell -c "
+    from core.models import Yard
+    for y in Yard.objects.all():
+        print(y.slug, y.name, y.pods.count(), \"pod(s)\")"'
+
+The founder's own yard (`home`) is created without a marker on purpose and must not be
+named here — it is the household you keep.
+
     # what would be marked, and what is deliberately spared. Changes nothing.
     docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
       python manage.py mark_demo_data --yard <slug> --dry-run'
