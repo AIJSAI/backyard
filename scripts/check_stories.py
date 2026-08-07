@@ -113,12 +113,70 @@ def selftest() -> list[str]:
     return errors
 
 
+def filed_story_ids(data: object) -> set[str]:
+    """Every story id in the file, walked the same way `validate_stories` walks it.
+
+    Deliberately not a second traversal: two readers of one structure drift, and the one
+    that drifts silently here would make the cross-reference check below blind rather than
+    wrong — which is worse, because it keeps passing.
+    """
+    if not isinstance(data, dict):
+        return set()
+    found: set[str] = set()
+    for epic in data.get("epics") or []:
+        for story in epic.get("stories") or []:
+            if isinstance(story, dict) and story.get("id"):
+                found.add(str(story["id"]))
+    return found
+
+
+def cited_but_unfiled(story_ids: set[str]) -> list[str]:
+    """Story IDs a document commits to that `stories.yaml` has never heard of.
+
+    S-721 is why this exists. A retro named it as a Definition-of-Done item, an audit quoted
+    that retro, and `PATH-TO-100.md` marked the phase complete on a story tally — while
+    `grep -n 'S-721' stories/stories.yaml` returned nothing. The story had never been
+    created, so the tally counted a set that did not include it and the phase closed on the
+    strength of a document referring to a thing that did not exist.
+
+    Scoped to the documents that make COMMITMENTS. Receipts and audits are dated records:
+    an audit is allowed — required, really — to say "S-721 does not exist", and a guard that
+    failed on that sentence would push toward deleting the finding.
+    """
+    committing = [
+        ROOT / "docs" / "PATH-TO-100.md",
+        ROOT / "docs" / "OUTSTANDING.md",
+        ROOT / "docs" / "README.md",
+        ROOT / "README.md",
+    ]
+    errors: list[str] = []
+    for path in committing:
+        if not path.is_file():
+            continue
+        for lineno, line in enumerate(path.read_text().splitlines(), 1):
+            for cited in set(re.findall(r"\bS-\d{3}\b", line)):
+                if cited not in story_ids:
+                    errors.append(
+                        f"{path.relative_to(ROOT)}:{lineno}: cites {cited}, which is not in "
+                        "stories/stories.yaml. Either file the story or stop referring to it "
+                        "— a document that names a story nobody wrote is how a phase gets "
+                        "marked complete on a tally that never counted it."
+                    )
+    return errors
+
+
 def main() -> int:
     errors = selftest()
     stories_path = ROOT / "stories" / "stories.yaml"
     checklist_path = ROOT / "docs" / "PATH-TO-100.md"
-    errors += validate_stories(yaml.safe_load(stories_path.read_text()))
+    stories = yaml.safe_load(stories_path.read_text())
+    errors += validate_stories(stories)
     errors += validate_checklist(checklist_path.read_text())
+    filed = filed_story_ids(stories)
+    if not filed:
+        errors.append("no story IDs parsed from stories.yaml; the cross-reference check is blind")
+    else:
+        errors += cited_but_unfiled(filed)
     for err in errors:
         print(f"GATE FAIL: {err}")
     print(f"gates: {'FAIL' if errors else 'PASS'}")

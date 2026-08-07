@@ -937,3 +937,76 @@ epics:
       - TM-8
       source: docs/security/threat-model.md
     evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-721
+    epic: E7
+    persona: self-hoster
+    story: As a non-technical delegate, I can set up my side of the family from the documented guide alone, with no shell and no help from the founder.
+    acceptance:
+    - a delegate promoted to yard_admin can reach every control the guide names, by following links from the feed, without being told a URL
+    - the guide's instructions are true for a YARD admin specifically, not only for an instance admin
+    - inviting a household, minting an elder link and handing it over are all completed without a shell
+    - the rehearsal is run by somebody who has not seen the product before, and receipted
+    status: spec
+    v1: true
+  - id: S-722
+    epic: E7
+    persona: self-hoster
+    story: As the family tech person, I know the browser lane cannot be skipped, because merging is blocked until it passes.
+    acceptance:
+    - e2e is a required status check on main, not merely a job that runs
+    - a pull request cannot merge while e2e is failing or absent
+    status: passing
+    v1: true
+    evidence: 'gh api repos/AIJSAI/backyard/branches/main/protection -> required_status_checks.contexts includes "e2e"'
+  - id: S-723
+    epic: E7
+    persona: self-hoster
+    story: As the family tech person, I know a new model cannot skip yard isolation without the build saying so.
+    acceptance:
+    - every core model is classified as isolation-covered or isolation-exempt, with a reason
+    - a covered model is proven by a probe that RUNS against a two-yard topology, not by being listed
+    - each probe carries its own denominator, so a probe that sees nothing cannot report isolation
+    status: passing
+    v1: true
+    evidence: src/core/tests/test_isolation_registry.py
+  - id: S-724
+    epic: E7
+    persona: self-hoster
+    story: As the family tech person, my instance sends a baseline Content-Security-Policy on every response.
+    acceptance:
+    - ContentSecurityPolicyMiddleware is defined and wired into settings.MIDDLEWARE
+    - the policy is asserted on a rendered response, not on the settings value
+    status: passing
+    v1: true
+    evidence: docs/receipts/2026-07-22-s724-baseline-csp.md
+  - id: S-725
+    epic: E7
+    persona: self-hoster
+    story: As the family tech person, no outbound fetch runs on the process that answers the internet.
+    acceptance:
+    - link-preview fetching runs on the worker, never in a view
+    - a guard enumerates the view modules from disk and fails if any of them reaches the fetch
+    status: passing
+    v1: true
+    evidence: docs/receipts/2026-07-22-s725-ssrf-fetch-relocation.md
+  - id: S-726
+    epic: E7
+    persona: self-hoster
+    story: As the family tech person, dependency CVEs and unsafe code patterns fail the build rather than waiting to be noticed.
+    acceptance:
+    - CI runs a dependency-CVE scan and a SAST pass over production code
+    - each scan proves itself non-vacuous by planting something it MUST catch
+    status: passing
+    v1: true
+    evidence: docs/receipts/2026-07-22-s726-dep-scan-sast.md
+  - id: S-727
+    epic: E7
+    persona: self-hoster
+    story: As the family tech person, restoring a backup cannot resurrect a credential somebody deliberately revoked.
+    acceptance:
+    - a restore bumps every member's token_generation, flushes sessions and voids invites
+    - a replay failure is loud and names the credentials that may still be live
+    - the runbook states what a restore does to elder links, digests, sessions and removed members
+    status: passing
+    v1: true
+    evidence: docs/receipts/2026-07-22-s727-restore-security-replay-close.md
