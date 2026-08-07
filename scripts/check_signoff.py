@@ -60,17 +60,68 @@ def unsigned(commits: list[tuple[str, str]]) -> list[str]:
 
 
 def selftest() -> list[str]:
-    """The check must reject a commit with no trailer, and accept one with it."""
+    """Both directions, and the negative one deterministically.
+
+    The first version asserted only that a SIGNED commit passes. If `unsigned()` regressed to
+    always return `[]` — the most likely way this goes wrong, since every failure mode of a
+    "find the missing thing" check is a false negative — that self-test still passed and the
+    gate went vacuous. The docstring claimed both directions were covered, which is worse
+    than claiming neither: it is the sentence that stops the next person checking.
+
+    The negative case builds a real commit OBJECT with `git commit-tree` and no trailer. It
+    is unreachable — no ref points at it, so it is invisible to `git log` and collected by
+    `gc` — but it is a genuine commit that `git log -1 --format=%B` reads exactly like any
+    other, so this exercises the real code path rather than a stubbed one.
+    """
     errors = []
     if unsigned([]) != []:
         errors.append("selftest: an empty range reported findings")
-    # Exercised against the real repository rather than a fixture: HEAD is signed (this
-    # project signs now), and the repository's own history contains unsigned commits, so
-    # both answers are available without constructing anything.
-    head_body = _git("log", "-1", "--format=%B", "HEAD")
-    if any(line.startswith(TRAILER) for line in head_body.splitlines()):
-        if unsigned([("HEAD", "head")]):
-            errors.append("selftest: a SIGNED commit was reported as unsigned")
+
+    # NEGATIVE: a commit with no trailer must be flagged.
+    try:
+        tree = _git("rev-parse", "HEAD^{tree}")
+        synthetic = subprocess.run(
+            ["git", "commit-tree", tree, "-m", "selftest: deliberately unsigned"],
+            capture_output=True,
+            text=True,
+            check=True,
+            env={
+                **os.environ,
+                "GIT_AUTHOR_NAME": "selftest",
+                "GIT_AUTHOR_EMAIL": "s@e",
+                "GIT_COMMITTER_NAME": "selftest",
+                "GIT_COMMITTER_EMAIL": "s@e",
+            },
+        ).stdout.strip()
+    except subprocess.CalledProcessError as exc:
+        return [
+            *errors,
+            f"selftest: could not build a synthetic commit ({exc}); "
+            "this check cannot prove it detects anything",
+        ]
+    if not unsigned([(synthetic, "selftest: deliberately unsigned")]):
+        errors.append(
+            "selftest: an UNSIGNED commit passed the check. `unsigned()` is returning "
+            "nothing, so this gate would report PASS over a branch with no sign-offs at all."
+        )
+
+    # POSITIVE: a commit that carries the trailer must not be flagged. Built the same way,
+    # so the two cases differ ONLY in the trailer.
+    signed = subprocess.run(
+        ["git", "commit-tree", tree, "-m", f"selftest: signed\n\n{TRAILER} A Tester <t@e>"],
+        capture_output=True,
+        text=True,
+        check=True,
+        env={
+            **os.environ,
+            "GIT_AUTHOR_NAME": "selftest",
+            "GIT_AUTHOR_EMAIL": "s@e",
+            "GIT_COMMITTER_NAME": "selftest",
+            "GIT_COMMITTER_EMAIL": "s@e",
+        },
+    ).stdout.strip()
+    if unsigned([(signed, "selftest: signed")]):
+        errors.append("selftest: a SIGNED commit was reported as unsigned")
     return errors
 
 
