@@ -76,8 +76,6 @@ the fixes, and each new one was proven by breaking the thing it guards.
   the edge; an RFC 9116 `security.txt` served from Caddy so it stays reachable when the app
   is down.
 - SPF, DMARC and CAA records, whose absence is only visible once abused.
-- `cryptography` moved off a version with a published CVE that this repo's own upper pin
-  had been blocking.
 - A cloud project id and a DNS zone id were on public `main`.
 - The secret-scanning config had three allowlists whose descriptions named a scope they did
   not have. A top-level allowlist without `targetRules` is global in gitleaks 8 — including
