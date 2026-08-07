@@ -108,6 +108,37 @@ objects) and replaces the media tree. It refuses a database that still has
 members unless you pass `--force`, so it is safe to point at a fresh box and
 hard to fire by accident.
 
+### What a restore does to things people are holding
+
+A restore replays the database as it was. That is not the same as putting the
+instance back how it was, because credentials live in the rows and people are
+holding the old ones. Read this before restoring an instance the family is using —
+none of it is an error, and all of it will look like one.
+
+| What | What happens | Who notices |
+|---|---|---|
+| Every elder link | Dies, instance-wide | Every grandparent, at once. The page shows the shared 404 |
+| Every digest deep link and reply-by-email address | Dies, instance-wide | Anyone who replies to an old email |
+| Every signed media URL | Dies, instance-wide | Anyone with a photo open in a tab |
+| Everyone's session | Flushed | Everybody is signed out |
+| Invites minted since the backup | Gone | Whoever was mid-join |
+| **Members removed since the backup** | **Come back** | The removed person and everyone who can see them |
+
+The first four are one mechanism: a restore bumps every `Member.token_generation`,
+and every derived credential carries the generation it was minted under (ADR-003
+rule 3). That is deliberate — a restored database cannot know which credentials
+were revoked after the backup was taken, so it invalidates all of them rather than
+resurrect a capability somebody deliberately killed.
+
+The last row is the one to plan for, and it is the reason a restore is not a quiet
+operation: a backup cannot know about a removal that happened after it. If somebody
+was removed under S-702 since this backup, **restoring brings them back**, with
+their pods, their content and their visibility. Re-run the removal immediately
+afterwards and check the roster before telling anyone the instance is up.
+
+Mint fresh elder links for every grandparent as part of the restore, not after
+somebody reports that theirs is broken.
+
 On a fresh instance (no members yet):
 
 ```sh
