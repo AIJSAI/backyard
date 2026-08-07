@@ -6,7 +6,9 @@ to contribute.
 
 ## Ground rules
 
-- **DCO, no CLA.** Every commit must be signed off (`git commit -s`), certifying the [Developer Certificate of Origin](https://developercertificate.org/). That sign-off is the entire paperwork; there will never be a CLA.
+- **DCO, no CLA.** Every commit must be signed off (`git commit -s`), certifying the [Developer Certificate of Origin](https://developercertificate.org/). That sign-off is the entire paperwork; there will never be a CLA. CI enforces it on the commits a pull request adds.
+
+  **Existing history is not all signed** — 85 of the first 154 commits carry no trailer, from before this was enforced. They cannot be fixed: adding it means rewriting every SHA, which breaks every link and every receipt that cites one. So the rule binds from the merge base forward, and this paragraph says so rather than leaving a reader to discover it in `git log` and wonder what else here is aspirational.
 - **Conventional commits**: `feat` / `fix` / `docs` / `refactor` / `chore` / `test` / `perf` / `ci`.
 - Small, focused PRs. One concern per PR.
 - **Stories are the spec.** Work traces to an entry in [stories/stories.yaml](stories/stories.yaml). If your change has no story, propose the story first.
