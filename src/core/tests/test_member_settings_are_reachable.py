@@ -197,6 +197,8 @@ def _reachable_route_names(
     found: set[str] = set()
     refused = refused if refused is not None else set()
     seen_urls: set[str] = set()
+    # url -> status, so an offered link is followed once no matter how many pages offer it.
+    answered: dict[str, int] = {}
     queue = [reverse("feed")]
 
     # A cursor loop must not run forever. Hitting the cap is reported to the caller rather
@@ -243,12 +245,24 @@ def _reachable_route_names(
                 # a link that 403s is a link that lies, and counting it as reachable is how
                 # `Elder link` (rendered on `can_manage_member`, gated on the stricter
                 # `can_provision_token`) read as reachable while 403-ing for a yard admin.
+                #
+                # Each URL is followed AT MOST ONCE. The nav is on every page, so following
+                # unconditionally re-fetched the same handful of links once per page — and
+                # a GET is only safe to repeat if every endpoint is idempotent, which is an
+                # assumption this crawl should not be making about a product it is walking
+                # blind. Sign-out is the obvious one: repeatedly GETting it would end the
+                # crawler's own session partway through and make the rest of the site look
+                # unreachable.
+                if target not in answered:
+                    answered[target] = client.get(target).status_code
+                status = answered[target]
+                if status in (403, 404):
+                    # Do NOT enqueue: a page that refuses has no offers worth crawling, and
+                    # queueing it spends cap on a walk that cannot contribute.
+                    refused.add((name, status))
+                    continue
                 if target not in seen_urls:
                     queue.append(target)
-                answer = client.get(target)
-                if answer.status_code in (403, 404):
-                    refused.add((name, answer.status_code))
-                    continue
             found.add(name)
 
     for url in seen_urls:
