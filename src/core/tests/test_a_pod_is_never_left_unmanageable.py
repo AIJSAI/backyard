@@ -145,3 +145,68 @@ def test_a_household_pod_is_untouched(club: tuple[Pod, Member, Member]) -> None:
     assert pods.succeed_owner(house) is None
     house.refresh_from_db()
     assert house.owner_id is None
+
+
+@pytest.mark.django_db
+def test_s702_removal_hands_on_a_pod_the_removed_member_owned(
+    club: tuple[Pod, Member, Member],
+) -> None:
+    """The third route, and the one an admin actually uses.
+
+    `removal.remove_member` deletes every `PodMembership` and never touched `Pod.owner`, so
+    removing somebody who owned an ad-hoc pod left it frozen for everyone still in it —
+    the same state `leave_pod` and the wipe already close, reached differently.
+
+    It was named in this branch's own description as one of three routes and wired for only
+    two. Review caught the gap.
+    """
+    from core import removal
+
+    adhoc, owner, joiner = club
+    removal.remove_member(member=owner, content=removal.KEEP)
+
+    adhoc.refresh_from_db()
+    assert adhoc.owner_id == joiner.pk, (
+        "removing the owner left the pod ownerless; nobody remaining can set its house rule "
+        "or add anyone, and no reassignment path exists"
+    )
+    pods.set_house_rule(actor=joiner, pod=adhoc, house_rule="Ours now")
+
+
+@pytest.mark.django_db
+def test_the_wipe_only_reassigns_pods_it_orphaned(
+    club: tuple[Pod, Member, Member],
+) -> None:
+    """A demo wipe must not touch a real pod that was already ownerless.
+
+    The first version scanned every ownerless ad-hoc pod on the instance, so an unrelated
+    one — ownerless for its own reasons, long before this — would be silently reassigned and
+    counted in the receipt the operator reads to decide whether the wipe did what they meant.
+    """
+    adhoc, _owner, _joiner = club
+    # A real pod that has been ownerless since before any of this.
+    yard = Yard.objects.get(slug="y")
+    unrelated = Pod.objects.create(name="Ownerless for its own reasons", kind=Pod.ADHOC)
+    unrelated.yards.set([yard])
+    bystander = Member.objects.create(display_name="A bystander")
+    PodMembership.objects.create(member=bystander, pod=Pod.objects.get(name="House"))
+    PodMembership.objects.create(member=bystander, pod=unrelated)
+
+    # A wipe that has nothing to do with either.
+    demo_yard = Yard.objects.create(name="Demo", slug="demo-yard", seeded_by=MARKER)
+    demo_pod = Pod.objects.create(name="Demo household", seeded_by=MARKER)
+    demo_pod.yards.set([demo_yard])
+    seeded = Member.objects.create(display_name="Fixture", seeded_by=MARKER)
+    PodMembership.objects.create(member=seeded, pod=demo_pod)
+
+    receipt = demo_data.wipe(MARKER)
+
+    unrelated.refresh_from_db()
+    assert unrelated.owner_id is None, (
+        "the wipe reassigned a real pod it did not orphan; a demo wipe has no business "
+        "changing who owns somebody's book club"
+    )
+    assert receipt.get("pods reassigned", 0) == 0, (
+        f"the receipt claims {receipt.get('pods reassigned')} pod(s) reassigned, which "
+        "overstates what this wipe did"
+    )
