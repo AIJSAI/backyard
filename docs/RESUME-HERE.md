@@ -1,30 +1,53 @@
-# Resume here — session state, 2026-08-01
+# Resume here — session state, 2026-08-06/07
 
 Written to survive a context compaction. Read this, then
-**[`docs/OUTSTANDING.md`](OUTSTANDING.md) — the ranked backlog, whose §6 carries what the
-2026-08-01 readiness audit added** — then `docs/PATH-TO-100.md`. Verify with a primary check
-(`git log`, `gh pr list`, run the probe an item names) rather than trusting anything written
-down. That instruction earned its keep: OUTSTANDING.md called itself "the single list" and
-a re-measurement found ~30 items it did not contain.
+**[`docs/OUTSTANDING.md`](OUTSTANDING.md)** — the ranked backlog. Its **§7** is the record of
+the 2026-08-06 session, and its **§6** is the only record of the 2026-08-01 readiness audit
+(that audit has no separate document, which is why its findings had to be re-derived a week
+later). Then `docs/PATH-TO-100.md`.
 
-> **Start here after a compaction:** the two live production exposures are **CLOSED** as of
-> the evening of 2026-08-01 US Central — which is **2026-08-02 UTC**, the date the box stamped
-> on its own artefacts (`backup-2026-08-02.bak`). Same moment; compare in UTC when matching a
-> runbook entry to a file on the box (OUTSTANDING §0). The burned credential no longer
-> authenticates — verified over HTTPS against the live site — pre-flight dumps are encrypted,
-> and the instance has its first verified backup, held off-box and proven to decrypt. No
-> plaintext copy of the family database exists anywhere any more.
+Verify with a primary check (`git log`, `gh pr list`, run the probe an item names) rather
+than trusting anything written down — including this file. That instruction earned its keep
+twice: OUTSTANDING.md called itself "the single list" and a re-measurement found ~30 items it
+did not contain, and this header claimed the production exposures were closed while a third
+one was still live.
+
+> **Start here after a compaction.** Production is clean as of **2026-08-07 UTC**, and every
+> item below was verified from OUTSIDE the box rather than from a command's exit code:
 >
-> Secrets live in the **1Password `Backyard` vault**. There is **no key escrow** for
-> `BACKYARD_BACKUP_PASSPHRASE`: if that item is lost, every backup taken with it is
-> permanently unreadable.
+> * **The burned credential and the plaintext backups** were closed on the evening of
+>   2026-08-01 US Central — **2026-08-02 UTC**, the date the box stamps on its own artefacts
+>   (`backup-2026-08-02.bak`). Same moment; compare in UTC when matching a runbook entry to a
+>   file on the box (OUTSTANDING §0).
+> * **A third live exposure was closed on 2026-08-06**: a relative on the public instance
+>   still carried the author's real surname. `b8b9813` had renamed her in the repo and added
+>   a guard a week earlier — **the data was never migrated**. A rename in code does not
+>   migrate rows. Fixed after an encrypted backup; confirmed by signing in over the public
+>   internet and reading `/directory/`.
+> * **The `worker` container was running 7-day-old code** — genuinely different images, so
+>   every async path (digests, transcoding, link previews, `rollup_metrics`, `clearsessions`)
+>   was stale. The deploy step restarts `web` only. Rebuilt; both now carry the same build
+>   stamp.
+> * **6 orphaned media files** removed, measured rather than estimated. Nothing in the
+>   product would ever have removed them: every purge path needs the row.
+>
+> Secrets live in the **1Password `Backyard` vault**. The **server SSH key is stored as a
+> DOCUMENT**, not an SSH Key item, so the 1Password SSH agent does not serve it — fetch with
+> `op document get`. The box user is **`ubuntu`**, not `root`, and the box has **no `.git`**:
+> it was deployed by file copy, so `git pull` is not the upgrade path there.
+>
+> There is **no key escrow** for `BACKYARD_BACKUP_PASSPHRASE`: if that item is lost, every
+> backup taken with it is permanently unreadable.
 >
 > **`v0.1.0` is WITHDRAWN.** It carried the burned credential in three tracked files and the
-> cross-yard disclosure fixed in #110. `v0.1.1` replaces it and the README installs that.
-> The credential itself is rotated and dead, so this is hygiene rather than a live exposure —
-> but do not point anyone at the old tag.
+> cross-yard disclosure fixed in #110. The credential is rotated and dead, so this is hygiene
+> rather than a live exposure — but do not point anyone at the old tag.
 
-**`v0.1.1` is the current tag** (`v0.1.0` withdrawn). The README installs the tag, not `main`, and `CHANGELOG.md` lists what
+**`v0.1.1` is the current TAG; `0.1.2` is written up in the CHANGELOG but not yet cut.**
+Until that tag exists the README points at a version that cannot be cloned, which is the
+in-flight window `test_documented_version_resolves` exempts — cut the tag as soon as the
+release PRs are merged, because the exemption expires the moment it exists and that is what
+turns the check back on. The README installs the tag, not `main`, and `CHANGELOG.md` lists what
 does not work as prominently as what does. If you add a user-visible change, add a changelog
 entry under an `## [Unreleased]` heading — the install path is now a fixed point that people
 can be pointed at, and the whole value of that is it not moving under them.
