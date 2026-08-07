@@ -70,19 +70,22 @@ jobs:
       - run: uv sync --frozen
       - name: Lint
         run: |
-          # scripts/ and docs/design/tools/ were never linted, which is why the
-          # `# noqa: S105` on the leaked password line was decorative -- a suppression
-          # for a linter that never ran on that file. Security rules now run there;
-          # formatting stays src-only to avoid churning generated-ish tooling.
-          uv run ruff check src
-          # NOT extended to scripts/ + docs/design/tools/ for credentials. Measured: ruff's
+          # `scripts/` holds FOUR gates -- check_stories, check_digest_confinement,
+          # check_compose_overlay, check_signoff -- and was unlinted until 2026-08-07, which
+          # is also why the `# noqa: S105` beside the leaked password was decorative: a
+          # suppression for a linter that never ran on that file.
+          uv run ruff check src scripts
+          # Credential rules are NOT extended to docs/design/tools/. Measured: ruff's
           # S105/S106/S107 caught NONE of `PW =`, `PASSWORD =`, `password =`, `SECRET =` or
           # `passphrase =` as bare assignments, so such a step would be decorative -- the same
           # defect as the `# noqa: S105` that sat beside the leaked password for a linter that
-          # never ran on that file. Those directories are covered instead by the bandit pass in
+          # never ran on that file. That directory is covered instead by the bandit pass in
           # `deps` and by src/core/tests/test_no_hardcoded_demo_credentials.py, both of which
           # were probed and do fire.
-          uv run ruff format --check src
+          # Formatting over the same two directories as the check above. It was src-only
+          # while `make lint` did both, so a local green was STRICTER than CI -- backwards,
+          # and the direction nobody notices, because the failure lands on whoever runs make.
+          uv run ruff format --check src scripts
       - name: Typecheck
         run: uv run mypy src
       - name: Install ffmpeg (S-402 video transcode tests run against the real binary)
