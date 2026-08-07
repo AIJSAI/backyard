@@ -19,7 +19,8 @@ On the target box, with the image/venv that ships ffmpeg:
 
 ```sh
 # In the compose stack (the worker image ships ffmpeg):
-docker compose exec worker python manage.py measure_transcode
+docker compose exec -T worker sh -c \
+  'DJANGO_SECRET_KEY=$(cat /data/secret_key) python manage.py measure_transcode'
 
 # …or directly in the app venv on the box:
 python manage.py measure_transcode

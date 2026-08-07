@@ -72,7 +72,8 @@ reads "active" as long as her frame has electricity. **Recommendation: keep the 
 name it separately, keep it out of `touched`** — that is the reversible direction.
 
 **Founder QA walk** ([`runbooks/founder-qa.md`](runbooks/founder-qa.md)) — ~90 minutes, and
-always the gate before anything is shared. Wipe the demo family first (`BACKYARD_DEMO_WIPE=1`).
+always the gate before anything is shared. Wipe the demo family first
+(`manage.py wipe_demo_data --dry-run`, then `--yes`).
 
 ---
 

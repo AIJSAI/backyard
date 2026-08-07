@@ -215,8 +215,9 @@ You already set `BACKYARD_BACKUP_PASSPHRASE` in `.env` above, and compose passes
 into the container — so a backup is one command with no secret on it:
 
 ```bash
-docker compose exec -T web python manage.py backup_instance \
-  /data/backups/backup-$(date +%F).bak
+docker compose exec -T web sh -c \
+  'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+     python manage.py backup_instance /data/backups/backup-$(date +%F).bak'
 ```
 
 The archive path is **positional**; there is no `--output` flag.
@@ -235,8 +236,10 @@ chmod 600 /root/backyard.key        # the command refuses a group/world-readable
 
 # add to the web service in docker-compose.prod.yml:
 #   volumes: [ "/root/backyard.key:/run/secrets/backyard.key:ro" ]
-docker compose exec -T web python manage.py backup_instance \
-  /data/backups/backup-$(date +%F).bak --passphrase-file /run/secrets/backyard.key
+docker compose exec -T web sh -c \
+  'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+     python manage.py backup_instance /data/backups/backup-$(date +%F).bak \
+       --passphrase-file /run/secrets/backyard.key'
 ```
 
 Backups are **encrypted by default**; the command refuses to write plaintext unless you
