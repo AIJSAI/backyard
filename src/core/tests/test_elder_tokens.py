@@ -219,7 +219,12 @@ def test_one_tap_react_is_named_and_feeds_reciprocity(world: World) -> None:
     reaction = Reaction.objects.get()
     assert reaction.member_id == world.nana.id and reaction.post_id == post.id
     body = client.get(reverse("elder_feed")).content.decode()
-    assert "Nana Ann" in body  # attributed by name on the surface
+    # Attributed by name on the surface — the name the family uses. This asserted the LEGAL
+    # name ("Nana Ann"), which is what the reaction line rendered while every other name on
+    # the page preferred the kinship one. S-602 asks for named attribution, not for the name
+    # on her passport, and this is the surface built for the person least likely to
+    # recognise the latter.
+    assert world.nana.kinship_name in body
     week_start = timezone.localdate() - datetime.timedelta(days=6)
     row = metrics.rollup_week(world.maternal, week_start)
     assert row.posts_responded == 1  # counts like any other reaction
@@ -297,4 +302,99 @@ def test_elder_feed_surface_uses_same_origin_but_token_url_keeps_no_referrer(
     # The /t/ token URL, where the token IS in the path, still suppresses the Referer fully.
     assert (
         Client().get(reverse("elder_enter", args=[world.raw]))["Referrer-Policy"] == "no-referrer"
+    )
+
+
+# --- the day-14 death (S-102) ---------------------------------------------------------
+
+
+def test_her_page_still_works_long_after_djangos_two_week_default(world: World) -> None:
+    """On day 14 her page died and told her the wrong thing.
+
+    Django's `SESSION_COOKIE_AGE` default is two weeks, and it is NOT extended by a request
+    that does not modify the session — which the elder feed never did. Her token has
+    `expires_at = None` and never expires; only the cookie ran out. `/e/` with no session is
+    the shared bare 404, which says "the link may have expired or been revoked". Her link
+    was fine. The fix was "open the link your family gave you again", and the copy said the
+    opposite, to the least technical person on the product, on the one surface with no other
+    way in.
+
+    Fixed at the cause rather than in the message: that 404 is byte-identical for unknown,
+    revoked and expired on purpose (S-202), so making it explain itself would leak which.
+
+    Time is advanced by ageing the session row rather than by mocking, so this exercises the
+    same expiry Django actually enforces.
+    """
+    from django.contrib.sessions.models import Session
+
+    client = Client()
+    client.get(reverse("elder_enter", args=[world.raw]))
+    assert client.get(reverse("elder_feed")).status_code == 200
+
+    session = Session.objects.get()
+    fifteen_days_on = timezone.now() + datetime.timedelta(days=15)
+    assert session.expire_date > fifteen_days_on, (
+        f"the elder session expires {session.expire_date}, inside Django's two-week default "
+        "— her page dies on day 14 and the 404 blames her link"
+    )
+
+    # Six months, which is the horizon a grandparent who looks in occasionally actually has.
+    assert session.expire_date > timezone.now() + datetime.timedelta(days=179)
+
+
+def test_reading_her_page_pushes_the_expiry_out(world: World) -> None:
+    """`SESSION_SAVE_EVERY_REQUEST` is what makes the window mean "since she last looked"
+    rather than "since the link was handed over". Without it, 180 days is still a countdown
+    that starts the day her family sets her up and cannot be reset by using the thing."""
+    from django.contrib.sessions.models import Session
+
+    client = Client()
+    client.get(reverse("elder_enter", args=[world.raw]))
+    first = Session.objects.get().expire_date
+
+    Session.objects.update(expire_date=first - datetime.timedelta(days=30))
+    aged = Session.objects.get().expire_date
+
+    assert client.get(reverse("elder_feed")).status_code == 200
+    assert Session.objects.get().expire_date > aged, (
+        "reading the feed did not extend the session, so the window is a countdown from "
+        "hand-over rather than from her last visit"
+    )
+
+
+def test_sending_love_returns_her_to_the_post_she_tapped(world: World) -> None:
+    """A bare redirect to the feed threw her to the top of the page every time. On the
+    fourth post down, with the bigger-text setting on, that is a long scroll back to where
+    she was — for the one interaction the surface offers."""
+    client = Client()
+    client.get(reverse("elder_enter", args=[world.raw]))
+    post = Post.objects.get(body__startswith="MATERNAL-BODY")
+
+    response = client.post(reverse("elder_react", args=[post.pk]))
+
+    assert response.status_code == 302
+    assert response.headers["Location"] == f"{reverse('elder_feed')}#post-{post.pk}", (
+        f"reacting redirected to {response.headers['Location']!r}, which loses her place"
+    )
+    # And the anchor it points at exists on the page it lands on.
+    assert f'id="post-{post.pk}"' in client.get(reverse("elder_feed")).content.decode()
+
+
+def test_reactions_use_the_name_the_family_calls_them(world: World) -> None:
+    """Everywhere else on her page a person is "Nana"; under a post they were "Nana Ann".
+    The byline already prefers the kinship name, so the reaction line was the one place that
+    reverted to legal names — on the surface built for the person least likely to recognise
+    them."""
+    client = Client()
+    client.get(reverse("elder_enter", args=[world.raw]))
+    post = Post.objects.get(body__startswith="MATERNAL-BODY")
+    Reaction.objects.create(member=world.nana, post=post, kind=Reaction.HEART)
+
+    body = client.get(reverse("elder_feed")).content.decode()
+    reactions = body[body.index("Send love") if "Send love" in body else 0 :]
+    assert "Nana" in reactions
+    assert world.nana.kinship_name == "Nana"
+    # The legal name must not appear in the reaction attribution.
+    assert f"&#10084; {world.nana.display_name}" not in body, (
+        "the reaction line used the legal name where the rest of the page uses the kinship one"
     )
