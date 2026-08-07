@@ -569,19 +569,58 @@ def test_the_preview_counts_the_rows_the_receipt_reports(
     demo = two_families["demo"]
     demo_post = Post.objects.create(author=demo.author, pod=demo.pod, body="x")
     Reaction.objects.create(post=demo_post, member=demo.author, kind="love")
+    # A PHOTOGRAPH, which this test did not have and which is the case it missed.
+    #
+    # `_purge` deletes MediaAsset rows itself, so by the time Member/Pod/Yard cascade there
+    # are none left to report — the preview promised four and the receipt listed none. A
+    # live rehearsal caught that; this fixture could not, because it contained no media.
+    # Every model the preview can name has to be in here or the comparison is decorative.
+    media.ingest_photo(post=demo_post, raw=_jpeg())
 
     before = demo_data.preview(MARKER)
     after = demo_data.wipe(MARKER)
 
-    # The receipt carries rows the preview cannot know about (files, sessions, auth users are
-    # counted separately), so compare the MODEL rows both claim to describe.
-    model_rows = {key: value for key, value in after.items() if key.startswith("core.")}
-    missing = {label: count for label, count in model_rows.items() if before.get(label, 0) != count}
-    assert not missing, (
-        "the wipe deleted rows the preview did not mention, so the operator confirmed a "
-        f"blast radius they were never shown: {missing}\npreview: {dict(before)}\n"
-        f"receipt: {dict(model_rows)}"
+    # The receipt carries rows the preview cannot know about (files, sessions and auth users
+    # are counted separately), so compare the MODEL rows both claim to describe — in BOTH
+    # directions.
+    #
+    # The first version iterated the receipt only, so it caught "deleted more than promised"
+    # and was blind to "promised more than it reports". That second direction is the one that
+    # was actually wrong: `_purge` deletes MediaAsset rows itself, so by the time the cascade
+    # runs there are none left to count, and the preview's `4 core.MediaAsset` simply vanished
+    # from the receipt. A live rehearsal caught it; this test could not, and adding a
+    # photograph to the fixture did not help until the comparison went both ways.
+    #
+    # One-directional again, in a test written this same day to catch one-directional gates.
+    receipt = {key: value for key, value in after.items() if key.startswith("core.")}
+    promised = {key: value for key, value in before.items() if key.startswith("core.")}
+
+    # Three distinct failures, reported as themselves. A single "the preview did not mention
+    # these" message also fired on COUNT mismatches for models the preview named perfectly
+    # well, sending whoever hit it to look for a missing model that was never missing.
+    extra = sorted(set(receipt) - set(promised))
+    absent = sorted(set(promised) - set(receipt))
+    disagree = sorted(
+        f"{k}: preview {promised[k]}, receipt {receipt[k]}"
+        for k in set(promised) & set(receipt)
+        if promised[k] != receipt[k]
     )
+
+    problems = []
+    if extra:
+        problems.append(
+            f"the receipt lists models the preview never mentioned, so the operator "
+            f"confirmed a blast radius they were not shown: {extra}"
+        )
+    if absent:
+        problems.append(
+            f"the preview promised models the receipt never accounts for, so the operator "
+            f"cannot tell whether they went: {absent}"
+        )
+    if disagree:
+        problems.append(f"preview and receipt disagree on counts: {disagree}")
+
+    assert not problems, "\n".join(problems) + f"\n\npreview: {promised}\nreceipt: {receipt}"
 
 
 @pytest.mark.django_db(transaction=True)

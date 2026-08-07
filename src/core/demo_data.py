@@ -297,6 +297,26 @@ def _purge_media_files(collected: dict[Any, list[Any]]) -> int:
     return media._purge(MediaAsset.objects.filter(pk__in=doomed))
 
 
+def _files_behind(collected: dict[Any, list[Any]]) -> int:
+    """How many FILES the media rows in the closure carry.
+
+    `media._purge` returns the number of ASSETS it removed, which is its contract and is
+    right for its other callers. The wipe's receipt labelled that number "files", and an
+    asset carries up to four — image, thumbnail, source, video. Measured on a live rehearsal:
+    the receipt said `4 files` while 8 left the disk.
+
+    A receipt that undercounts by 2x is worse than one that omits the line: an operator
+    reconciling what the command claims against what `du` says would conclude something else
+    deleted the difference.
+    """
+    return sum(
+        1
+        for asset in collected.get(MediaAsset, [])
+        for field in (asset.image, asset.thumbnail, asset.source, asset.video)
+        if field.name
+    )
+
+
 def _delete_sessions(user_ids: list[int]) -> int:
     """Drop live sessions for the deleted accounts.
 
@@ -355,7 +375,15 @@ def wipe(marker: str = SEED_MARKER) -> Counter[str]:
 
         # Files first, rows second. `_purge` defers the unlink to on_commit, so a rollback
         # cannot leave live rows pointing at deleted files.
-        removed["files"] = _purge_media_files(collected)
+        # Both numbers, because they answer different questions and one was standing in for
+        # the other. `core.MediaAsset` is counted HERE rather than falling out of the cascade
+        # below: `_purge` deletes those rows itself, so by the time Member/Pod/Yard cascade
+        # there are none left to report — and the preview, which reads the closure, promised
+        # them. Measured on a live rehearsal: dry run said `4 core.MediaAsset`, the receipt
+        # listed none at all.
+        removed[MediaAsset._meta.label] = len(collected.get(MediaAsset, []))
+        removed["files"] = _files_behind(collected)
+        _purge_media_files(collected)
 
         # Which real ad-hoc pods a marked member owns, captured BEFORE the delete nulls
         # them. Afterwards there is no way to tell a pod this wipe orphaned from one that
