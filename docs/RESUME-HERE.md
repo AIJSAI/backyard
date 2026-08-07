@@ -249,7 +249,7 @@ ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST \
 ```
 
 Keep the `DEMO_PASSWORD=` line it prints — it is the only copy. Or wipe instead, with
-`-e BACKYARD_DEMO_WIPE=1`, if you are done with the demo family.
+`manage.py wipe_demo_data --dry-run` then `--yes`, if you are done with the demo family.
 
 **2. Set BACKYARD_BACKUP_PASSPHRASE on production.** It is unset, so the pre-flight dump
 written on every boot is **plaintext** -- and there are three of them on the volume right
@@ -293,7 +293,8 @@ scp -i ~/.ssh/backyard_vm "ubuntu@$BACKYARD_HOST:/data/backup-*.tar.enc" ~/backy
 1. The **90-minute QA walk** (`docs/runbooks/founder-qa.md`) — the gate.
 2. **Post something to a whole side of the family BEFORE handing out elder links**, or a
    grandparent opens her link to an empty page and nobody can preview it for her.
-3. **Wipe the demo family** (`BACKYARD_DEMO_WIPE=1`) before the first real invite.
+3. **Wipe the demo family** (`manage.py wipe_demo_data --dry-run`, then `--yes`) before
+   the first real invite. The old `BACKYARD_DEMO_WIPE=1` was unscoped and is removed.
 4. The **S-601** decision: may an elder follow a link off her page? (Recommendation on
    record: keep the rule.)
 5. The **go-public** decision (criterion 7).
