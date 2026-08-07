@@ -17,6 +17,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from core import demo_data, demo_marking
 from core.models import Member, Pod, PodMembership, Post, Yard
@@ -156,3 +158,93 @@ def test_an_unknown_yard_marks_nothing_and_says_so(
     with pytest.raises(demo_marking.DemoMarkingError, match="maternnal"):
         demo_marking.plan(yard_slugs=["maternal", "maternnal"], marker=MARKER)
     assert not Yard.objects.filter(seeded_by=MARKER).exists()
+
+
+@pytest.mark.django_db
+def test_another_generators_marker_is_never_overwritten(
+    an_instance_that_predates_the_marker: Instance,
+) -> None:
+    """`demo_data` promises different generators can be removed independently.
+
+    Its own docstring says "a different generator should use a different marker so the two
+    can be removed independently". Silently re-stamping one with another breaks exactly
+    that: somebody else's fixture set becomes removable by a marker they did not choose, and
+    NOT by their own — so the command they would run reports nothing to do.
+
+    Refused rather than spared, because a partial mark hands the operator a set they did not
+    preview.
+    """
+    other = Yard.objects.create(name="A second fixture set", slug="other-fixture")
+    Yard.objects.filter(pk=other.pk).update(seeded_by="scratch")
+
+    with pytest.raises(demo_marking.DemoMarkingError, match="DIFFERENT marker"):
+        demo_marking.plan(yard_slugs=["maternal", "other-fixture"], marker=MARKER)
+
+    other.refresh_from_db()
+    assert other.seeded_by == "scratch", "it refused and re-stamped anyway"
+
+
+@pytest.mark.django_db
+def test_the_consistency_check_compares_identity_not_counts(
+    an_instance_that_predates_the_marker: Instance,
+) -> None:
+    """A set that changes while keeping its SIZE is what a count cannot see.
+
+    The first version compared `len()`. One member swapping in for another between the
+    preview and the write leaves the count identical and the blast radius different — and
+    the operator confirmed the one they were shown.
+    """
+    swapped = {"done": False}
+    real_select = demo_marking._select
+
+    def swap_one_member_between_preview_and_write(
+        *, yard_slugs: list[str], marker: str
+    ) -> tuple[demo_marking.Selection, list[str]]:
+        selection, spared = real_select(yard_slugs=yard_slugs, marker=marker)
+        if not swapped["done"] and selection.members:
+            swapped["done"] = True
+            # Same COUNT, different member: drop one and add a fresh one.
+            selection.members.pop()
+            selection.members.append(Member.objects.create(display_name="A different person"))
+        return selection, spared
+
+    demo_marking._select = swap_one_member_between_preview_and_write
+    try:
+        with pytest.raises(demo_marking.DemoMarkingError, match="changed between the preview"):
+            demo_marking.apply(yard_slugs=["maternal"], marker=MARKER)
+    finally:
+        demo_marking._select = real_select
+
+    assert not Yard.objects.filter(seeded_by=MARKER).exists(), (
+        "it refused and stamped anyway — the refusal must roll the marking back"
+    )
+
+
+@pytest.mark.django_db
+def test_the_preview_does_not_query_per_spared_row(
+    an_instance_that_predates_the_marker: Instance,
+) -> None:
+    """`plan()` is what an operator reads before a destructive step, and it built each
+    "deliberately not marked" reason with a fresh query — an N+1 on the one command whose
+    output is meant to be read carefully.
+
+    Asserted as "does not grow with the number of spared rows" rather than against a fixed
+    count, which would be a magic number that gets edited whenever it fails.
+    """
+    yard = Yard.objects.get(slug="maternal")
+    real = Yard.objects.get(slug="real")
+
+    def queries_after_adding(bridges: int) -> int:
+        for index in range(bridges):
+            pod = Pod.objects.create(name=f"Bridge {index}")
+            pod.yards.set([yard, real])
+        with CaptureQueriesContext(connection) as captured:
+            demo_marking.plan(yard_slugs=["maternal"], marker=MARKER)
+        return len(captured)
+
+    few = queries_after_adding(2)
+    many = queries_after_adding(20)
+    assert many <= few + 2, (
+        f"plan() ran {few} queries with 2 spared pods and {many} with 22 — it is querying "
+        "per row while building the very list the operator is supposed to read"
+    )
