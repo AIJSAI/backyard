@@ -57,6 +57,10 @@ gates:
 	uv run --with pyyaml python scripts/check_stories.py
 	uv run --with pyyaml python scripts/check_compose_overlay.py
 	uv run python scripts/check_digest_confinement.py
+# The DCO check, pointed at origin/main so it has something to compare against locally.
+# Without BASE_SHA it correctly reports "not a pull request" and passes — which is right in
+# CI on a push, and useless here, where the whole point is to see the answer before pushing.
+	BASE_SHA=origin/main uv run python scripts/check_signoff.py
 
 # The CI `secrets` job, run the way CI runs it: the WHOLE commit graph, with this repo's
 # config passed explicitly.

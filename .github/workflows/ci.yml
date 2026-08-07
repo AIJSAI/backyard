@@ -12,13 +12,23 @@ jobs:
   gates:
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 so `git merge-base` can find where this branch left main. A shallow
+      # checkout has no merge base, and the sign-off check says so rather than passing.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: pip install pyyaml
       - run: python scripts/check_stories.py
       - run: python scripts/check_compose_overlay.py
+      # DCO on the commits this PR adds. NOT on main: 85 of 154 commits predate the rule and
+      # cannot be signed without rewriting every SHA in the repository.
+      - run: python scripts/check_signoff.py
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       # TM-2 drift-guard: the digest builder reads only through the audience
       # guard; the script self-tests its patterns so it can never go vacuous.
       - run: python scripts/check_digest_confinement.py
