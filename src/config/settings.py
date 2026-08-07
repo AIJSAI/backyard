@@ -146,6 +146,11 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.messages.context_processors.messages",
                 "django.contrib.auth.context_processors.auth",
+                # Lets the site header offer the admin cluster to the people who can use
+                # it. Without it a template can reach `user.member.role` but not the ROLE
+                # LADDER, and comparing role strings in a template forks that ladder into
+                # a place the permission tests do not read. See core/context_processors.py.
+                "core.context_processors.viewer",
             ],
         },
     },

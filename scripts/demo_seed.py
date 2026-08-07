@@ -15,7 +15,14 @@ The shape is deliberate, not decorative:
 
 Run:   docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
          python manage.py shell' < scripts/demo_seed.py
-Wipe:  same, with BACKYARD_DEMO_WIPE=1 in the environment.
+Wipe:  `manage.py wipe_demo_data --dry-run`, then `--yes`. NOT from this file.
+
+Everything created here is stamped `seeded_by="demo"`, which is what makes the wipe
+possible to scope. `BACKYARD_DEMO_WIPE=1` used to live in this script and ran
+`Pod.objects.all().delete()` — every pod on the instance, and by cascade every post,
+comment, photograph, reaction, invite and membership. Measured against a database holding
+one real family and one fixture family: pods 2->0, members 4->0, posts 2->0, comments 2->0.
+The real family did not survive, and neither did the real elder.
 
 EVERY account below is disposable and shares one password, **minted fresh on each run and
 printed once at the end**. Set BACKYARD_DEMO_PASSWORD to choose your own.
@@ -39,7 +46,8 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from PIL import Image, ImageDraw
 
-from core import elder_tokens, media, supervised
+from core import demo_data, elder_tokens, media, supervised
+from core.demo_data import SEED_MARKER as SEEDED_BY
 from core.models import Comment, Member, Pod, PodMembership, Post, Reaction, Yard
 
 U = get_user_model()
@@ -48,25 +56,27 @@ U = get_user_model()
 PW = os.environ.get("BACKYARD_DEMO_PASSWORD") or secrets.token_urlsafe(12)
 
 if os.environ.get("BACKYARD_DEMO_WIPE") == "1":
-    Yard.objects.filter(slug__in=["moms-side", "dads-side"]).delete()
-    Pod.objects.all().delete()
-    Member.objects.exclude(user__username="james").delete()
-    U.objects.filter(username__in=["priya", "sam", "dave"]).delete()
-    print("DEMO DATA WIPED")
-    raise SystemExit(0)
+    raise SystemExit(
+        "BACKYARD_DEMO_WIPE has been removed. It ran `Pod.objects.all().delete()` — every "
+        "pod on the instance, not just the demo ones.\n\n"
+        "Use:  manage.py wipe_demo_data --dry-run     (read the counts)\n"
+        "then: manage.py wipe_demo_data --yes\n\n"
+        "That only touches rows stamped seeded_by='demo'. If this instance was seeded "
+        "before the marker existed, its rows are unmarked and the command will say so "
+        "rather than guessing."
+    )
 
-# wipe prior seed
-Yard.objects.filter(slug__in=["moms-side", "dads-side"]).delete()
-Pod.objects.all().delete()
-Member.objects.all().delete()
-U.objects.filter(username__in=["priya", "sam", "dave", "auntmay", "uncledave"]).delete()
+# Clear the PREVIOUS run of this seed. Scoped by the marker, so re-seeding a live instance
+# is not a way to destroy the family it is meant to sit beside. This is the same code path
+# the wipe command uses, so there is one implementation and no second one to drift.
+demo_data.wipe(SEEDED_BY)
 
-moms = Yard.objects.create(name="Mom's side", slug="moms-side")
-dads = Yard.objects.create(name="Dad's side", slug="dads-side")
+moms = Yard.objects.create(name="Mom's side", slug="moms-side", seeded_by=SEEDED_BY)
+dads = Yard.objects.create(name="Dad's side", slug="dads-side", seeded_by=SEEDED_BY)
 
 
 def pod(name, yards):
-    p = Pod.objects.create(name=name)
+    p = Pod.objects.create(name=name, seeded_by=SEEDED_BY)
     p.yards.set(yards)
     return p
 
@@ -80,22 +90,58 @@ dadsfam = pod("The Ferraras", [dads])
 
 def member(name, pod_, *, login=None, kin="", role=Member.MEMBER):
     u = U.objects.create_user(username=login, password=PW) if login else None
-    m = Member.objects.create(display_name=name, user=u, kinship_name=kin, role=role)
+    m = Member.objects.create(
+        display_name=name, user=u, kinship_name=kin, role=role, seeded_by=SEEDED_BY
+    )
     PodMembership.objects.create(member=m, pod=pod_)
     return m
 
 
-# Your real account is preserved — password unchanged. Only the family AROUND it is seeded.
+# The founder's own account. Deliberately NOT stamped `seeded_by`: the wipe must leave it
+# and its pod membership alone, or clearing the demo family locks him out of the product —
+# a member in no pod resolves nobody, including themselves, and `/setup/` is closed for good
+# once a superuser exists. Re-running the seed re-attaches him to the bridging household.
 _u = U.objects.filter(username="james").first() or U.objects.create_user(
     username="james", password=PW
 )
-james = Member.objects.create(display_name="James Shehan", user=_u, role=Member.INSTANCE_ADMIN)
-PodMembership.objects.create(member=james, pod=ours)
+james, _ = Member.objects.get_or_create(
+    user=_u, defaults={"display_name": "James Shehan", "role": Member.INSTANCE_ADMIN}
+)
+# `defaults` only apply on CREATE, so re-running the seed against an existing Member left
+# whatever role that row already had. QA depends on the founder being an instance admin —
+# half these steps are admin-only — so it is asserted every run rather than assumed.
+if james.role != Member.INSTANCE_ADMIN:
+    Member.objects.filter(pk=james.pk).update(role=Member.INSTANCE_ADMIN)
+    james.refresh_from_db()
+
+# A household of his own, OUTSIDE the fixture data, if he does not already have one.
+#
+# Everything above belongs to the demo family and disappears with it. If the founder's only
+# pod were one of those, clearing the demo would leave him in no pod — and a member in no
+# pod belongs to no yard and resolves nobody, including themselves. `demo_data.wipe` now
+# refuses rather than doing that to anyone, so without this the wipe would simply never run.
+#
+# On a real instance the first-run wizard already made this and `get_or_create` finds it;
+# on a bare database (a test, a fresh drill box) this stands in for it. Unmarked, so it
+# survives every wipe.
+if not PodMembership.objects.filter(member=james).exists():
+    own_yard, _ = Yard.objects.get_or_create(slug="home", defaults={"name": "Home"})
+    own_pod = Pod.objects.create(name="James's house")
+    own_pod.yards.set([own_yard])
+    PodMembership.objects.create(member=james, pod=own_pod)
+
+# ...and into the bridging household as well, which is what makes QA meaningful: it is the
+# pod that holds the photographs and spans both sides.
+PodMembership.objects.get_or_create(member=james, pod=ours)
 priya = member("Priya Whitfield", ours, login="priya")
 nana = member("Rose Whitfield", nanas, kin="Nana")  # elder, no login
 sam = member("Sam Whitfield", cous, login="sam")  # mom's side only
 dave = member("Dave Ferrara", dadsfam, login="dave")  # dad's side only
 kid = supervised.create_supervised_member(parent=priya, display_name="Ollie", pod=ours)
+# The supervised path builds the Member itself, so the marker goes on afterwards. Without
+# this the child is unmarked and survives the wipe as an orphan whose parent is gone — and
+# a supervised member has `user = NULL`, so nothing else identifies them either.
+Member.objects.filter(pk=kid.pk).update(seeded_by=SEEDED_BY)
 PodMembership.objects.get_or_create(member=nana, pod=ours)  # Nana sees the family photos
 
 
@@ -130,8 +176,14 @@ p1 = post(
     photos=3,
     days_ago=1,
 )
+# Authored by a SEEDED member, not by the founder. The founder is deliberately unmarked
+# (the wipe must leave him standing), so a post of his inside a marked pod is real content
+# in fixture territory — and `demo_data` now refuses the whole wipe rather than deleting
+# somebody's photographs on a guess. Keeping the seed self-consistently wipeable means its
+# posts belong to its own people. Anything the founder writes during QA is his, and the
+# wipe will say so.
 p2 = post(
-    james,
+    priya,
     ours,
     "Ollie lost his first tooth. He is extremely pleased about the economics.",
     yards=[moms],
@@ -151,7 +203,7 @@ p5 = post(
     days_ago=5,
 )
 p6 = post(
-    james,
+    priya,
     ours,
     "Found this and thought of Dad: https://example.com/vintage-tractors",
     yards=[dads],
@@ -166,7 +218,7 @@ Comment.objects.create(post=p1, author=sam, body="That is a proper fish. Well do
 Comment.objects.create(
     post=p2, author=nana, body="Tell him the tooth fairy is inflation-adjusted these days."
 )
-for m in (nana, sam, james):
+for m in (nana, sam, priya):
     Reaction.objects.get_or_create(post=p1, member=m, kind=Reaction.HEART)
 Reaction.objects.get_or_create(post=p2, member=nana, kind=Reaction.HEART)
 

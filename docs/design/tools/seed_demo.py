@@ -125,10 +125,22 @@ def attach_photo(post: Post, w: int, h: int, palette: str, alt: str) -> MediaAss
     return a
 
 
+# Its own marker, distinct from `scripts/demo_seed.py`'s "demo": the two seeds build
+# different families, and either must be removable without disturbing the other. Remove this
+# one with `manage.py wipe_demo_data --marker design --dry-run`, then `--yes`.
+#
+# Before the marker existed nothing tied these rows to this file, and the QA seed's wipe
+# reached for `Pod.objects.all().delete()` partly because of it: it could not name what it
+# wanted to delete, so it deleted everything.
+SEEDED_BY = "design"
+
 # --------------------------------------------------------------------------- yards + pods
-yard_a, _ = Yard.objects.get_or_create(slug="whitfield-side", defaults={"name": "Whitfield side"})
+yard_a, _ = Yard.objects.get_or_create(
+    slug="whitfield-side", defaults={"name": "Whitfield side", "seeded_by": SEEDED_BY}
+)
 yard_b, _ = Yard.objects.get_or_create(
-    slug="ferreira-nakamura-side", defaults={"name": "Ferreira-Nakamura side"}
+    slug="ferreira-nakamura-side",
+    defaults={"name": "Ferreira-Nakamura side", "seeded_by": SEEDED_BY},
 )
 
 pods: dict[str, Pod] = {}
@@ -149,7 +161,14 @@ POD_SPEC = [
     ),
 ]
 for key, name, yards, kind, rule in POD_SPEC:
-    p, _ = Pod.objects.get_or_create(name=name, defaults={"kind": kind, "house_rule": rule})
+    # Matched on (name, seeded_by), not name alone. `Pod.name` has no unique constraint, so
+    # looking up by name could adopt a REAL household that happens to be called "The
+    # Whitfields" and then rewrite its kind and house rule — and, because the marker only
+    # applies on create, leave it unmarked and mutated. Including the marker in the lookup
+    # means this can only ever find a pod THIS file made.
+    p, _ = Pod.objects.get_or_create(
+        name=name, seeded_by=SEEDED_BY, defaults={"kind": kind, "house_rule": rule}
+    )
     p.kind = kind
     p.house_rule = rule
     p.save()
@@ -186,7 +205,9 @@ for key, name, kin, podkey, role, username, sup, bday, anniv in MEMBER_SPEC:
         user.set_password(PW)
         user.email = f"{username}@example.test"
         user.save()
-    m, _ = Member.objects.get_or_create(display_name=name)
+    # Same reasoning as the pods above: `display_name` is not unique, so matching on it
+    # alone could adopt a real relative who happens to share a name with a fixture one.
+    m, _ = Member.objects.get_or_create(display_name=name, seeded_by=SEEDED_BY)
     m.user = user
     m.kinship_name = kin or ""
     m.role = role

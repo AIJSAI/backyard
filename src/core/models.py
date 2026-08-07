@@ -34,6 +34,11 @@ class Yard(models.Model):
 
     name = models.CharField(max_length=100)
     slug = models.SlugField(max_length=100, unique=True)
+    # Which fixture generator, if any, created this yard. Empty means a real person did.
+    # Yard could have been scoped by slug — and the old wipe did exactly that — but then
+    # the wipe had two selection rules, one per model, and the second one (`Pod`) had no
+    # identifier to use. One rule across all three is the point.
+    seeded_by = models.CharField(max_length=32, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -67,6 +72,18 @@ class Pod(models.Model):
     )
     # A one-sentence house rule shown at the top of an ad-hoc pod (S-204). Optional.
     house_rule = models.CharField(max_length=200, blank=True)
+    # Which fixture generator, if any, created this pod. Empty means a real person made it.
+    #
+    # This exists because the demo wipe could not be written safely without it. Every
+    # destructive cascade in this schema passes through Pod -- posts, comments, media,
+    # reactions, invites, memberships, mutes, weekly metrics -- and Pod carried no stable
+    # identifier at all: no slug, no unique key, only a free-text `name` a member can edit.
+    # Yard has a unique slug and User has a username, which is why the wipe could scope
+    # those two lines and had to fall back to `Pod.objects.all().delete()` for this one.
+    #
+    # Empty is the default, so every row that exists today and every pod a family makes
+    # from now on is un-wipeable by construction. It fails closed.
+    seeded_by = models.CharField(max_length=32, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -218,6 +235,15 @@ class Member(models.Model):
     pods: models.ManyToManyField[Pod, PodMembership] = models.ManyToManyField(
         Pod, through="PodMembership", related_name="members"
     )
+    # Which fixture generator, if any, created this member. Empty means a real person.
+    #
+    # Pod alone would not be enough. Elders and supervised children have `user = NULL`, so
+    # they cannot be identified by username the way the seed's three logins can -- and the
+    # old wipe's `exclude(user__username="james")` therefore swept up every real elder and
+    # every real child. Worse, it was keyed to a string literal: on an instance whose
+    # superuser is named anything else, nothing was excluded and the founder's own Member
+    # row went with the rest. Marking the row removes both problems.
+    seeded_by = models.CharField(max_length=32, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -862,8 +888,13 @@ class InboundQuarantine(models.Model):
     reason = models.CharField(max_length=16, choices=REASON_CHOICES)
     from_header = models.CharField(max_length=254, blank=True)
     body_excerpt = models.TextField(blank=True)  # capped at write time
+    # SET_NULL, not CASCADE. This table is the instance admin's moderation queue: it holds
+    # the inbound mail that was refused and why. A nullable FK whose deletion destroys the
+    # evidence is backwards — the queue's whole job is to survive the thing it is a record
+    # of. `null=True` already says a row without a member is meaningful; CASCADE said the
+    # opposite, and deleting members took the admin's record of their refused mail with it.
     member = models.ForeignKey(
-        Member, null=True, blank=True, on_delete=models.CASCADE, related_name="quarantined_mail"
+        Member, null=True, blank=True, on_delete=models.SET_NULL, related_name="quarantined_mail"
     )
     created_at = models.DateTimeField(auto_now_add=True)
 

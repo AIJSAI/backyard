@@ -26,8 +26,16 @@ _AUTHOR_SURNAME = "Shehan"
 
 
 def _display_names(source: str) -> list[str]:
-    """Every human name the seed assigns, from both the helper and the direct create."""
+    """Every human name the seed assigns, however it assigns it.
+
+    Three shapes, not two. The third — `defaults={"display_name": "..."}` inside a
+    `get_or_create` — was invisible to this extractor, and the moment the seed's one direct
+    `Member.objects.create` became a `get_or_create`, the author's own name vanished from
+    the parse. The denominator below caught it, which is the only reason this is a comment
+    and not a hole: an extractor that silently stops seeing names cannot police them.
+    """
     names = re.findall(r'display_name=["\']([^"\']+)["\']', source)
+    names += re.findall(r'["\']display_name["\']\s*:\s*["\']([^"\']+)["\']', source)
     names += re.findall(r'member\(\s*["\']([^"\']+)["\']', source)
     return names
 

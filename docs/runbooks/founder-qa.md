@@ -21,9 +21,24 @@ crossed to test it.
     docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
       python manage.py shell' < scripts/demo_seed.py
 
-    # wipe, before the instance goes to anyone real
-    docker compose exec -T -e BACKYARD_DEMO_WIPE=1 web sh -c \
-      'DJANGO_SECRET_KEY=$(cat /data/secret_key) python manage.py shell' < scripts/demo_seed.py
+    # wipe, before the instance goes to anyone real. READ THE COUNTS FIRST.
+    docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+      python manage.py wipe_demo_data --dry-run'
+
+    docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+      python manage.py wipe_demo_data --yes'
+
+**The wipe used to be `BACKYARD_DEMO_WIPE=1`, and it was not scoped.** It ran
+`Pod.objects.all().delete()` — every pod on the instance, and by cascade every post,
+comment, photograph, reaction, invite and membership. Measured against a database holding
+one real family beside the fixture one: pods 2→0, members 4→0, posts 2→0, comments 2→0.
+The real family did not survive, and neither did the real elder. It also cascaded the
+founder's own pod membership, leaving him in zero pods and therefore zero yards — no feed,
+no directory, and no way back that did not involve a shell.
+
+Everything the seed creates is now stamped `seeded_by="demo"`, and the command touches
+nothing else. It refuses without `--yes`, and it refuses outright if the deletion would
+leave any surviving member in no pod at all.
 
 Seeded logins (`priya`, `sam`, `dave`) share one throwaway password. **It is generated on
 each run and printed as the last line — `DEMO_PASSWORD=…` — and that is the only copy.**
@@ -38,6 +53,11 @@ the repo could sign in. Fixed, and guarded by
 
 **Wipe before the first invite anyway.** Disposable accounts on a real instance are still
 accounts on a real instance.
+
+> If this instance was seeded before the marker existed, its fixture rows carry no marker
+> and `wipe_demo_data` will say so and delete nothing. That is the safe direction — take a
+> backup and remove them deliberately, or re-run the seed (which now clears only its own
+> previous output) so they are marked.
 
 ## Before you start: the one thing that will lie to you
 

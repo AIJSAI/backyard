@@ -120,6 +120,17 @@
       <a href="{% url 'digest_settings' %}">Your weekly email from the family</a> —
       choose where it goes and how often.
     </p>
+    {% comment %} The SAME defect, one route over, and it survived the fix above by a
+       month: /settings/notifications/ was routed and the only `{% url %}` reference to it
+       in the whole tree was its own form action. Meanwhile the feed's orientation card
+       tells every new member "Nothing is ever sent to you unless you turn it on in
+       Settings" — pointing at a control none of them could reach. The reachability guard
+       did not catch it because its list of pages-that-must-be-reachable was three names
+       long and hand-maintained; it now walks the link graph instead. {% endcomment %}
+    <p class="settings-link">
+      <a href="{% url 'notification_settings' %}">Notifications</a> —
+      the one thing you can turn on, and it is off until you do.
+    </p>
   {% endif %}
 
   <p class="back-link"><a class="back" href="{% url 'directory' %}">Back to the directory</a></p>
