@@ -28,6 +28,43 @@ crossed to test it.
     docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
       python manage.py wipe_demo_data --yes'
 
+### If the wipe says nothing is marked
+
+That is correct, and it is the case on **this instance**: the live box was seeded before
+`seeded_by` existed, so its demo family carries an empty marker — the same value every real
+person carries, which is exactly why the wipe will not touch it.
+
+Do not delete those rows by hand. A one-off `.delete()` typed at a shell against production
+is how `Pod.objects.all().delete()` came to be written in the first place, and it skips every
+refusal this command has: the real-content check, the stranding check, media file purging,
+session deletion, and pod-owner succession.
+
+**Mark first, then wipe.** You name YARDS; pods and members are selected by containment — a
+pod only if every yard it is in was named, a member only if every pod they are in was marked.
+So a bridging household that reaches a real side is left alone, and so is a relative who
+joined a demo pod during QA but has their own household.
+
+    # what would be marked, and what is deliberately spared. Changes nothing.
+    docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+      python manage.py mark_demo_data --yard <slug> --dry-run'
+
+    docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+      python manage.py mark_demo_data --yard <slug> --yes'
+
+**Read the "Deliberately NOT marked" list.** It is printed on every run, and it is where you
+find out that the household you meant to remove reaches somebody real. A count would hide
+that; the names do not.
+
+Then run `wipe_demo_data --dry-run` and read the counts, exactly as above. Marking is
+reversible until you do:
+
+    docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+      python manage.py mark_demo_data --undo --yes'
+
+The wipe is not reversible. Take a backup first — `docs/runbooks/backup-restore.md` — and
+read what a restore does to elder links and to members removed since the backup before you
+rely on having one.
+
 **The wipe used to be `BACKYARD_DEMO_WIPE=1`, and it was not scoped.** It ran
 `Pod.objects.all().delete()` — every pod on the instance, and by cascade every post,
 comment, photograph, reaction, invite and membership. Measured against a database holding
