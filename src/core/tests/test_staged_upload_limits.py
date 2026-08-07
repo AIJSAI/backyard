@@ -200,9 +200,27 @@ def test_the_sweep_is_registered_hourly_not_daily() -> None:
         "sweep_staged_uploads was renamed; this check would otherwise read the whole module "
         "and pass on any other task's schedule"
     )
-    # The block between the previous decorator and the function definition.
+    # The contiguous block ATTACHED to the function — the run of non-blank lines directly
+    # above it, which is exactly what Python treats as its decorators.
+    #
+    # `before.rindex("@app.periodic")` was not tight enough, and its failure was the quiet
+    # kind: if the sweep lost its decorator, `rindex` does not necessarily raise, it walks
+    # back to the PREVIOUS task's `@app.periodic` and validates that task's schedule instead.
+    # An unscheduled sweep would then be certified hourly by a neighbour's cron. Bounding the
+    # search to the attached block means "the sweep has no decorator" fails as itself.
     before = source[: source.index(marker)]
-    decorator = before[before.rindex("@app.periodic") :]
+    lines = before.splitlines()
+    while lines and not lines[-1].strip():
+        lines.pop()
+    attached = []
+    while lines and lines[-1].strip():
+        attached.append(lines.pop())
+    decorator = "\n".join(reversed(attached))
+    assert "@app.periodic" in decorator, (
+        "sweep_staged_uploads has no @app.periodic decorator attached to it, so nothing "
+        "schedules the sweep and staged uploads accumulate until the volume fills. The "
+        f"block directly above it is:\n{decorator.strip()[:200] or '(nothing)'}"
+    )
     assert 'cron="45 * * * *"' in decorator, (
         f"the sweep must run hourly; its own decorator says: {decorator.strip()[:120]}"
     )
