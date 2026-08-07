@@ -160,7 +160,12 @@ def _drive_invite_mint_handover_and_redeem(
         page = _admin_context(browser, device_args, base_url, cookie).new_page()
         page.goto(f"{base_url}/members/invite-household/")
         page.fill('input[name="household_name"]', "The Reed family")
-        page.select_option('select[name="yard_id"]', str(yard_id))
+        # A household may belong to more than one side, so this is a checkbox set rather
+        # than the single `<select name="yard_id">` it used to be. This driver is why that
+        # change did not ship silently: the unit suite passed (`addopts = -m 'not e2e'`
+        # deselects this whole lane) and CI's e2e job failed with
+        # `TimeoutError: waiting for locator("select[name=\"yard_id\"]")`.
+        page.check(f'input[name="yard_ids"][value="{yard_id}"]')
         page.click('button[type="submit"]')
 
         # The hand-over artifacts render: the one-time link, the copy affordance, the QR.
