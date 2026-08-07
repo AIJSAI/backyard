@@ -331,7 +331,11 @@ def test_her_page_still_works_long_after_djangos_two_week_default(world: World) 
     client.get(reverse("elder_enter", args=[world.raw]))
     assert client.get(reverse("elder_feed")).status_code == 200
 
-    session = Session.objects.get()
+    # This client's own session, by key. `Session.objects.get()` assumed exactly one row in
+    # the database, which is true today and is not a property this test should depend on —
+    # any fixture or second client that persists a session would break it for a reason
+    # unrelated to what it checks.
+    session = Session.objects.get(session_key=client.session.session_key)
     fifteen_days_on = timezone.now() + datetime.timedelta(days=15)
     assert session.expire_date > fifteen_days_on, (
         f"the elder session expires {session.expire_date}, inside Django's two-week default "
@@ -350,13 +354,14 @@ def test_reading_her_page_pushes_the_expiry_out(world: World) -> None:
 
     client = Client()
     client.get(reverse("elder_enter", args=[world.raw]))
-    first = Session.objects.get().expire_date
+    key = client.session.session_key
+    first = Session.objects.get(session_key=key).expire_date
 
-    Session.objects.update(expire_date=first - datetime.timedelta(days=30))
-    aged = Session.objects.get().expire_date
+    Session.objects.filter(session_key=key).update(expire_date=first - datetime.timedelta(days=30))
+    aged = Session.objects.get(session_key=key).expire_date
 
     assert client.get(reverse("elder_feed")).status_code == 200
-    assert Session.objects.get().expire_date > aged, (
+    assert Session.objects.get(session_key=key).expire_date > aged, (
         "reading the feed did not extend the session, so the window is a countdown from "
         "hand-over rather than from her last visit"
     )
@@ -397,4 +402,36 @@ def test_reactions_use_the_name_the_family_calls_them(world: World) -> None:
     # The legal name must not appear in the reaction attribution.
     assert f"&#10084; {world.nana.display_name}" not in body, (
         "the reaction line used the legal name where the rest of the page uses the kinship one"
+    )
+
+
+def test_the_long_window_is_the_elder_surface_only(world: World) -> None:
+    """Scoping, asserted rather than assumed.
+
+    The first version of this fix set `SESSION_COOKIE_AGE` and `SESSION_SAVE_EVERY_REQUEST`
+    globally, which gave every signed-in member — including an instance admin — a six-month
+    cookie, and put a session-row write on every request in the product. That is a
+    security-posture change for the whole instance made in order to fix a grandmother's
+    bookmark. Review caught it; this stops it coming back.
+    """
+    from django.conf import settings
+    from django.contrib.sessions.models import Session
+
+    mom = _member_with_login(world.m_pod, "Mum")
+    member_client = Client()
+    _login(member_client, mom)
+    member_client.get(reverse("feed"))
+    member_session = Session.objects.get(session_key=member_client.session.session_key)
+
+    elder_client = Client()
+    elder_client.get(reverse("elder_enter", args=[world.raw]))
+    elder_session = Session.objects.get(session_key=elder_client.session.session_key)
+
+    two_weeks_on = timezone.now() + datetime.timedelta(days=15)
+    assert elder_session.expire_date > two_weeks_on, "the elder session is still short"
+    assert member_session.expire_date < two_weeks_on, (
+        "an ordinary member was given the elder surface's six-month session"
+    )
+    assert getattr(settings, "SESSION_COOKIE_AGE", 1209600) == 1209600, (
+        "the global session age was changed; scope this to the elder views instead"
     )
