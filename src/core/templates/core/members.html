@@ -114,7 +114,11 @@
                 <label for="child-name-{{ row.member.id }}">Their name</label>
                 <input id="child-name-{{ row.member.id }}" type="text" name="display_name"
                        maxlength="100" required>
-                <label for="child-pod-{{ row.member.id }}">Which household</label>
+                {% comment %} "Which household" was wrong: `assignable_pods` is
+                   `scoping.visible_pods(actor)`, which includes ad-hoc groups as well as
+                   households, so the label promised a narrower list than the control
+                   offers. {% endcomment %}
+                <label for="child-pod-{{ row.member.id }}">Which pod they belong to</label>
                 <select id="child-pod-{{ row.member.id }}" name="pod_id">
                   {% for pod in assignable_pods %}
                     <option value="{{ pod.id }}">{{ pod.name }}</option>

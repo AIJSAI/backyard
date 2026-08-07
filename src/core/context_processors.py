@@ -20,6 +20,7 @@ it were a menu item.
 
 from __future__ import annotations
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.http import HttpRequest
 
 from core import permissions
@@ -37,7 +38,23 @@ def _member_for(request: HttpRequest) -> Member | None:
     user = getattr(request, "user", None)
     if user is None or not user.is_authenticated:
         return None
-    return Member.objects.filter(user=user).first()
+    try:
+        # The reverse one-to-one, not a fresh queryset. Django caches it on the instance, so
+        # a view that has already touched `request.user.member` pays nothing here — and this
+        # runs on EVERY render, including 404s. In this product a 404 is not exceptional: it
+        # is the answer to every authorization denial (TM-2, `scoping._require`), and
+        # `404.html` extends `base.html`, so an unconditional query here would be a query on
+        # the hottest error path there is.
+        #
+        # `Member.objects.filter(user=user).first()` also raises on an authenticated but
+        # unsaved user ("Model instances passed to related filters must be saved"), which
+        # this form does not.
+        member: Member = user.member
+        return member
+    except ObjectDoesNotExist:
+        # An authenticated user with no Member. Not supposed to happen for a real account,
+        # and it must not blank the header if it does.
+        return None
 
 
 def viewer(request: HttpRequest) -> dict[str, object]:

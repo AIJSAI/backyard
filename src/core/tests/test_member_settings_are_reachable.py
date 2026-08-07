@@ -30,6 +30,9 @@ from django.utils import timezone
 from core.models import Comment, Invite, Member, Pod, PodMembership, Post, Yard
 
 _BACKEND = "django.contrib.auth.backends.ModelBackend"
+# Enough for every page this product has, several times over. Reaching it means a cursor
+# loop, and the crawl says so rather than reporting a truncated result as a finding.
+_CRAWL_CAP = 200
 
 User = get_user_model()
 
@@ -153,7 +156,12 @@ _UNLINKED_BY_DESIGN = {
     "icon_maskable_512": "a PWA icon, referenced from the manifest",
     "serve_media": "an <img src>, not a page",
     "anymail_resend_inbound": "the inbound mail webhook",
-    "vcard": "a download, offered from the directory as an attachment",
+    # These were one entry, `"vcard"`, which is not a route — the real names are
+    # `directory_vcards` and `member_vcard`. The set is only ever SUBTRACTED, so a stale or
+    # misspelled key excuses nothing and says nothing; the list can rot with no signal.
+    # `test_every_excluded_route_still_exists` below is the signal.
+    "directory_vcards": "a download of the whole directory, offered as an attachment",
+    "member_vcard": "one member's contact card, offered as an attachment",
     # Reached only partway through a flow this crawl cannot drive with GETs.
     "compose_cancel": "the Cancel button on the widen-audience confirm step, which only "
     "exists after a POST that proposes widening",
@@ -186,7 +194,10 @@ def _reachable_route_names(client: Client, labels: set[str] | None = None) -> se
     seen_urls: set[str] = set()
     queue = [reverse("feed")]
 
-    while queue and len(seen_urls) < 200:  # a cursor loop must not run forever
+    # A cursor loop must not run forever. Hitting the cap is reported to the caller rather
+    # than swallowed: truncation shrinks `found`, which makes routes look unreachable, and
+    # the resulting failure would blame the product for a limit in the crawler.
+    while queue and len(seen_urls) < _CRAWL_CAP:
         url = queue.pop(0)
         if url in seen_urls:
             continue
@@ -228,6 +239,12 @@ def _reachable_route_names(client: Client, labels: set[str] | None = None) -> se
             found.add(resolve(url).url_name or "")
         except Resolver404:
             continue
+    assert not queue, (
+        f"the crawl hit its {_CRAWL_CAP}-URL cap with {len(queue)} links still queued, so "
+        "everything below is measured against a TRUNCATED walk. Truncation shrinks the "
+        "reachable set, so the next assertion would blame the product for a limit in this "
+        "crawler. Find the cursor loop, or raise the cap deliberately."
+    )
     return found
 
 
@@ -294,6 +311,23 @@ def test_every_route_is_reachable_by_clicking_or_is_listed_as_deliberately_not()
         f"{unreachable}.\n\nA member cannot type a URL they have never seen. Either link "
         "it from somewhere they already are, or add it to _UNLINKED_BY_DESIGN with the "
         "reason it has no entrance."
+    )
+
+
+def test_every_excluded_route_still_exists() -> None:
+    """`_UNLINKED_BY_DESIGN` is only ever SUBTRACTED, so a stale key excuses nothing and
+    reports nothing. It contained `"vcard"`, which is not a route at all — the real names
+    are `directory_vcards` and `member_vcard` — so the entry had been a no-op since it was
+    written, and would have gone on misleading whoever edited the list next."""
+    all_named = {
+        name
+        for pattern in get_resolver().url_patterns
+        if isinstance(name := getattr(pattern, "name", None), str)
+    }
+    stale = sorted(set(_UNLINKED_BY_DESIGN) - all_named)
+    assert not stale, (
+        f"_UNLINKED_BY_DESIGN names routes that do not exist: {stale}. Each entry excuses a "
+        "route from the reachability check, so one that matches nothing is silently dead."
     )
 
 
