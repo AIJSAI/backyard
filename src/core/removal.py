@@ -41,7 +41,8 @@ from __future__ import annotations
 from django.db import transaction
 from django.utils import timezone
 
-from .models import Member, PodMembership
+from . import pods
+from .models import Member, Pod, PodMembership
 from .revocation import revoke_member_credentials
 
 KEEP = "keep"
@@ -76,8 +77,18 @@ def remove_member(member: Member, *, content: str) -> None:
     with transaction.atomic():
         # 1. Revoke while memberships are still live (H-1 ordering contract).
         revoke_member_credentials(member)
-        # 2. Detach from every pod.
+        # 2. Detach from every pod, then hand on anything they owned.
+        #
+        # Ownership follows membership (`pods.succeed_owner`). Without this, removing
+        # somebody who owned an ad-hoc pod leaves it frozen: `pod.owner_id != actor.id` is
+        # the only gate on its house rule and member list, and a removed member is no longer
+        # a member — so nobody left in the group can manage it, permanently. That is the
+        # same state `leave_pod` and the demo wipe already close, reached by the third route,
+        # which is the one an admin actually uses.
+        owned = list(Pod.objects.filter(owner=member, kind=Pod.ADHOC))
         PodMembership.objects.filter(member=member).delete()
+        for pod in owned:
+            pods.succeed_owner(pod)
         # 3. Kill password login. Removal-only: leave and regeneration keep the account.
         user = member.user
         if user is not None:

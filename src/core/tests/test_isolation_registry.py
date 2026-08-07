@@ -16,7 +16,23 @@ merge gate that must actually exercise every `_ISOLATION_COVERED` model's cross-
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
+import pytest
 from django.apps import apps
+
+from core import scoping
+from core.models import (
+    Comment,
+    MediaAsset,
+    Member,
+    Pod,
+    PodMembership,
+    Post,
+    Reaction,
+    Yard,
+)
 
 # Member-visible read surfaces with an independent read path: the S-202 isolation suite
 # asserts each returns a byte-identical 404 across a yard boundary (existence + content).
@@ -168,4 +184,142 @@ def test_every_credential_bearing_route_is_covered_by_log_redaction() -> None:
     assert not uncovered, (
         "these registered routes carry a credential and are NOT redacted from logs:\n  "
         + "\n  ".join(uncovered)
+    )
+
+
+# --- coverage, not classification: each covered model gets a probe that RUNS -------------
+#
+# `_ISOLATION_COVERED` was a claim about a suite somewhere else. The docstring at the top of
+# this file says so plainly — "the S-202 isolation suite itself remains the separate merge
+# gate that must actually exercise every `_ISOLATION_COVERED` model's cross-yard 404" — and
+# nothing checked that it did. A model could be listed as covered with no cross-yard test
+# anywhere, and the guard would pass on the strength of its own list.
+#
+# So the enumeration does the work now instead of describing it. Each probe returns
+# `(own, far)`: whether the viewer reaches an object of that model in their OWN yard, and in
+# a yard they are not in. `own` is the per-probe denominator — a probe that reaches nothing
+# at all would otherwise "prove" isolation by being broken, which is the exact shape of the
+# vacuous gates this repo keeps finding.
+
+# (reachable in the viewer's own yard, reachable across the boundary).
+_ProbeResult = tuple[bool, bool]
+
+
+def _probe_yard(viewer: Member, near: dict[str, Any], far: dict[str, Any]) -> _ProbeResult:
+    visible = set(scoping.visible_yards(viewer).values_list("pk", flat=True))
+    return (near["yard"].pk in visible, far["yard"].pk in visible)
+
+
+def _probe_pod(viewer: Member, near: dict[str, Any], far: dict[str, Any]) -> _ProbeResult:
+    visible = set(scoping.visible_pods(viewer).values_list("pk", flat=True))
+    return (near["pod"].pk in visible, far["pod"].pk in visible)
+
+
+def _probe_member(viewer: Member, near: dict[str, Any], far: dict[str, Any]) -> _ProbeResult:
+    visible = set(scoping.visible_members(viewer).values_list("pk", flat=True))
+    return (near["member"].pk in visible, far["member"].pk in visible)
+
+
+def _probe_podmembership(viewer: Member, near: dict[str, Any], far: dict[str, Any]) -> _ProbeResult:
+    # PodMembership has no `visible_*` of its own: it is reached through the pods a viewer
+    # can see, which is the only path a member surface uses.
+    reachable = set(
+        PodMembership.objects.filter(pod__in=scoping.visible_pods(viewer)).values_list(
+            "pk", flat=True
+        )
+    )
+    return (near["membership"].pk in reachable, far["membership"].pk in reachable)
+
+
+def _probe_post(viewer: Member, near: dict[str, Any], far: dict[str, Any]) -> _ProbeResult:
+    visible = set(scoping.visible_posts(viewer).values_list("pk", flat=True))
+    return (near["post"].pk in visible, far["post"].pk in visible)
+
+
+def _probe_comment(viewer: Member, near: dict[str, Any], far: dict[str, Any]) -> _ProbeResult:
+    visible = set(scoping.visible_comments(viewer).values_list("pk", flat=True))
+    return (near["comment"].pk in visible, far["comment"].pk in visible)
+
+
+def _probe_reaction(viewer: Member, near: dict[str, Any], far: dict[str, Any]) -> _ProbeResult:
+    visible = set(scoping.visible_reactions(viewer).values_list("pk", flat=True))
+    return (near["reaction"].pk in visible, far["reaction"].pk in visible)
+
+
+def _probe_mediaasset(viewer: Member, near: dict[str, Any], far: dict[str, Any]) -> _ProbeResult:
+    visible = set(scoping.visible_media(viewer).values_list("pk", flat=True))
+    return (near["media"].pk in visible, far["media"].pk in visible)
+
+
+_PROBES: dict[str, Callable[[Member, dict[str, Any], dict[str, Any]], _ProbeResult]] = {
+    "Yard": _probe_yard,
+    "Pod": _probe_pod,
+    "Member": _probe_member,
+    "PodMembership": _probe_podmembership,
+    "Post": _probe_post,
+    "Comment": _probe_comment,
+    "Reaction": _probe_reaction,
+    "MediaAsset": _probe_mediaasset,
+}
+
+
+def _side(name: str, slug: str) -> dict[str, Any]:
+    """One complete side of the family: yard, household, member, post, comment, reaction,
+    photograph. Built twice, and the viewer only ever joins one of them."""
+    yard = Yard.objects.create(name=name, slug=slug)
+    pod = Pod.objects.create(name=f"{name} household")
+    pod.yards.set([yard])
+    member = Member.objects.create(display_name=f"{name} relative")
+    membership = PodMembership.objects.create(member=member, pod=pod)
+    post = Post.objects.create(pod=pod, author=member, body=f"{name} news")
+    comment = Comment.objects.create(post=post, author=member, body=f"{name} reply")
+    reaction = Reaction.objects.create(post=post, member=member, kind=Reaction.HEART)
+    asset = MediaAsset.objects.create(post=post, media_kind=MediaAsset.PHOTO)
+    return {
+        "yard": yard,
+        "pod": pod,
+        "member": member,
+        "membership": membership,
+        "post": post,
+        "comment": comment,
+        "reaction": reaction,
+        "media": asset,
+    }
+
+
+def test_every_covered_model_has_a_probe_that_runs() -> None:
+    """The classification may not outrun the coverage.
+
+    Adding a name to `_ISOLATION_COVERED` without a probe fails here, so "covered" cannot go
+    back to meaning "somebody intends to test this".
+    """
+    assert set(_PROBES) == set(_ISOLATION_COVERED), (
+        "the probe table and the covered classification disagree.\n"
+        f"  classified covered, no probe: {sorted(set(_ISOLATION_COVERED) - set(_PROBES))}\n"
+        f"  probed, not classified      : {sorted(set(_PROBES) - set(_ISOLATION_COVERED))}"
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("model_name", sorted(_PROBES))
+def test_a_covered_model_does_not_cross_a_yard_boundary(model_name: str) -> None:
+    """S-202, executed per model rather than asserted about.
+
+    `own` is this probe's denominator: a probe that reaches nothing would otherwise report
+    perfect isolation while being broken, which is how a guard ends up proving its own
+    inability to see.
+    """
+    near = _side("Maternal", "maternal")
+    far = _side("Paternal", "paternal")
+    viewer = Member.objects.create(display_name="The viewer")
+    PodMembership.objects.create(member=viewer, pod=near["pod"])
+
+    own, across = _PROBES[model_name](viewer, near, far)
+    assert own, (
+        f"the {model_name} probe cannot see the viewer's OWN yard either, so its "
+        "cross-yard result below means nothing — the probe is broken, not the isolation"
+    )
+    assert not across, (
+        f"a {model_name} in a yard the viewer is not in was reachable through the audience "
+        "query. S-202: existence and content are both confidential across a yard boundary."
     )

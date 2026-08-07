@@ -7,27 +7,67 @@ promise yet — the schema and the URLs may still move.
 **Install a tag, not `main`.** `main` is where the work happens and it changes daily; a tag is
 a point somebody deliberately stopped at, with a full green gate behind it.
 
-## [0.1.2] — 2026-08-06
+## [0.1.2] — 2026-08-07
 
-`v0.1.1` shipped before a week of edge and documentation fixes and could not be installed
-from its own README. Install this one.
+`v0.1.1` could not be installed from its own README, and several things it shipped were
+reachable by URL but not by a person. Install this one.
+
+This release is mostly about a single pattern: **checks that could not fail.** Nearly every
+defect below was found sitting behind a passing gate, so the gates were rewritten alongside
+the fixes, and each new one was proven by breaking the thing it guards.
 
 ### Fixed
 
 - **The documented install failed on its third command.** `.env.example` named three
   variables; the production overlay refuses to start without five. A stranger who ran the
-  README verbatim got `set BACKYARD_DOMAIN in .env` and no instance. `BACKYARD_DOMAIN` and
-  `ACME_EMAIL` are now in the file, with what each is for.
+  README verbatim got `set BACKYARD_DOMAIN in .env` and no instance.
 - **The printed emergency recovery card could not be pasted.** Its restore command opened
   `sh -c '` and never closed it — on the one page someone reads when the instance is
   already gone.
 - **Seven documented container commands died before they started.** `docker compose exec`
-  gets the container's configured environment, which has never held `DJANGO_SECRET_KEY`, so
-  every documented `manage.py` invocation that did not read it from `/data/secret_key`
-  exited on the boot guard.
+  gets the container's configured environment, which has never held `DJANGO_SECRET_KEY`.
+- **The whole admin cluster had no way in.** The nav rendered four links under a comment
+  saying "Five links". `members`, `member_digests`, `member_metrics`, `create_supervised`
+  and eleven other routes were reachable only by typing a URL — 15 in total. There was no
+  sign-out link anywhere in the product.
+- **Notification settings could be switched on and never off** from the web. The only route
+  was the unsubscribe link inside a digest you had already received, so an unconfirmed
+  subscriber could not turn it off at all.
+- **Three forms threw away what you had just typed.** The join form cleared all four fields
+  on any error — the first thing a relative ever does, on a phone. The composer kept your
+  photos, dropped your words, and said the photos were safe, which reads as "everything
+  survived".
+- **A grandparent's page died on day 14** and blamed her link. Nothing extended the elder
+  session, and the shared 404 is byte-identical for expired, revoked and unknown by design
+  (S-202), so it could not say which. The session is now scoped to the elder surface and
+  refreshed when she reads.
+- **Tapping the heart threw her to the top of the feed** instead of back to the post, and
+  reactions rendered legal names on the one surface built for the person least likely to
+  recognise them.
+- **A parent could not create their own child's account.** `can_create_supervised` has
+  always permitted it; the only control lived on an admin-only page. The permission said
+  yes, the page said 403.
+- **A child could be placed in a household their parent is not in**, where the parent
+  cannot see them — the form offered every pod the *admin* could see.
+- **An ad-hoc pod froze permanently when its owner left or was deleted.** `Pod.owner` was
+  set at creation and nowhere else, so a nulled owner left the house rule and member list
+  unreachable to everybody. A departed owner also kept control of a group they had walked
+  out of. Ownership follows membership now.
+- **The bridging household could not be created in the product** — the flagship diagram in
+  this README needed a Django shell. And `pod_owner`, a role the UI described as granting
+  two capabilities, granted none; it is no longer offered.
 
 ### Security
 
+- **The demo wipe deleted every pod on the instance**, not the demo ones. It was documented
+  in four places as the last step before the first real invite. `Pod.objects.all().delete()`
+  cascades through every post, comment, photograph, reaction and invite; the line meant to
+  spare the founder was keyed to the literal username `"james"`, and another deleted auth
+  accounts by first name — `sam` and `dave` are ordinary given names. Replaced with a
+  marked, previewable `manage.py wipe_demo_data` that refuses rather than guesses.
+- **The seed created an instance admin on anyone else's box.** With no user named `james`
+  it made one, gave it `INSTANCE_ADMIN`, left it unmarked so no wipe removes it, and printed
+  its password. The operator is now whoever holds `is_superuser`.
 - Seven things the live edge handed an unauthenticated stranger: a fallback response that
   skipped every security header while advertising the server, the static build manifest,
   `Via: 1.1 Caddy` re-announcing what `-Server` had just removed, and no compression on any
@@ -36,15 +76,33 @@ from its own README. Install this one.
   the edge; an RFC 9116 `security.txt` served from Caddy so it stays reachable when the app
   is down.
 - SPF, DMARC and CAA records, whose absence is only visible once abused.
-- `cryptography` moved off a version with a published CVE that this repo's own upper pin
-  had been blocking.
+- A cloud project id and a DNS zone id were on public `main`.
+- The secret-scanning config had three allowlists whose descriptions named a scope they did
+  not have. A top-level allowlist without `targetRules` is global in gitleaks 8 — including
+  over the provider-key rules.
 
 ### Changed
 
-- Three gates that could not fail were rewritten to fail: the runbook command check (a
-  substring standing in for "this command runs"), the documented-version check (which was
-  exempting every reference it was meant to compare), and the `.env.example` check (which
-  guarded a hand-maintained list nobody had added the two new variables to).
+- **Gates that could not fail were rewritten to fail.** The runbook command check used a
+  substring where it meant "this command parses". The documented-version check exempted
+  every reference it was meant to compare. The reachability check was a hand-maintained
+  list of three route names, checked one hop, so links inside the orphaned cluster
+  satisfied it. Nothing in the repository read `ci.yml`, so deleting a scan step left the
+  job green — and the guard added for that was itself satisfiable by a comment mentioning
+  the tool.
+- **A reachability crawl that follows links and reads what they answer.** It walks the nav
+  graph from the feed, follows each offered link once, and fails on any that refuses — a
+  403 behind a rendered control is a link that lies.
+- **The isolation registry proves coverage instead of describing it.** Every model it calls
+  covered now has a probe that runs against a real two-yard topology, each carrying its own
+  denominator so a probe that sees nothing cannot report perfect isolation.
+- `make check` runs the gates and secret-scan jobs it claimed to mirror; `make e2e` is
+  separate, because the browser lane is deselected by default and a local green had been
+  reporting a subset as the whole.
+- The delegate runbook opens with the instance URL, the sign-in step, and the precondition
+  that you must be made an admin first — it previously contained no URL at all.
+- `docs/OUTSTANDING.md` records what is still open, including what this release does not
+  fix.
 
 ## [0.1.1] — 2026-08-05
 

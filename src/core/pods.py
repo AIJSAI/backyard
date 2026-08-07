@@ -85,6 +85,21 @@ def leave_pod(*, member: Member, pod: Pod) -> None:
 
     reply_addresses.void_for_pod_leave(member, pod)
 
+    # Ownership follows membership. Two states this closes, both measured:
+    #
+    #   A) owner LEFT: owner_id=1 still_member=False
+    #      departed owner can STILL set the house rule: YES
+    #   B) owner DELETED: owner_id=None members=1
+    #      set_house_rule by remaining member: PodActionNotAllowed
+    #      add_member    by remaining member: PodActionNotAllowed
+    #
+    # (A) is somebody keeping control of a group they walked out of. (B) is the group
+    # frozen for good: `pod.owner_id != actor.id` is the only gate on both capabilities,
+    # and `None` never equals anybody, so the house rule and the member list become
+    # unreachable to every person alive. `Pod.owner` is set at creation and nowhere else,
+    # so there was no path back.
+    succeed_owner(pod)
+
 
 def set_muted(*, member: Member, pod: Pod, muted: bool) -> None:
     """Mute or unmute a pod for this member only (S-205). Silent to everyone else."""
@@ -97,3 +112,44 @@ def set_muted(*, member: Member, pod: Pod, muted: bool) -> None:
 def muted_pod_ids(member: Member) -> set[int]:
     """The pods this member has muted, to drop from their feed."""
     return set(member.pod_mutes.values_list("pod_id", flat=True))
+
+
+def succeed_owner(pod: Pod) -> Member | None:
+    """Hand an ad-hoc pod to its longest-standing member if its owner is no longer one.
+
+    Called wherever an owner can stop being a member: leaving (`leave_pod`), and deletion
+    (`SET_NULL` on the FK, which the demo wipe reaches through a seeded member). One rule for
+    both, because they produce the same broken state by different routes and a fix for only
+    the route somebody happened to file is how the other one survives.
+
+    Succession is by JOIN ORDER — the person who has been in the group longest. Not the
+    creator (they are the one leaving) and not an admin (an ad-hoc pod is deliberately not an
+    admin surface; `permissions.py` reads no role for any pod capability). If nobody is left,
+    the pod is empty and ownerless is the honest state: there is no one to hand it to, and an
+    empty pod has nothing to manage.
+
+    Returns the new owner, or None if there was nothing to do.
+    """
+    if pod.kind != Pod.ADHOC:
+        return None
+    still_a_member = (
+        pod.owner_id is not None
+        and PodMembership.objects.filter(member_id=pod.owner_id, pod=pod).exists()
+    )
+    if still_a_member:
+        return None
+    successor = (
+        Member.objects.filter(pod_memberships__pod=pod)
+        .order_by("pod_memberships__created_at", "pod_memberships__id")
+        .first()
+    )
+    if successor is None:
+        # Empty pod. Record the absence rather than leaving a stale owner pointing at
+        # somebody who is gone.
+        if pod.owner_id is not None:
+            pod.owner = None
+            pod.save(update_fields=["owner"])
+        return None
+    pod.owner = successor
+    pod.save(update_fields=["owner"])
+    return successor
