@@ -46,10 +46,10 @@ e2e:
 	uv run pytest -m e2e
 
 lint:
-# `scripts` as well as `src`. Three of this repo's GATES live in scripts/ — the story
-# validator, the compose-overlay guard and the DCO check — and nothing linted them, so
-# nine findings sat in code whose whole job is to be trusted. Found while cutting a tag,
-# by running ruff over both directories on the tree about to be tagged.
+# `scripts` as well as `src`. FOUR of this repo's gates live there — check_stories,
+# check_digest_confinement, check_compose_overlay and check_signoff — and nothing linted
+# them, so nine findings sat in code whose whole job is to be trusted. Found while cutting
+# a tag, by running ruff over both directories on the tree about to be tagged.
 	uv run ruff check src scripts
 	uv run ruff format --check src scripts
 

@@ -48,9 +48,9 @@ _LOAD_BEARING = {
     "=run: uv run pytest": "the unit suite",
     "uv run mypy src": "the typecheck",
     "uv run ruff check src scripts": (
-        "the lint, over BOTH directories. It covered `src` only while three gates — the "
-        "story validator, the compose-overlay guard and the DCO check — lived in `scripts/` "
-        "and were never linted"
+        "the lint, over BOTH directories. It covered `src` only while FOUR gates — "
+        "check_stories, check_digest_confinement, check_compose_overlay and check_signoff — "
+        "lived in `scripts/` and were never linted"
     ),
     "pytest -m e2e": (
         "the browser lane. It is deselected by `addopts = -m 'not e2e'`, so if this step "
