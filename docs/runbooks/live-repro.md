@@ -90,13 +90,13 @@ make setup-secret  # prints the one-time first-admin secret from the web logs
    `POST /project/{project_id}/location/us-east-a2/vm/{name}` with an SSH `public_key`, `boot_image`
    **`ubuntu-noble`** (codenames, not `ubuntu-24.04` — a 400 returns the valid set), `size` `standard-2`,
    `storage_size` 40. Poll `GET …/vm/{name}` until `state=running` for the `ip4`. project_id
-   `pjwfd7p9m80e3kybnr2xrs0ywq`.
+   `<UBICLOUD_PROJECT_ID>`.
 2. **Firewall (do this right):** the default firewall opens ALL ports — scope it to TCP 22/80/443.
    `POST …/firewall/{fw}/firewall-rule` `{"cidr":"0.0.0.0/0","port_range":"22..22"}` (+ 80, 443, and
    `::/0`), **confirm the scoped rules exist, THEN** `DELETE …/firewall-rule/{id}` the four broad ones.
    (Delete-before-add briefly locked out HTTPS once.)
 3. **DNS:** `backyard.family` A → the VM `ip4`, **DNS-only** (proxied:false) so Caddy owns TLS.
-   Cloudflare API, zone `90a11296ca7850a5dd56df4239328644`.
+   Cloudflare API, zone `<CLOUDFLARE_ZONE_ID>`.
 4. **Deploy:** SSH in (`~/.ssh/backyard_vm`, user `ubuntu`); install Docker (`curl -fsSL get.docker.com | sudo sh`
    + `usermod -aG docker ubuntu`); copy the tree (`tar czf - … | ssh … tar xzf -`); write `.env` (three
    postgres passwords + `BACKYARD_DOMAIN` + `ACME_EMAIL` — the prod overlay derives

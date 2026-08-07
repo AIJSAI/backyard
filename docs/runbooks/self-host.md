@@ -141,13 +141,22 @@ first admin account — there is no default login to forget about.
 
 ## 4. Make it a family
 
-As instance admin, at `/members/`:
+As instance admin, from the **Members** link in the header (or `/members/`):
 
-1. **Create a yard** per side of the family ("The Whitfields", "The Ferraras").
-2. **Create a pod** per household, and attach it to the yard(s) it belongs to. A household
-   that bridges two sides belongs to both — its members see both, and the two sides never
-   see each other.
-3. **Invite people.** Each invite is a single-use link.
+1. **Create a yard** per side of the family ("The Whitfields", "The Ferraras") —
+   *Family sides*.
+2. **Create a household and invite it in one step** — *Invite a household*. Creating the
+   pod and minting its invite is the same action; there is no separate "create a pod" step,
+   which is why step 2 used to have no referent.
+
+   Tick **both** sides for a household that bridges them. Its members see both, and the two
+   sides still never see each other through it. (Until 2026-08-06 the form offered one side
+   only, so the bridging household — the case this whole model is built around — could be
+   created only from a Django shell.)
+3. **Send the link.** One invite covers a whole household: up to 8 joins, for 7 days.
+   It is **not** single-use; this document said it was, and
+   `docs/runbooks/setting-up-your-side.md` said the opposite. The code is `invites.py`:
+   `max_uses = 8`, 7-day expiry.
 4. **For anyone who will not manage an account** — grandparents, usually — mint an
    **elder link** on their member page. It is a URL that logs them in by itself, forever,
    until you revoke it. Print the QR code and put it on the fridge.

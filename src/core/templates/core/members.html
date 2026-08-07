@@ -4,11 +4,23 @@
   <h1>Family members</h1>
   <p class="muted">Everyone in your yards. Supervised accounts are managed by a parent.</p>
   {% comment %} Wayfinding in the margin rail at >=64rem; plain flow below. {% endcomment %}
+  {% comment %} Three of these were routed and linked from nowhere. `member_digests` and
+     `member_metrics` had ZERO `{% url %}` references in the entire template tree, and
+     `member_quarantine` had exactly one — inside its own page. So the admin surfaces that
+     answer "is the family's weekly email actually arriving?", "is anyone using this?" and
+     "what mail did we refuse?" existed and could not be opened by the person they were
+     built for. Gated the way their views are: digests for any admin, the other two for the
+     instance admin only. {% endcomment %}
   <nav class="rail" aria-label="Managing members">
     <p>
       <a href="{% url 'invite_household' %}">Invite a household</a> ·
       <a href="{% url 'new_elder' %}">Add a grandparent</a> ·
-      <a href="{% url 'member_invites' %}">Outstanding invites</a>
+      <a href="{% url 'member_invites' %}">Outstanding invites</a> ·
+      <a href="{% url 'member_digests' %}">Who is getting the weekly email</a>
+      {% if is_instance_admin %}
+        · <a href="{% url 'member_metrics' %}">How the family is using it</a>
+        · <a href="{% url 'member_quarantine' %}">Refused email</a>
+      {% endif %}
       {% if can_create_yard %} · <a href="{% url 'family_sides' %}">Family sides</a>{% endif %}
     </p>
   </nav>
@@ -40,6 +52,9 @@
           {% if row.member.kinship_name %}<span class="muted">({{ row.member.kinship_name }})</span>{% endif %}
           <span class="role">{{ row.member.get_role_display }}</span>
           {% if row.member.is_supervised %}<span class="flag">supervised</span>{% endif %}
+          {% if row.can_edit_profile %}
+            <a href="{% url 'managed_profile_edit' row.member.id %}">Edit profile</a>
+          {% endif %}
           {% if row.manageable %}
             {% if not row.member.is_supervised %}
               <a href="{% url 'provision_elder' row.member.id %}">Elder link</a>
@@ -85,6 +100,34 @@
               <button type="submit" class="danger">Remove {{ row.member.display_name }}</button>
             </form>
           </details>
+          {% comment %} S-703 shipped as a POST-only endpoint that 404s on GET, and no
+             template in the tree posted to it — so a supervised child account could not be
+             created from anywhere in the product, by anybody. The story reads `passing`.
+             Placed per-row because the endpoint's first argument is the PARENT: this is
+             "give <name> a child account", not a free-standing form. {% endcomment %}
+          {% if not row.member.is_supervised and assignable_pods %}
+            <details class="supervised-disclosure">
+              <summary>Add a child account managed by {{ row.member.display_name }}&hellip;</summary>
+              <form method="post" action="{% url 'create_supervised' %}">
+                {% csrf_token %}
+                <input type="hidden" name="parent_id" value="{{ row.member.id }}">
+                <label for="child-name-{{ row.member.id }}">Their name</label>
+                <input id="child-name-{{ row.member.id }}" type="text" name="display_name"
+                       maxlength="100" required>
+                {% comment %} "Which household" was wrong: `assignable_pods` is
+                   `scoping.visible_pods(actor)`, which includes ad-hoc groups as well as
+                   households, so the label promised a narrower list than the control
+                   offers. {% endcomment %}
+                <label for="child-pod-{{ row.member.id }}">Which pod they belong to</label>
+                <select id="child-pod-{{ row.member.id }}" name="pod_id">
+                  {% for pod in assignable_pods %}
+                    <option value="{{ pod.id }}">{{ pod.name }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit">Create the account</button>
+              </form>
+            </details>
+          {% endif %}
         {% endif %}
       </li>
     {% endfor %}
