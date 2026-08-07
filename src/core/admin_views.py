@@ -9,12 +9,13 @@ the instance admin.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import BadRequest, PermissionDenied
 from django.db import transaction
+from django.db.models import Prefetch
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -80,6 +81,15 @@ class RosterRow:
     # than `can_manage_member` and answers it differently — a yard admin may manage a
     # member's role without being allowed to rewrite their birthday and phone number.
     can_edit_profile: bool = False
+    # The HOUSEHOLDS this member is in — not every pod the admin can see, and not their
+    # ad-hoc groups either.
+    #
+    # Two corrections in one field. It offered `assignable_pods` (`visible_pods(actor)`),
+    # which for an instance admin is every pod on the instance, so picking the wrong line
+    # placed a child in a family their own parent is not in. And `member.pods` includes
+    # ad-hoc pods, so a control captioned "households" offered the book club — the same
+    # mislabel already fixed once on this page, reintroduced by a new field.
+    own_pods: list[Pod] = field(default_factory=list)
     # Narrower again, and for a sharper reason. `can_provision_token` is deliberately
     # stricter than `can_manage_member`: minting an elder link hands the actor a working
     # no-login credential for the TARGET'S WHOLE SCOPE, which they can open themselves. So a
@@ -101,7 +111,22 @@ def members(request: HttpRequest) -> HttpResponse:
         raise PermissionDenied
     role_labels = dict(Member.ROLE_CHOICES)
     rows: list[RosterRow] = []
-    for member in permissions.administrable_members(actor).order_by("display_name"):
+    # Prefetched, and ORDERED IN THE PREFETCH. `member.pods.order_by(...)` per row is a
+    # query per roster line, and the `order_by` is what stops a plain `prefetch_related`
+    # from being used at all — so the obvious way to write this is also the one that cannot
+    # benefit from the obvious fix.
+    roster = (
+        permissions.administrable_members(actor)
+        .order_by("display_name")
+        .prefetch_related(
+            Prefetch(
+                "pods",
+                queryset=Pod.objects.filter(kind=Pod.HOUSEHOLD).order_by("name"),
+                to_attr="households",
+            )
+        )
+    )
+    for member in roster:
         manageable = permissions.can_manage_member(actor, member)
         # Only offer roles the actor is authorized to grant this target, excluding the
         # current role (a no-op) and supervised members (re-roled only via their parent).
@@ -126,6 +151,7 @@ def members(request: HttpRequest) -> HttpResponse:
                 # it. `can_edit_profile_of` is deliberately NOT `can_manage_member`: it is
                 # a narrower question and has its own answer.
                 can_edit_profile=permissions.can_edit_profile_of(actor, member),
+                own_pods=list(member.households),
                 can_provision_elder=(
                     not member.is_supervised and permissions.can_provision_token(actor, member)
                 ),
@@ -297,8 +323,15 @@ def create_supervised(request: HttpRequest) -> HttpResponse:
     pod = scoping.require_visible_pod(actor, handover.int_or_404(request.POST.get("pod_id", "")))
     display_name = request.POST.get("display_name", "").strip()
     if display_name and len(display_name) <= 100:
-        supervised.create_supervised_member(parent=parent, display_name=display_name, pod=pod)
-    return redirect("members")
+        try:
+            supervised.create_supervised_member(parent=parent, display_name=display_name, pod=pod)
+        except ValueError as exc:
+            # The parent is not in that household. Neither control can express this, so a
+            # request that does is hand-made — answered as a refusal rather than a 500.
+            raise PermissionDenied(str(exc)) from exc
+    # Back to wherever the control lives: the roster for an admin, your own settings for a
+    # parent making their own child's account, who cannot open the roster at all.
+    return redirect("members" if permissions.is_admin(actor) else "profile_edit")
 
 
 @login_required
