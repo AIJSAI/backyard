@@ -53,6 +53,12 @@ _LOAD_BEARING = {
         "goes, nothing anywhere runs the tests that drive a real browser"
     ),
     "manage.py check --deploy": "the production-posture check (TS-DJ-10)",
+    "scripts/check_compose_overlay.py": (
+        "the guard on the gap between the stack CI boots and the stack README tells a "
+        "stranger to boot. CI runs the BASE compose file; the install command uses the prod "
+        "overlay, and no runner can publish :443 or get a real certificate. This keeps the "
+        "untested delta to domain, TLS and ports"
+    ),
     "docker build": "the image actually building",
     # The bare words `gitleaks git`, `pip-audit`, `bandit` and `VACUOUS GATE` were all
     # ambiguous: each also occurs in the SELF-TEST that proves the real step works, and in

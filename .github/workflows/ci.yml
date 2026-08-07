@@ -18,6 +18,7 @@ jobs:
           python-version: "3.12"
       - run: pip install pyyaml
       - run: python scripts/check_stories.py
+      - run: python scripts/check_compose_overlay.py
       # TM-2 drift-guard: the digest builder reads only through the audience
       # guard; the script self-tests its patterns so it can never go vacuous.
       - run: python scripts/check_digest_confinement.py
