@@ -50,6 +50,11 @@ p.reply { margin: 12px 0 0 16px; color: #333333; }
    whose picture it is. Same full-width, never-cropped treatment as the post's. */
 .reply-photo { margin-left: 16px; width: calc(100% - 16px); }
 p.reply.more { color: #4c5a52; }
+/* The AGPL section 13 offer. It had NO rule at all, so it rendered at the same size and
+   weight as her grandchildren's news — the least important sentence on the page competing
+   with the most important. Smaller and quieter, still comfortably above the AA floor
+   (#4c5a52 on #ffffff is 7.26:1), and still the same offer. */
+.source-note { font-size: 0.72em; color: #4c5a52; margin-top: 32px; line-height: 1.5; }
 /* A clip that is still transcoding, or failed: she gets a sentence instead of silence. */
 p.clip-status { margin: 18px 0; color: #4c5a52; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -70,7 +75,7 @@ p.clip-status { margin: 18px 0; color: #4c5a52; }
   </div>
 
   {% for post in posts %}
-    <article class="post">
+    <article class="post" id="post-{{ post.id }}">
       <p class="byline">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %} &middot; {{ post.created_at|date }}</p>
       <p>{{ post.body }}</p>
       {% comment %} Photos, at last. Deliberately <img src> and NOT wrapped in a link:
@@ -129,7 +134,7 @@ p.clip-status { margin: 18px 0; color: #4c5a52; }
         </button>
       </form>
       {% for reaction in post.reactions.all %}
-        <span>&#10084; {{ reaction.member.display_name }}</span>
+        <span>&#10084; {{ reaction.member.kinship_name|default:reaction.member.display_name }}</span>
       {% endfor %}
     </article>
   {% empty %}

@@ -50,7 +50,11 @@
       <p class="notice">Your uploaded photos are still attached — fix the note above and post again.</p>
     {% endif %}
     {% csrf_token %}
-    <textarea name="body" rows="3" placeholder="Share something with your family" required></textarea>
+    {% comment %} `draft_body` is why a rejected compose is survivable. The staged-upload
+       handle above already carried the PHOTOS back, and the notice beside it says so — but
+       the words were dropped, so the page reassured a member their pictures were safe while
+       having just deleted the paragraph they wrote. {% endcomment %}
+    <textarea name="body" rows="3" placeholder="Share something with your family" required>{{ draft_body }}</textarea>
 
     {% comment %} Same fields, same names, same action as before the v3.2 visual pass —
        grouped onto rows. Stacked full-width they made the composer ~560px of form

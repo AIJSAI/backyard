@@ -17,6 +17,22 @@
       Digest is <strong>{% if subscription.enabled %}on{% else %}off{% endif %}</strong>
       for {{ subscription.address }} ({{ subscription.get_cadence_display|lower }}{% if not subscription.confirmed_at %}, awaiting confirmation{% endif %}).
     </p>
+    {% comment %} The off switch. This page could turn the digest ON and never off, while
+       stating "Digest is on" as though that were a state the reader could change. The only
+       way to stop it was the unsubscribe link in the footer of a digest you had already
+       received — and somebody who has not confirmed their address has never received one,
+       so their subscription could not be turned off at all. {% endcomment %}
+    <form method="post" action="{% url 'digest_settings' %}" class="inline">
+      {% csrf_token %}
+      {% if subscription.enabled %}
+        <input type="hidden" name="action" value="turn_off">
+        <button type="submit">Turn the digest off</button>
+        <span class="muted">Stops the email. You stay in the family and keep every pod.</span>
+      {% else %}
+        <input type="hidden" name="action" value="turn_on">
+        <button type="submit">Turn the digest back on</button>
+      {% endif %}
+    </form>
   {% endif %}
 
   <form method="post" action="{% url 'digest_settings' %}">

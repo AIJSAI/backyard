@@ -34,6 +34,20 @@ def digest_settings(request: HttpRequest) -> HttpResponse:
             "core/digest_settings.html",
             {"member": member, "subscription": subscription, "sent": False},
         )
+    # On/off first, and deliberately BEFORE the rate limit below: this branch sends no
+    # email, touches neither the address nor the confirmation, and is the control a member
+    # reaches for when they want the digest to stop. Throttling it behind the
+    # email-emitting limiter would mean "you have changed your address too often, so you
+    # may not turn this off", which is the wrong answer to that request.
+    action = request.POST.get("action", "")
+    if action in {"turn_off", "turn_on"} and subscription is not None:
+        subscription = digesting.set_enabled(subscription, enabled=action == "turn_on")
+        return render(
+            request,
+            "core/digest_settings.html",
+            {"member": member, "subscription": subscription, "sent": False, "saved": True},
+        )
+
     # Enrollment can emit an email to an arbitrary address, so it rides the same
     # shared-cache rate limit as the other outbound-shaped endpoints (security
     # review of #35 MEDIUM-2: without this, a logged-in member is an unthrottled
