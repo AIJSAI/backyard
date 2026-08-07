@@ -151,6 +151,10 @@ def join(request: HttpRequest, token: str) -> HttpResponse:
         raise Http404 from exc
 
     errors: list[str] = []
+    # What they typed, so a rejected form comes back filled in. Everything except the
+    # password: re-rendering a password is both pointless (the browser's own manager offers
+    # it) and a value we should not put back into HTML.
+    typed: dict[str, str] = {"display_name": "", "username": "", "email": ""}
     if request.method == "POST":
         # Property 3: the same rate limit as allauth's login endpoint.
         if not ratelimit.consume(request, action="login"):
@@ -165,6 +169,7 @@ def join(request: HttpRequest, token: str) -> HttpResponse:
         # that belongs to nobody. For a field whose entire purpose is account recovery,
         # silently altering the value is the failure this change exists to prevent.
         email = request.POST.get("email", "").strip()
+        typed = {"display_name": display_name, "username": username, "email": email}
         errors = _validate(display_name, username, password, email)
         if not errors:
             try:
@@ -184,4 +189,10 @@ def join(request: HttpRequest, token: str) -> HttpResponse:
                 # S-101 acceptance: completing signup lands DIRECTLY in the pod feed, the
                 # member's home surface, never a community-setup screen or a bare root.
                 return redirect("feed")
-    return render(request, "core/join.html", {"errors": errors})
+    # `typed` is what makes a rejected join survivable. This form is the FIRST thing a
+    # relative ever does in this product, on a phone, from a link somebody texted them —
+    # and every validation failure used to hand back four empty boxes. Django's password
+    # validators are the common trip ("this password is too common", "too similar to your
+    # username"), so the likeliest first experience was retyping a name, a username and an
+    # email address to fix a mistake in none of them.
+    return render(request, "core/join.html", {"errors": errors, "typed": typed})

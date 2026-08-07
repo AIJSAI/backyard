@@ -154,6 +154,25 @@ def unsubscribe(raw_token: str) -> DigestSubscription:
     return subscription
 
 
+def set_enabled(subscription: DigestSubscription, *, enabled: bool) -> DigestSubscription:
+    """Turn the digest off or back on from the member's own settings page.
+
+    `unsubscribe()` above does the same thing from an emailed token, and that was the ONLY
+    way to do it: the settings page could turn the digest ON and never off, while telling
+    the member it was "on" as though that were a state they could change. So switching it
+    off meant finding an old digest and clicking the footer — and a member who has not
+    confirmed their address yet has never received one, which made their subscription
+    un-turn-off-able entirely.
+
+    Sends nothing and touches neither the address nor the confirmation, so it needs none of
+    the outbound rate limiting the enrolment path carries. Turning it back on does not
+    re-confirm: a confirmed address stays confirmed, which is the point of confirming it.
+    """
+    subscription.enabled = enabled
+    subscription.save(update_fields=["enabled"])
+    return subscription
+
+
 def rotate_unsubscribe_token(subscription: DigestSubscription) -> str:
     """Mint a fresh unsubscribe capability for one outgoing digest and return
     the raw value for that email alone. Rotation per issue keeps an old

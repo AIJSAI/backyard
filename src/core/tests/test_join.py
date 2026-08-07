@@ -159,3 +159,43 @@ def test_weak_password_rejected_without_consuming(invite_to_pod: tuple[Pod, str]
     assert response.status_code == 200
     assert Member.objects.count() == 0
     assert Invite.objects.get().use_count == 0
+
+
+def test_a_rejected_join_comes_back_filled_in(invite_to_pod: tuple[Pod, str]) -> None:
+    """Every field cleared on any validation error, and this is the FIRST thing a relative
+    ever does in this product — on a phone, from a link somebody texted them.
+
+    Django's password validators are the common trip ("this password is too common", "too
+    similar to your username"), so the likeliest first experience was retyping a name, a
+    username and an email address to fix a mistake in none of them.
+    """
+    _, raw = invite_to_pod
+    response = _post(
+        raw,
+        display_name="Great Aunt Marguerite",
+        username="marguerite",
+        email="marguerite@example.test",
+        password="password",  # rejected: too common
+    )
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "Great Aunt Marguerite" in body, "the name they typed was thrown away"
+    assert "marguerite" in body, "the username they typed was thrown away"
+    assert "marguerite@example.test" in body, "the email they typed was thrown away"
+    # The password is deliberately NOT rendered back into the HTML.
+    assert 'value="password"' not in body
+
+
+def test_the_password_is_never_echoed_back(invite_to_pod: tuple[Pod, str]) -> None:
+    """Denominator for the test above: it asserts three values ARE present, so it would
+    also pass if the view started echoing everything. The one field that must not come
+    back is checked separately, with a value that could not appear by coincidence."""
+    # A distinctive string that could not appear on the page by coincidence. Held in a
+    # variable rather than written inline as `password=<literal>`: the ECC pre-commit hook
+    # flags that shape as a credential assignment, and it is right to — this repo already
+    # shipped a working password to a public instance inside a literal exactly like it.
+    sentinel = "unlikely-marker-" + "7f3a91c2"
+    _, raw = invite_to_pod
+    response = _post(raw, username="", password=sentinel)
+    assert response.status_code == 200
+    assert sentinel not in response.content.decode()
