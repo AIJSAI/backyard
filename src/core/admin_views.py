@@ -81,14 +81,6 @@ class RosterRow:
     # than `can_manage_member` and answers it differently — a yard admin may manage a
     # member's role without being allowed to rewrite their birthday and phone number.
     can_edit_profile: bool = False
-    # The households THIS member is in — not every pod the admin can see.
-    #
-    # The child form offered `assignable_pods` (`scoping.visible_pods(actor)`), which for an
-    # instance admin is every pod on the instance. So the obvious mistake — picking the wrong
-    # household from a long list — placed a child in a family their own parent is not in,
-    # where the parent cannot see them. Offering only the parent's households means the
-    # mistake cannot be expressed; `supervised.create_supervised_member` refuses it as well,
-    # for a POST that never came from this page.
     # The HOUSEHOLDS this member is in — not every pod the admin can see, and not their
     # ad-hoc groups either.
     #
@@ -98,6 +90,16 @@ class RosterRow:
     # ad-hoc pods, so a control captioned "households" offered the book club — the same
     # mislabel already fixed once on this page, reintroduced by a new field.
     own_pods: list[Pod] = field(default_factory=list)
+    # Narrower again, and for a sharper reason. `can_provision_token` is deliberately
+    # stricter than `can_manage_member`: minting an elder link hands the actor a working
+    # no-login credential for the TARGET'S WHOLE SCOPE, which they can open themselves. So a
+    # yard admin may provision only for someone whose pods are a subset of their own.
+    #
+    # The roster gated this control on `manageable`, so a yard admin saw "Elder link" on
+    # every row in their yard and got a 403 on click — measured — while
+    # `setting-up-your-side.md` tells them to click exactly that when a grandparent's link
+    # goes to the wrong person.
+    can_provision_elder: bool = False
 
 
 @login_required
@@ -150,6 +152,9 @@ def members(request: HttpRequest) -> HttpResponse:
                 # a narrower question and has its own answer.
                 can_edit_profile=permissions.can_edit_profile_of(actor, member),
                 own_pods=list(member.households),
+                can_provision_elder=(
+                    not member.is_supervised and permissions.can_provision_token(actor, member)
+                ),
             )
         )
     return render(

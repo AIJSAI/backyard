@@ -67,6 +67,38 @@ class World:
     week_start: datetime.date
 
 
+# ONE list, used by both the pinned-model check and the app-wide sweep.
+#
+# There used to be two, and they had drifted — the app-wide sweep, which covers EVERY model,
+# carried the WEAKER mesh: `seconds_on` / `minutes_on` where the three-model pin had
+# `seconds` / `minutes`. So `seconds_watched`, `minutes_active` or `dwell_seconds` passed the
+# broad check and were caught only if they landed on one of three specific models. The wider
+# net had the bigger holes, which is exactly backwards.
+#
+# Measured before unifying: the stricter list produces ZERO false positives across every model
+# in the app, so the weaker version was drift rather than an accommodation. `dwell`,
+# `engagement`, `impression`, `view_count` and `clicks` were checked the same way and added on
+# the same evidence — they are the vocabulary docs/principles.md rules out ("no streaks, no
+# like counts, no read receipts", nothing amplified), and none of them collides with a field
+# this product has.
+#
+# Deliberately NOT banned: `last_seen`. `Member.feed_last_seen_at` is the unread boundary
+# (S-303) — a single timestamp the member's own feed advances, not a record of what they read.
+_SURVEILLANCE_SHAPED = (
+    "session",
+    "duration",
+    "time_on",
+    "streak",
+    "seconds",
+    "minutes",
+    "dwell",
+    "engagement",
+    "impression",
+    "view_count",
+    "clicks",
+)
+
+
 @pytest.fixture
 def world() -> World:
     maternal = Yard.objects.create(name="Maternal", slug="maternal")
@@ -204,9 +236,8 @@ def test_anti_surveillance_field_sets_are_pinned(world: World) -> None:
     assert pod_fields == {"pod", "week_start", "post_count", "created_at"}
     presence_fields = {f.name for f in MemberWeekPresence._meta.get_fields() if not f.auto_created}
     assert presence_fields == {"member", "week_start", "present", "created_at"}
-    banned = ("session", "duration", "time_on", "streak", "seconds", "minutes")
     for name in yard_fields | pod_fields | presence_fields:
-        assert not any(bad in name for bad in banned), name
+        assert not any(bad in name for bad in _SURVEILLANCE_SHAPED), name
 
 
 def test_metrics_panel_is_instance_admin_only(world: World) -> None:
@@ -291,12 +322,11 @@ def test_app_wide_anti_surveillance_sweep(world: World) -> None:
     field name, and the metric-shaped model set is exactly the pinned three."""
     from django.apps import apps
 
-    banned = ("session", "duration", "time_on", "streak", "seconds_on", "minutes_on")
     metric_shaped = set()
     for model in apps.get_app_config("core").get_models():
         for field in model._meta.get_fields():
             name = getattr(field, "name", "")
-            assert not any(bad in name for bad in banned), f"{model.__name__}.{name}"
+            assert not any(bad in name for bad in _SURVEILLANCE_SHAPED), f"{model.__name__}.{name}"
         if any(hint in model.__name__ for hint in ("Week", "Metric", "Presence")):
             metric_shaped.add(model.__name__)
     assert metric_shaped == {"YardWeekMetrics", "PodWeekMetrics", "MemberWeekPresence"}

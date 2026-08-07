@@ -6,9 +6,10 @@ surname>" for the project's life, the surname reached a SHIPPING source comment 
 `posting.py` and two receipts, and the README carried a blanket claim of "no real family
 content appears anywhere" that was false a few files away.
 
-The author's own name is deliberately exempt: it is in every commit's authorship and is his
-to give. Everyone else in the seed must be invented, and this asserts that rather than
-trusting it.
+The author's own name remains exempt on ONE surface — the copyright notice, which AGPL
+requires to identify a holder. It is no longer exempt in the seed: the operator's row is
+named from whichever account holds `is_superuser`, so the demo family is invented all the
+way through, and this asserts that rather than trusting it.
 """
 
 from __future__ import annotations
@@ -19,9 +20,10 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[3]
 _SEED = _ROOT / "scripts" / "demo_seed.py"
 
-# The author's surname, which git authorship publishes on every commit anyway. Listed here
-# so the check can tell "the author named himself" (allowed, once, as the instance admin)
-# apart from "a relative's real surname leaked into a public repo" (never).
+# The author's surname, which git authorship publishes on every commit anyway. Named here so
+# the checks below can look for it. It is allowed on exactly one reader-facing surface — the
+# copyright notice, which AGPL requires to identify a holder — and nowhere else, including
+# the demo seed, which no longer hardcodes anybody's real name.
 _AUTHOR_SURNAME = "Shehan"
 
 
@@ -47,16 +49,27 @@ def test_the_seed_actually_names_people() -> None:
 
 
 def test_no_relative_carries_the_authors_real_surname() -> None:
-    """The author may name himself. Nobody else in the demo family may share his surname.
+    """No name in the seed carries the author's real surname — including his own.
+
+    This used to permit exactly one occurrence, the founder's own account, because the seed
+    hardcoded his display name. It no longer does: the operator's row is named from whichever
+    account holds `is_superuser` on the instance being seeded, so there is no longer any
+    reason for a real surname to appear in this file at all.
 
     A relative's real surname in a public repo is the privacy line this product is *about*
     breaking -- and it is the kind of thing a stranger notices before any maintainer does.
     """
     names = _display_names(_SEED.read_text())
     carrying = [n for n in names if _AUTHOR_SURNAME in n]
-    assert carrying == ["James " + _AUTHOR_SURNAME], (
-        f"demo seed names carrying the author's real surname: {carrying}. Only the author's "
-        "own account may; every other member of the demo family must be invented."
+    # A CEILING, not an exact match. This asserted `== ["James Shehan"]`, which made the
+    # author's real surname REQUIRED in the seed: removing it — an unambiguous improvement,
+    # and what happened when the operator's display name stopped being hardcoded and became
+    # whatever the instance's superuser is called — failed this test for having leaked less.
+    # A privacy check that goes red when a name is deleted is pinning the defect.
+    assert not carrying, (
+        f"demo seed names carrying the author's real surname: {carrying}. The demo family "
+        "must be invented, and the operator's own row is named from the account that runs "
+        "the instance — so no real surname belongs in this file at all."
     )
 
 

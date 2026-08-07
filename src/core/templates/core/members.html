@@ -55,10 +55,15 @@
           {% if row.can_edit_profile %}
             <a href="{% url 'managed_profile_edit' row.member.id %}">Edit profile</a>
           {% endif %}
+          {% comment %} Gated on can_provision_token, NOT on manageable. Minting an elder
+             link hands over a working no-login credential for that person's whole scope, so
+             a yard admin may only do it for someone whose pods are a subset of their own —
+             stricter than "may I administer them". Measured before this change: a yard admin
+             saw this link on every row in their yard and got a 403 on click. {% endcomment %}
+          {% if row.can_provision_elder %}
+            <a href="{% url 'provision_elder' row.member.id %}">Elder link</a>
+          {% endif %}
           {% if row.manageable %}
-            {% if not row.member.is_supervised %}
-              <a href="{% url 'provision_elder' row.member.id %}">Elder link</a>
-            {% endif %}
             {% if row.assignable_roles %}
               <form method="post" action="{% url 'assign_role' row.member.id %}" class="inline">
                 {% csrf_token %}
