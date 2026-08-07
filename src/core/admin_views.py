@@ -15,6 +15,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import BadRequest, PermissionDenied
 from django.db import transaction
+from django.db.models import Prefetch
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -88,6 +89,14 @@ class RosterRow:
     # where the parent cannot see them. Offering only the parent's households means the
     # mistake cannot be expressed; `supervised.create_supervised_member` refuses it as well,
     # for a POST that never came from this page.
+    # The HOUSEHOLDS this member is in — not every pod the admin can see, and not their
+    # ad-hoc groups either.
+    #
+    # Two corrections in one field. It offered `assignable_pods` (`visible_pods(actor)`),
+    # which for an instance admin is every pod on the instance, so picking the wrong line
+    # placed a child in a family their own parent is not in. And `member.pods` includes
+    # ad-hoc pods, so a control captioned "households" offered the book club — the same
+    # mislabel already fixed once on this page, reintroduced by a new field.
     own_pods: list[Pod] = field(default_factory=list)
 
 
@@ -100,7 +109,22 @@ def members(request: HttpRequest) -> HttpResponse:
         raise PermissionDenied
     role_labels = dict(Member.ROLE_CHOICES)
     rows: list[RosterRow] = []
-    for member in permissions.administrable_members(actor).order_by("display_name"):
+    # Prefetched, and ORDERED IN THE PREFETCH. `member.pods.order_by(...)` per row is a
+    # query per roster line, and the `order_by` is what stops a plain `prefetch_related`
+    # from being used at all — so the obvious way to write this is also the one that cannot
+    # benefit from the obvious fix.
+    roster = (
+        permissions.administrable_members(actor)
+        .order_by("display_name")
+        .prefetch_related(
+            Prefetch(
+                "pods",
+                queryset=Pod.objects.filter(kind=Pod.HOUSEHOLD).order_by("name"),
+                to_attr="households",
+            )
+        )
+    )
+    for member in roster:
         manageable = permissions.can_manage_member(actor, member)
         # Only offer roles the actor is authorized to grant this target, excluding the
         # current role (a no-op) and supervised members (re-roled only via their parent).
@@ -125,7 +149,7 @@ def members(request: HttpRequest) -> HttpResponse:
                 # it. `can_edit_profile_of` is deliberately NOT `can_manage_member`: it is
                 # a narrower question and has its own answer.
                 can_edit_profile=permissions.can_edit_profile_of(actor, member),
-                own_pods=list(member.pods.order_by("name")),
+                own_pods=list(member.households),
             )
         )
     return render(

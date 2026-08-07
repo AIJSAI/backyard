@@ -19,7 +19,7 @@ from django.utils.text import slugify
 
 from . import export, permissions, profiles, scoping, vcards
 from .feed_views import _acting_member
-from .models import Member
+from .models import Member, Pod
 
 _VISIBILITY = {Member.HIDDEN, Member.POD, Member.YARD}
 
@@ -233,5 +233,10 @@ def _edit_context(member: Member, errors: list[str], actor: Member) -> dict[str,
             and member.pk == actor.pk
             and permissions.can_create_supervised(actor, actor)
         ),
-        "own_pods": member.pods.order_by("name") if member.pk == actor.pk else [],
+        # HOUSEHOLDS, because that is what the control says. `member.pods` includes ad-hoc
+        # groups, so the copy would have promised a narrower list than the select offered —
+        # the same mislabel already fixed once on the roster.
+        "own_pods": (
+            member.pods.filter(kind=Pod.HOUSEHOLD).order_by("name") if member.pk == actor.pk else []
+        ),
     }

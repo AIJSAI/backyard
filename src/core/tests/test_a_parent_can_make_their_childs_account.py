@@ -21,7 +21,9 @@ import re
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import Client
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from core import permissions, supervised
@@ -171,4 +173,70 @@ def test_the_roster_offers_only_the_parents_own_households(
     assert elsewhere.name not in offered, (
         "the roster offered a household the parent is not in, so an admin picking the wrong "
         "line puts a child somewhere their own parent cannot see them"
+    )
+
+
+@pytest.mark.django_db
+def test_an_adhoc_group_is_not_offered_as_a_household(
+    parent_at_home: tuple[Client, Member, Pod, Yard],
+) -> None:
+    """The control says "households". `member.pods` includes ad-hoc groups.
+
+    This is the same mislabel already fixed once on this roster — "Which household" over a
+    list built from `visible_pods` — reintroduced by a new field a few weeks later. A child
+    does not belong to a book club, and a caption that says households must offer households.
+    """
+    client, parent, pod, yard = parent_at_home
+    club = Pod.objects.create(name="The book club", kind=Pod.ADHOC, owner=parent)
+    club.yards.set([yard])
+    PodMembership.objects.create(member=parent, pod=club)
+
+    select = re.search(
+        r'<select id="own-child-pod"[^>]*>(.*?)</select>',
+        client.get(reverse("profile_edit")).content.decode(),
+        re.S,
+    )
+    assert select is not None, "the parent is offered no household control at all"
+    offered = select.group(1)
+    assert pod.name in offered, "denominator: their actual household must be offered"
+    assert club.name not in offered, (
+        "an ad-hoc group was offered as a household, under a label that says households"
+    )
+
+
+@pytest.mark.django_db
+def test_the_roster_does_not_run_a_query_per_row(
+    parent_at_home: tuple[Client, Member, Pod, Yard],
+) -> None:
+    """`member.pods.order_by("name")` inside the row loop is one query per roster line.
+
+    Worse than ordinary N+1: the `order_by` is exactly what stops a plain
+    `prefetch_related` from being used, so the obvious way to write it is also the one that
+    cannot benefit from the obvious fix. It is a `Prefetch` with the ordering inside.
+
+    Asserted as "the count does not grow with the roster" rather than against a fixed
+    number, which would be a magic constant that gets edited whenever it fails.
+    """
+    _client, _parent, pod, _yard = parent_at_home
+    admin_user = User.objects.create_user(username="counting-admin")
+    admin = Member.objects.create(display_name="Admin", user=admin_user, role=Member.INSTANCE_ADMIN)
+    PodMembership.objects.create(member=admin, pod=pod)
+    client = Client()
+    client.force_login(admin_user, backend=_BACKEND)
+
+    def queries_for(extra: int) -> int:
+        for index in range(extra):
+            relative = Member.objects.create(display_name=f"Relative {index}")
+            PodMembership.objects.create(member=relative, pod=pod)
+        with CaptureQueriesContext(connection) as captured:
+            assert client.get(reverse("members")).status_code == 200
+        return len(captured)
+
+    small = queries_for(2)
+    large = queries_for(20)
+    assert large <= small + 2, (
+        f"the roster ran {small} queries for 3 members and {large} for 23 — it is doing work "
+        "per row. On a family instance that is slow; the reason it is a defect rather than a "
+        "preference is that the fix (a Prefetch) is also the only way to order the households "
+        "without a query each."
     )
