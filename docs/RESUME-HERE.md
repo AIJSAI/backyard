@@ -19,15 +19,20 @@ been wrong before, in this exact header, about exactly the kind of claim it make
 
 ### Where the code is
 
-| | |
-|---|---|
-| `main` | 33 commits past `v0.1.1` — the same quantity as the row below, counted the other way. If they ever disagree, one of them has drifted |
-| **`v0.1.2` is NOT cut** | `git tag --list` shows only `v0.1.1`. `README.md`, `docs/runbooks/self-host.md` and `CHANGELOG.md` all name `v0.1.2` |
-| open PR | **#162** — this handoff. #161 merged 2026-08-07 |
-| this release | **33 PRs**: `#127`–`#161`, except `#138` and `#142` (CLOSED unmerged, superseded by `#139` and `#143`). Re-derive rather than trusting this row: `git log --oneline v0.1.1..origin/main \| grep -oE '\(#[0-9]+\)$'` |
+Every row is a command, not a fact. Four rounds of review on this table found the same defect
+each time — a number, a date or a PR reference that was true when written and false when
+read. So it states nothing that can go stale; it tells you what to run.
 
-**The next two steps, in order**, once #162 merges. Step 1 is several commands and they are
-deliberately NOT chained — read each result:
+| question | run this |
+|---|---|
+| how far past `v0.1.1` is `main`? | `git rev-list --count v0.1.1..origin/main` |
+| which PRs are in this release? | `git log --oneline v0.1.1..origin/main \| grep -oE '\(#[0-9]+\)$'` — contiguous from `#127` except `#138` and `#142`, closed unmerged (superseded by `#139`, `#143`) |
+| is `v0.1.2` cut? | `git tag --list`. **It was not, as of this being written** — and `README.md`, `docs/runbooks/self-host.md` and `CHANGELOG.md` all name it, so cutting it is the next job |
+| anything still open? | `gh pr list --state open` |
+| is the tree green? | `gh run list --branch main --limit 1` then `gh run view <id> --json jobs` — CI is the authority, especially when Docker is down locally |
+
+**The next two steps, in order.** Step 1 is several commands and they are deliberately
+NOT chained — read each result:
 
 ```bash
 cd ~/projects/backyard
@@ -103,6 +108,10 @@ The defects that would have reached the family, each measured not reasoned:
 
 ### Traps this session paid for
 
+* **A count that includes the document stating it is wrong on arrival.** This handoff said
+  "33 PRs"; merging it made 34. Same for "N commits past v0.1.1". Any self-including number
+  in a repo document is stale the instant it lands — state the RULE and the command that
+  derives the number, never the number.
 * **The local test lane needs Docker running.** Postgres is the `backyard-testdb`
   container; with the daemon down, `pytest` returns hundreds of errors whose first line is
   `connection to server at "127.0.0.1", port 5432 failed: Connection refused`. Read that
