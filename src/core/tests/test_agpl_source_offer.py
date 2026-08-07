@@ -73,11 +73,40 @@ def test_the_offer_is_not_only_on_one_template() -> None:
 
     from core.tests.comment_stripping import without_comments
 
-    templates = Path(__file__).resolve().parents[1] / "templates" / "core"
-    for name in ("base.html", "elder_feed.html"):
+    # Enumerated, not named. The list was ("base.html", "elder_feed.html"), and a THIRD
+    # standalone page existed: src/templates/500.html, which Django renders when the app is
+    # broken enough that inheriting from base.html may not work at all — so it inherits no
+    # footer and carried no offer. Two named templates cannot notice a third being added.
+    #
+    # "Standalone" is computed rather than declared: a full HTML document that does not
+    # `{% extends %}` anything inherits nothing, so it must carry the offer itself. Everything
+    # else gets it from base.html's footer, which this same check pins.
+    core_templates = Path(__file__).resolve().parents[1] / "templates" / "core"
+    project_templates = Path(__file__).resolve().parents[2] / "templates"
+    # Read each template ONCE and carry the text with the path. The previous form called
+    # `read_text()` twice per candidate in the filter and a third time in the loop below,
+    # which is not merely wasteful: three reads of a file that another test may be
+    # rewriting are three chances to disagree about what the file says.
+    sources = {
+        path: path.read_text()
+        for path in list(core_templates.glob("*.html")) + list(project_templates.glob("*.html"))
+    }
+    standalone = sorted(
+        path for path, text in sources.items() if "{% extends" not in text and "<html" in text
+    )
+    assert len(standalone) >= 3, (
+        f"only {len(standalone)} standalone templates found ({[p.name for p in standalone]}); "
+        "the globs are wrong, so this check is inspecting almost nothing"
+    )
+    for path in standalone:
+        name = path.name
         # ALL comment syntaxes, via the shared helper. This test originally stripped only
         # `{% comment %}` -- the identical hole that had already been fixed twice this
         # session, reintroduced by hand in a brand-new file. Both templates use `{# ... #}`
         # too, so the offer could have been moved into one and still satisfied the check.
-        source = without_comments((templates / name).read_text())
-        assert _REPO in source, f"{name} carries no source offer outside its comments"
+        source = without_comments(sources[path])
+        assert _REPO in source, (
+            f"{name} is a standalone page — it extends nothing, so it inherits no footer — "
+            "and carries no source offer outside its comments. AGPL section 13 requires a "
+            "network user be OFFERED the source; a page that never makes the offer does not."
+        )

@@ -85,6 +85,31 @@ def main() -> int:
             return 2
 
     source = DIGEST.read_text()
+
+    # Scope assertion. This guard covers ONE file, and that is correct rather than lazy:
+    # measured, `digest_views.py`, `digesting.py` and `health_email.py` all legitimately use
+    # model managers (rendering, subscription lifecycle, admin recipients), so widening would
+    # produce false positives, not coverage. `digest.py` is the content renderer, and it is
+    # the one that must read only through `core.scoping`.
+    #
+    # What a one-file scope CANNOT notice is the file becoming a shell — if digest rendering
+    # moved to a new module, this would keep passing over the husk left behind and report
+    # green forever. A missing file already fails loudly (read_text raises); this covers the
+    # emptied one.
+    # Only for the DEFAULT target. The argv override exists so the suite can point this at
+    # a small poisoned fixture and prove the confinement patterns fire — a scope check that
+    # rejected those fixtures would break the very test that keeps this guard honest. (It
+    # did: `test_confinement_guard_catches_traversal_and_multi_name_import` went red on the
+    # first version of this, returning 2 where it expects 1.)
+    if DIGEST == _DEFAULT and ("scoping." not in source or len(source) < 2000):
+        print(
+            "SCOPE FAILED: src/core/digest.py no longer looks like the digest renderer "
+            f"({len(source)} bytes, scoping used: {'scoping.' in source}). If the rendering "
+            "moved, point this guard at its new home — a guard aimed at an empty file passes "
+            "forever."
+        )
+        return 2
+
     failures: list[str] = _import_violations(source)
     if not _import_violations("from .models import DigestIssue, Post"):
         print("SELFTEST FAILED: the import parser misses a multi-name drift")

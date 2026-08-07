@@ -14,8 +14,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 _ROOT = Path(__file__).resolve().parents[3]
 _GUIDE = _ROOT / "docs" / "runbooks" / "self-host.md"
 _README = _ROOT / "README.md"
@@ -30,18 +28,51 @@ def test_the_install_guide_exists_and_the_readme_points_at_it() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "command",
-    ["backup_instance", "restore_instance", "ensure_setup"],
-)
-def test_every_command_the_guide_names_actually_exists(command: str) -> None:
+def _commands_the_guide_names() -> set[str]:
+    """Every `manage.py <command>` the guide actually tells an operator to run."""
+    import re
+
+    return set(re.findall(r"manage\.py\s+([a-z_][a-z0-9_]*)", _GUIDE.read_text()))
+
+
+def test_every_command_the_guide_names_actually_exists() -> None:
     """A guide that tells an operator to run a command that was renamed is worse than no
-    guide: they find out at the moment they need a restore."""
-    guide = _GUIDE.read_text()
-    if command not in guide:
-        pytest.skip(f"{command} is not named in the guide")
-    assert (_ROOT / "src" / "core" / "management" / "commands" / f"{command}.py").is_file(), (
-        f"the guide tells the operator to run `{command}`, which does not exist"
+    guide: they find out at the moment they need a restore.
+
+    Read OUT OF the guide, not checked against a hardcoded list. The previous version walked
+    `["backup_instance", "restore_instance", "ensure_setup"]` and did
+    `pytest.skip(f"{command} is not named in the guide")` — an inverted enumeration, where
+    DELETING a command from the guide made the check pass more easily. Measured before this
+    change: 2 of the 3 skipped, so the guard was one-third live and reported green.
+
+    (`restore_instance` is documented in backup-restore.md and `ensure_setup` runs from the
+    container entrypoint, so their absence here was correct — the LIST was wrong, not the
+    guide. Which is exactly why the list should not exist.)
+    """
+    named = _commands_the_guide_names()
+    ours = {p.stem for p in (_ROOT / "src" / "core" / "management" / "commands").glob("*.py")}
+    ours.discard("__init__")
+    django_builtins = {"shell", "migrate", "check", "collectstatic", "createsuperuser"}
+
+    missing = sorted(name for name in named - django_builtins if name not in ours)
+    assert not missing, (
+        f"docs/runbooks/self-host.md tells the operator to run {missing}, which do not exist "
+        "in src/core/management/commands/. They find that out at the moment they need it."
+    )
+
+
+def test_the_guide_still_names_commands_at_all() -> None:
+    """Denominator. The check above is a set difference, so an extractor that returns nothing
+    passes it trivially — which is the failure mode the skip-based version had in a different
+    costume."""
+    named = _commands_the_guide_names()
+    assert named, (
+        "no `manage.py <command>` found in the guide; the extractor is broken, so the check "
+        "above compares an empty set and proves nothing"
+    )
+    assert "backup_instance" in named, (
+        "the self-host guide no longer tells an operator how to back up. That is the one "
+        "command a self-hoster cannot discover on their own and cannot afford to miss."
     )
 
 
