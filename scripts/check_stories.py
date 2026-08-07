@@ -37,11 +37,25 @@ def validate_stories(data: object) -> list[str]:
     if not isinstance(epics, list) or not epics:
         return ["stories.yaml: epics missing or empty"]
     seen_ids: set[str] = set()
-    for epic in epics:
+    for index, epic in enumerate(epics):
+        # Shape-check before reading. Review flagged the ID reader for crashing on malformed
+        # input; measured, THIS function crashed too — `AttributeError` on a non-mapping epic
+        # and on a non-list `stories`. Fixing only the function that was named would have
+        # left the traceback exactly where it was, from one frame further down.
+        if not isinstance(epic, dict):
+            errors.append(f"epics[{index}]: must be a mapping, got {type(epic).__name__}")
+            continue
         eid = str(epic.get("id", "?"))
         if not epic.get("title"):
             errors.append(f"{eid}: missing title")
-        for story in epic.get("stories") or []:
+        stories = epic.get("stories") or []
+        if not isinstance(stories, list):
+            errors.append(f"{eid}: stories must be a list, got {type(stories).__name__}")
+            continue
+        for story in stories:
+            if not isinstance(story, dict):
+                errors.append(f"{eid}: a story entry is {type(story).__name__}, not a mapping")
+                continue
             sid = str(story.get("id", "?"))
             missing = REQUIRED_FIELDS - story.keys()
             if missing:
@@ -57,6 +71,20 @@ def validate_stories(data: object) -> list[str]:
             acceptance = story.get("acceptance")
             if not isinstance(acceptance, list) or not acceptance:
                 errors.append(f"{sid}: acceptance must be a non-empty list")
+            # The `epic:` field must match the epic the story is NESTED UNDER. Seven stories
+            # were appended to the end of this file declaring `epic: E7` while landing inside
+            # E8's list, and every check here passed: nothing compared the two. The epics are
+            # not in numeric order either (E1..E7, then E9, then E8), so "insert before E8"
+            # is not the same as "at the end of E7" — which is how the first correction put
+            # them in E9.
+            declared = story.get("epic")
+            if declared != eid:
+                errors.append(
+                    f"{sid}: declares epic {declared!r} but is nested under {eid!r}. "
+                    "Anything that renders by epic section will file it under the wrong "
+                    "heading, and the tally that counts stories per epic will disagree "
+                    "with the document that reads them."
+                )
     return errors
 
 
@@ -122,9 +150,20 @@ def filed_story_ids(data: object) -> set[str]:
     """
     if not isinstance(data, dict):
         return set()
+    epics = data.get("epics")
+    if not isinstance(epics, list):
+        # `validate_stories` has already reported this. Crashing here would replace its
+        # actionable message with a traceback from a helper — the gate would fail for the
+        # right reason and say the wrong thing.
+        return set()
     found: set[str] = set()
-    for epic in data.get("epics") or []:
-        for story in epic.get("stories") or []:
+    for epic in epics:
+        if not isinstance(epic, dict):
+            continue
+        stories = epic.get("stories")
+        if not isinstance(stories, list):
+            continue
+        for story in stories:
             if isinstance(story, dict) and story.get("id"):
                 found.add(str(story["id"]))
     return found
