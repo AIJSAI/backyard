@@ -55,6 +55,7 @@ typecheck:
 # The CI `gates` job, which `check` did not run at all.
 gates:
 	uv run --with pyyaml python scripts/check_stories.py
+	uv run --with pyyaml python scripts/check_compose_overlay.py
 	uv run python scripts/check_digest_confinement.py
 
 # The CI `secrets` job, run the way CI runs it: the WHOLE commit graph, with this repo's
