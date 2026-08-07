@@ -13,20 +13,28 @@
     </div>
   {% endif %}
 
+  {% comment %} Every field comes back filled in. This form used to clear all four on any
+     validation error — and it is the FIRST thing a relative ever does here, on a phone, from
+     a link somebody texted them. Django's password validators are the common trip ("this
+     password is too common", "too similar to your username"), so the likeliest first
+     experience of the product was retyping a name, a username and an email to fix a mistake
+     in none of them. The password is deliberately NOT re-rendered. {% endcomment %}
   <form method="post">
     {% csrf_token %}
     <label for="display_name">Your name</label>
-    <input type="text" id="display_name" name="display_name" autocomplete="name" required>
+    <input type="text" id="display_name" name="display_name" autocomplete="name"
+           value="{{ typed.display_name }}" required>
 
     <label for="username">Username</label>
-    <input type="text" id="username" name="username" autocomplete="username" required>
+    <input type="text" id="username" name="username" autocomplete="username"
+           value="{{ typed.username }}" required>
 
     <label for="password">Password</label>
     <input type="password" id="password" name="password" autocomplete="new-password" required>
 
     <label for="email">Email <span class="optional">(optional)</span></label>
     <input type="email" id="email" name="email" autocomplete="email" maxlength="254"
-           aria-describedby="email-help">
+           value="{{ typed.email }}" aria-describedby="email-help">
     <p class="field-help" id="email-help">
       The only way to get back in if you forget your password. Without it nobody —
       not even an admin — can reset your account. You can also get the weekly digest here.

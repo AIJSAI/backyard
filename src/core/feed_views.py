@@ -141,6 +141,10 @@ def _render_feed(
     advance_seen: bool,
     errors: list[str] | None = None,
     staged_handle: str | None = None,
+    # What they typed, carried back into the composer. The photos survived a rejected
+    # compose and the WORDS did not — while the page said "Your uploaded photos are still
+    # attached", which reads as a reassurance that everything survived.
+    draft_body: str = "",
     cursor: tuple[datetime.datetime, int] | None = None,
 ) -> HttpResponse:
     """Render the feed: the member's visible posts newest-first, each marked as their
@@ -226,6 +230,7 @@ def _render_feed(
             # Carried so a compose that bounced for correction keeps its uploads (the
             # files themselves cannot survive the round trip; the handle can).
             "staged_handle": staged_handle,
+            "draft_body": draft_body,
         },
     )
 
@@ -343,6 +348,7 @@ def compose(request: HttpRequest) -> HttpResponse:
             advance_seen=False,
             errors=errors,
             staged_handle=staged_uploads.stage(request, photos=photo_raws, videos=video_raws),
+            draft_body=body,
         )
 
     post = posting.create_post(author=member, pod=pod, audience_yards=audience_yards, body=body)
