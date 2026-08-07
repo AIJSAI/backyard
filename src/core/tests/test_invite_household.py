@@ -54,12 +54,24 @@ def _intent(client: Client) -> str:
     return match.group(1)
 
 
-def _create_household(client: Client, *, yard_id: int, name: str) -> HttpResponse:
-    """POST the create form with a freshly read intent nonce; returns the response."""
+def _create_household(
+    client: Client, *, yard_id: int | None = None, name: str, yard_ids: list[int] | None = None
+) -> HttpResponse:
+    """POST the create form with a freshly read intent nonce; returns the response.
+
+    `yard_ids` is the real field — a household may belong to more than one side. `yard_id`
+    is kept as a convenience for the single-side callers below so this change stays about
+    the capability rather than about rewriting every existing test.
+    """
+    chosen = yard_ids if yard_ids is not None else [yard_id] if yard_id is not None else []
     intent = _intent(client)
     response = client.post(
         reverse("invite_household"),
-        {"household_name": name, "yard_id": str(yard_id), "intent": intent},
+        {
+            "household_name": name,
+            "yard_ids": [str(value) for value in chosen],
+            "intent": intent,
+        },
     )
     assert isinstance(response, HttpResponse)
     return response
@@ -155,7 +167,7 @@ def test_refresh_does_not_duplicate_the_household(world: World) -> None:
     intent = _intent(client)
     payload = {
         "household_name": "The Reyes family",
-        "yard_id": str(world.maternal.id),
+        "yard_ids": [str(world.maternal.id)],
         "intent": intent,
     }
     first = client.post(reverse("invite_household"), payload)
@@ -412,3 +424,56 @@ def test_the_handover_page_offers_copy_and_share_affordances(world: World) -> No
     assert "data-handover-copy" in body
     assert "data-handover-share" in body
     assert "data-handover-link" in body
+
+
+@pytest.mark.django_db
+def test_an_admin_can_create_a_BRIDGING_household_through_the_form(world: World) -> None:
+    """The household in both sides — built by clicking, not by an ORM call in a fixture.
+
+    The bridging household is the centre of this product's data model: the README leads
+    with a diagram of it captioned "yours, probably", `self-host.md` instructs the operator
+    to "attach it to the yard(s) it belongs to", and the isolation suite is built around it.
+    No surface could create one. Every call site did `pod.yards.set([one_yard])`, the form
+    was a single `<select>`, Django admin is not mounted, and the only multi-yard assignment
+    anywhere in the tree was a seed script — so it took a Django shell.
+
+    It went unnoticed because the tests that exercise bridging behaviour all construct the
+    bridge by calling `.yards.set([a, b])` directly. This one posts the form.
+    """
+    client = _client_for(world.instance_admin)
+    response = _create_household(
+        client, yard_ids=[world.maternal.pk, world.paternal.pk], name="The bridging household"
+    )
+    assert response.status_code == 200
+
+    pod = Pod.objects.get(name="The bridging household")
+    assert {yard.pk for yard in pod.yards.all()} == {world.maternal.pk, world.paternal.pk}, (
+        "the form created a household in one side only, so the bridge is still shell-only"
+    )
+    # And the page says which sides it made, or the operator cannot tell what they did.
+    body = response.content.decode()
+    assert world.maternal.name in body and world.paternal.name in body
+
+
+@pytest.mark.django_db
+def test_a_yard_admin_cannot_bridge_a_household_into_a_side_they_are_not_in(
+    world: World,
+) -> None:
+    """The capability must not become a way around yard isolation.
+
+    No new authorization was written for this: `can_issue_invite` already answers the
+    multi-yard question correctly (`pod_yards <= member_yard_ids`), and the per-yard
+    resolution is the same `require_visible_yard` as before. This asserts that rather than
+    assuming it — a new form field reaching a predicate nobody re-checked is exactly how a
+    scope escape gets shipped.
+    """
+    client = _client_for(world.m_admin)
+    before = Pod.objects.count()
+    response = _create_household(
+        client, yard_ids=[world.maternal.pk, world.paternal.pk], name="A reach across"
+    )
+    assert response.status_code in (403, 404), (
+        f"a maternal-side yard admin bridged a household into the paternal side "
+        f"(status {response.status_code})"
+    )
+    assert Pod.objects.count() == before, "the pod was created before the refusal"

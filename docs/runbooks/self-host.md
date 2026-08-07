@@ -97,10 +97,14 @@ restricted set rather than "any CA on earth", which is what you have with no CAA
 ## 2. Configure
 
 ```bash
-git clone https://github.com/AIJSAI/backyard.git
+git clone --branch v0.1.2 https://github.com/AIJSAI/backyard.git
 cd backyard
 cp .env.example .env
 ```
+
+**Clone the tag, not `main`**, exactly as the README says. `main` changes daily and may be
+mid-refactor when you arrive. This step used to clone `main` while every other document
+insisted on a tag; the two disagreed, and the one an operator actually runs was the wrong one.
 
 Edit `.env`. The three database passwords have **no defaults** — compose refuses to start
 until you set them, deliberately, so an instance can never come up on a shipped credential:
@@ -137,13 +141,22 @@ first admin account — there is no default login to forget about.
 
 ## 4. Make it a family
 
-As instance admin, at `/members/`:
+As instance admin, from the **Members** link in the header (or `/members/`):
 
-1. **Create a yard** per side of the family ("The Whitfields", "The Ferraras").
-2. **Create a pod** per household, and attach it to the yard(s) it belongs to. A household
-   that bridges two sides belongs to both — its members see both, and the two sides never
-   see each other.
-3. **Invite people.** Each invite is a single-use link.
+1. **Create a yard** per side of the family ("The Whitfields", "The Ferraras") —
+   *Family sides*.
+2. **Create a household and invite it in one step** — *Invite a household*. Creating the
+   pod and minting its invite is the same action; there is no separate "create a pod" step,
+   which is why step 2 used to have no referent.
+
+   Tick **both** sides for a household that bridges them. Its members see both, and the two
+   sides still never see each other through it. (Until 2026-08-06 the form offered one side
+   only, so the bridging household — the case this whole model is built around — could be
+   created only from a Django shell.)
+3. **Send the link.** One invite covers a whole household: up to 8 joins, for 7 days.
+   It is **not** single-use; this document said it was, and
+   `docs/runbooks/setting-up-your-side.md` said the opposite. The code is `invites.py`:
+   `max_uses = 8`, 7-day expiry.
 4. **For anyone who will not manage an account** — grandparents, usually — mint an
    **elder link** on their member page. It is a URL that logs them in by itself, forever,
    until you revoke it. Print the QR code and put it on the fridge.
@@ -211,8 +224,9 @@ You already set `BACKYARD_BACKUP_PASSPHRASE` in `.env` above, and compose passes
 into the container — so a backup is one command with no secret on it:
 
 ```bash
-docker compose exec -T web python manage.py backup_instance \
-  /data/backups/backup-$(date +%F).bak
+docker compose exec -T web sh -c \
+  'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+     python manage.py backup_instance /data/backups/backup-$(date +%F).bak'
 ```
 
 The archive path is **positional**; there is no `--output` flag.
@@ -231,8 +245,10 @@ chmod 600 /root/backyard.key        # the command refuses a group/world-readable
 
 # add to the web service in docker-compose.prod.yml:
 #   volumes: [ "/root/backyard.key:/run/secrets/backyard.key:ro" ]
-docker compose exec -T web python manage.py backup_instance \
-  /data/backups/backup-$(date +%F).bak --passphrase-file /run/secrets/backyard.key
+docker compose exec -T web sh -c \
+  'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+     python manage.py backup_instance /data/backups/backup-$(date +%F).bak \
+       --passphrase-file /run/secrets/backyard.key'
 ```
 
 Backups are **encrypted by default**; the command refuses to write plaintext unless you
@@ -252,9 +268,24 @@ otherwise resurrect the credentials of someone you removed.
 
 ```bash
 cd backyard
-git pull
+git fetch --tags
+git checkout v0.1.2          # or whichever tag CHANGELOG.md says you want
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
+
+**Not `git pull`.** You cloned a tag, so you are on a detached HEAD, and this is not a
+detail — it is the difference between upgrading and believing you upgraded. Both shapes
+were run against this repository to check:
+
+| what you cloned | `git pull` does |
+|---|---|
+| `git clone --branch <tag> …` (what the README tells you to run) | fails: *"You are not currently on a branch."* |
+| the same with `--depth 1` | prints **"Already up to date"** and does nothing, forever — the fetch refspec is narrowed to `+refs/tags/<tag>:refs/tags/<tag>`, so there is nothing else it can even see |
+
+The second is the dangerous one: an operator runs it, is told they are current, and stays
+on the version they installed for as long as the instance lives. `git fetch --tags` plus an
+explicit `git checkout` says out loud which version you are moving to, which is also what
+the release notes are for.
 
 The entrypoint takes a pre-flight database dump **before** any migration and refuses to
 migrate if that dump fails, so a broken upgrade cannot take the data with it. The last

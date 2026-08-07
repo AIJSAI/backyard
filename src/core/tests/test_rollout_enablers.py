@@ -22,6 +22,7 @@ from django.test import Client
 from django.urls import reverse
 
 from core import invites, permissions
+from core.admin_views import _ASSIGNABLE_ROLES
 from core.models import Member, Pod, PodMembership, Yard
 
 pytestmark = pytest.mark.django_db
@@ -147,16 +148,47 @@ def test_instance_admin_grants_a_second_instance_admin(world: World) -> None:
     assert world.plain.role == Member.INSTANCE_ADMIN
 
 
-def test_yard_admin_can_re_role_in_scope_but_not_to_admin(world: World) -> None:
+def test_a_yard_admin_has_no_role_change_to_make_and_still_cannot_grant_admin(
+    world: World,
+) -> None:
+    """What a yard admin can actually do to a role, stated honestly.
+
+    This used to demote an in-scope member to POD_OWNER and call that "re-role in scope".
+    It was never a real change: `pod_owner` grants nothing — no predicate in permissions.py
+    reads it — so the test was asserting that a no-op succeeded.
+
+    With the role removed from the roster's offer, `member` is the only non-admin role left,
+    and admin roles need the instance admin. So a yard admin genuinely has no role change
+    available for an in-scope member. That is not a regression; it is what was always true
+    with the illusion removed. Their real authority is invites and elder links.
+    """
     client = _client_for(world.m_admin)
-    # In-scope, to a non-admin role: allowed.
-    assert _post_role(client, world.plain, Member.POD_OWNER).status_code == 302
-    world.plain.refresh_from_db()
-    assert world.plain.role == Member.POD_OWNER
-    # To an admin role: refused (only the instance admin grants admin roles).
+
+    offered = [
+        role
+        for role in _ASSIGNABLE_ROLES
+        if role != world.plain.role
+        and permissions.can_assign_role(world.m_admin, world.plain, role)
+    ]
+    assert offered == [], f"a yard admin was offered {offered}, which the ladder does not grant"
+
+    # And the refusal is enforced at the endpoint, not just hidden in the UI.
     assert _post_role(client, world.plain, Member.YARD_ADMIN).status_code == 403
     world.plain.refresh_from_db()
-    assert world.plain.role == Member.POD_OWNER  # unchanged
+    assert world.plain.role == Member.MEMBER
+
+
+def test_a_role_the_roster_no_longer_offers_is_refused_outright(world: World) -> None:
+    """POSTing `pod_owner` directly must 404, not quietly succeed.
+
+    `_ASSIGNABLE_ROLES` is the whitelist `assign_role` validates against, so removing the
+    role from the UI removes it from the endpoint too — which is the right coupling, and
+    worth asserting rather than assuming.
+    """
+    response = _post_role(_client_for(world.instance_admin), world.plain, Member.POD_OWNER)
+    assert response.status_code == 404
+    world.plain.refresh_from_db()
+    assert world.plain.role != Member.POD_OWNER
 
 
 def test_yard_admin_cannot_reach_another_yards_member(world: World) -> None:
@@ -222,7 +254,7 @@ def test_seed_ally_rollout_create_side_invite_household_appoint_delegate(world: 
     intent = re.search(r'name="intent" value="([^"]+)"', form).group(1)  # type: ignore[union-attr]
     minted = admin.post(
         reverse("invite_household"),
-        {"household_name": "The Fox family", "yard_id": str(dads.id), "intent": intent},
+        {"household_name": "The Fox family", "yard_ids": [str(dads.id)], "intent": intent},
     ).content.decode()
     raw = re.search(r"/join/([A-Za-z0-9_-]+)/", minted).group(1)  # type: ignore[union-attr]
 

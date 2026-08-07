@@ -34,8 +34,8 @@ give.*
 ## Install
 
 ```bash
-git clone --branch v0.1.1 https://github.com/AIJSAI/backyard.git && cd backyard
-cp .env.example .env        # then set the three POSTGRES_* passwords
+git clone --branch v0.1.2 https://github.com/AIJSAI/backyard.git && cd backyard
+cp .env.example .env        # then fill in the five REQUIRED values at the top of it
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 

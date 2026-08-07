@@ -62,8 +62,9 @@ database password in your shell history and every process listing, which is the
 same mistake this document forbids two paragraphs above for the passphrase:
 
 ```sh
-docker compose exec -T \
-  web python manage.py backup_instance /data/backups/backup-$(date +%F).bak
+docker compose exec -T web sh -c \
+  'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+     python manage.py backup_instance /data/backups/backup-$(date +%F).bak'
 
 # The passphrase never goes on the command line. The command reads
 # BACKYARD_BACKUP_PASSPHRASE, which compose passes in from `.env` — that is the
@@ -78,8 +79,9 @@ docker compose exec -T \
 #   chmod 600 /root/backyard.key        # the command refuses a group/world-readable key
 #   # add to the web service in docker-compose.prod.yml:
 #   #   volumes: [ "/root/backyard.key:/run/secrets/backyard.key:ro" ]
-#   docker compose exec -T web python manage.py backup_instance \
-#     /data/backups/backup-$(date +%F).bak --passphrase-file /run/secrets/backyard.key
+#   docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+#     python manage.py backup_instance /data/backups/backup-$(date +%F).bak \
+#       --passphrase-file /run/secrets/backyard.key'
 #
 # The environment variable BACKYARD_BACKUP_PASSPHRASE also works (set it in .env, which
 # compose passes in). It is NOT visible in `ps`, but it IS visible in
@@ -88,7 +90,8 @@ docker compose exec -T \
 # don't.
 #
 # To deliberately write a PLAINTEXT archive (it will warn, loudly):
-#   ... python manage.py backup_instance /path/out.tar --no-encrypt
+#   ... sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+#          python manage.py backup_instance /path/out.tar --no-encrypt'
 ```
 
 Then copy the archive off the box and encrypt it:
@@ -108,8 +111,9 @@ hard to fire by accident.
 On a fresh instance (no members yet):
 
 ```sh
-docker compose exec -T \
-  web python manage.py restore_instance /data/backups/backup-YYYY-MM-DD.bak
+docker compose exec -T web sh -c \
+  'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+     python manage.py restore_instance /data/backups/backup-YYYY-MM-DD.bak'
 
 # Restore auto-detects the archive shape. An encrypted one needs the same
 # passphrase; a wrong passphrase, an altered archive and a truncated one all
