@@ -186,10 +186,26 @@ def test_the_sweep_is_registered_hourly_not_daily() -> None:
     from core import tasks
 
     assert tasks.sweep_staged_uploads_task.name == "sweep_staged_uploads"
-    source = (
-        __import__("pathlib").Path(tasks.__file__).read_text().split("def sweep_staged_uploads")[0]
+
+    # Read the decorator IMMEDIATELY above the function, not "everything before it".
+    #
+    # `.split("def sweep_staged_uploads")[0]` had two ways to lie. If the function were
+    # renamed, `str.split` returns `[whole_text]` and `[0]` becomes the ENTIRE module — so any
+    # other periodic's `cron="45 * * * *"` would satisfy this. And even intact, the prefix
+    # contains every task declared above this one, so a matching cron anywhere earlier passes.
+    # A denominator that can silently widen to the whole file is not a denominator.
+    source = __import__("pathlib").Path(tasks.__file__).read_text()
+    marker = "def sweep_staged_uploads"
+    assert marker in source, (
+        "sweep_staged_uploads was renamed; this check would otherwise read the whole module "
+        "and pass on any other task's schedule"
     )
-    assert 'cron="45 * * * *"' in source, "the sweep must run hourly"
+    # The block between the previous decorator and the function definition.
+    before = source[: source.index(marker)]
+    decorator = before[before.rindex("@app.periodic") :]
+    assert 'cron="45 * * * *"' in decorator, (
+        f"the sweep must run hourly; its own decorator says: {decorator.strip()[:120]}"
+    )
 
 
 def test_one_session_cannot_park_unbounded_bytes_in_staging(
