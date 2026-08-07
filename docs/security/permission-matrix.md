@@ -8,16 +8,27 @@ source of truth; this table must match it, and the enforcement is exercised by
 
 ## The role ladder
 
-Least to most privileged: **supervised < member < pod_owner < yard_admin <
+Least to most privileged: **supervised < member = pod_owner < yard_admin <
 instance_admin**.
+
+That `=` is not a typo, and it used to be a `<`. `pod_owner` grants nothing a plain member
+does not already have — see below.
 
 - **supervised**: a managed account (typically a child) with no independent login;
   administered only by its managing parent (or the instance admin). See TM-10.
 - **member**: a full participant. Reads and writes within their own audience; has
   no authority over other members.
-- **pod_owner**: a member's authority is over their own pod's norms and its invites
-  (a separate surface from member administration). A pod owner does not remove or
-  re-role anyone.
+- **pod_owner**: **grants nothing.** No predicate in `permissions.py` reads this role, so a
+  member holding it can do exactly what a member can do. This entry used to claim authority
+  "over their own pod's norms and its invites"; both halves were false —
+  `pods.set_house_rule` raises `"A household pod has no house rule"`, and
+  `can_issue_invite` returns `False` for it.
+
+  The capability people mean by "pod owner" is real, and it is not this role: it is the
+  `Pod.owner` **foreign key** on an **ad-hoc** pod, held by whoever created that pod, which
+  any plain member may do. The role is a label left over from before that distinction
+  existed. The roster no longer offers it (`_ASSIGNABLE_ROLES`); the constant remains for
+  rows that already carry it.
 - **yard_admin**: manages members, but **only within their own yards**.
 - **instance_admin**: the operator of the instance; manages anyone.
 
