@@ -30,7 +30,7 @@ description = """Synthetic credential fixtures, enumerated by value rather than 
 Each is an invented passphrase that exists so the first-run wizard and admin tests can run.
 Adding a fixture means naming it here on purpose — which is the point.
 
-SCOPED to this file's two generic rules. It was global: a top-level [[allowlists]] with no
+SCOPED to the rules named in targetRules below, rather than to a count restated here. It
 targetRules applies to EVERY rule, including the provider-key rules from the default set. No
 exploit was constructed against a provider rule — their key formats cannot contain these
 strings — so this is a latent hazard rather than a demonstrated hole. It is still wrong for
@@ -152,7 +152,11 @@ tags = ["password", "generic", "env"]
 # legitimately covers embed it mid-string on purpose: `ci-not-a-secret`,
 # `ci-backup-passphrase-not-a-secret`, `local-not-a-secret-deadbeef-...`. Anchoring would
 # break every CI job. Scoping is the fix; anchoring would have been a different bug.
-description = "Structurally-not-a-credential values, for THIS FILE'S two generic rules only."
+description = """Structurally-not-a-credential values, for the rules named in targetRules.
+Do not restate the count here. An earlier version said "for this file's two generic rules"
+and then grew a third target, which made the description wrong in exactly the way this
+block was scoped to fix — a description claiming a scope the config does not have. The
+targetRules list below is the scope; this sentence is not."""
 targetRules = [
   "backyard-generic-password-assignment",
   "backyard-unquoted-env-credential-assignment",

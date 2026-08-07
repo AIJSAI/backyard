@@ -1,4 +1,8 @@
-.PHONY: up down logs setup-secret test lint typecheck check
+# None of these produces a file of its own name, and without .PHONY `make` would treat a
+# `secrets/`, `gates/` or `e2e/` appearing in the tree as "already built" and skip the
+# commands silently. A check that silently does not run is the failure mode this file is
+# being changed to prevent, so the new targets go here too.
+.PHONY: up down logs setup-secret test e2e lint typecheck gates secrets check
 
 # One command for a clean machine: generate .env if missing, then bring the stack up.
 up:
