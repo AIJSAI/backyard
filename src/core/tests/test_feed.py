@@ -227,3 +227,48 @@ def test_compose_ignores_a_garbage_audience_value(world: dict[str, object]) -> N
     assert response.status_code == 302  # the garbage value fell away, post created
     post = Post.objects.get(body="tolerant")
     assert list(post.audience_yards.all()) == []
+
+
+def test_a_rejected_compose_keeps_the_words_as_well_as_the_photos(
+    world: dict[str, object],
+) -> None:
+    """The composer kept the uploads and dropped the text, then said the uploads were safe.
+
+    `staged_uploads` already carried the PHOTOS across a bounced compose, and the notice
+    beside the form says "Your uploaded photos are still attached — fix the note above and
+    post again". A member reads that as "everything survived". The paragraph they had just
+    written was gone.
+    """
+    author = world["author"]
+    assert isinstance(author, Member)
+    written = "A long thing I typed out about the wedding and do not want to type again"
+
+    m_pod = world["m_pod"]
+    assert isinstance(m_pod, Pod)
+    over_the_cap = written + "x" * feed_views._MAX_BODY
+
+    response = _client_for(author).post(
+        reverse("compose"), {"body": over_the_cap, "pod_id": m_pod.id}
+    )
+
+    # Re-rendered for correction, not redirected — this is the bounce-back path.
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "a little long" in body, "expected the length error; the fixture no longer trips it"
+    assert over_the_cap in body, (
+        "the composer threw away what they typed while telling them their photos were safe"
+    )
+
+
+def test_the_composer_is_empty_on_an_ordinary_feed_open(world: dict[str, object]) -> None:
+    """Denominator: the test above would also pass if the textarea always rendered the
+    same string. On a plain GET the composer must be empty, or every visit to the feed
+    would offer a stale draft nobody asked to keep."""
+    author = world["author"]
+    assert isinstance(author, Member)
+    body = _client_for(author).get(reverse("feed")).content.decode()
+    start = body.index('name="body"')
+    textarea = body[start : body.index("</textarea>", start)]
+    assert textarea.endswith(">"), (
+        f"the composer came pre-filled on a plain feed open: {textarea!r}"
+    )

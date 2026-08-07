@@ -300,3 +300,61 @@ def test_a_bad_cadence_row_degrades_to_one_member_not_the_batch(world: World) ->
     DigestSubscription.objects.filter(member=world.admin).update(cadence="biweekly")
     due = digesting.due_recipients(timezone.now() + datetime.timedelta(days=40))
     assert {d.subscription.member.display_name for d in due} == {"Nana"}
+
+
+# --- the off switch that was not there (S-501) -----------------------------------------
+
+
+def test_a_member_can_turn_the_digest_off_from_their_own_settings_page(world: World) -> None:
+    """The settings page could turn the digest ON and never off.
+
+    It stated "Digest is on" as though that were a state the reader could change. The only
+    way to stop it was the unsubscribe link in the footer of a digest you had already
+    received — so somebody who had not confirmed their address, and therefore had never
+    received one, could not turn their subscription off at all.
+    """
+    client = _client_for(world.nana)
+    digesting.subscribe(world.nana, address="nana@example.test", cadence="weekly")
+    assert DigestSubscription.objects.get(member=world.nana).enabled
+
+    page = client.get(reverse("digest_settings")).content.decode()
+    assert "Turn the digest off" in page, "the settings page offers no way to turn it off"
+
+    response = client.post(reverse("digest_settings"), {"action": "turn_off"})
+
+    assert response.status_code == 200
+    assert not DigestSubscription.objects.get(member=world.nana).enabled
+    assert "Turn the digest back on" in response.content.decode()
+
+
+def test_turning_it_off_and_on_sends_nothing_and_keeps_the_confirmation(world: World) -> None:
+    """The on/off control touches neither the address nor the confirmation, so it needs
+    none of the outbound rate limiting the enrolment path carries — and turning it back on
+    must not demand a re-confirmation of an address already confirmed."""
+    client = _client_for(world.nana)
+    _subscribe_and_confirm(world.nana, address="nana@example.test")
+    confirmed_at = DigestSubscription.objects.get(member=world.nana).confirmed_at
+    assert confirmed_at is not None
+    mail.outbox.clear()
+
+    client.post(reverse("digest_settings"), {"action": "turn_off"})
+    client.post(reverse("digest_settings"), {"action": "turn_on"})
+
+    after = DigestSubscription.objects.get(member=world.nana)
+    assert after.enabled
+    assert after.confirmed_at == confirmed_at, "turning it back on demanded a re-confirmation"
+    assert after.address == "nana@example.test"
+    assert mail.outbox == [], "the on/off control sent an email"
+
+
+def test_the_off_switch_only_touches_the_email(world: World) -> None:
+    """Denominator, and the promise the button makes: "You stay in the family and keep every
+    pod." Unsubscribing is not leaving."""
+    client = _client_for(world.nana)
+    digesting.subscribe(world.nana, address="nana@example.test", cadence="weekly")
+    pods_before = set(world.nana.pods.values_list("id", flat=True))
+
+    client.post(reverse("digest_settings"), {"action": "turn_off"})
+
+    assert set(world.nana.pods.values_list("id", flat=True)) == pods_before
+    assert Member.objects.filter(pk=world.nana.pk).exists()

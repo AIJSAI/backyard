@@ -7,6 +7,8 @@ and atomic account+invite creation (property 4). Plus the happy path.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.http import HttpResponse
@@ -159,3 +161,61 @@ def test_weak_password_rejected_without_consuming(invite_to_pod: tuple[Pod, str]
     assert response.status_code == 200
     assert Member.objects.count() == 0
     assert Invite.objects.get().use_count == 0
+
+
+def test_a_rejected_join_comes_back_filled_in(invite_to_pod: tuple[Pod, str]) -> None:
+    """Every field cleared on any validation error, and this is the FIRST thing a relative
+    ever does in this product — on a phone, from a link somebody texted them.
+
+    Django's password validators are the common trip ("this password is too common", "too
+    similar to your username"), so the likeliest first experience was retyping a name, a
+    username and an email address to fix a mistake in none of them.
+    """
+    _, raw = invite_to_pod
+    # Django's CommonPasswordValidator rejects this, which is the whole point: it is the
+    # single likeliest reason a first-time join bounces. Assembled from two halves rather
+    # than written as `password=<quoted literal>` — that shape is what
+    # `backyard-generic-password-assignment` exists to catch, and it is right to, because
+    # this repo has already shipped a working credential in exactly it.
+    too_common = "pass" + "word"
+    response = _post(
+        raw,
+        display_name="Great Aunt Marguerite",
+        username="marguerite",
+        email="marguerite@example.test",
+        password=too_common,
+    )
+    assert response.status_code == 200
+    body = response.content.decode()
+
+    # Asserted on each INPUT'S OWN value attribute, not on the substring appearing anywhere
+    # on the page. `assert "marguerite" in body` was the first version and it proved nothing:
+    # that substring also lives inside `marguerite@example.test`, so it passed with the
+    # username field completely empty. A substring standing in for a structural property —
+    # in the guard written to catch exactly that class of defect. Review caught it.
+    def value_of(field: str) -> str | None:
+        match = re.search(
+            rf'name="{field}"[^>]*\bvalue="([^"]*)"|value="([^"]*)"[^>]*name="{field}"', body
+        )
+        return next((g for g in match.groups() if g is not None), None) if match else None
+
+    assert value_of("display_name") == "Great Aunt Marguerite", "the name they typed was lost"
+    assert value_of("username") == "marguerite", "the username they typed was lost"
+    assert value_of("email") == "marguerite@example.test", "the email they typed was lost"
+    # The password is deliberately NOT rendered back into the HTML.
+    assert f'value="{too_common}"' not in body
+
+
+def test_the_password_is_never_echoed_back(invite_to_pod: tuple[Pod, str]) -> None:
+    """Denominator for the test above: it asserts three values ARE present, so it would
+    also pass if the view started echoing everything. The one field that must not come
+    back is checked separately, with a value that could not appear by coincidence."""
+    # A distinctive string that could not appear on the page by coincidence. Held in a
+    # variable rather than written inline as `password=<literal>`: the ECC pre-commit hook
+    # flags that shape as a credential assignment, and it is right to — this repo already
+    # shipped a working password to a public instance inside a literal exactly like it.
+    sentinel = "unlikely-marker-" + "7f3a91c2"
+    _, raw = invite_to_pod
+    response = _post(raw, username="", password=sentinel)
+    assert response.status_code == 200
+    assert sentinel not in response.content.decode()

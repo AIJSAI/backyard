@@ -22,7 +22,7 @@ dependencies = [
 dev = [
   "django-stubs[compatible-mypy]>=5.2,<6",
   "mypy>=1.15,<2",
-  "pytest>=8.4,<9",
+  "pytest>=9.0.3,<10",
   "pytest-django>=4.11,<5",
   "pytest-playwright>=0.7,<1", # S-101 cross-browser mobile onboarding e2e (WebKit=iOS Safari, Chromium=Android Chrome)
   "ruff>=0.14,<1",
