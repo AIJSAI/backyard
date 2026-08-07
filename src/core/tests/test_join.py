@@ -7,6 +7,8 @@ and atomic account+invite creation (property 4). Plus the happy path.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.http import HttpResponse
@@ -185,9 +187,21 @@ def test_a_rejected_join_comes_back_filled_in(invite_to_pod: tuple[Pod, str]) ->
     )
     assert response.status_code == 200
     body = response.content.decode()
-    assert "Great Aunt Marguerite" in body, "the name they typed was thrown away"
-    assert "marguerite" in body, "the username they typed was thrown away"
-    assert "marguerite@example.test" in body, "the email they typed was thrown away"
+
+    # Asserted on each INPUT'S OWN value attribute, not on the substring appearing anywhere
+    # on the page. `assert "marguerite" in body` was the first version and it proved nothing:
+    # that substring also lives inside `marguerite@example.test`, so it passed with the
+    # username field completely empty. A substring standing in for a structural property —
+    # in the guard written to catch exactly that class of defect. Review caught it.
+    def value_of(field: str) -> str | None:
+        match = re.search(
+            rf'name="{field}"[^>]*\bvalue="([^"]*)"|value="([^"]*)"[^>]*name="{field}"', body
+        )
+        return next((g for g in match.groups() if g is not None), None) if match else None
+
+    assert value_of("display_name") == "Great Aunt Marguerite", "the name they typed was lost"
+    assert value_of("username") == "marguerite", "the username they typed was lost"
+    assert value_of("email") == "marguerite@example.test", "the email they typed was lost"
     # The password is deliberately NOT rendered back into the HTML.
     assert f'value="{too_common}"' not in body
 

@@ -169,7 +169,11 @@ def set_enabled(subscription: DigestSubscription, *, enabled: bool) -> DigestSub
     re-confirm: a confirmed address stays confirmed, which is the point of confirming it.
     """
     subscription.enabled = enabled
-    subscription.save(update_fields=["enabled"])
+    # `updated_at` is auto_now, and a partial save that omits it silently freezes the
+    # modified time — so a subscription turned off today would still read as last touched
+    # whenever it was created. `subscribe()` and `rotate_unsubscribe_token()` both include
+    # it in their partial saves; this is the odd one out. Review caught it.
+    subscription.save(update_fields=["enabled", "updated_at"])
     return subscription
 
 
