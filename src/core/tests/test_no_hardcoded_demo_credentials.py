@@ -262,9 +262,23 @@ def _synthetic_fixture_allowlist() -> list[str]:
     following = block.find("[[allowlists]]")
     if following != -1:
         block = block[:following]
-    opened = block.index("regexes = [")
-    body = block[opened : block.index("]", opened)]
-    return re.findall(r"'{3}(.*?)'{3}", body)
+
+    # `find` + assertions, not `index`. This helper exists to fail LOUDLY when the block
+    # changes shape, and a bare `ValueError: substring not found` is the opposite of that —
+    # it names neither the file nor what it was looking for. The same defect was fixed one
+    # PR earlier in `test_staged_upload_limits`, in a helper that also claimed to fail
+    # loudly, so this is the pattern rather than the instance.
+    opened = block.find("regexes = [")
+    assert opened != -1, (
+        "the synthetic-fixture allowlist block in .gitleaks.toml no longer has a "
+        f"`regexes = [` list. Block found, but it reads:\n{block[:400]}"
+    )
+    closed = block.find("]", opened)
+    assert closed != -1, (
+        "the `regexes = [` list in .gitleaks.toml's synthetic-fixture block is never closed, "
+        "so the config is malformed and gitleaks would refuse it too"
+    )
+    return re.findall(r"'{3}(.*?)'{3}", block[opened:closed])
 
 
 def test_the_burned_list_and_the_gitleaks_allowlist_do_not_drift() -> None:

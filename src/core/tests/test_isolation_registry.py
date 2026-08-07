@@ -201,7 +201,8 @@ def test_every_credential_bearing_route_is_covered_by_log_redaction() -> None:
 # at all would otherwise "prove" isolation by being broken, which is the exact shape of the
 # vacuous gates this repo keeps finding.
 
-_ProbeResult = tuple[int, int]
+# (reachable in the viewer's own yard, reachable across the boundary).
+_ProbeResult = tuple[bool, bool]
 
 
 def _probe_yard(viewer: Member, near: dict[str, Any], far: dict[str, Any]) -> _ProbeResult:
