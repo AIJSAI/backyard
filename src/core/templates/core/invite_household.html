@@ -23,14 +23,29 @@
     <label for="household_name">Household name</label>
     <input id="household_name" type="text" name="household_name" maxlength="100"
            placeholder="e.g. The Davis family" required>
-    <label for="yard_id">Which side of the family</label>
-    <select id="yard_id" name="yard_id" required>
+    {% comment %} Checkboxes, not a single `<select>`. A household in BOTH sides is the
+       bridging household — the case the isolation model is built around and the diagram
+       the README leads with ("yours, probably") — and until now no surface in the product
+       could create one. Every call site did `pod.yards.set([one_yard])`; the only
+       multi-yard assignment in the tree was a seed script, so `self-host.md`'s instruction
+       to "attach it to the yard(s) it belongs to" required a Django shell that is not
+       mounted. A multi-select would have worked too; checkboxes are chosen because the
+       person doing this is a relative, not an operator, and multi-select is the control
+       people most reliably get wrong on a phone. {% endcomment %}
+    <fieldset>
+      <legend>Which side of the family</legend>
+      <p class="muted">Tick both if this household belongs to both sides — they will see
+        both, and the two sides still never see each other.</p>
       {% for yard in yards %}
-        <option value="{{ yard.id }}">{{ yard.name }}</option>
+        <label class="inline-check">
+          <input type="checkbox" name="yard_ids" value="{{ yard.id }}"
+                 {% if yards|length == 1 %}checked{% endif %}>
+          {{ yard.name }}
+        </label>
       {% empty %}
-        <option disabled>No family sides you can invite into yet</option>
+        <p class="muted">No family sides you can invite into yet.</p>
       {% endfor %}
-    </select>
+    </fieldset>
     <button type="submit">Create the household and get the link</button>
   </form>
 {% endblock %}

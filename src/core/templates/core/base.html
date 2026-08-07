@@ -1166,12 +1166,32 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
       </a>
       {% if user.is_authenticated %}
         {% comment %} The whole nav inventory, in the header where people look for it.
-           Five links is not an app rail; it is a header. {% endcomment %}
+           This is a header, not an app rail.
+
+           `Members` is the entrance to the admin cluster, and its absence was the defect:
+           /members/ and the ten routes behind it — invite a household, add a grandparent,
+           create a side of the family, outstanding invites, elder links, set role — had
+           ZERO inbound links from anywhere a signed-in person already was. Every template
+           that links to `members` is itself inside the cluster, so it linked to itself and
+           to nothing else. A delegate could only reach it by being told the URL out of
+           band, while the delegate runbook said "Members → Invite a household" as though
+           it were a menu item.
+
+           `viewer_is_admin` comes from core/context_processors.py, which asks
+           permissions.is_admin() rather than comparing role strings here — the ladder
+           lives in one place and this is not it.
+
+           Sign out was missing entirely: there was no way to leave a session from any
+           surface in the product. {% endcomment %}
         <nav class="site-nav" aria-label="Backyard">
           <a href="{% url 'feed' %}"{% if request.resolver_match.url_name == 'feed' %} aria-current="page"{% endif %}>Feed</a>
           <a href="{% url 'pod_list' %}"{% if request.resolver_match.url_name == 'pod_list' %} aria-current="page"{% endif %}>Pods</a>
           <a href="{% url 'directory' %}"{% if request.resolver_match.url_name == 'directory' %} aria-current="page"{% endif %}>Directory</a>
           <a href="{% url 'profile_edit' %}"{% if request.resolver_match.url_name == 'profile_edit' %} aria-current="page"{% endif %}>Settings</a>
+          {% if viewer_is_admin %}
+            <a href="{% url 'members' %}"{% if request.resolver_match.url_name == 'members' %} aria-current="page"{% endif %}>Members</a>
+          {% endif %}
+          <a href="{% url 'account_logout' %}">Sign out</a>
         </nav>
       {% endif %}
     </div>
@@ -1206,6 +1226,20 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
          "Ask whoever in the family set this up" is intact, so the two tests in
          test_accessibility_modes.py still hold this sentence without being moved. {% endcomment %}
       <span class="help">Stuck? Ask whoever in the family set this up.</span>
+      {% comment %} AGPL section 13: a network user must be OFFERED the source. This app is
+         AGPL-3.0-or-later and told a remote user nothing at all — no licence, no repository,
+         nothing in any served page. The offer has to be in the running program, not only in
+         the repository, because the person owed it is the one using it over a network and may
+         never see the repository.
+
+         TEXT, not an anchor, matching the elder surface. This footer is asserted to carry no
+         links at all (test_accessibility_modes.py, WCAG 2.2 SC 3.2.6): the help affordance is
+         a sentence rather than a link, because a link to a help page that does not exist is
+         worse than none. A licence link is not that affordance — but loosening a WCAG
+         invariant so this line can be clickable would be trading a real guarantee for a
+         convenience, and section 13 asks that the source be OFFERED, not hyperlinked. {% endcomment %}
+      <span class="source">Backyard is free software (AGPL-3.0-or-later).
+        Source code: github.com/AIJSAI/backyard</span>
     </div>
   </footer>
   {% if user.is_authenticated %}

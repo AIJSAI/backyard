@@ -7,6 +7,45 @@ promise yet — the schema and the URLs may still move.
 **Install a tag, not `main`.** `main` is where the work happens and it changes daily; a tag is
 a point somebody deliberately stopped at, with a full green gate behind it.
 
+## [0.1.2] — 2026-08-06
+
+`v0.1.1` shipped before a week of edge and documentation fixes and could not be installed
+from its own README. Install this one.
+
+### Fixed
+
+- **The documented install failed on its third command.** `.env.example` named three
+  variables; the production overlay refuses to start without five. A stranger who ran the
+  README verbatim got `set BACKYARD_DOMAIN in .env` and no instance. `BACKYARD_DOMAIN` and
+  `ACME_EMAIL` are now in the file, with what each is for.
+- **The printed emergency recovery card could not be pasted.** Its restore command opened
+  `sh -c '` and never closed it — on the one page someone reads when the instance is
+  already gone.
+- **Seven documented container commands died before they started.** `docker compose exec`
+  gets the container's configured environment, which has never held `DJANGO_SECRET_KEY`, so
+  every documented `manage.py` invocation that did not read it from `/data/secret_key`
+  exited on the boot guard.
+
+### Security
+
+- Seven things the live edge handed an unauthenticated stranger: a fallback response that
+  skipped every security header while advertising the server, the static build manifest,
+  `Via: 1.1 Caddy` re-announcing what `-Server` had just removed, and no compression on any
+  response — worst on the elder page, the surface most likely to be read over a slow phone.
+- `WHITENOISE_ALLOW_ALL_ORIGINS` off; slowloris timeouts and a hard request-body ceiling at
+  the edge; an RFC 9116 `security.txt` served from Caddy so it stays reachable when the app
+  is down.
+- SPF, DMARC and CAA records, whose absence is only visible once abused.
+- `cryptography` moved off a version with a published CVE that this repo's own upper pin
+  had been blocking.
+
+### Changed
+
+- Three gates that could not fail were rewritten to fail: the runbook command check (a
+  substring standing in for "this command runs"), the documented-version check (which was
+  exempting every reference it was meant to compare), and the `.env.example` check (which
+  guarded a hand-maintained list nobody had added the two new variables to).
+
 ## [0.1.1] — 2026-08-05
 
 Everything here is a correction, not a feature. `v0.1.0` is **withdrawn**: install this one.
@@ -47,9 +86,10 @@ Everything here is a correction, not a feature. `v0.1.0` is **withdrawn**: insta
 - The demo family is fully invented; no real relative's name appears.
 - Fonts ship with their licence text (SIL OFL 1.1).
 
+[0.1.2]: https://github.com/AIJSAI/backyard/tree/v0.1.2
 [0.1.1]: https://github.com/AIJSAI/backyard/tree/v0.1.1
 
-## [0.1.0] — 2026-07-29
+## 0.1.0 — 2026-07-29 (withdrawn)
 
 The first fixed point. **Pre-release: it runs, and it has not been handed to a family yet.**
 The author's own QA walk ([`docs/runbooks/founder-qa.md`](docs/runbooks/founder-qa.md)) is the
@@ -118,4 +158,7 @@ gate, and it has not happened. Treat this as "reproducible enough to read and tr
 <!-- Points at the tag's tree rather than a Releases page: a bare annotated tag always renders
      here, whereas /releases/tag/ depends on a Release object existing, and publishing GHCR
      images and formal releases is still Phase 5 work. -->
-[0.1.0]: https://github.com/AIJSAI/backyard/tree/v0.1.0
+<!-- 0.1.0 deliberately has NO link. The tag was deleted when the release was withdrawn, so
+     /tree/v0.1.0 404s -- and repointing it at the commit the tag named would hand a reader a
+     working path to the tree the withdrawal exists to take away, burned credential and
+     cross-yard disclosure included. The notes below stay as history; the way in does not. -->

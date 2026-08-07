@@ -45,6 +45,14 @@ jobs:
       POSTGRES_PASSWORD: ci-not-a-secret
     steps:
       - uses: actions/checkout@v4
+        with:
+          # TAGS, or test_documented_version_resolves is decorative here. checkout does a
+          # shallow fetch without them, so `git tag --list` came back empty in CI and the
+          # guard hit its own skip -- it had NEVER run on a runner, only locally. A gate
+          # that silently skips is the failure mode this repo keeps finding in its own
+          # gates, and this time it was in a gate written to catch that class.
+          fetch-tags: true
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v5
         with:
           version: "0.11.6"

@@ -146,6 +146,11 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.messages.context_processors.messages",
                 "django.contrib.auth.context_processors.auth",
+                # Lets the site header offer the admin cluster to the people who can use
+                # it. Without it a template can reach `user.member.role` but not the ROLE
+                # LADDER, and comparing role strings in a template forks that ladder into
+                # a place the permission tests do not read. See core/context_processors.py.
+                "core.context_processors.viewer",
             ],
         },
     },
@@ -358,6 +363,12 @@ LOGIN_REDIRECT_URL = "feed"
 _HTTPS = BASE_URL.lower().startswith("https://")
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
+# Session lifetime is deliberately NOT changed globally here. The elder surface needs a long,
+# use-extended session (see core/elder_views.py); every other session keeps Django's two-week
+# default. An earlier version of this fix set SESSION_COOKIE_AGE and SESSION_SAVE_EVERY_REQUEST
+# at this level, which quietly gave every signed-in member — including an instance admin — a
+# six-month cookie, and put a session row write on every request in the product. That is a
+# security-posture change to fix a grandmother's bookmark, and review caught it.
 CSRF_COOKIE_SAMESITE = "Lax"
 X_FRAME_OPTIONS = "DENY"
 SECURE_CONTENT_TYPE_NOSNIFF = True
@@ -370,6 +381,15 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 # (TokenSurfaceHeadersMiddleware, serve_media); SecurityMiddleware's setdefault leaves those
 # overrides intact. Pinned explicitly, not left to the framework default (TS-EDGE-LOG / TM-5).
 SECURE_REFERRER_POLICY = "same-origin"
+
+# WhiteNoise sends `Access-Control-Allow-Origin: *` on every static asset by default, so it
+# can serve fonts to a different origin. Nothing here is cross-origin -- the fonts, CSS and
+# JS are all same-origin on the one domain this app serves -- so the wildcard was the single
+# hole in an otherwise strict same-origin posture, and it applied to every file WhiteNoise
+# handled. Verified on production before changing it: the header was present on the
+# Atkinson Hyperlegible woff2.
+WHITENOISE_ALLOW_ALL_ORIGINS = False
+
 CSRF_TRUSTED_ORIGINS = [BASE_URL]
 if _HTTPS:
     SESSION_COOKIE_SECURE = True
