@@ -146,6 +146,11 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.messages.context_processors.messages",
                 "django.contrib.auth.context_processors.auth",
+                # Lets the site header offer the admin cluster to the people who can use
+                # it. Without it a template can reach `user.member.role` but not the ROLE
+                # LADDER, and comparing role strings in a template forks that ladder into
+                # a place the permission tests do not read. See core/context_processors.py.
+                "core.context_processors.viewer",
             ],
         },
     },
@@ -358,6 +363,26 @@ LOGIN_REDIRECT_URL = "feed"
 _HTTPS = BASE_URL.lower().startswith("https://")
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
+# 180 days, and extended by use. Django's default is two weeks and is NOT extended by a
+# request that does not modify the session — which the elder feed never does.
+#
+# So on day 14 the grandmother's page stopped working, and told her the wrong thing. Her
+# elder token has `expires_at = None` and never expires; only the cookie died. `/e/` with no
+# session is the shared bare 404: "the link may have expired or been revoked." Her link was
+# fine. The fix was "open the link your family gave you again", and the copy said the
+# opposite — to the least technical person on the product, on the one surface that has no
+# other way in and no way to ask for help.
+#
+# Fixed HERE rather than in the message, deliberately. That 404 is byte-identical for
+# unknown, revoked and expired on purpose (S-202): making it explain itself would leak which
+# of the three it was. The cause is the two-week cookie, so the cookie is what changes.
+#
+# `SESSION_SAVE_EVERY_REQUEST` is what makes 180 days mean "180 days since she last looked"
+# rather than "180 days since the link was handed over". Cost is one session-row write per
+# request, which at family scale is nothing. Revocation is unaffected: it deletes the row
+# (T-SESS-1), and `_elder_member` re-checks `token_generation` on every click regardless.
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 180
+SESSION_SAVE_EVERY_REQUEST = True
 CSRF_COOKIE_SAMESITE = "Lax"
 X_FRAME_OPTIONS = "DENY"
 SECURE_CONTENT_TYPE_NOSNIFF = True

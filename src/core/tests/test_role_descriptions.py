@@ -24,7 +24,7 @@ import pathlib
 
 import pytest
 
-from core import permissions
+from core import permissions, pods
 from core.models import Member, Pod, PodMembership, Yard
 
 pytestmark = pytest.mark.django_db
@@ -53,14 +53,61 @@ def test_every_assignable_role_the_roster_offers_has_a_description() -> None:
         assert Member.ROLE_DESCRIPTIONS[role].strip(), f"{label}'s description is empty"
 
 
-def test_the_pod_owner_description_is_true_a_pod_owner_cannot_re_role_anyone(
-    side: Yard,
-) -> None:
-    """ "Cannot remove or re-role anyone" — exercised, not asserted about."""
-    assert "Cannot remove or re-role anyone" in Member.ROLE_DESCRIPTIONS[Member.POD_OWNER]
+def test_the_pod_owner_role_grants_exactly_what_a_plain_member_gets(side: Yard) -> None:
+    """`pod_owner` is a label, and the copy beside the control used to say otherwise.
+
+    This test used to exercise only the sentence's NEGATIVE clause — "Cannot remove or
+    re-role anyone" — which is why the two AFFIRMATIVE ones survived: the description
+    promised "Sets their household's house rule and invites people into it", and both were
+    refused in code. The module docstring sets a two-directional bar ("a description cannot
+    promise something the code refuses, **or deny something the code allows**"); the
+    yard_admin test below meets it on all three of its claims and this one did not.
+
+    The general form: exercise every clause a sentence makes, not the convenient one.
+    """
     owner = _member(side, Member.POD_OWNER, name="Pod Owner")
-    neighbour = _member(side, Member.MEMBER, name="Neighbour")
-    assert not permissions.can_manage_member(owner, neighbour)
+    plain = _member(side, Member.MEMBER, name="Neighbour")
+    household = owner.pods.get()
+
+    # Every predicate that takes a member, asked of both. Any divergence means the role
+    # has quietly grown a capability and the description needs to say so.
+    assert permissions.is_admin(owner) == permissions.is_admin(plain) is False
+    assert permissions.is_instance_admin(owner) == permissions.is_instance_admin(plain) is False
+    assert permissions.can_manage_member(owner, plain) == permissions.can_manage_member(
+        plain, owner
+    )
+    assert permissions.can_issue_invite(owner, household) == permissions.can_issue_invite(
+        plain, household
+    ), "pod_owner was granted invites; the ladder in permission-matrix.md says it is not"
+
+    # The two affirmative promises the old description made, exercised directly.
+    assert not permissions.can_issue_invite(owner, household), (
+        "the roster once told a delegate this role 'invites people into it'"
+    )
+    with pytest.raises(pods.PodActionNotAllowed):
+        pods.set_house_rule(actor=owner, pod=household, house_rule="be kind")
+
+    # And the description must not have grown the claim back.
+    text = Member.ROLE_DESCRIPTIONS[Member.POD_OWNER]
+    for false_promise in ("house rule and invites", "invites people into it"):
+        assert false_promise not in text, (
+            f"the pod_owner description promises {false_promise!r}, which the code refuses"
+        )
+
+
+def test_the_roster_no_longer_offers_a_role_that_does_nothing(side: Yard) -> None:
+    """An admin should not be able to appoint someone to a role with no effect.
+
+    `pod_owner` was in `_ASSIGNABLE_ROLES`, so the roster offered it — with a description
+    claiming two powers it does not confer — while `docs/retro/2026-07-22-phase-2-retro.md`
+    had already ruled "Activate `pod_owner`? **No.**"
+    """
+    from core.admin_views import _ASSIGNABLE_ROLES
+
+    assert Member.POD_OWNER not in _ASSIGNABLE_ROLES
+    # Denominator: the list still offers the roles that DO something, so the absence above
+    # is a deliberate removal rather than the constant having been emptied.
+    assert {Member.MEMBER, Member.YARD_ADMIN, Member.INSTANCE_ADMIN} <= set(_ASSIGNABLE_ROLES)
 
 
 def test_the_yard_admin_description_is_true_on_all_three_of_its_claims(side: Yard) -> None:
@@ -117,7 +164,12 @@ def test_the_descriptions_and_the_permission_matrix_have_not_drifted() -> None:
     # fail on a reflow and pass on a rewrite, which is exactly backwards.
     matrix = " ".join(_MATRIX.read_text().split())
     for phrase in (
-        "does not remove or re-role anyone",  # pod_owner
+        # pod_owner. Anchored on what the role IS rather than on the one thing it is
+        # not: the old anchor ("does not remove or re-role anyone") was the sentence's
+        # negative clause, so the matrix and the UI copy could both promise a house rule
+        # and invites — which neither the code nor reality granted — and stay green.
+        "grants nothing",
+        "pod.owner",
         "only within their own yards",  # yard_admin, own side
         "no privilege inversion",  # yard_admin, cannot touch an admin
         "requires the instance admin",  # yard_admin, cannot touch a bridging member

@@ -21,6 +21,7 @@ from __future__ import annotations
 from django.db.models import Prefetch
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from . import elder_tokens, reacting, scoping
@@ -132,7 +133,11 @@ def elder_react(request: HttpRequest, post_id: int) -> HttpResponse:
     member = _elder_member(request)
     post = scoping.require_visible_post(member, post_id)
     reacting.toggle_reaction(member=member, post=post, kind=Reaction.HEART)
-    return redirect("elder_feed")
+    # Back to the post she tapped, not to the top of the page. A bare redirect to the feed
+    # threw her to the first post every time, so on the fourth item down, sending love meant
+    # losing her place and scrolling back — with larger text, that is a lot of scrolling. The
+    # fragment costs nothing and keeps S-601 intact: it is still the elder feed's own URL.
+    return redirect(f"{reverse('elder_feed')}#post-{post.pk}")
 
 
 @require_POST

@@ -38,9 +38,15 @@ from .views import _unique_yard_slug
 # is promoted into, and unsupervising is a different, parent-scoped act. Authority is
 # still decided per (actor, target, role) by permissions.can_assign_role; this list only
 # bounds which roles the UI ever offers, so a role string outside it is never honored.
+#
+# POD_OWNER is deliberately absent too, and for a sharper reason: it grants NOTHING. No
+# authorization predicate in `permissions.py` reads it, so a member promoted to it is
+# permission-identical to a plain member — while the roster's own copy promised them a
+# house rule and invites. It is the role a delegate is most likely to hand out, and the
+# 2026-07-22 retro had already ruled "Activate pod_owner? No." The constant stays for rows
+# that already carry it; the roster stops offering an appointment that does nothing.
 _ASSIGNABLE_ROLES: tuple[str, ...] = (
     Member.MEMBER,
-    Member.POD_OWNER,
     Member.YARD_ADMIN,
     Member.INSTANCE_ADMIN,
 )
@@ -70,6 +76,10 @@ class RosterRow:
     member: Member
     manageable: bool
     assignable_roles: list[tuple[str, str]]
+    # Separate from `manageable` on purpose: `can_edit_profile_of` is a narrower question
+    # than `can_manage_member` and answers it differently — a yard admin may manage a
+    # member's role without being allowed to rewrite their birthday and phone number.
+    can_edit_profile: bool = False
 
 
 @login_required
@@ -94,7 +104,20 @@ def members(request: HttpRequest) -> HttpResponse:
             if manageable and not member.is_supervised
             else []
         )
-        rows.append(RosterRow(member=member, manageable=manageable, assignable_roles=assignable))
+        rows.append(
+            RosterRow(
+                member=member,
+                manageable=manageable,
+                assignable_roles=assignable,
+                # S-901's third path — an admin fixing a name that was typed wrong at
+                # invite time, or filling in an elder's details for her, since she has no
+                # login by design (TM-10). The route existed and the only `{% url %}`
+                # reference to it in the tree was its own form action, so nobody could open
+                # it. `can_edit_profile_of` is deliberately NOT `can_manage_member`: it is
+                # a narrower question and has its own answer.
+                can_edit_profile=permissions.can_edit_profile_of(actor, member),
+            )
+        )
     return render(
         request,
         "core/members.html",
@@ -103,6 +126,12 @@ def members(request: HttpRequest) -> HttpResponse:
             "actor": actor,
             "rows": rows,
             "can_create_yard": permissions.is_instance_admin(actor),
+            # The households a supervised child can be placed in. `create_supervised` is
+            # POST-only and 404s on GET, and NO template posted to it — so S-703 shipped as
+            # an endpoint with no way to reach it, and a child account could not be created
+            # from anywhere in the product.
+            "assignable_pods": scoping.visible_pods(actor).order_by("name"),
+            "is_instance_admin": permissions.is_instance_admin(actor),
             # S-907: what each role actually permits, beside the control that grants
             # it. Only the roles this roster can hand out — listing "supervised" here
             # would describe something the Set role control cannot produce.
@@ -308,19 +337,35 @@ def invite_household(request: HttpRequest) -> HttpResponse:
         # An instance admin may resolve any existing yard; a yard admin only one they are
         # in (require_visible_yard 404s otherwise). The in-transaction can_issue_invite
         # check below is the authoritative gate either way.
-        yard_id = handover.int_or_404(request.POST.get("yard_id", ""))
-        yard = (
+        # A LIST, because a household can belong to more than one side — that is the
+        # bridging household, the case the whole isolation model is built around and the
+        # flagship diagram in docs/README.md ("yours, probably"). Until now every call site
+        # in the product did `pod.yards.set([one_yard])`, the form was a single `<select>`,
+        # and the ONLY multi-yard assignment anywhere in the tree was a seed script — so
+        # `self-host.md` step 2 told an operator to "attach it to the yard(s) it belongs
+        # to" and no surface could do it. It required a Django shell, and Django admin is
+        # not mounted.
+        #
+        # No new authorization logic: each yard goes through the same resolution as before,
+        # and `can_issue_invite` below already handles the multi-yard case correctly
+        # (`pod_yards <= member_yard_ids`), so a yard admin is automatically refused a
+        # bridge that spans outside their own side.
+        yard_ids = [handover.int_or_404(raw) for raw in request.POST.getlist("yard_ids")]
+        yards = [
             get_object_or_404(Yard, pk=yard_id)
             if permissions.is_instance_admin(actor)
             else scoping.require_visible_yard(actor, yard_id)
-        )
+            for yard_id in yard_ids
+        ]
         name = request.POST.get("household_name", "").strip()
         if not name or len(name) > 100:
             errors.append("Give the household a name.")
+        elif not yards:
+            errors.append("Pick at least one side of the family.")
         else:
             with transaction.atomic():
                 pod = Pod.objects.create(name=name, kind=Pod.HOUSEHOLD)
-                pod.yards.set([yard])
+                pod.yards.set(yards)
                 # Defense in depth: the pod sits in a yard the actor picked through
                 # require_visible_yard, so can_issue_invite passes for an in-scope
                 # yard admin; anything else is refused before a token is minted.
@@ -331,7 +376,9 @@ def invite_household(request: HttpRequest) -> HttpResponse:
             context.update(
                 {
                     "household_name": name,
-                    "yard_name": yard.name,
+                    # Plural now: a bridging household names both sides, and the confirm
+                    # page has to say so or the operator cannot tell what they just made.
+                    "yard_name": " and ".join(sorted(y.name for y in yards)),
                     "expires_at": invite.expires_at,
                     "max_uses": invite.max_uses,
                 }

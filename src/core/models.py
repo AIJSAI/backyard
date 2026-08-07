@@ -127,9 +127,20 @@ class Member(models.Model):
     # drift apart silently).
     ROLE_DESCRIPTIONS = {
         MEMBER: "Posts and replies. No say over anyone else.",
+        # Both affirmative halves of this sentence used to be false, in the copy shown
+        # beside the control that grants the role. It said "Sets their household's house
+        # rule and invites people into it" — `pods.set_house_rule` raises "A household pod
+        # has no house rule", and `permissions.can_issue_invite` returns False for this
+        # role. NO authorization predicate anywhere reads it.
+        #
+        # The capability people mean by "pod owner" is real, but it is the `Pod.owner`
+        # FOREIGN KEY on an AD-HOC pod, held by whoever created it — any plain member. The
+        # ROLE is a label. `docs/retro/2026-07-22-phase-2-retro.md` already ruled "Activate
+        # pod_owner? No", and it is no longer offered by the roster; the constant stays for
+        # the rows that already carry it.
         POD_OWNER: (
-            "Sets their household's house rule and invites people into it. "
-            "Cannot remove or re-role anyone."
+            "The same as a member. Setting a house rule and adding people comes from "
+            "creating an ad-hoc group, not from this label."
         ),
         YARD_ADMIN: (
             "Manages members, but only on their own side of the family. "
