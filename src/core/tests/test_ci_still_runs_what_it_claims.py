@@ -53,6 +53,11 @@ _LOAD_BEARING = {
         "goes, nothing anywhere runs the tests that drive a real browser"
     ),
     "manage.py check --deploy": "the production-posture check (TS-DJ-10)",
+    "scripts/check_signoff.py": (
+        "the DCO check on the commits a PR adds. CONTRIBUTING promises every commit is "
+        "signed off, and 85 of the first 154 were not — the rule existed in prose and "
+        "nowhere else"
+    ),
     "scripts/check_compose_overlay.py": (
         "the guard on the gap between the stack CI boots and the stack README tells a "
         "stranger to boot. CI runs the BASE compose file; the install command uses the prod "
