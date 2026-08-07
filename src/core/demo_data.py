@@ -339,7 +339,13 @@ def wipe(marker: str = SEED_MARKER) -> Counter[str]:
         # A launch-day wipe on a live instance is precisely when somebody else may be
         # posting, so this window is not theoretical.
         for model in _MARKED_MODELS:
-            list(model.objects.select_for_update().filter(seeded_by=marker).values_list("pk"))
+            # `flat=True`: the rows exist only to take the locks, so building 1-tuples is
+            # work with no reader.
+            list(
+                model.objects.select_for_update()
+                .filter(seeded_by=marker)
+                .values_list("pk", flat=True)
+            )
         collected = _collect(marker)
         _refuse_if_it_reaches_real_data(collected, marker)
         _refuse_if_it_strands_anyone(collected, marker)
