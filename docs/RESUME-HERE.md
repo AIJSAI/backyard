@@ -21,16 +21,18 @@ been wrong before, in this exact header, about exactly the kind of claim it make
 
 | | |
 |---|---|
-| `main` | 32 commits past `v0.1.1` |
+| `main` | 33 commits past `v0.1.1` — the same quantity as the row below, counted the other way. If they ever disagree, one of them has drifted |
 | **`v0.1.2` is NOT cut** | `git tag --list` shows only `v0.1.1`. README, `self-host.md` and CHANGELOG all name `v0.1.2` |
-| open PR | **#161** — lint the gate scripts. All 5 checks green, threads resolved, on the merge train |
-| everything else | merged: #129, #140–#141, #144–#160 |
+| open PR | **#162** — this handoff. #161 merged 2026-08-07 |
+| this release | **33 PRs**: `#127`–`#161`, except `#138` and `#142` (CLOSED unmerged, superseded by `#139` and `#143`). Re-derive rather than trusting this row: `git log --oneline v0.1.1..origin/main \| grep -oE '\(#[0-9]+\)$'` |
 
-**The next two commands, in order**, once #161 merges:
+**The next two commands, in order**, once #162 merges:
 
 ```bash
 cd ~/projects/backyard && git checkout main && git pull
-# 1. Full gate on the exact tree being tagged. Read it; do not chain with && and assume.
+# 1. Full gate on the exact tree being tagged. READ each result — chaining with && and
+#    reading the tail as evidence about the head is how "lint ok" got reported over nine
+#    lint findings. Check `ps aux | grep pytest` is empty first (shared test database).
 uv run ruff check src scripts && uv run ruff format --check src scripts
 uv run mypy src && uv run pytest -q && uv run pytest -q -m e2e && make gates
 # 2. Tag
@@ -85,6 +87,21 @@ The defects that would have reached the family, each measured not reasoned:
    delegate.
 
 ### Traps this session paid for
+
+* **The local test lane needs Docker running.** Postgres is the `backyard-testdb`
+  container; with the daemon down, `pytest` returns hundreds of errors whose first line is
+  `connection to server at "127.0.0.1", port 5432 failed: Connection refused`. Read that
+  line before diagnosing — on 2026-08-07 I read a wall of `ProgrammingError` and concluded
+  the test database was missing, when the daemon was simply not running. **CI is the
+  authority when local cannot run**: `gh run list --branch main --limit 1` then
+  `gh run view <id> --json jobs`.
+* **The local pytest lane shares ONE database.** `uv run pytest -q` uses `test_backyard` on
+  the shared `backyard-testdb` container, so a second process running pytest in this checkout
+  — another session, or your own fanned-out subagents — drops it mid-run. Measured: three
+  consecutive false reds (`column "seeded_by" ... does not exist`, `DeadlockDetected`,
+  `AdminShutdown: terminating connection due to administrator command`) on a tree that was
+  green. Before believing a red, run `ps aux | grep pytest`; to run concurrently, give each
+  its own `POSTGRES_DB=<unique>`.
 
 * **`git checkout -- <file>` discards uncommitted work.** It destroyed a template edit
   mid-probe. Back probes up to the scratchpad and restore from there.
