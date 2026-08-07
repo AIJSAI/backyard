@@ -381,7 +381,7 @@ def wipe(marker: str = SEED_MARKER) -> Counter[str]:
         # there are none left to report — and the preview, which reads the closure, promised
         # them. Measured on a live rehearsal: dry run said `4 core.MediaAsset`, the receipt
         # listed none at all.
-        removed["core.MediaAsset"] = len(collected.get(MediaAsset, []))
+        removed[MediaAsset._meta.label] = len(collected.get(MediaAsset, []))
         removed["files"] = _files_behind(collected)
         _purge_media_files(collected)
 

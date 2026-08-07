@@ -595,17 +595,32 @@ def test_the_preview_counts_the_rows_the_receipt_reports(
     receipt = {key: value for key, value in after.items() if key.startswith("core.")}
     promised = {key: value for key, value in before.items() if key.startswith("core.")}
 
-    unannounced = {k: v for k, v in receipt.items() if promised.get(k, 0) != v}
-    assert not unannounced, (
-        "the wipe deleted rows the preview did not mention, so the operator confirmed a "
-        f"blast radius they were never shown: {unannounced}\npreview: {promised}\n"
-        f"receipt: {receipt}"
+    # Three distinct failures, reported as themselves. A single "the preview did not mention
+    # these" message also fired on COUNT mismatches for models the preview named perfectly
+    # well, sending whoever hit it to look for a missing model that was never missing.
+    extra = sorted(set(receipt) - set(promised))
+    absent = sorted(set(promised) - set(receipt))
+    disagree = sorted(
+        f"{k}: preview {promised[k]}, receipt {receipt[k]}"
+        for k in set(promised) & set(receipt)
+        if promised[k] != receipt[k]
     )
-    unreported = {k: v for k, v in promised.items() if receipt.get(k, 0) != v}
-    assert not unreported, (
-        "the preview promised rows the receipt never accounts for, so the operator cannot "
-        f"tell whether they went: {unreported}\npreview: {promised}\nreceipt: {receipt}"
-    )
+
+    problems = []
+    if extra:
+        problems.append(
+            f"the receipt lists models the preview never mentioned, so the operator "
+            f"confirmed a blast radius they were not shown: {extra}"
+        )
+    if absent:
+        problems.append(
+            f"the preview promised models the receipt never accounts for, so the operator "
+            f"cannot tell whether they went: {absent}"
+        )
+    if disagree:
+        problems.append(f"preview and receipt disagree on counts: {disagree}")
+
+    assert not problems, "\n".join(problems) + f"\n\npreview: {promised}\nreceipt: {receipt}"
 
 
 @pytest.mark.django_db(transaction=True)
