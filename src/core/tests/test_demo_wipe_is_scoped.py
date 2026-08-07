@@ -17,6 +17,7 @@ from __future__ import annotations
 import io
 from dataclasses import dataclass
 from datetime import timedelta
+from typing import Any
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -24,6 +25,7 @@ from django.contrib.auth.models import User as AuthUser
 from django.contrib.sessions.models import Session
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import connection
 from django.utils import timezone
 from PIL import Image
 
@@ -508,3 +510,176 @@ def test_a_real_household_left_with_no_yard_stops_the_wipe() -> None:
     from core import scoping
 
     assert scoping.member_yard_ids(reed), "the Reed was stranded despite the refusal"
+
+
+@pytest.mark.django_db
+def test_a_reaction_by_someone_real_stops_the_wipe(two_families: dict[str, Family]) -> None:
+    """The half of the previous test that could not fire, because Django never built the rows.
+
+    `Collector` splits deletion in two: rows it instantiates into `.data`, and rows it
+    removes with one bulk statement — `fast_deletes` — which never appear in `.data` at all.
+    `_collect` read only `.data`, so `Reaction`, `PodMembership`, `PodMute`, `LinkPreview`,
+    `ReplyAddress`, `PodWeekMetrics` and both m2m through-tables were invisible to the
+    preview AND to the refusal above it.
+
+    So the fix for "real content inside a fixture pod" covered posts and comments and left
+    reactions exactly as they were. Measured before this fix, with the real relative safely
+    in their own household so nothing else could fire:
+
+        preview() returned, NO refusal: {Yard: 1, Pod: 1, Post: 1, Member: 1}
+        Reaction counted in preview: False
+        wipe() receipt: {core.Reaction: 1, ...}
+        real person's reactions AFTER: 0
+
+    The dry run did not mention it, the guard could not see it, and the receipt afterwards
+    listed the row it had just destroyed.
+
+    A reaction is small, and that is the point: it is somebody saying they saw their
+    grandchild's photograph, and it is the cheapest thing in the schema to lose silently.
+    """
+    real = two_families["real"]
+    demo = two_families["demo"]
+    PodMembership.objects.create(member=real.author, pod=demo.pod)
+    demo_post = Post.objects.create(author=demo.author, pod=demo.pod, body="the fixture post")
+    Reaction.objects.create(post=demo_post, member=real.author, kind="love")
+
+    preview_failed = False
+    try:
+        demo_data.preview(MARKER)
+    except demo_data.DemoDataError:
+        preview_failed = True
+    assert preview_failed, "preview must refuse too — a dry run that says OK is the receipt"
+
+    with pytest.raises(demo_data.DemoDataError, match="reaction written by someone real"):
+        demo_data.wipe(MARKER)
+
+    assert Reaction.objects.filter(member=real.author).exists(), "it deleted despite refusing"
+
+
+@pytest.mark.django_db
+def test_the_preview_counts_the_rows_the_receipt_reports(
+    two_families: dict[str, Family],
+) -> None:
+    """A dry run the operator is told to read must agree with what the wipe then reports.
+
+    `preview` counted `collector.data` only, so it under-reported by exactly the fast-deleted
+    models — and the operator reads the preview to decide whether to type `--yes`. A number
+    that is quietly too small is worse than no number: it invites the confirmation.
+    """
+    demo = two_families["demo"]
+    demo_post = Post.objects.create(author=demo.author, pod=demo.pod, body="x")
+    Reaction.objects.create(post=demo_post, member=demo.author, kind="love")
+
+    before = demo_data.preview(MARKER)
+    after = demo_data.wipe(MARKER)
+
+    # The receipt carries rows the preview cannot know about (files, sessions, auth users are
+    # counted separately), so compare the MODEL rows both claim to describe.
+    model_rows = {key: value for key, value in after.items() if key.startswith("core.")}
+    missing = {label: count for label, count in model_rows.items() if before.get(label, 0) != count}
+    assert not missing, (
+        "the wipe deleted rows the preview did not mention, so the operator confirmed a "
+        f"blast radius they were never shown: {missing}\npreview: {dict(before)}\n"
+        f"receipt: {dict(model_rows)}"
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_the_closure_is_computed_inside_the_transaction_that_deletes_it(
+    two_families: dict[str, Family],
+) -> None:
+    """What was inspected and what gets deleted must be one read, not two.
+
+    `wipe()` used to collect the closure, run both refusals against it, and then delete with
+    a FRESH `filter(seeded_by=marker)` query. Anything created in the window between them
+    was destroyed having been checked by nothing.
+
+    For a photo that is not merely an accounting gap: `_purge_media_files` works from the
+    collected list, so a MediaAsset created inside the window had its row deleted and its
+    FILE left on `/data/media` forever — unreachable, unpurgeable and invisible to every
+    audit, which is precisely the leak `_purge_media_files` exists to prevent.
+
+    A launch-day wipe runs on a live instance while other people may be posting, so the
+    window is not theoretical. It cannot be reproduced deterministically in a single-threaded
+    test, so what is asserted here is the property that closes it: the collection happens
+    inside the atomic block, with the marked roots locked FOR UPDATE.
+    """
+    seen: list[bool] = []
+    real_collect = demo_data._collect
+
+    def watching(marker: str) -> dict[Any, list[Any]]:
+        seen.append(connection.in_atomic_block)
+        return real_collect(marker)
+
+    demo_data._collect = watching
+    try:
+        demo_data.wipe(MARKER)
+    finally:
+        demo_data._collect = real_collect
+
+    assert seen, "the wipe never collected anything; this test proves nothing"
+    assert all(seen), (
+        "wipe() computed its closure OUTSIDE the transaction that deletes it, so the rows "
+        "the refusals inspected are not the rows that get removed"
+    )
+
+
+def _run_seed() -> None:
+    from pathlib import Path
+
+    seed = Path(__file__).resolve().parents[3] / "scripts" / "demo_seed.py"
+    namespace: dict[str, object] = {"__name__": "__demo_seed__", "__file__": str(seed)}
+    exec(compile(seed.read_text(), str(seed), "exec"), namespace)  # noqa: S102
+
+
+@pytest.mark.django_db(transaction=True)
+def test_the_seed_attaches_to_the_existing_superuser_and_mints_no_admin() -> None:
+    """On somebody else's instance, the seed must not create an administrator.
+
+    It selected the operator by the literal username `james`, which had two edges — the same
+    two the old wipe had when it deleted auth accounts called "sam" and "dave":
+
+    * no such user, so the seed CREATED one, gave it INSTANCE_ADMIN, left it unmarked so no
+      wipe would ever remove it, and printed its password on the last line. A permanent
+      admin account with a published credential on a stranger's family instance.
+    * such a user exists but is an ordinary relative called James, who gets promoted.
+
+    A name is not an identity. The operator is now whoever holds `is_superuser`.
+    """
+    operator = User.objects.create_superuser(username="wren")
+    operator.set_password("not-a-secret-" + "placeholder-for-this-test")
+    operator.save(update_fields=["password"])
+    before = operator.password
+
+    # A relative who happens to share the founder's name, and is nobody special.
+    namesake = User.objects.create_user(username="james")
+    namesake_member = Member.objects.create(display_name="James (a cousin)", user=namesake)
+
+    _run_seed()
+
+    admins = list(Member.objects.filter(role=Member.INSTANCE_ADMIN))
+    assert [member.user_id for member in admins] == [operator.pk], (
+        "the seed made somebody other than this instance's superuser an instance admin: "
+        f"{[(m.display_name, m.user and m.user.username) for m in admins]}"
+    )
+    namesake_member.refresh_from_db()
+    assert namesake_member.role == Member.MEMBER, (
+        "a relative was promoted to instance admin because of their first name"
+    )
+    operator.refresh_from_db()
+    assert operator.password == before, "the seed reset the operator's password"
+    assert not User.objects.filter(is_superuser=True).exclude(pk=operator.pk).exists(), (
+        "the seed created a second superuser"
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_the_seed_refuses_a_populated_instance_that_has_no_superuser() -> None:
+    """Fail closed. A database with people in it and no superuser is not a drill box, and
+    minting an admin there is the exact outcome this must never produce."""
+    User.objects.create_user(username="a-relative")
+
+    with pytest.raises(SystemExit, match="no superuser"):
+        _run_seed()
+
+    assert not User.objects.filter(is_superuser=True).exists(), "it minted one anyway"

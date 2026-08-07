@@ -303,14 +303,54 @@ def test_the_domain_lookup_is_registered_on_the_worker_not_the_edge() -> None:
     assert hasattr(tasks, "refresh_domain_status_task")
     assert hasattr(tasks, "send_health_email_task")
     import inspect
+    import pathlib
 
     from core import domain_expiry
 
-    web_modules = ("feed_views", "admin_views", "digest_views", "elder_views", "views")
+    # Enumerated from disk, not hardcoded. The list was
+    # ("feed_views", "admin_views", "digest_views", "elder_views", "views") — five of the
+    # eleven view modules in `core`, so `digesting_views`, `media_views`, `pod_views`,
+    # `profile_views`, `provisioning_views` and `pwa_views` could each have grown an outbound
+    # RDAP lookup on the edge-facing web process with nothing to notice. A hardcoded
+    # enumeration presented as a rule only ever covers what somebody remembered to add.
+    #
+    # Measured before widening: all eleven pass today, so this closes a gap rather than
+    # papering over one.
+    root = pathlib.Path(__file__).resolve().parents[1]
+    web_modules = sorted(path.stem for path in root.glob("*views*.py"))
+
+    # The denominator is DERIVED, not remembered. A floor of `>= 8` let three of the eleven
+    # modules go missing silently; a floor of `>= 11` is the same defect rotting the other
+    # way, because the number stops matching the directory the moment anyone adds or splits
+    # a module, and the fix for a failing magic number is always to edit the number.
+    #
+    # So: enumerate a second time by a different mechanism and require agreement. The
+    # realistic breakage is a mistyped pattern — `*_views.py` silently drops `views.py`,
+    # which is the largest module of the eleven — and that is exactly what this catches.
+    by_listing = sorted(
+        path.stem
+        for path in root.iterdir()
+        if path.is_file() and path.suffix == ".py" and "views" in path.name
+    )
+    assert web_modules == by_listing, (
+        f"the glob and a plain directory listing disagree about what the view modules are.\n"
+        f"  glob   `*views*.py`: {web_modules}\n"
+        f"  listing            : {by_listing}\n"
+        "Whichever is wrong, this check is no longer inspecting every edge-facing module."
+    )
+    # Both enumerations agreeing on nothing would satisfy the line above, so pin the root
+    # with two modules whose absence would mean the product itself is gone.
+    assert {"views", "feed_views"} <= set(web_modules), (
+        f"{root} does not look like the core package — found {web_modules}. Both "
+        "enumerations would agree on an empty set, so this anchors them to a real directory."
+    )
     for name in web_modules:
         module = __import__(f"core.{name}", fromlist=["x"])
         source = inspect.getsource(module)
-        assert "domain_expiry" not in source, f"the outbound lookup reached core.{name}"
+        assert "domain_expiry" not in source, (
+            f"the outbound lookup reached core.{name}. The RDAP fetch is SSRF-sensitive and "
+            "belongs on the worker (S-725, TS-CO-4), never on the edge-facing web process."
+        )
     assert domain_expiry.fetch_expiry.__module__ == "core.domain_expiry"
 
 
