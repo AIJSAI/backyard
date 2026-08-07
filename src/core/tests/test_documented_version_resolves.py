@@ -49,7 +49,17 @@ _ROOT = Path(__file__).resolve().parents[3]
 
 # The documents a person reads to decide what to install. If a version appears here it is an
 # instruction, not a record.
-_READER_FACING = ("README.md", "SECURITY.md", "CONTRIBUTING.md", "CHANGELOG.md")
+_READER_FACING = (
+    "README.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "CHANGELOG.md",
+    # The install guide, and the most actionable document of the five: it is the one that
+    # says `git clone --branch <tag>`. It was outside this list while carrying two hardcoded
+    # tags, so the file that tells a stranger exactly what to type was the only one nothing
+    # checked. Paths are repo-relative, not bare names, so a document anywhere can be guarded.
+    "docs/runbooks/self-host.md",
+)
 
 # ACTIONABLE references only: a command a reader runs, or a URL they click. A bare mention
 # is not one, and conflating the two is what the first version of this check did -- it failed
@@ -104,11 +114,34 @@ def _release_in_flight(tags: set[str]) -> str | None:
     longer in flight, so once the tag exists there is nothing left to excuse.
     """
     for line in (_ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines():
-        found = re.match(r"^## \[(\d+\.\d+\.\d+)\]", line.strip())
+        stripped = line.strip()
+        found = re.match(r"^## \[(\d+\.\d+\.\d+)\]", stripped)
         if found:
             version = f"v{found.group(1)}"
-            return None if version in tags else version
+            if version in tags:
+                return None
+            # "Not tagged" has two causes and only one of them is in flight. A WITHDRAWN
+            # release also has no tag — `v0.1.0`'s was deleted when it was withdrawn — and
+            # treating that as in-flight would exempt, forever, the exact version this file
+            # exists to stop a stranger installing.
+            #
+            # The CHANGELOG already distinguishes them: a live entry is a bracketed heading
+            # with a link at the foot of the file, a withdrawn one loses both and says so.
+            # `test_a_withdrawn_release_keeps_the_shape_that_marks_it` makes that a rule
+            # rather than a habit, because this function reads it as one.
+            if _is_withdrawn(f"{found.group(1)}"):
+                return None
+            return version
     return None
+
+
+def _is_withdrawn(version: str) -> bool:
+    """Does the CHANGELOG say this version was withdrawn?"""
+    body = (_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    return (
+        re.search(rf"^##\s*\[?{re.escape(version)}\]?.*\(withdrawn\)", body, re.M | re.I)
+        is not None
+    )
 
 
 def test_the_reader_facing_documents_actually_name_a_version() -> None:
@@ -243,4 +276,43 @@ def test_every_version_a_document_tells_you_to_install_exists(document: str) -> 
         f"Existing tags: {sorted(tags)}. A reader following that instruction gets "
         "'Remote branch not found'. If a version was withdrawn, update the document in the "
         "same commit that deletes the tag."
+    )
+
+
+def test_a_withdrawn_release_keeps_the_shape_that_marks_it() -> None:
+    """`_release_in_flight` reads this convention, so it has to be a rule.
+
+    "Not tagged" has two causes: the release is mid-flight (documents updated, tag not cut
+    yet — legitimate, and the reason the exemption exists), or the release was WITHDRAWN and
+    its tag deleted. `v0.1.0` is the second. Treating it as the first would exempt, forever,
+    the exact version this file exists to stop a stranger installing.
+
+    The CHANGELOG distinguishes them by shape: a live entry is a bracketed heading with a
+    link reference at the foot of the file; a withdrawn one has neither and says
+    `(withdrawn)` in the heading. That was a habit maintained by hand. Since a function now
+    depends on it, it is asserted.
+    """
+    body = (_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    headings = re.findall(r"^##\s+(.+)$", body, re.M)
+    withdrawn = [h for h in headings if "(withdrawn)" in h.casefold()]
+    assert withdrawn, (
+        "no withdrawn release in the CHANGELOG, so this check is measuring nothing. If the "
+        "last withdrawal was genuinely removed from history, delete this test with it — but "
+        "`_release_in_flight` depends on the convention, so read that first."
+    )
+    for heading in withdrawn:
+        assert "[" not in heading, (
+            f"the withdrawn release heading `## {heading}` is BRACKETED. A bracketed heading "
+            "is how `_release_in_flight` recognises a live release, so this one would be "
+            "read as in-flight and exempted from every version check — permanently "
+            "recommending the release the heading says not to install."
+        )
+
+    # And the other half: the newest live entry must be bracketed, or nothing is ever
+    # exempt and a real in-flight release fails the build.
+    live = [h for h in headings if "(withdrawn)" not in h.casefold()]
+    assert live and live[0].startswith("["), (
+        f"the newest CHANGELOG entry `## {live[0] if live else '(none)'}` is not bracketed, "
+        "so `_release_in_flight` sees no release in flight and the documents cannot name a "
+        "version between merging the release notes and cutting the tag"
     )
