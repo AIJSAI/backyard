@@ -303,14 +303,32 @@ def test_the_domain_lookup_is_registered_on_the_worker_not_the_edge() -> None:
     assert hasattr(tasks, "refresh_domain_status_task")
     assert hasattr(tasks, "send_health_email_task")
     import inspect
+    import pathlib
 
     from core import domain_expiry
 
-    web_modules = ("feed_views", "admin_views", "digest_views", "elder_views", "views")
+    # Enumerated from disk, not hardcoded. The list was
+    # ("feed_views", "admin_views", "digest_views", "elder_views", "views") — five of the
+    # eleven view modules in `core`, so `digesting_views`, `media_views`, `pod_views`,
+    # `profile_views`, `provisioning_views` and `pwa_views` could each have grown an outbound
+    # RDAP lookup on the edge-facing web process with nothing to notice. A hardcoded
+    # enumeration presented as a rule only ever covers what somebody remembered to add.
+    #
+    # Measured before widening: all eleven pass today, so this closes a gap rather than
+    # papering over one.
+    root = pathlib.Path(__file__).resolve().parents[1]
+    web_modules = sorted(path.stem for path in root.glob("*views*.py"))
+    assert len(web_modules) >= 8, (
+        f"only {len(web_modules)} view modules found in {root}; the glob is wrong and this "
+        "check is inspecting almost nothing"
+    )
     for name in web_modules:
         module = __import__(f"core.{name}", fromlist=["x"])
         source = inspect.getsource(module)
-        assert "domain_expiry" not in source, f"the outbound lookup reached core.{name}"
+        assert "domain_expiry" not in source, (
+            f"the outbound lookup reached core.{name}. The RDAP fetch is SSRF-sensitive and "
+            "belongs on the worker (S-725, TS-CO-4), never on the edge-facing web process."
+        )
     assert domain_expiry.fetch_expiry.__module__ == "core.domain_expiry"
 
 

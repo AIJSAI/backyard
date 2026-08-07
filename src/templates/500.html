@@ -23,6 +23,13 @@
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.4 L20.6 10.8 V20.6 H3.4 V10.8 Z M9.7 20.6 V14.8 A2.3 2.3 0 0 1 14.3 14.8 V20.6 Z" fill="currentColor"/></svg>
     <h1>Something went wrong on our side</h1>
     <p>Your family&rsquo;s Backyard hit an error. Nothing you did — try again in a minute, and tell whoever runs your instance if it keeps up.</p>
+    <!-- The AGPL section 13 source offer. This page is STANDALONE — it does not extend
+         base.html, because Django renders it when the app is broken enough that a template
+         inheriting from anything may not render at all — so it does not inherit the footer's
+         offer and needs its own. Written as text rather than a link, matching the elder
+         surface: a page shown when everything is failing is a poor moment to send somebody
+         somewhere else. -->
+    <p class="source-note" style="font-size:0.75rem;margin-top:1.5rem">Backyard is free software (AGPL-3.0-or-later). Source: github.com/AIJSAI/backyard</p>
   </main>
 </body>
 </html>
