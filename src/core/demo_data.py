@@ -46,7 +46,7 @@ from django.db import transaction
 from django.db.models.deletion import Collector
 from django.utils import timezone
 
-from core import media
+from core import media, pods
 from core.models import Comment, MediaAsset, Member, Pod, Post, Reaction, Yard
 
 # What `scripts/demo_seed.py` stamps on everything it creates. A different generator should
@@ -357,12 +357,40 @@ def wipe(marker: str = SEED_MARKER) -> Counter[str]:
         # cannot leave live rows pointing at deleted files.
         removed["files"] = _purge_media_files(collected)
 
+        # Which real ad-hoc pods a marked member owns, captured BEFORE the delete nulls
+        # them. Afterwards there is no way to tell a pod this wipe orphaned from one that
+        # was already ownerless.
+        at_risk = list(
+            Pod.objects.filter(
+                kind=Pod.ADHOC, owner__seeded_by=marker, owner__isnull=False
+            ).values_list("pk", flat=True)
+        )
+
         # Members before pods: `Member.user` is PROTECT, and posts/comments/media/reactions
         # reach their end either way. Each `.delete()` returns per-model counts, which is
         # the receipt.
         for model in (Member, Pod, Yard):
             _, per_model = model.objects.filter(seeded_by=marker).delete()
             removed.update(per_model)
+
+        # Ownership follows membership, here too. A seeded member may own a REAL ad-hoc
+        # pod — the founder's book club, created by a fixture account during QA — and
+        # `Pod.owner` is `SET_NULL`, so deleting them silently freezes that pod forever:
+        # `pod.owner_id != actor.id` is the only gate on its house rule and member list, and
+        # `None` never equals anybody. The receipt would not have mentioned it either, because
+        # a field set to NULL is not a deletion and nothing counts it.
+        #
+        # Run AFTER the deletes, over the pods that survived, so succession sees the final
+        # membership rather than one that is about to change.
+        # Only the pods THIS wipe orphaned. Scanning every ownerless ad-hoc pod would
+        # reassign ones that were already ownerless for unrelated reasons — mutating real
+        # pods a demo wipe has no business touching, and inflating the receipt line the
+        # operator reads to decide whether it did what they expected.
+        removed["pods reassigned"] = sum(
+            1
+            for pod in Pod.objects.filter(pk__in=at_risk, owner__isnull=True)
+            if pods.succeed_owner(pod) is not None
+        )
 
         removed["sessions"] = _delete_sessions(user_ids)
         user_deleted, _ = get_user_model().objects.filter(pk__in=user_ids).delete()

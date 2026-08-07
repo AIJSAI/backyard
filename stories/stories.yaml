@@ -680,6 +680,97 @@ epics:
         Takedown routes the item through the SAME read guard (scoping.require_visible_post / require_visible_comment) as every other read, for the MODERATOR, so the lever is structurally bounded to what they may already see: a byte-identical 404 for anything else, identical to a nonexistent id (no existence oracle, S-202 parity). Content visibility is membership-scoped for every role including the instance admin — the founder's instance-wide power is over members and configuration, not content omniscience — so no admin can reach a yard's content they do not belong to. is_admin gates before the item is resolved, so a non-admin learns nothing about the item's existence (uniform 403). Authorization is re-checked in the service (is_admin + visibility), not only at the view guard, as write-side defense in depth for any future non-guard caller, mirroring posting.delete_post and commenting.create_comment. The authority is deliberately VISIBILITY-based (the ratified "scoped to visible" rule), which diverges by design from the person-level lever's subset-scope (can_manage_member / T-AUTH-G2): a member belonging to both yards through a bridge household may moderate content it can see in either, and a both-side post is one object a single-side admin removes from both feeds. That divergence is intentional and recorded for the founder's manual-QA review (a stricter audience-subset rule is a possible refinement, not shipped in v1). The takedown reuses the author path's soft delete (deleted_at removes it from the one audience query everywhere) plus the media hard-purge (T-MEDIA-6), and records moderated_by (SET_NULL) as an accountability trail that a future restore/audit surface can read; it is silent (no member-visible notice, ratified) and idempotent (never revives a tombstone or overwrites who first removed it). The person-level lever stays remove-only; reversible member-suspend is deferred.
       source: docs/security/threat-model.md
     evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+  - id: S-721
+    epic: E7
+    persona: self-hoster
+    story: As a non-technical delegate, I can set up my side of the family from the documented guide alone, with no shell and no help from the founder.
+    acceptance:
+    - a delegate promoted to yard_admin can reach every control the guide names, by following links from the feed, without being told a URL
+    - the guide's instructions are true for a YARD admin specifically, not only for an instance admin
+    - inviting a household, minting an elder link and handing it over are all completed without a shell
+    - the rehearsal is run by somebody who has not seen the product before, and receipted
+    status: spec
+    v1: true
+  - id: S-722
+    epic: E7
+    persona: self-hoster
+    story: As the family tech person, I know the browser lane cannot be skipped, because merging is blocked until it passes.
+    acceptance:
+    - e2e is a required status check on main, not merely a job that runs
+    - a pull request cannot merge while e2e is failing or absent
+    status: passing
+    v1: true
+    evidence: 'gh api repos/AIJSAI/backyard/branches/main/protection -> required_status_checks.contexts includes "e2e"'
+  - id: S-723
+    epic: E7
+    persona: self-hoster
+    story: As the family tech person, I know a new model cannot skip yard isolation without the build saying so.
+    acceptance:
+    - every core model is classified as isolation-covered or isolation-exempt, with a reason
+    - a covered model is proven by a probe that RUNS against a two-yard topology, not by being listed
+    - each probe carries its own denominator, so a probe that sees nothing cannot report isolation
+    status: passing
+    v1: true
+    evidence: src/core/tests/test_isolation_registry.py
+  - id: S-724
+    epic: E7
+    persona: self-hoster
+    story: As the family tech person, my instance sends a baseline Content-Security-Policy on every response.
+    acceptance:
+    - ContentSecurityPolicyMiddleware is defined and wired into settings.MIDDLEWARE
+    - the policy is asserted on a rendered response, not on the settings value
+    status: passing
+    v1: true
+    evidence: docs/receipts/2026-07-22-s724-baseline-csp.md
+  - id: S-725
+    epic: E7
+    persona: self-hoster
+    story: As the family tech person, no outbound fetch runs on the process that answers the internet.
+    acceptance:
+    - link-preview fetching runs on the worker, never in a view
+    - a guard enumerates the view modules from disk and fails if any of them reaches the fetch
+    status: passing
+    v1: true
+    evidence: docs/receipts/2026-07-22-s725-ssrf-fetch-relocation.md
+  - id: S-726
+    epic: E7
+    persona: self-hoster
+    story: As the family tech person, dependency CVEs and unsafe code patterns fail the build rather than waiting to be noticed.
+    acceptance:
+    - CI runs a dependency-CVE scan and a SAST pass over production code
+    - each scan proves itself non-vacuous by planting something it MUST catch
+    status: passing
+    v1: true
+    evidence: docs/receipts/2026-07-22-s726-dep-scan-sast.md
+  - id: S-727
+    epic: E7
+    persona: self-hoster
+    story: As the family tech person, restoring a backup cannot resurrect a credential somebody deliberately revoked.
+    acceptance:
+    - a restore bumps every member's token_generation, flushes sessions and voids invites
+    - a replay failure is loud and names the credentials that may still be live
+    - the runbook states what a restore does to elder links, digests, sessions and removed members
+    status: passing
+    v1: true
+    evidence: docs/receipts/2026-07-22-s727-restore-security-replay-close.md
+  - id: S-907
+    epic: E7
+    persona: yard-admin
+    story: "As a delegate handed the admin controls, I can tell what each role actually lets someone do, without being told out of band."
+    acceptance:
+    - "The roster states, in prose beside the control, what Pod owner / Yard admin / Instance admin each permit"
+    - "It matches docs/security/permission-matrix.md, and a guard fails if the two drift"
+    status: passing     # S-907 close 2026-07-29: Member.ROLE_DESCRIPTIONS, rendered in a
+                        # closed <details> beside the Set role control. Bound to reality in BOTH
+                        # directions — every claim EXERCISED against permissions.py (a source-text
+                        # assertion would be defeated by the comment beside the code), and checked
+                        # against permission-matrix.md with whitespace collapsed, since the matrix
+                        # hard-wraps and a raw substring search would fail on a reflow and pass on
+                        # a rewrite. Proven non-vacuous by making a description lie.
+    v1: false
+    evidence: src/core/tests/test_role_descriptions.py + docs/receipts/2026-07-29-s906-s907-onboarding-close.md
+
+
 - id: E9
   title: People and the family directory
   intent: "Profiles as the family's source of truth: who everyone is, how to reach them, and the dates that matter. Per-field, per-yard visibility controlled by the member; surfaced through calm channels (digest and feed banner), never push."
@@ -764,22 +855,6 @@ epics:
     v1: false
     evidence: src/core/tests/test_orientation.py + docs/receipts/2026-07-29-s906-s907-onboarding-close.md
 
-  - id: S-907
-    epic: E7
-    persona: yard-admin
-    story: "As a delegate handed the admin controls, I can tell what each role actually lets someone do, without being told out of band."
-    acceptance:
-    - "The roster states, in prose beside the control, what Pod owner / Yard admin / Instance admin each permit"
-    - "It matches docs/security/permission-matrix.md, and a guard fails if the two drift"
-    status: passing     # S-907 close 2026-07-29: Member.ROLE_DESCRIPTIONS, rendered in a
-                        # closed <details> beside the Set role control. Bound to reality in BOTH
-                        # directions — every claim EXERCISED against permissions.py (a source-text
-                        # assertion would be defeated by the comment beside the code), and checked
-                        # against permission-matrix.md with whitespace collapsed, since the matrix
-                        # hard-wraps and a raw substring search would fail on a reflow and pass on
-                        # a rewrite. Proven non-vacuous by making a description lie.
-    v1: false
-    evidence: src/core/tests/test_role_descriptions.py + docs/receipts/2026-07-29-s906-s907-onboarding-close.md
 
   - id: S-905
     epic: E9

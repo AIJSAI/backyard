@@ -37,11 +37,25 @@ def validate_stories(data: object) -> list[str]:
     if not isinstance(epics, list) or not epics:
         return ["stories.yaml: epics missing or empty"]
     seen_ids: set[str] = set()
-    for epic in epics:
+    for index, epic in enumerate(epics):
+        # Shape-check before reading. Review flagged the ID reader for crashing on malformed
+        # input; measured, THIS function crashed too — `AttributeError` on a non-mapping epic
+        # and on a non-list `stories`. Fixing only the function that was named would have
+        # left the traceback exactly where it was, from one frame further down.
+        if not isinstance(epic, dict):
+            errors.append(f"epics[{index}]: must be a mapping, got {type(epic).__name__}")
+            continue
         eid = str(epic.get("id", "?"))
         if not epic.get("title"):
             errors.append(f"{eid}: missing title")
-        for story in epic.get("stories") or []:
+        stories = epic.get("stories") or []
+        if not isinstance(stories, list):
+            errors.append(f"{eid}: stories must be a list, got {type(stories).__name__}")
+            continue
+        for story in stories:
+            if not isinstance(story, dict):
+                errors.append(f"{eid}: a story entry is {type(story).__name__}, not a mapping")
+                continue
             sid = str(story.get("id", "?"))
             missing = REQUIRED_FIELDS - story.keys()
             if missing:
@@ -57,6 +71,20 @@ def validate_stories(data: object) -> list[str]:
             acceptance = story.get("acceptance")
             if not isinstance(acceptance, list) or not acceptance:
                 errors.append(f"{sid}: acceptance must be a non-empty list")
+            # The `epic:` field must match the epic the story is NESTED UNDER. Seven stories
+            # were appended to the end of this file declaring `epic: E7` while landing inside
+            # E8's list, and every check here passed: nothing compared the two. The epics are
+            # not in numeric order either (E1..E7, then E9, then E8), so "insert before E8"
+            # is not the same as "at the end of E7" — which is how the first correction put
+            # them in E9.
+            declared = story.get("epic")
+            if declared != eid:
+                errors.append(
+                    f"{sid}: declares epic {declared!r} but is nested under {eid!r}. "
+                    "Anything that renders by epic section will file it under the wrong "
+                    "heading, and the tally that counts stories per epic will disagree "
+                    "with the document that reads them."
+                )
     return errors
 
 
@@ -113,12 +141,81 @@ def selftest() -> list[str]:
     return errors
 
 
+def filed_story_ids(data: object) -> set[str]:
+    """Every story id in the file, walked the same way `validate_stories` walks it.
+
+    Deliberately not a second traversal: two readers of one structure drift, and the one
+    that drifts silently here would make the cross-reference check below blind rather than
+    wrong — which is worse, because it keeps passing.
+    """
+    if not isinstance(data, dict):
+        return set()
+    epics = data.get("epics")
+    if not isinstance(epics, list):
+        # `validate_stories` has already reported this. Crashing here would replace its
+        # actionable message with a traceback from a helper — the gate would fail for the
+        # right reason and say the wrong thing.
+        return set()
+    found: set[str] = set()
+    for epic in epics:
+        if not isinstance(epic, dict):
+            continue
+        stories = epic.get("stories")
+        if not isinstance(stories, list):
+            continue
+        for story in stories:
+            if isinstance(story, dict) and story.get("id"):
+                found.add(str(story["id"]))
+    return found
+
+
+def cited_but_unfiled(story_ids: set[str]) -> list[str]:
+    """Story IDs a document commits to that `stories.yaml` has never heard of.
+
+    S-721 is why this exists. A retro named it as a Definition-of-Done item, an audit quoted
+    that retro, and `PATH-TO-100.md` marked the phase complete on a story tally — while
+    `grep -n 'S-721' stories/stories.yaml` returned nothing. The story had never been
+    created, so the tally counted a set that did not include it and the phase closed on the
+    strength of a document referring to a thing that did not exist.
+
+    Scoped to the documents that make COMMITMENTS. Receipts and audits are dated records:
+    an audit is allowed — required, really — to say "S-721 does not exist", and a guard that
+    failed on that sentence would push toward deleting the finding.
+    """
+    committing = [
+        ROOT / "docs" / "PATH-TO-100.md",
+        ROOT / "docs" / "OUTSTANDING.md",
+        ROOT / "docs" / "README.md",
+        ROOT / "README.md",
+    ]
+    errors: list[str] = []
+    for path in committing:
+        if not path.is_file():
+            continue
+        for lineno, line in enumerate(path.read_text().splitlines(), 1):
+            for cited in set(re.findall(r"\bS-\d{3}\b", line)):
+                if cited not in story_ids:
+                    errors.append(
+                        f"{path.relative_to(ROOT)}:{lineno}: cites {cited}, which is not in "
+                        "stories/stories.yaml. Either file the story or stop referring to it "
+                        "— a document that names a story nobody wrote is how a phase gets "
+                        "marked complete on a tally that never counted it."
+                    )
+    return errors
+
+
 def main() -> int:
     errors = selftest()
     stories_path = ROOT / "stories" / "stories.yaml"
     checklist_path = ROOT / "docs" / "PATH-TO-100.md"
-    errors += validate_stories(yaml.safe_load(stories_path.read_text()))
+    stories = yaml.safe_load(stories_path.read_text())
+    errors += validate_stories(stories)
     errors += validate_checklist(checklist_path.read_text())
+    filed = filed_story_ids(stories)
+    if not filed:
+        errors.append("no story IDs parsed from stories.yaml; the cross-reference check is blind")
+    else:
+        errors += cited_but_unfiled(filed)
     for err in errors:
         print(f"GATE FAIL: {err}")
     print(f"gates: {'FAIL' if errors else 'PASS'}")

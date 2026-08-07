@@ -2,14 +2,21 @@
 
 Every bearer capability the system mints is revoked here, in one atomic act, never
 by a checklist an admin walks by hand (threat model TM-1, ADR-003). The registry
-today holds the credential classes that exist: server-side sessions and invites.
-Every future class registers here before it ships; a capability type that does not
-appear in _REVOCATION_STEPS is the bug the revocation-completeness test exists to
-catch. Known future classes and how each will die: elder master tokens, per-digest
-tokens, and signed media URLs by the generation check (they carry the generation);
-reply-by-email addresses by voiding their rows; password login by deactivating the
-Member's User (S-702). Each lands with its own step and its own completeness
-assertion in the same commit.
+today holds six classes, and every one of them has shipped: server-side sessions,
+invites, digest subscriptions, per-digest tokens, reply-by-email addresses and
+elder master tokens. Every future class registers here before it ships; a
+capability type that does not appear in _REVOCATION_STEPS is the bug the
+revocation-completeness test exists to catch.
+
+This paragraph called elder tokens, digest tokens and reply addresses "known
+future classes" for months after they shipped, which is the more dangerous
+direction for a registry's own description to be wrong in: a reader checking
+whether a credential type is covered would have concluded it was not, and either
+added a duplicate step or gone looking for the gap that was already closed.
+
+Signed media URLs are the one entry that is still genuinely future, and they die by
+the generation check rather than by a step of their own, because they carry the
+generation. Password login dies by deactivating the Member's User (S-702).
 
 The revocation anchor is Member.token_generation (ADR-003 rule 3): derived
 credentials carry the generation they were minted under and are checked against
