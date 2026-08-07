@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import ast
 import pathlib
+import re
 import subprocess
 
 # "key" is deliberately absent: it collides with dictionary-key locals and would make the
@@ -242,12 +243,58 @@ def test_no_burned_credential_reappears_in_any_tracked_file() -> None:
     )
 
 
+def _synthetic_fixture_allowlist() -> list[str]:
+    """The regexes in `.gitleaks.toml`'s synthetic-credential-fixture block.
+
+    Located by the opening sentence of its `description`, not by position: allowlists get
+    reordered, and a positional read would silently start describing a different block —
+    which is the shape of bug this whole file exists to catch.
+    """
+    config = (_REPO_ROOT / ".gitleaks.toml").read_text()
+    marker = "Synthetic credential fixtures, enumerated by value"
+    assert marker in config, (
+        "the synthetic-fixture allowlist block is gone from .gitleaks.toml, or its "
+        f"description no longer opens with {marker!r}. This function locates the block by "
+        "that sentence, so it would now read nothing and every assertion below would pass "
+        "against an empty list."
+    )
+    block = config[config.index(marker) :]
+    following = block.find("[[allowlists]]")
+    if following != -1:
+        block = block[:following]
+    opened = block.index("regexes = [")
+    body = block[opened : block.index("]", opened)]
+    return re.findall(r"'{3}(.*?)'{3}", body)
+
+
 def test_the_burned_list_and_the_gitleaks_allowlist_do_not_drift() -> None:
     """The synthetic-fixture allowlist here and in .gitleaks.toml must stay in step, or one
-    gate starts reporting what the other exempts and somebody silences the wrong one."""
-    config = (_REPO_ROOT / ".gitleaks.toml").read_text()
-    missing = [v for v in _ALLOWED_LITERALS if v not in config]
-    assert not missing, f"allowed literals absent from .gitleaks.toml: {missing}"
+    gate starts reporting what the other exempts and somebody silences the wrong one.
+
+    Checked in BOTH directions now. It used to assert only that every `_ALLOWED_LITERALS`
+    value appears somewhere in the config — so adding a value to `.gitleaks.toml` alone
+    passed, and that is the direction that matters: the gitleaks allowlist is the exemption
+    which actually silences the scanner. A literal exempted there and unknown here is a
+    credential shape that no gate reports and no list records, arrived at by the single edit
+    that looks most like housekeeping.
+    """
+    exempted = _synthetic_fixture_allowlist()
+    assert exempted, "the block was found but parsed to no regexes; the parser is broken"
+
+    missing = sorted(v for v in _ALLOWED_LITERALS if v not in exempted)
+    assert not missing, (
+        f"allowed literals absent from .gitleaks.toml's fixture block: {missing}. "
+        "gitleaks will report them, and the usual next step is to silence gitleaks."
+    )
+
+    unknown = sorted(v for v in exempted if v not in _ALLOWED_LITERALS)
+    assert not unknown, (
+        f"`.gitleaks.toml` exempts values this guard has never heard of: {unknown}.\n"
+        "Adding a literal to the scanner's allowlist is what actually silences it, so a "
+        "value there and not in `_ALLOWED_LITERALS` is exempt from the secret scan while "
+        "unrecorded as a deliberate synthetic fixture. If it is one, add it here too; if it "
+        "is not, it does not belong in an allowlist."
+    )
 
 
 def test_the_guard_catches_a_plain_assignment() -> None:
