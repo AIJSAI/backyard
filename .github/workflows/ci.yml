@@ -74,7 +74,7 @@ jobs:
           # `# noqa: S105` on the leaked password line was decorative -- a suppression
           # for a linter that never ran on that file. Security rules now run there;
           # formatting stays src-only to avoid churning generated-ish tooling.
-          uv run ruff check src
+          uv run ruff check src scripts
           # NOT extended to scripts/ + docs/design/tools/ for credentials. Measured: ruff's
           # S105/S106/S107 caught NONE of `PW =`, `PASSWORD =`, `password =`, `SECRET =` or
           # `passphrase =` as bare assignments, so such a step would be decorative -- the same

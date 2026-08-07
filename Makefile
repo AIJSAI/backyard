@@ -46,8 +46,12 @@ e2e:
 	uv run pytest -m e2e
 
 lint:
-	uv run ruff check src
-	uv run ruff format --check src
+# `scripts` as well as `src`. Three of this repo's GATES live in scripts/ — the story
+# validator, the compose-overlay guard and the DCO check — and nothing linted them, so
+# nine findings sat in code whose whole job is to be trusted. Found while cutting a tag,
+# by running ruff over both directories on the tree about to be tagged.
+	uv run ruff check src scripts
+	uv run ruff format --check src scripts
 
 typecheck:
 	uv run mypy src

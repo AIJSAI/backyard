@@ -27,14 +27,24 @@ removed from history either.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 
 TRAILER = "Signed-off-by:"
 
+# Resolved once, rather than suppressing the "partial executable path" warning at three call
+# sites. `git` is on PATH in CI and locally; falling back to the bare name keeps the failure
+# a clear "git not found" rather than an import-time crash on a machine without it.
+GIT = shutil.which("git") or "git"
+
 
 def _git(*args: str) -> str:
-    return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout.strip()
+    # S603: a fixed argv, no shell. The arguments come from this file and from SHAs the CI
+    # workflow supplies; nothing here is attacker-controlled.
+    return subprocess.run(  # noqa: S603
+        [GIT, *args], capture_output=True, text=True, check=True
+    ).stdout.strip()
 
 
 def commits_added(base: str, head: str) -> list[tuple[str, str]]:
@@ -111,8 +121,8 @@ def selftest() -> list[str]:
     # NEGATIVE: a commit with no trailer must be flagged.
     try:
         tree = _git("rev-parse", "HEAD^{tree}")
-        synthetic = subprocess.run(
-            ["git", "commit-tree", tree, "-m", "selftest: deliberately unsigned"],
+        synthetic = subprocess.run(  # noqa: S603
+            [GIT, "commit-tree", tree, "-m", "selftest: deliberately unsigned"],
             capture_output=True,
             text=True,
             check=True,
@@ -164,8 +174,8 @@ def selftest() -> list[str]:
 
     # POSITIVE: a commit that carries the trailer must not be flagged. Built the same way,
     # so the two cases differ ONLY in the trailer.
-    signed = subprocess.run(
-        ["git", "commit-tree", tree, "-m", f"selftest: signed\n\n{TRAILER} A Tester <t@e>"],
+    signed = subprocess.run(  # noqa: S603
+        [GIT, "commit-tree", tree, "-m", f"selftest: signed\n\n{TRAILER} A Tester <t@e>"],
         capture_output=True,
         text=True,
         check=True,

@@ -85,9 +85,13 @@ def check() -> list[str]:
     if not OVERLAY.is_file() or not BASE.is_file():
         return [f"missing compose file: {BASE.name} or {OVERLAY.name}"]
 
-    base = yaml.load(BASE.read_text(), Loader=_ComposeLoader) or {}
-    overlay = yaml.load(OVERLAY.read_text(), Loader=_ComposeLoader) or {}
-    base_services = set((base.get("services") or {}))
+    # S506 is about `yaml.load` with a loader that can instantiate arbitrary objects.
+    # `_ComposeLoader` subclasses SafeLoader and adds two constructors that return the
+    # tagged value unchanged, so it constructs nothing SafeLoader would not — and the
+    # input is two files in this repository, not user data.
+    base = yaml.load(BASE.read_text(), Loader=_ComposeLoader) or {}  # noqa: S506
+    overlay = yaml.load(OVERLAY.read_text(), Loader=_ComposeLoader) or {}  # noqa: S506
+    base_services = set(base.get("services") or {})
     overlay_services = overlay.get("services") or {}
 
     if not base_services:
