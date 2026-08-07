@@ -70,6 +70,10 @@ class RosterRow:
     member: Member
     manageable: bool
     assignable_roles: list[tuple[str, str]]
+    # Separate from `manageable` on purpose: `can_edit_profile_of` is a narrower question
+    # than `can_manage_member` and answers it differently — a yard admin may manage a
+    # member's role without being allowed to rewrite their birthday and phone number.
+    can_edit_profile: bool = False
 
 
 @login_required
@@ -94,7 +98,20 @@ def members(request: HttpRequest) -> HttpResponse:
             if manageable and not member.is_supervised
             else []
         )
-        rows.append(RosterRow(member=member, manageable=manageable, assignable_roles=assignable))
+        rows.append(
+            RosterRow(
+                member=member,
+                manageable=manageable,
+                assignable_roles=assignable,
+                # S-901's third path — an admin fixing a name that was typed wrong at
+                # invite time, or filling in an elder's details for her, since she has no
+                # login by design (TM-10). The route existed and the only `{% url %}`
+                # reference to it in the tree was its own form action, so nobody could open
+                # it. `can_edit_profile_of` is deliberately NOT `can_manage_member`: it is
+                # a narrower question and has its own answer.
+                can_edit_profile=permissions.can_edit_profile_of(actor, member),
+            )
+        )
     return render(
         request,
         "core/members.html",
@@ -103,6 +120,12 @@ def members(request: HttpRequest) -> HttpResponse:
             "actor": actor,
             "rows": rows,
             "can_create_yard": permissions.is_instance_admin(actor),
+            # The households a supervised child can be placed in. `create_supervised` is
+            # POST-only and 404s on GET, and NO template posted to it — so S-703 shipped as
+            # an endpoint with no way to reach it, and a child account could not be created
+            # from anywhere in the product.
+            "assignable_pods": scoping.visible_pods(actor).order_by("name"),
+            "is_instance_admin": permissions.is_instance_admin(actor),
             # S-907: what each role actually permits, beside the control that grants
             # it. Only the roles this roster can hand out — listing "supervised" here
             # would describe something the Set role control cannot produce.
