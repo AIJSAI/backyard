@@ -102,7 +102,31 @@ def _collect(marker: str) -> dict[Any, list[Any]]:
             continue
         collector: Collector = Collector(using="default")
         collector.collect(roots)
-        for collected_model, instances in collector.data.items():
+
+        # `collector.data` is NOT the closure. Django splits deletion in two: rows it must
+        # instantiate, and rows it can remove with one bulk statement — the "fast deletes" —
+        # which never appear in `.data` at all. Reading only `.data` made this module blind
+        # to whole models. Measured on a fixture where a real relative had reacted to a
+        # marked post:
+        #
+        #     preview() returned, NO refusal: {Yard: 1, Pod: 1, Post: 1, Member: 1}
+        #     Reaction counted in preview: False
+        #     wipe() receipt: {core.Reaction: 1, ...}
+        #     real person's reactions AFTER: 0
+        #
+        # So the operator's dry run did not mention reactions, the refusal that exists to
+        # stop exactly this could not see them, and the receipt afterwards listed the row it
+        # had just destroyed. `Reaction`, `PodMembership`, `PodMute`, `LinkPreview`,
+        # `ReplyAddress`, `PodWeekMetrics` and both m2m through-tables are all fast-deleted.
+        # Materialising them is affordable at family scale and is the only way the checks
+        # below see the whole blast radius.
+        chunks: list[tuple[Any, list[Any]]] = [
+            (collected_model, list(instances))
+            for collected_model, instances in collector.data.items()
+        ]
+        chunks.extend((queryset.model, list(queryset)) for queryset in collector.fast_deletes)
+
+        for collected_model, instances in chunks:
             seen = grouped.setdefault(collected_model, [])
             known = {instance.pk for instance in seen}
             seen.extend(instance for instance in instances if instance.pk not in known)
@@ -299,16 +323,30 @@ def wipe(marker: str = SEED_MARKER) -> Counter[str]:
     "DEMO DATA WIPED" over an unknown blast radius.
     """
     marker = _require_a_real_marker(marker)
-    collected = _collect(marker)
-    _refuse_if_it_reaches_real_data(collected, marker)
-    _refuse_if_it_strands_anyone(collected, marker)
-    if not collected:
-        return Counter()
-
     removed: Counter[str] = Counter()
-    user_ids = _doomed_user_ids(marker)
 
     with transaction.atomic():
+        # Collect and refuse INSIDE the transaction, and read the roots FOR UPDATE.
+        #
+        # Previously the closure was computed, checked, and then discarded: the delete below
+        # re-queried `filter(seeded_by=marker)`, so what was inspected and what was destroyed
+        # were two different reads. Anything created in between was deleted having been
+        # checked by nothing — and for a photo that is not just an accounting gap, because
+        # `_purge_media_files` works from the collected list, so its FILE stayed on disk
+        # forever while its row vanished. That is the exact leak `_purge_media_files` exists
+        # to prevent, reachable through the window rather than through the code path.
+        #
+        # A launch-day wipe on a live instance is precisely when somebody else may be
+        # posting, so this window is not theoretical.
+        for model in _MARKED_MODELS:
+            list(model.objects.select_for_update().filter(seeded_by=marker).values_list("pk"))
+        collected = _collect(marker)
+        _refuse_if_it_reaches_real_data(collected, marker)
+        _refuse_if_it_strands_anyone(collected, marker)
+        if not collected:
+            return Counter()
+        user_ids = _doomed_user_ids(marker)
+
         # Files first, rows second. `_purge` defers the unlink to on_commit, so a rollback
         # cannot leave live rows pointing at deleted files.
         removed["files"] = _purge_media_files(collected)

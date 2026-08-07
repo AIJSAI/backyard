@@ -54,9 +54,15 @@ def test_no_relative_carries_the_authors_real_surname() -> None:
     """
     names = _display_names(_SEED.read_text())
     carrying = [n for n in names if _AUTHOR_SURNAME in n]
-    assert carrying == ["James " + _AUTHOR_SURNAME], (
-        f"demo seed names carrying the author's real surname: {carrying}. Only the author's "
-        "own account may; every other member of the demo family must be invented."
+    # A CEILING, not an exact match. This asserted `== ["James Shehan"]`, which made the
+    # author's real surname REQUIRED in the seed: removing it — an unambiguous improvement,
+    # and what happened when the operator's display name stopped being hardcoded and became
+    # whatever the instance's superuser is called — failed this test for having leaked less.
+    # A privacy check that goes red when a name is deleted is pinning the defect.
+    assert not carrying, (
+        f"demo seed names carrying the author's real surname: {carrying}. The demo family "
+        "must be invented, and the operator's own row is named from the account that runs "
+        "the instance — so no real surname belongs in this file at all."
     )
 
 
