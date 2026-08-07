@@ -21,13 +21,13 @@ been wrong before, in this exact header, about exactly the kind of claim it make
 
 | | |
 |---|---|
-| `main` | 33 commits past `v0.1.1` — the same quantity as the row below, counted the other way. If they ever disagree, one of them has drifted |
+| `main` | past `v0.1.1` by the count the command below prints |
 | **`v0.1.2` is NOT cut** | `git tag --list` shows only `v0.1.1`. `README.md`, `docs/runbooks/self-host.md` and `CHANGELOG.md` all name `v0.1.2` |
-| open PR | **#162** — this handoff. #161 merged 2026-08-07 |
-| this release | **33 PRs**: `#127`–`#161`, except `#138` and `#142` (CLOSED unmerged, superseded by `#139` and `#143`). Re-derive rather than trusting this row: `git log --oneline v0.1.1..origin/main \| grep -oE '\(#[0-9]+\)$'` |
+| open PRs | none as of 2026-08-07. Check: `gh pr list --state open` |
+| this release | everything from `#127` onward EXCEPT `#138` and `#142`, which were closed unmerged (superseded by `#139` and `#143`). **Do not trust a count written here** — this document is itself one of the PRs, so any number it states is stale the moment it merges. Derive it: `git log --oneline v0.1.1..origin/main \| grep -oE '\(#[0-9]+\)$'` |
 
-**The next two steps, in order**, once #162 merges. Step 1 is several commands and they are
-deliberately NOT chained — read each result:
+**The next two steps, in order.** Step 1 is several commands and they are deliberately
+NOT chained — read each result:
 
 ```bash
 cd ~/projects/backyard
@@ -103,6 +103,10 @@ The defects that would have reached the family, each measured not reasoned:
 
 ### Traps this session paid for
 
+* **A count that includes the document stating it is wrong on arrival.** This handoff said
+  "33 PRs"; merging it made 34. Same for "N commits past v0.1.1". Any self-including number
+  in a repo document is stale the instant it lands — state the RULE and the command that
+  derives the number, never the number.
 * **The local test lane needs Docker running.** Postgres is the `backyard-testdb`
   container; with the daemon down, `pytest` returns hundreds of errors whose first line is
   `connection to server at "127.0.0.1", port 5432 failed: Connection refused`. Read that
