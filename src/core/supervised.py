@@ -26,6 +26,14 @@ def create_supervised_member(*, parent: Member, display_name: str, pod: Pod) -> 
     core.permissions.can_create_supervised; this service just builds the record
     correctly: flagged, parent-managed, no User, SUPERVISED role.
     """
+    if not PodMembership.objects.filter(member=parent, pod=pod).exists():
+        raise ValueError(
+            f"{parent.display_name} is not in {pod.name}, so a child placed there would sit "
+            "in a household their managing parent cannot see. A supervised account exists to "
+            "put a child INSIDE their parent's family, and the view only checked that the "
+            "POD was visible to whoever submitted the form — which for an admin is every pod "
+            "on the instance."
+        )
     with transaction.atomic():
         child = Member.objects.create(
             display_name=display_name,

@@ -133,5 +133,34 @@
     </p>
   {% endif %}
 
+  {% comment %} A parent making their own child's account. `can_create_supervised` has
+     always allowed this — `actor.pk == parent.pk` is its first branch — but the only
+     control lived on /members/, which is admin-only. So the permission said yes, the page
+     said 403, and every child account had to go through an admin. Households are the
+     member's OWN, not `visible_pods`, because a child belongs in a family their parent is
+     in. {% endcomment %}
+  {% if can_add_own_child and own_pods %}
+    <details class="supervised-disclosure">
+      <summary>Add a child account you look after&hellip;</summary>
+      <p class="hint">
+        A child account has no password of its own — you sign in and it belongs to you.
+        They appear in the family with a badge saying they are supervised.
+      </p>
+      <form method="post" action="{% url 'create_supervised' %}">
+        {% csrf_token %}
+        <input type="hidden" name="parent_id" value="{{ member.id }}">
+        <label for="own-child-name">Their name</label>
+        <input id="own-child-name" type="text" name="display_name" maxlength="100" required>
+        <label for="own-child-pod">Which of your households they belong to</label>
+        <select id="own-child-pod" name="pod_id">
+          {% for pod in own_pods %}
+            <option value="{{ pod.id }}">{{ pod.name }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit">Create their account</button>
+      </form>
+    </details>
+  {% endif %}
+
   <p class="back-link"><a class="back" href="{% url 'directory' %}">Back to the directory</a></p>
 {% endblock %}

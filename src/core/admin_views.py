@@ -9,7 +9,7 @@ the instance admin.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -80,6 +80,15 @@ class RosterRow:
     # than `can_manage_member` and answers it differently — a yard admin may manage a
     # member's role without being allowed to rewrite their birthday and phone number.
     can_edit_profile: bool = False
+    # The households THIS member is in — not every pod the admin can see.
+    #
+    # The child form offered `assignable_pods` (`scoping.visible_pods(actor)`), which for an
+    # instance admin is every pod on the instance. So the obvious mistake — picking the wrong
+    # household from a long list — placed a child in a family their own parent is not in,
+    # where the parent cannot see them. Offering only the parent's households means the
+    # mistake cannot be expressed; `supervised.create_supervised_member` refuses it as well,
+    # for a POST that never came from this page.
+    own_pods: list[Pod] = field(default_factory=list)
 
 
 @login_required
@@ -116,6 +125,7 @@ def members(request: HttpRequest) -> HttpResponse:
                 # it. `can_edit_profile_of` is deliberately NOT `can_manage_member`: it is
                 # a narrower question and has its own answer.
                 can_edit_profile=permissions.can_edit_profile_of(actor, member),
+                own_pods=list(member.pods.order_by("name")),
             )
         )
     return render(
@@ -284,8 +294,15 @@ def create_supervised(request: HttpRequest) -> HttpResponse:
     pod = scoping.require_visible_pod(actor, handover.int_or_404(request.POST.get("pod_id", "")))
     display_name = request.POST.get("display_name", "").strip()
     if display_name and len(display_name) <= 100:
-        supervised.create_supervised_member(parent=parent, display_name=display_name, pod=pod)
-    return redirect("members")
+        try:
+            supervised.create_supervised_member(parent=parent, display_name=display_name, pod=pod)
+        except ValueError as exc:
+            # The parent is not in that household. Neither control can express this, so a
+            # request that does is hand-made — answered as a refusal rather than a 500.
+            raise PermissionDenied(str(exc)) from exc
+    # Back to wherever the control lives: the roster for an admin, your own settings for a
+    # parent making their own child's account, who cannot open the roster at all.
+    return redirect("members" if permissions.is_admin(actor) else "profile_edit")
 
 
 @login_required
