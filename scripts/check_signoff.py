@@ -48,9 +48,40 @@ def commits_added(base: str, head: str) -> list[tuple[str, str]]:
     return out
 
 
+def carries_its_own_changes(sha: str) -> bool:
+    """Does this merge commit contain anything neither parent had?
+
+    `git diff-tree --cc` prints the COMBINED diff — hunks that differ from every parent. For
+    an ordinary merge that is empty; for an "evil merge", where somebody resolved a conflict
+    by writing something new, it is not. Measured on a constructed pair: 0 bytes for a real
+    merge, 127 for an evil one.
+    """
+    return bool(_git("diff-tree", "--cc", "--no-commit-id", sha).strip())
+
+
+def is_merge(sha: str) -> bool:
+    return len(_git("log", "-1", "--format=%P", sha).split()) > 1
+
+
 def unsigned(commits: list[tuple[str, str]]) -> list[str]:
     missing = []
     for sha, subject in commits:
+        # A CLEAN merge commit is exempt, and this is not a loophole.
+        #
+        # It was also not optional: `gh pr update-branch` — which the merge train runs on
+        # every PR that falls behind — creates `Merge branch 'main' into <branch>` with no
+        # author to sign it and no way to add one. The first version of this gate failed on
+        # exactly that, making it unpassable for any branch the queue had to update. A gate
+        # that can never pass is one people route around, which is the note this file already
+        # carries about scoping to the PR range.
+        #
+        # The exemption is conditional on the merge introducing NOTHING of its own. A merge
+        # that only joins two already-signed histories contributes no authored content; an
+        # evil merge, where a conflict was resolved by writing something new, does — and
+        # that content would otherwise enter the tree unsigned through the one commit type
+        # nobody inspects.
+        if is_merge(sha) and not carries_its_own_changes(sha):
+            continue
         body = _git("log", "-1", "--format=%B", sha)
         # A trailer, not a substring: the words can appear in a commit message that quotes
         # this file, and prose about a rule is not compliance with it.
@@ -104,6 +135,32 @@ def selftest() -> list[str]:
             "selftest: an UNSIGNED commit passed the check. `unsigned()` is returning "
             "nothing, so this gate would report PASS over a branch with no sign-offs at all."
         )
+
+    # MERGE EXEMPTION, and that it is CONDITIONAL. A clean merge is skipped; an evil merge —
+    # one carrying content neither parent had — is not, or unsigned changes would enter
+    # through the single commit type nobody reads.
+    try:
+        merges = _git("log", "--format=%H", "--merges", "-5").split()
+        for merge_sha in merges:
+            flagged = bool(unsigned([(merge_sha, "a merge")]))
+            evil = carries_its_own_changes(merge_sha)
+            signed_already = any(
+                line.startswith(TRAILER)
+                for line in _git("log", "-1", "--format=%B", merge_sha).splitlines()
+            )
+            if not evil and not signed_already and flagged:
+                errors.append(
+                    f"selftest: a CLEAN merge ({merge_sha[:8]}) was flagged. `update-branch` "
+                    "creates one on every PR the queue rebases, with no author to sign it — "
+                    "so this gate would be unpassable for any branch that fell behind."
+                )
+            if evil and not signed_already and not flagged:
+                errors.append(
+                    f"selftest: an EVIL merge ({merge_sha[:8]}) was exempted. It carries "
+                    "content neither parent had, which is authored work entering unsigned."
+                )
+    except subprocess.CalledProcessError:
+        pass  # no merges in this checkout; the two cases above simply have nothing to say
 
     # POSITIVE: a commit that carries the trailer must not be flagged. Built the same way,
     # so the two cases differ ONLY in the trailer.
