@@ -53,6 +53,22 @@ the fixes, and each new one was proven by breaking the thing it guards.
   set at creation and nowhere else, so a nulled owner left the house rule and member list
   unreachable to everybody. A departed owner also kept control of a group they had walked
   out of. Ownership follows membership now.
+- **The demo family could not be removed from an instance seeded before the marker
+  existed.** `wipe_demo_data` only touches rows stamped `seeded_by`, which is what makes it
+  safe — and means it correctly finds nothing on a box seeded earlier, where the fixture
+  family carries the same empty marker every real person carries. That left one option:
+  deleting those rows by hand at a shell, which is how the unscoped wipe came to be written.
+  `manage.py mark_demo_data` stamps them first. You name yards; pods and members are selected
+  by CONTAINMENT — a pod only if every yard it belongs to was named, a member only if every
+  pod they belong to was — so a household bridging into a real side is left alone, and so is
+  a relative who joined a fixture pod during QA. It prints what it deliberately spared and
+  why, refuses to re-stamp anything carrying a different generator's marker, and is
+  reversible with `--undo`. The wipe is not.
+- **The wipe's receipt undercounted photographs by half and lost their rows.** It reported
+  the number of media ASSETS under the label `files`, and an asset carries up to four; and
+  `MediaAsset` never appeared at all, because the purge deletes those rows before the cascade
+  could count them. Found by rehearsing the launch against a real database, where the receipt
+  said 4 files and 8 left the disk.
 - **The bridging household could not be created in the product** — the flagship diagram in
   this README needed a Django shell. And `pod_owner`, a role the UI described as granting
   two capabilities, granted none; it is no longer offered.
@@ -101,6 +117,12 @@ the fixes, and each new one was proven by breaking the thing it guards.
   reporting a subset as the whole.
 - The delegate runbook opens with the instance URL, the sign-in step, and the precondition
   that you must be made an admin first — it previously contained no URL at all.
+- **The DCO rule is enforced rather than asserted.** `CONTRIBUTING.md` said every commit
+  must be signed off; 85 of the first 154 were not. History cannot be fixed without rewriting
+  every SHA, so the check covers what a pull request adds, and CONTRIBUTING now says which is
+  which instead of leaving a reader to find out from `git log`. A clean merge commit is
+  exempt — the platform's update-branch creates one nobody can sign — but only when it
+  introduces nothing of its own, so an evil merge cannot carry unsigned work through.
 - `docs/OUTSTANDING.md` records what is still open, including what this release does not
   fix.
 
