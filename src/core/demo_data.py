@@ -46,7 +46,7 @@ from django.db import transaction
 from django.db.models.deletion import Collector
 from django.utils import timezone
 
-from core import media
+from core import media, pods
 from core.models import Comment, MediaAsset, Member, Pod, Post, Reaction, Yard
 
 # What `scripts/demo_seed.py` stamps on everything it creates. A different generator should
@@ -363,6 +363,20 @@ def wipe(marker: str = SEED_MARKER) -> Counter[str]:
         for model in (Member, Pod, Yard):
             _, per_model = model.objects.filter(seeded_by=marker).delete()
             removed.update(per_model)
+
+        # Ownership follows membership, here too. A seeded member may own a REAL ad-hoc
+        # pod — the founder's book club, created by a fixture account during QA — and
+        # `Pod.owner` is `SET_NULL`, so deleting them silently freezes that pod forever:
+        # `pod.owner_id != actor.id` is the only gate on its house rule and member list, and
+        # `None` never equals anybody. The receipt would not have mentioned it either, because
+        # a field set to NULL is not a deletion and nothing counts it.
+        #
+        # Run AFTER the deletes, over the pods that survived, so succession sees the final
+        # membership rather than one that is about to change.
+        orphaned = Pod.objects.filter(kind=Pod.ADHOC, owner__isnull=True)
+        removed["pods reassigned"] = sum(
+            1 for pod in orphaned if pods.succeed_owner(pod) is not None
+        )
 
         removed["sessions"] = _delete_sessions(user_ids)
         user_deleted, _ = get_user_model().objects.filter(pk__in=user_ids).delete()
