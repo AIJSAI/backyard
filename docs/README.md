@@ -44,7 +44,7 @@ graph TD
 - A household in both yards (yours, probably) posts to either side, or to just its own pod.
 - **The sides never fuse.** A member of Dad's side cannot see Mom's side, cannot enumerate it,
   and cannot tell a "not yours" 404 from a "does not exist" 404. That is one query,
-  `scoping.visible_posts`, and every surface goes through it — feed, search, digest, media,
+  `scoping.visible_posts`, and every surface goes through it — feed, digest, media,
   the elder page. One implementation, so there is no second one to drift.
 
 ### 2. How a grandparent gets in without an account
