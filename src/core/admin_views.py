@@ -80,6 +80,16 @@ class RosterRow:
     # than `can_manage_member` and answers it differently — a yard admin may manage a
     # member's role without being allowed to rewrite their birthday and phone number.
     can_edit_profile: bool = False
+    # Narrower again, and for a sharper reason. `can_provision_token` is deliberately
+    # stricter than `can_manage_member`: minting an elder link hands the actor a working
+    # no-login credential for the TARGET'S WHOLE SCOPE, which they can open themselves. So a
+    # yard admin may provision only for someone whose pods are a subset of their own.
+    #
+    # The roster gated this control on `manageable`, so a yard admin saw "Elder link" on
+    # every row in their yard and got a 403 on click — measured — while
+    # `setting-up-your-side.md` tells them to click exactly that when a grandparent's link
+    # goes to the wrong person.
+    can_provision_elder: bool = False
 
 
 @login_required
@@ -116,6 +126,9 @@ def members(request: HttpRequest) -> HttpResponse:
                 # it. `can_edit_profile_of` is deliberately NOT `can_manage_member`: it is
                 # a narrower question and has its own answer.
                 can_edit_profile=permissions.can_edit_profile_of(actor, member),
+                can_provision_elder=(
+                    not member.is_supervised and permissions.can_provision_token(actor, member)
+                ),
             )
         )
     return render(

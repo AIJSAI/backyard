@@ -168,13 +168,17 @@ _UNLINKED_BY_DESIGN = {
 }
 
 
-def _crawl(client: Client) -> tuple[set[str], set[str]]:
-    """`(route names, visible control labels)` reachable by clicking from the feed."""
+def _crawl(client: Client) -> tuple[set[str], set[str], set[tuple[str, int]]]:
+    """`(routes that answered, control labels, routes that were OFFERED and refused)`."""
     labels: set[str] = set()
-    return _reachable_route_names(client, labels), labels
+    refused: set[tuple[str, int]] = set()
+    routes = _reachable_route_names(client, labels, refused)
+    return routes, labels, refused
 
 
-def _reachable_route_names(client: Client, labels: set[str] | None = None) -> set[str]:
+def _reachable_route_names(
+    client: Client, labels: set[str] | None = None, refused: set[tuple[str, int]] | None = None
+) -> set[str]:
     """Every route a person can arrive at by starting on the feed and following the product.
 
     A real crawl, not a source-text scan. Two reasons it has to be:
@@ -191,6 +195,7 @@ def _reachable_route_names(client: Client, labels: set[str] | None = None) -> se
     form, so the route is reachable by clicking. Only `href`s are traversed.
     """
     found: set[str] = set()
+    refused = refused if refused is not None else set()
     seen_urls: set[str] = set()
     queue = [reverse("feed")]
 
@@ -214,6 +219,8 @@ def _reachable_route_names(client: Client, labels: set[str] | None = None) -> se
             continue
 
         body = response.content.decode()
+        # This page answered 200, so everything it offers was reached FROM somewhere a
+        # person can stand. Record it as visited-and-open.
         if labels is not None:
             # The words on the controls, so a runbook that says "Members → Add a
             # grandparent" can be checked against what the product actually says.
@@ -228,11 +235,21 @@ def _reachable_route_names(client: Client, labels: set[str] | None = None) -> se
         for match in re.finditer(r'(?:href|action)="(/[^"#?]*)', body):
             target = match.group(1)
             try:
-                found.add(resolve(target).url_name or "")
+                name = resolve(target).url_name or ""
             except Resolver404:
                 continue
-            if match.group(0).startswith("href") and target not in seen_urls:
-                queue.append(target)
+            if match.group(0).startswith("href"):
+                # An href is an OFFER, not an arrival. Follow it and see what it answers —
+                # a link that 403s is a link that lies, and counting it as reachable is how
+                # `Elder link` (rendered on `can_manage_member`, gated on the stricter
+                # `can_provision_token`) read as reachable while 403-ing for a yard admin.
+                if target not in seen_urls:
+                    queue.append(target)
+                answer = client.get(target)
+                if answer.status_code in (403, 404):
+                    refused.add((name, answer.status_code))
+                    continue
+            found.add(name)
 
     for url in seen_urls:
         try:
@@ -385,19 +402,23 @@ def test_the_delegate_runbook_names_controls_that_exist() -> None:
     is what a reader sees, and a label inside a template a delegate cannot reach is not an
     answer.
     """
+    # A YARD admin, not an instance admin. `setting-up-your-side.md` opens by telling the
+    # reader they must have been made "a **yard admin** (or an instance admin)" — so
+    # validating its instructions as an instance admin certifies sentences that are false for
+    # the reader it is written for. An instance admin sees a strictly larger roster.
     admin_user = User.objects.create_user(username="runbook-admin")
     yard = Yard.objects.create(name="Y", slug="y")
     pod = Pod.objects.create(name="P")
     pod.yards.set([yard])
     admin = Member.objects.create(
-        display_name="Runbook Admin", user=admin_user, role=Member.INSTANCE_ADMIN
+        display_name="Runbook Admin", user=admin_user, role=Member.YARD_ADMIN
     )
     PodMembership.objects.create(member=admin, pod=pod)
     PodMembership.objects.create(member=Member.objects.create(display_name="Someone"), pod=pod)
 
     client = Client()
     client.force_login(admin_user, backend=_BACKEND)
-    _, labels = _crawl(client)
+    _, labels, _refused = _crawl(client)
 
     instructions = _NAV_INSTRUCTION.findall(_DELEGATE_RUNBOOK.read_text(encoding="utf-8"))
     assert len(instructions) >= 4, (
@@ -425,4 +446,48 @@ def test_the_delegate_runbook_names_controls_that_exist() -> None:
         f"{_DELEGATE_RUNBOOK.name} tells a delegate to click {missing}, and no control an "
         "admin can reach says that. The runbook is describing a product that does not "
         "exist — which is exactly how it read before `Members` was added to the nav."
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("role", [Member.YARD_ADMIN, Member.INSTANCE_ADMIN])
+def test_no_link_the_product_offers_is_refused_when_you_click_it(role: str) -> None:
+    """A link that 403s is a link that lies.
+
+    The crawl used to count an `href` the moment it saw one, without ever asking what the
+    destination answered. That is how `Elder link` read as reachable while refusing: the
+    roster rendered it on `can_manage_member`, but `provision_elder` gates on the
+    deliberately stricter `can_provision_token` — minting an elder link hands over a working
+    no-login credential for the target's WHOLE SCOPE, so a yard admin may only do it for
+    someone whose pods are a subset of their own.
+
+    Measured before the fix: a yard admin saw `Elder link` on a member of another household
+    in their yard, and clicking it returned 403 — while `setting-up-your-side.md` tells them
+    to click exactly that when a grandparent's link goes to the wrong person.
+
+    Parameterised over BOTH admin roles, because the instance admin sees a strictly larger
+    roster and the yard admin is the one the delegate runbook is written for.
+    """
+    yard = Yard.objects.create(name="Maternal", slug="maternal")
+    own = Pod.objects.create(name="Their own household")
+    own.yards.set([yard])
+    other = Pod.objects.create(name="A different household")
+    other.yards.set([yard])
+
+    user = User.objects.create_user(username="admin-clicks")
+    admin = Member.objects.create(display_name="Admin", user=user, role=role)
+    PodMembership.objects.create(member=admin, pod=own)
+    # Someone in the same yard but a household the actor is not in — the exact shape that
+    # separates can_manage_member from can_provision_token.
+    elsewhere = Member.objects.create(display_name="Someone Elsewhere")
+    PodMembership.objects.create(member=elsewhere, pod=other)
+
+    client = Client()
+    client.force_login(user, backend=_BACKEND)
+    _, _labels, refused = _crawl(client)
+
+    assert not refused, (
+        f"as {role}, the product offered links that refuse on click: {sorted(refused)}. "
+        "Rendering a control the viewer may not use is worse than hiding it — they are told "
+        "the thing is theirs to do, and the refusal reads as a fault."
     )
