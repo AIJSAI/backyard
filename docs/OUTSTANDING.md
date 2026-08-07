@@ -190,6 +190,12 @@ Six independent read-only axes, each re-measured against the tree rather than re
 file. Verdicts: ops **RED**, product **RED**, OSS-artifact **RED**, critic **RED**, security
 **YELLOW**, gates **YELLOW**.
 
+> **This audit has no standalone file, and this section is its only record.** `docs/audits/`
+> contains exactly one document, `2026-07-26-honest-100-audit.md`. Three places cited "the
+> 2026-08-01 readiness audit" as though a reader could open it; they now point here. The
+> audit happened — the verdicts above are its output — but it was never written up, which is
+> why its findings were re-derived from scratch on 2026-08-06.
+
 ### Fixed in PR #118
 
 - **C1 — the decommission runbook destroyed data.** `shutdown.md` documented
@@ -204,6 +210,18 @@ file. Verdicts: ops **RED**, product **RED**, OSS-artifact **RED**, critic **RED
 - Plus **S7** (`cryptography` undeclared), **G8**, **G9**, the plaintext-justifying doc
   drift, an unrunnable restore drill (`tar xf` on ciphertext), and a `scripts`-driven
   verifier that never existed.
+
+### Closed since this section was written
+
+**C2, C5, C6 and C7 all shipped and are listed as open below.** The entries stay as written —
+this file is a record, not a status board — but read them with these verdicts:
+
+| | |
+|---|---|
+| **C2** `v0.1.0` publishes the burned credential | **CLOSED** — re-tagged and withdrawn (#126) |
+| **C5** private vulnerability reporting disabled | **CLOSED** — enabled 2026-08-01 |
+| **C6** `/settings/digest/` linked from nowhere | **CLOSED** (#120). Its twin `notification_settings` had the identical defect one route over and survived another month — see §7.3 |
+| **C7** invite-joined members locked out | **CLOSED** (#121) |
 
 ### Still open — criticals
 
@@ -255,3 +273,175 @@ nothing until **C6** is fixed and belongs after it.
 6. The long tail: S8–S24, G3–G10.
 
 Phase 5 and 6 stay where they are: gated on the founder's QA walk and the decision to go public.
+
+---
+
+## 7. The 2026-08-06 session: what was found, fixed, and left
+
+Written at the end of the session rather than after it, because §6's findings lived only in
+a chat log for a week and four of them were still listed "Still open" here after they had
+shipped. Everything below carries a verdict and the evidence for it.
+
+**Corrections to §6, which was stale:** C2 (re-tag) closed by #126 · C5 (private
+vulnerability reporting) enabled 2026-08-01 · C6 (`/settings/digest/` unreachable) closed by
+#120 · C7 (invite-joined lockout) closed by #121.
+
+### 7.1 Production — both live exposures closed and verified from outside
+
+| | |
+|---|---|
+| **A relative carried the author's real surname on the public instance.** `b8b9813` renamed her in the repo and added a guard; **the data was never migrated.** | Fixed after an encrypted backup (`pre-privacy-fix-2026-08-07-0009.bak`). Swept posts, comments, pods, yards and kinship names — only the author's own row remains, which the guard allows. Verified by signing in over the public internet and reading `/directory/`. |
+| **The `worker` container ran 7-day-old code.** Images were genuinely different: web `6cc6b523` (08-06) vs worker `0e61b7f3` (07-30), so digests, transcoding, link previews, `rollup_metrics` and `clearsessions` were all stale. The deploy step restarts `web` only. | Rebuilt. Both now carry the identical build stamp `2026-08-06T02:30:07.298Z`. |
+| **6 orphaned media files** — `rows=4 referenced=8 on_disk=14`, including a video source+transcode pair with no row. Nothing in the product would ever remove them: every purge path needs the row. | Unlinked. Now `on_disk=8`, exact match, `REFERENCED BUT MISSING: 0`. All 8 `/media/` URLs still return 200 with real bytes. |
+
+Deliberately left on the box, because founder QA needs them and they go with the demo family:
+the 2 `ISOPROBE` posts, Rose Whitfield's elder token, 35 sessions (0 expired).
+
+**Operational facts worth writing down.** The server key is stored as a **document**, not an
+SSH Key item, so the 1Password SSH agent never serves it — fetch with `op document get`. The
+user is `ubuntu`, not `root`. The box has **no `.git`**: it was deployed by file copy, so
+`git pull` is not the upgrade path there.
+
+### 7.2 The launch-day landmine
+
+`BACKYARD_DEMO_WIPE=1` ran `Pod.objects.all().delete()` — unscoped — and was documented in
+four places as the step to run immediately before the first real invite. Measured against a
+database holding one real family beside the fixture one:
+
+```
+pods 2->0   members 4->0   posts 2->0   comments 2->0   memberships 4->0
+real member survives: False        real ELDER survives: False
+```
+
+Members reached **zero**, not one: `exclude(user__username="james")` is keyed to a string
+literal and the superuser was not called that. `exclude()` across a nullable relation also
+keeps NULL rows, so every elder and supervised child was in the delete set by construction.
+Line 54 deleted auth accounts by **first name**.
+
+Replaced by `seeded_by` markers and `manage.py wipe_demo_data` (#134). Three further defects
+found by adversarial review of that fix, each verified before being fixed:
+
+- **The refusal checked the three marked models while the deletion travelled through four
+  others.** `Post.pod`, `Comment.post`, `Reaction.post`, `MediaAsset.post` carry no marker
+  and were never inspected, so the check could not fire. A real relative's post, photograph
+  and comment inside a fixture pod were deleted with no refusal: `wipe refused? False`.
+- **One removed member blocked every future wipe, permanently.** `set() <= doomed_pods` is
+  `True`, and `removal.remove_member` keeps the Member row by design.
+- **Stranding was checked on pods but not yards.** A real household in a demo yard came out
+  attached to nothing: `member_yard_ids() == set()`, and it could not see itself.
+
+### 7.3 Built, shipped, unreachable
+
+Removing one nav link makes **15 routes** unreachable — the entire delegation surface. Fixed
+in #135, with the 1-hop hand-maintained check replaced by a link crawl.
+
+Found by that crawl, and by nothing before it: `member_digests` and `member_metrics` had
+**zero** `{% url %}` references anywhere; `member_quarantine` and `managed_profile_edit` had
+one, their own; `create_supervised` is POST-only with no form anywhere, so **a supervised
+child account could not be created from any screen, by anybody** — S-703 reads `passing`.
+And the product had **no sign-out link at all**.
+
+`notification_settings` was C6 verbatim, one route over, a month later — while
+`profile_edit.html` carried a comment explaining that exact bug two lines above the fix.
+
+### 7.4 Claims the product made that were not true
+
+- **`pod_owner` grants nothing.** No predicate reads it. Both affirmative halves of its
+  shipped description were false, and `permission-matrix.md`'s ladder used a strict `<`
+  where `member = pod_owner` holds. The drift guard checked only the sentence's *negative*
+  clause. (#136)
+- **The bridging household could not be created in the product** — the diagram the README
+  leads with, captioned "yours, probably". Every call site did `pod.yards.set([one])`; the
+  only multi-yard assignment in the tree was a seed script; Django admin is not mounted. It
+  took a shell. ~15 tests exercise bridging behaviour and every one built the bridge by
+  direct ORM call. (#136)
+- **The delegate runbook described a nav that did not exist** — no URL anywhere, no sign-in
+  step, no statement that the reader must be promoted first (they get a bare 403). Its own
+  promise, *"if a step is not here, you do not have to do it"*, was false for every step.
+- **An elder cannot reply by email**, though `README.md:66` and `docs/README.md:70` say she
+  can: she has `user=None` by design and digest enrolment is `@login_required` and self-only.
+  **Still open.**
+
+### 7.5 The elder path (#137)
+
+On **day 14** her page died and blamed her link. `SESSION_COOKIE_AGE` defaults to two weeks
+and is not extended by a request that does not modify the session — which the elder feed
+never did. Her token has `expires_at = None` and never expires; only the cookie ran out, and
+the shared 404 says *"the link may have expired or been revoked"*.
+
+Fixed at the cause, not the message: that 404 is byte-identical for unknown/revoked/expired
+by design (S-202), so explaining itself would leak which. Also: sending love threw her to the
+top of the page; reactions showed legal names where every other line prefers the kinship
+name; the AGPL offer had **no CSS rule at all** and rendered at the same size as her
+grandchildren's news.
+
+### 7.6 Forms that discarded what a person had just done (#139)
+
+The join form cleared all four fields on any error — the first thing a relative ever does,
+on a phone. The composer kept the photos, dropped the words, and said the photos were safe.
+The digest could be turned on and never off from the web, so an unconfirmed subscriber could
+not turn it off at all.
+
+### 7.7 The gates — the theme of the day
+
+Nearly every defect above was found *behind a passing check*. Five shapes:
+
+| shape | live example |
+|---|---|
+| substring standing in for a structural property | `assert "secret_key" in line` passed on a command with an unclosed quote |
+| denominator measuring the wrong quantity | the version gate counted references *before* the exemption that emptied it |
+| silent drop instead of fail | `_split()` returned `None` → `continue` → the command left the corpus |
+| hardcoded enumeration presented as a rule | 3 reachable URL names guarded, of 62 routes |
+| defined-and-unused / one-directional | `_CONTAINER_EXEC` compiled and never referenced |
+
+Two gates were **vacuous at the moment they were measured**:
+`test_documented_version_resolves.py` had `ACTUALLY_CHECKED = []` for all four guarded
+documents, and `test_self_host_docs.py` skips 2 of its 3 commands.
+
+**Four of the guards written this session were vacuous on first write** and were caught by
+breaking them: the runbook-label check matched by substring; the wipe's marker accepted `""`
+(which selects exactly and only real data); the version denominator counted the wrong set;
+the reachability exclusion list named a route that does not exist.
+
+**The `secrets` job scans every branch.** `actions/checkout` uses `fetch-depth: 0`, so
+`gitleaks git .` walks the whole commit graph: one credential-shaped literal on a single
+unmerged branch fails `secrets` on **every open PR at once**, including ones that did not
+change. Measured: 171 commits, one finding, on an unmerged branch. `make secrets` now
+reproduces this locally.
+
+### 7.8 Still open
+
+**Gates with an escape still open** — `test_self_host_docs.py` skip-inversion (2 of 3 skip
+today) · `test_staged_upload_limits.py` `.split()` widening to the whole module on a rename ·
+`test_metrics.py` two divergent `banned` tuples, the app-wide one weaker ·
+`check_digest_confinement.py` guards one file of 60+ · `test_isolation_registry.py` passes
+on classification, not coverage · `test_health_email.py` 5 hardcoded view modules of 13 ·
+`test_no_hardcoded_demo_credentials.py` drift check is one-directional ·
+`test_agpl_source_offer.py` substring over two named templates · **nothing reads `ci.yml`**,
+so deleting a step leaves the job context green.
+
+**From adversarial review, verified but not yet fixed** — the reachability crawl counts an
+`href` and never a status code, so a link that 403s reads as reachable (live instance:
+`Elder link` renders on `can_manage_member` but the view gates on the narrower
+`can_provision_token`) · that crawl runs as an instance admin while the runbook it validates
+addresses a **yard** admin, so "Members → Edit profile" is certified for a reader it is
+false for · `preview()` undercounts fast-deletes, so the dry run and the receipt disagree ·
+`preview`/`wipe` collect twice, outside the transaction · `SET_NULL` effects are invisible,
+and a nulled ad-hoc `Pod.owner` is **unrecoverable** — no reassignment path exists ·
+`create_supervised` never checks the parent belongs to the chosen pod · the roster's new
+links render for cross-yard rows that then 404 · a parent still cannot create their own
+child's account (the form is gated on `manageable`, which is `False` for self) ·
+`self-host.md` pins a version and is not in `_READER_FACING` · `_release_in_flight` cannot
+tell "not tagged yet" from "tag withdrawn", which is the exact `v0.1.0` case the file exists
+for · the seed creates a `james` superuser with the demo password on any instance that does
+not already have one.
+
+**Product and docs** — three files cited the 2026-08-01 readiness audit as though it were a
+document; it has no file, and §6 is its only record (now said there, and the citations
+repointed) ·
+`docs/README.md:47` lists a "search" surface the product does not have · `RESUME-HERE.md`
+contradicts itself on whether the exposures are closed · `backup-restore.md` never uses the
+word "replay", though a restore bumps every `token_generation` instance-wide · `revocation.py`
+still calls three shipped credential classes "known future classes" · **85 of 136 commits are
+unsigned** while `CONTRIBUTING.md` says every commit must be signed off · S-721 (the
+non-technical delegate rehearsal) is still not in `stories/stories.yaml`.

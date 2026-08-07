@@ -2,7 +2,7 @@
 
 Written to survive a context compaction. Read this, then
 **[`docs/OUTSTANDING.md`](OUTSTANDING.md) — the ranked backlog, whose §6 carries what the
-2026-08-01 readiness audit added** — then `docs/PATH-TO-100.md`. Verify with a primary check
+2026-08-01 readiness audit added**, whose only record is §6 of that file — there is no separate audit document — then `docs/PATH-TO-100.md`. Verify with a primary check
 (`git log`, `gh pr list`, run the probe an item names) rather than trusting anything written
 down. That instruction earned its keep: OUTSTANDING.md called itself "the single list" and
 a re-measurement found ~30 items it did not contain.
