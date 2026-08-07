@@ -363,26 +363,12 @@ LOGIN_REDIRECT_URL = "feed"
 _HTTPS = BASE_URL.lower().startswith("https://")
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
-# 180 days, and extended by use. Django's default is two weeks and is NOT extended by a
-# request that does not modify the session — which the elder feed never does.
-#
-# So on day 14 the grandmother's page stopped working, and told her the wrong thing. Her
-# elder token has `expires_at = None` and never expires; only the cookie died. `/e/` with no
-# session is the shared bare 404: "the link may have expired or been revoked." Her link was
-# fine. The fix was "open the link your family gave you again", and the copy said the
-# opposite — to the least technical person on the product, on the one surface that has no
-# other way in and no way to ask for help.
-#
-# Fixed HERE rather than in the message, deliberately. That 404 is byte-identical for
-# unknown, revoked and expired on purpose (S-202): making it explain itself would leak which
-# of the three it was. The cause is the two-week cookie, so the cookie is what changes.
-#
-# `SESSION_SAVE_EVERY_REQUEST` is what makes 180 days mean "180 days since she last looked"
-# rather than "180 days since the link was handed over". Cost is one session-row write per
-# request, which at family scale is nothing. Revocation is unaffected: it deletes the row
-# (T-SESS-1), and `_elder_member` re-checks `token_generation` on every click regardless.
-SESSION_COOKIE_AGE = 60 * 60 * 24 * 180
-SESSION_SAVE_EVERY_REQUEST = True
+# Session lifetime is deliberately NOT changed globally here. The elder surface needs a long,
+# use-extended session (see core/elder_views.py); every other session keeps Django's two-week
+# default. An earlier version of this fix set SESSION_COOKIE_AGE and SESSION_SAVE_EVERY_REQUEST
+# at this level, which quietly gave every signed-in member — including an instance admin — a
+# six-month cookie, and put a session row write on every request in the product. That is a
+# security-posture change to fix a grandmother's bookmark, and review caught it.
 CSRF_COOKIE_SAMESITE = "Lax"
 X_FRAME_OPTIONS = "DENY"
 SECURE_CONTENT_TYPE_NOSNIFF = True
