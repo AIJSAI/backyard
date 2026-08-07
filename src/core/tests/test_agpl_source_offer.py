@@ -83,10 +83,16 @@ def test_the_offer_is_not_only_on_one_template() -> None:
     # else gets it from base.html's footer, which this same check pins.
     core_templates = Path(__file__).resolve().parents[1] / "templates" / "core"
     project_templates = Path(__file__).resolve().parents[2] / "templates"
-    standalone = sorted(
-        path
+    # Read each template ONCE and carry the text with the path. The previous form called
+    # `read_text()` twice per candidate in the filter and a third time in the loop below,
+    # which is not merely wasteful: three reads of a file that another test may be
+    # rewriting are three chances to disagree about what the file says.
+    sources = {
+        path: path.read_text()
         for path in list(core_templates.glob("*.html")) + list(project_templates.glob("*.html"))
-        if "{% extends" not in path.read_text() and "<html" in path.read_text()
+    }
+    standalone = sorted(
+        path for path, text in sources.items() if "{% extends" not in text and "<html" in text
     )
     assert len(standalone) >= 3, (
         f"only {len(standalone)} standalone templates found ({[p.name for p in standalone]}); "
@@ -98,7 +104,7 @@ def test_the_offer_is_not_only_on_one_template() -> None:
         # `{% comment %}` -- the identical hole that had already been fixed twice this
         # session, reintroduced by hand in a brand-new file. Both templates use `{# ... #}`
         # too, so the offer could have been moved into one and still satisfied the check.
-        source = without_comments(path.read_text())
+        source = without_comments(sources[path])
         assert _REPO in source, (
             f"{name} is a standalone page — it extends nothing, so it inherits no footer — "
             "and carries no source offer outside its comments. AGPL section 13 requires a "

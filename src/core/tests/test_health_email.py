@@ -318,9 +318,31 @@ def test_the_domain_lookup_is_registered_on_the_worker_not_the_edge() -> None:
     # papering over one.
     root = pathlib.Path(__file__).resolve().parents[1]
     web_modules = sorted(path.stem for path in root.glob("*views*.py"))
-    assert len(web_modules) >= 8, (
-        f"only {len(web_modules)} view modules found in {root}; the glob is wrong and this "
-        "check is inspecting almost nothing"
+
+    # The denominator is DERIVED, not remembered. A floor of `>= 8` let three of the eleven
+    # modules go missing silently; a floor of `>= 11` is the same defect rotting the other
+    # way, because the number stops matching the directory the moment anyone adds or splits
+    # a module, and the fix for a failing magic number is always to edit the number.
+    #
+    # So: enumerate a second time by a different mechanism and require agreement. The
+    # realistic breakage is a mistyped pattern — `*_views.py` silently drops `views.py`,
+    # which is the largest module of the eleven — and that is exactly what this catches.
+    by_listing = sorted(
+        path.stem
+        for path in root.iterdir()
+        if path.is_file() and path.suffix == ".py" and "views" in path.name
+    )
+    assert web_modules == by_listing, (
+        f"the glob and a plain directory listing disagree about what the view modules are.\n"
+        f"  glob   `*views*.py`: {web_modules}\n"
+        f"  listing            : {by_listing}\n"
+        "Whichever is wrong, this check is no longer inspecting every edge-facing module."
+    )
+    # Both enumerations agreeing on nothing would satisfy the line above, so pin the root
+    # with two modules whose absence would mean the product itself is gone.
+    assert {"views", "feed_views"} <= set(web_modules), (
+        f"{root} does not look like the core package — found {web_modules}. Both "
+        "enumerations would agree on an empty set, so this anchors them to a real directory."
     )
     for name in web_modules:
         module = __import__(f"core.{name}", fromlist=["x"])
