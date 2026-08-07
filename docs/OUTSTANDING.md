@@ -463,25 +463,26 @@ the row it had just destroyed.
 | `self-host.md` pins a version and is not in `_READER_FACING` | #150 |
 | `_release_in_flight` cannot tell "not tagged yet" from "tag withdrawn" | #150 |
 
-### 7.10 Still open
+### 7.10 Closed since 7.9 was written
 
-**`SET_NULL` effects are invisible, and a nulled ad-hoc `Pod.owner` is unrecoverable.** The
-wipe's receipt counts deletions; a field set to NULL is neither counted nor refused. For an
-ad-hoc pod owned by a seeded member, `owner` becomes NULL and **no reassignment path exists
-anywhere in the product** — `Pod.owner` is set at creation and never again, so the pod's
-house rule and member list become permanently unmanageable by anybody. This is the last
-unaddressed item from the adversarial review, and it is a product gap (no reassignment UI)
-as much as a wipe gap.
+Everything §7.10 listed as open has landed or is in flight. Recorded here rather than deleted,
+because a backlog that quietly loses its entries stops being checkable — which is the note §6
+of this file already carries about itself.
 
-**Product and docs** — three files cited the 2026-08-01 readiness audit as though it were a
-document; it has no file, and §6 is its only record (now said there, and the citations
-repointed) · `docs/README.md:47` lists a "search" surface the product does not have ·
-`RESUME-HERE.md` contradicts itself on whether the exposures are closed ·
-`backup-restore.md` never uses the word "replay", though a restore bumps every
-`token_generation` instance-wide · `revocation.py` still calls three shipped credential
-classes "known future classes" · **85 of 136 commits are unsigned** while `CONTRIBUTING.md`
-says every commit must be signed off · S-721 (the non-technical delegate rehearsal) is still
-not in `stories/stories.yaml`.
+| was | closed by | what the measurement was |
+|---|---|---|
+| a nulled ad-hoc `Pod.owner` is unrecoverable | #153 | worse than filed: a DEPARTED owner also kept control of a pod they left, and S-702 removal was a third route nobody had wired |
+| `docs/README.md` lists a "search" surface | #154 | there is no post search anywhere in the product |
+| `revocation.py` calls three shipped classes "known future classes" | #154 | all three are in `_REVOCATION_STEPS` and shipped months ago |
+| `backup-restore.md` never says what a restore does to live credentials | #154 | it now carries the table, including the row that matters: members removed since the backup COME BACK |
+| S-721 is not in `stories.yaml` | #154 | the cross-reference check found six more — S-722..S-727 — cited by `PATH-TO-100` and never filed |
+| 85 of 154 commits unsigned while CONTRIBUTING says every commit must be | #158 | enforced on the commits a PR adds; history is stated rather than silently contradicted |
+| `RESUME-HERE.md` contradicts itself on the exposures | earlier | the header now narrates the contradiction as a past lesson rather than repeating it |
+| three files cite a readiness audit that has no file | earlier | citations repointed at §6, which is its only record |
+
+**Nothing from the original §7 audit is open.** What remains is §7.11 below, found while
+closing it — and the founder-gated items in §6 that no amount of code closes: CodeQL, the
+retention window, PRIV-1, and the QA walk itself.
 
 ### 7.11 New, found while closing the above
 
