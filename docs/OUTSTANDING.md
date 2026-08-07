@@ -409,39 +409,101 @@ unmerged branch fails `secrets` on **every open PR at once**, including ones tha
 change. Measured: 171 commits, one finding, on an unmerged branch. `make secrets` now
 reproduces this locally.
 
-### 7.8 Still open
+### 7.8 Closed since this section was written
 
-**Gates with an escape still open** — `test_self_host_docs.py` skip-inversion (2 of 3 skip
-today) · `test_staged_upload_limits.py` `.split()` widening to the whole module on a rename ·
-`test_metrics.py` two divergent `banned` tuples, the app-wide one weaker ·
-`check_digest_confinement.py` guards one file of 60+ · `test_isolation_registry.py` passes
-on classification, not coverage · `test_health_email.py` 5 hardcoded view modules of 13 ·
-`test_no_hardcoded_demo_credentials.py` drift check is one-directional ·
-`test_agpl_source_offer.py` substring over two named templates · **nothing reads `ci.yml`**,
-so deleting a step leaves the job context green.
+Every gate escape listed here has been closed and **proven by breaking what it guards** —
+the fix is not recorded until the guard has been seen to fail. Merged to `main`:
 
-**From adversarial review, verified but not yet fixed** — the reachability crawl counts an
-`href` and never a status code, so a link that 403s reads as reachable (live instance:
-`Elder link` renders on `can_manage_member` but the view gates on the narrower
-`can_provision_token`) · that crawl runs as an instance admin while the runbook it validates
-addresses a **yard** admin, so "Members → Edit profile" is certified for a reader it is
-false for · `preview()` undercounts fast-deletes, so the dry run and the receipt disagree ·
-`preview`/`wipe` collect twice, outside the transaction · `SET_NULL` effects are invisible,
-and a nulled ad-hoc `Pod.owner` is **unrecoverable** — no reassignment path exists ·
-`create_supervised` never checks the parent belongs to the chosen pod · the roster's new
-links render for cross-yard rows that then 404 · a parent still cannot create their own
-child's account (the form is gated on `manageable`, which is `False` for self) ·
-`self-host.md` pins a version and is not in `_READER_FACING` · `_release_in_flight` cannot
-tell "not tagged yet" from "tag withdrawn", which is the exact `v0.1.0` case the file exists
-for · the seed creates a `james` superuser with the demo password on any instance that does
-not already have one.
+| was | closed by | what the probe showed |
+|---|---|---|
+| `test_self_host_docs.py` skip-inversion (2 of 3 skipped) | #144 | the skips are gone; only prose describing them remains |
+| **nothing reads `ci.yml`** | #144 | deleting the bandit scan left 11 mentions of "bandit" and the old rule green |
+| `test_staged_upload_limits.py` `.split()` widening | #145 | `rindex` did not raise — it validated the `clearsessions` task's cron, 8 lines up |
+| `test_metrics.py` two divergent `banned` tuples | #145 | collapsed to one constant |
+| `test_health_email.py` 5 hardcoded modules of 13 | #146 | a mistyped glob found 10 of 11 and still passed the `>= 8` floor, dropping `views.py` |
+| `test_agpl_source_offer.py` coverage | #146 | standalone pages computed, each template read once |
+| crawl counts an `href`, never a status | #147 | `Elder link` visible to a yard admin, 403 on click |
+| crawl runs as instance admin, runbook addresses a yard admin | #147 | only `[yard_admin]` goes red; `[instance_admin]` stays green |
+| roster links render for cross-yard rows that 404 | #147 | the roster gated on `manageable`, the view on `can_provision_token` |
+| `preview()` undercounts fast-deletes | #148 | worse than reported — see below |
+| `preview`/`wipe` collect outside the transaction | #148 | closure now computed under `select_for_update` inside the atomic block |
+| the seed creates a `james` superuser with the demo password | #148 | selected by `is_superuser` now; a populated instance with no superuser is refused |
+
+**One was corrected downward.** `check_digest_confinement.py` guarding a single file was
+recorded here as too narrow. Measured: widening it false-positives on three modules that
+legitimately import digest names. The one-file scope is right, and the entry was wrong.
+
+**One turned out worse than recorded.** "`preview()` undercounts fast-deletes" was filed as
+a reporting mismatch. `Collector` splits deletion into rows it instantiates and rows it
+removes in bulk, and only the first appear in `.data` — so the refusal that had just been
+written to stop a real person's content being destroyed was **blind to `Reaction`,
+`PodMembership`, `PodMute`, `LinkPreview`, `ReplyAddress`, `PodWeekMetrics` and both m2m
+through-tables**. `Reaction` was named in the tuple that check iterates and could never
+match. Measured, with the relative safely in their own household so nothing else could fire:
+
+```
+real person's reactions before: 1
+preview() returned, NO refusal: {Yard: 1, Pod: 1, Post: 1, Member: 1}
+Reaction counted in preview: False
+wipe() receipt: {core.Reaction: 1, ...}
+real person's reactions AFTER: 0
+```
+
+The dry run did not mention it, the guard could not see it, and the receipt afterwards listed
+the row it had just destroyed.
+
+### 7.9 In flight
+
+| item | PR |
+|---|---|
+| `test_isolation_registry.py` passes on classification, not coverage | #151 |
+| `test_no_hardcoded_demo_credentials.py` drift check is one-directional | #151 |
+| `create_supervised` never checks the parent belongs to the chosen pod | #149 |
+| a parent cannot create their own child's account | #149 |
+| `self-host.md` pins a version and is not in `_READER_FACING` | #150 |
+| `_release_in_flight` cannot tell "not tagged yet" from "tag withdrawn" | #150 |
+
+### 7.10 Still open
+
+**`SET_NULL` effects are invisible, and a nulled ad-hoc `Pod.owner` is unrecoverable.** The
+wipe's receipt counts deletions; a field set to NULL is neither counted nor refused. For an
+ad-hoc pod owned by a seeded member, `owner` becomes NULL and **no reassignment path exists
+anywhere in the product** — `Pod.owner` is set at creation and never again, so the pod's
+house rule and member list become permanently unmanageable by anybody. This is the last
+unaddressed item from the adversarial review, and it is a product gap (no reassignment UI)
+as much as a wipe gap.
 
 **Product and docs** — three files cited the 2026-08-01 readiness audit as though it were a
 document; it has no file, and §6 is its only record (now said there, and the citations
-repointed) ·
-`docs/README.md:47` lists a "search" surface the product does not have · `RESUME-HERE.md`
-contradicts itself on whether the exposures are closed · `backup-restore.md` never uses the
-word "replay", though a restore bumps every `token_generation` instance-wide · `revocation.py`
-still calls three shipped credential classes "known future classes" · **85 of 136 commits are
-unsigned** while `CONTRIBUTING.md` says every commit must be signed off · S-721 (the
-non-technical delegate rehearsal) is still not in `stories/stories.yaml`.
+repointed) · `docs/README.md:47` lists a "search" surface the product does not have ·
+`RESUME-HERE.md` contradicts itself on whether the exposures are closed ·
+`backup-restore.md` never uses the word "replay", though a restore bumps every
+`token_generation` instance-wide · `revocation.py` still calls three shipped credential
+classes "known future classes" · **85 of 136 commits are unsigned** while `CONTRIBUTING.md`
+says every commit must be signed off · S-721 (the non-technical delegate rehearsal) is still
+not in `stories/stories.yaml`.
+
+### 7.11 New, found while closing the above
+
+These were not in any audit. Each came from breaking a guard rather than reading it.
+
+* **`uv run pytest` is a strict PREFIX of `uv run pytest -m e2e -v`.** No substring
+  distinguishes them, so the entire unit suite could have been deleted from `ci.yml` with the
+  meta-gate green. Found by the new uniqueness rule, not by review.
+* **A parent could not create their own child's account.** `can_create_supervised` returns
+  `True` for `actor.pk == parent.pk` and always has; the only control lived on `/members/`,
+  which is admin-only. The permission said yes, the page said 403, and a hand-written POST
+  worked.
+* **A child could be placed in a household their parent is not in.** The view checked that
+  the pod was visible to whoever *submitted* the form — for an instance admin, every pod on
+  the instance.
+* **`member.pods` includes ad-hoc groups** under controls captioned "households" — the same
+  mislabel fixed once on this roster, reintroduced by a new field weeks later.
+* **`test_no_relative_carries_the_authors_real_surname` asserted a floor, not a ceiling.**
+  `== ["James Shehan"]` made the author's real surname *required* in the seed; removing it
+  failed the test for having leaked less.
+* **The merge train read a queued CI check as a verdict.** `gh` reports an in-progress check
+  as the empty string, and jq's `//` defaults only on `null`, so `"" // "RUNNING"` is `""`.
+  It announced "all five green" with `code` still running. The same falsy-but-not-null slip
+  the codebase keeps producing, in the tooling built to land the fixes for it.
+
