@@ -12,6 +12,94 @@ twice: OUTSTANDING.md called itself "the single list" and a re-measurement found
 did not contain, and this header claimed the production exposures were closed while a third
 one was still live.
 
+## SESSION HANDOFF — 2026-08-07
+
+**Read this block first, then verify every line of it with a primary check.** This file has
+been wrong before, in this exact header, about exactly the kind of claim it makes.
+
+### Where the code is
+
+| | |
+|---|---|
+| `main` | 32 commits past `v0.1.1` |
+| **`v0.1.2` is NOT cut** | `git tag --list` shows only `v0.1.1`. README, `self-host.md` and CHANGELOG all name `v0.1.2` |
+| open PR | **#161** — lint the gate scripts. All 5 checks green, threads resolved, on the merge train |
+| everything else | merged: #129, #140–#141, #144–#160 |
+
+**The next two commands, in order**, once #161 merges:
+
+```bash
+cd ~/projects/backyard && git checkout main && git pull
+# 1. Full gate on the exact tree being tagged. Read it; do not chain with && and assume.
+uv run ruff check src scripts && uv run ruff format --check src scripts
+uv run mypy src && uv run pytest -q && uv run pytest -q -m e2e && make gates
+# 2. Tag
+git tag -a v0.1.2 -m "v0.1.2" && git push origin v0.1.2
+```
+
+Tagging turns the version gate back ON: `_release_in_flight` exempts the newest CHANGELOG
+version only while it has no tag, so every `--branch v0.1.2` in README and `self-host.md`
+starts being checked against a real tag the moment it exists.
+
+### What is DONE
+
+Every item from the original `OUTSTANDING` §7 audit. §7.8 is a closed-items table, §7.9 was
+in flight and has landed, §7.10 is closed, §7.11 records what was found while closing it.
+Nothing from the audit is open.
+
+The defects that would have reached the family, each measured not reasoned:
+
+* **The wipe's refusal was blind to `Collector.fast_deletes`** — including `Reaction`, a
+  model named in the tuple it iterates. A real relative's reaction was deleted with no
+  refusal, absent from the preview, and listed in the receipt afterwards.
+* **The seed minted an `INSTANCE_ADMIN` on anyone else's box**, keyed to the literal
+  username `james`, unmarked so no wipe removes it, with its password printed.
+* **An ad-hoc pod froze permanently** when its owner left, was removed (S-702), or was
+  deleted. A *departed* owner also kept control of a group they had walked out of.
+* **A parent could not create their own child's account** — permission said yes, the only
+  page said 403.
+* **15 routes were unreachable** and the product had no sign-out link.
+* **Six stories did not exist** while `PATH-TO-100` marked a phase complete citing them.
+
+### What is NEXT — and which parts are the operator's
+
+**Phase 10, the launch.** `docs/runbooks/founder-qa.md` has the sequence. The order matters:
+
+1. Deploy. The deploy is `tar czf - src | ssh …` and ships **`src/` only**. Run the check in
+   the "Deploying" section below first — this release's non-`src` delta is
+   `caddy/Caddyfile.prod` and `scripts/`.
+2. `mark_demo_data --dry-run` — production's demo family **predates the marker**, so
+   `wipe_demo_data` correctly finds nothing until this is run. List the yards first; two
+   seed scripts used different slugs (`moms-side`/`dads-side` vs `whitfield-side`/…).
+3. **OPERATOR JUDGEMENT.** Read the *"Deliberately NOT marked"* list. It names real people.
+   In rehearsal it correctly spared the founder, who was in a marked pod *and* their own
+   household — a naive rule would have deleted him and locked him out of his own family.
+   Confirming that list is a judgement about this family and must not be automated.
+4. `wipe_demo_data --dry-run`, read the counts, then `--yes`.
+5. Seed the founder's profile, a welcome post and photos **through the product**.
+6. Create the real yards; promote uncle and sister to `yard_admin` — *not* instance admin.
+7. Register the Resend inbound webhook.
+8. **OPERATOR JUDGEMENT.** The founder QA walk (PATH-TO-100 criterion 4, still NOT DONE) and
+   the S-721 delegate rehearsal — filed as `spec` today, deliberately not `passing`, because
+   it has not been run. The retro is explicit that the founder must not role-play the
+   delegate.
+
+### Traps this session paid for
+
+* **`git checkout -- <file>` discards uncommitted work.** It destroyed a template edit
+  mid-probe. Back probes up to the scratchpad and restore from there.
+* **Never edit a running bash script.** Bash reads incrementally from a byte offset. The
+  merge train was edited eight times while live; harmless by luck. It takes its queue as
+  ARGUMENTS now: `merge-train.sh 161 162`.
+* **`gh` reports an in-progress check as the empty STRING**, and jq's `//` defaults only on
+  null — so `"" // "RUNNING"` is `""`. The train announced "all five green" over a running
+  job because of it.
+* **A `&&` chain with output to `/dev/null` will make you misread which command passed.** I
+  reported "lint ok" when ruff had never run clean; the tree had 9 lint findings.
+* **A probe that does not fire looks exactly like a probe that passed.** Several non-vacuity
+  probes silently no-opped (wrong indent, a `-k` filter matching nothing, an equality check
+  against a longer line). Assert the mutation applied before trusting the result.
+
 > **Start here after a compaction.** Production is clean as of **2026-08-07 UTC**, and every
 > item below was verified from OUTSIDE the box rather than from a command's exit code:
 >
