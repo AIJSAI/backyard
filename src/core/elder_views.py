@@ -31,6 +31,21 @@ _SESSION_MEMBER = "elder_member_id"
 _SESSION_GENERATION = "elder_generation"
 _SESSION_BIG_TEXT = "elder_big_text"
 _MAX_POSTS = 50
+# Six months, refreshed every time she opens the page.
+#
+# Scoped to THIS surface with set_expiry rather than set globally: her token never expires
+# (`expires_at = None`) but Django's default cookie is two weeks and is not extended by a
+# request that does not modify the session — which this feed did not. So on day 14 her page
+# fell to the shared bare 404, which says "the link may have expired or been revoked". Her
+# link was fine.
+#
+# Fixed at the cause and not in the message: that 404 is byte-identical for unknown, revoked
+# and expired on purpose (S-202), so making it explain itself would leak which of the three
+# it was.
+#
+# Revocation is unaffected — it deletes the session row (T-SESS-1), and `_elder_member`
+# re-checks `token_generation` on every click regardless of how long the cookie lives.
+_ELDER_SESSION_AGE = 60 * 60 * 24 * 180
 
 
 @require_GET
@@ -50,6 +65,7 @@ def enter(request: HttpRequest, token: str) -> HttpResponse:
     request.session.flush()
     request.session[_SESSION_MEMBER] = elder_token.member_id
     request.session[_SESSION_GENERATION] = elder_token.member.token_generation
+    request.session.set_expiry(_ELDER_SESSION_AGE)
     return redirect("elder_feed")
 
 
@@ -77,6 +93,10 @@ def elder_feed(request: HttpRequest) -> HttpResponse:
     """The one big readable column (S-601): the member's visible posts, large
     type, giant targets, one-tap named reactions, nowhere to get lost."""
     member = _elder_member(request)
+    # Push the expiry out on every visit, so the window means "since she last looked" rather
+    # than "since the link was handed over". Without this, six months is still a countdown
+    # her family starts and she cannot reset by using the thing.
+    request.session.set_expiry(_ELDER_SESSION_AGE)
     posts = list(
         scoping.visible_posts(member)
         .select_related("author", "pod")
