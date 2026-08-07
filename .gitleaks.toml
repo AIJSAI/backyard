@@ -28,7 +28,24 @@ useDefault = true
 [[allowlists]]
 description = """Synthetic credential fixtures, enumerated by value rather than by path.
 Each is an invented passphrase that exists so the first-run wizard and admin tests can run.
-Adding a fixture means naming it here on purpose — which is the point."""
+Adding a fixture means naming it here on purpose — which is the point.
+
+SCOPED to this file's two generic rules. It was global: a top-level [[allowlists]] with no
+targetRules applies to EVERY rule, including the provider-key rules from the default set. No
+exploit was constructed against a provider rule — their key formats cannot contain these
+strings — so this is a latent hazard rather than a demonstrated hole. It is still wrong for
+a block whose description names a scope to not have one.
+
+`generic-api-key` is in the list because it is MEASURED to be needed, not assumed: scoping
+this block to the two backyard rules alone produced 12 findings, all `generic-api-key`, all
+on these same fixtures in test_setup / test_admin_views / test_removal. The global scope was
+load-bearing rather than accidental — which is exactly why it had to be measured before
+being narrowed."""
+targetRules = [
+  "backyard-generic-password-assignment",
+  "backyard-unquoted-env-credential-assignment",
+  "generic-api-key",
+]
 regexes = [
   '''a-Strong-passphrase-9''',
   '''a-fine-passphrase-1234''',
@@ -66,7 +83,14 @@ migrator_pw / app_pw are psql VARIABLE NAMES in postgres/initdb/01-roles.sh
 hunter2 is a deliberate plant in this repo's own guard tests. The CI selftest's password
 plant is deliberately NOT allowlisted -- allowlisting it made that half of the proof vacuous. The angle-bracket forms are redaction placeholders written where a
 real credential used to be quoted, so the rule that finds credentials also finds the marker
-left behind when one is removed."""
+left behind when one is removed.
+
+SCOPED, for the reason above: this block says "of the generic-password rule" and applied to
+all of them."""
+targetRules = [
+  "backyard-generic-password-assignment",
+  "backyard-unquoted-env-credential-assignment",
+]
 regexes = [
   # ANCHORED. These were bare substrings, so any value merely CONTAINING them was
   # allowlisted -- `app_pw` would have exempted a real secret like `app_pw_9fJ2...`.
@@ -108,7 +132,31 @@ secretGroup = 1
 tags = ["password", "generic", "env"]
 
 [[allowlists]]
-description = "Structurally-not-a-credential values for the two generic rules."
+# targetRules is the whole point of this block and it was MISSING. A top-level [[allowlists]]
+# with no targetRules is GLOBAL in gitleaks 8 — it applies to every rule, including the
+# provider-key rules from the default set — while this description claimed it covered "the
+# two generic rules". The description was the only thing scoping it, and a description is
+# not a scope.
+#
+# Measured against 8.30.1 before the fix:
+#
+#   PW = "sunflower-kitchen-tuesday"                        -> leaks found: 1
+#   PW = "not-a-secret-sunflower-kitchen"                   -> no leaks found
+#   BACKYARD_BACKUP_PASSPHRASE = "correct-not-a-secret-..." -> no leaks found
+#
+# So any real credential whose VALUE happened to contain that substring was exempt from
+# every rule this config runs. (Allowlist regexes match the finding's secret, not the whole
+# line, so a marker in a trailing comment does not exempt — verified separately.)
+#
+# `not-a-secret` stays a substring rather than becoming anchored, because the values it
+# legitimately covers embed it mid-string on purpose: `ci-not-a-secret`,
+# `ci-backup-passphrase-not-a-secret`, `local-not-a-secret-deadbeef-...`. Anchoring would
+# break every CI job. Scoping is the fix; anchoring would have been a different bug.
+description = "Structurally-not-a-credential values, for THIS FILE'S two generic rules only."
+targetRules = [
+  "backyard-generic-password-assignment",
+  "backyard-unquoted-env-credential-assignment",
+]
 regexes = [
   '''not-a-secret''',
   '''^whsec_live$''',
