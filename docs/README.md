@@ -9,7 +9,7 @@ Three doors:
 |---|---|
 | **run it** | [self-host.md](runbooks/self-host.md) → [backup-restore.md](runbooks/backup-restore.md) → [handover.md](runbooks/handover.md) |
 | **understand why it is built this way** | the four pictures below, then [principles.md](principles.md), [ADRs](adr/), [threat-model.md](security/threat-model.md) |
-| **know what is left** | **[OUTSTANDING.md](OUTSTANDING.md)** — the ranked backlog: operator actions, founder decisions, unfixed findings, gate gaps, and what the 2026-08-01 readiness audit added on top |
+| **know what is left** | **[OUTSTANDING.md](OUTSTANDING.md)** — the ranked backlog: operator actions, founder decisions, unfixed findings, gate gaps, what the 2026-08-01 readiness audit added on top (§6 — that audit has no separate file), and the full 2026-08-06 session record (§7) |
 | **see how it was actually built** | [PATH-TO-100.md](PATH-TO-100.md), [receipts/](receipts/), [audits/](audits/) |
 
 ---
