@@ -147,7 +147,10 @@ docker volume inspect backyard_appdata --format '{{ .Mountpoint }}'
 # And no `--delete`: an off-box copy that mirrors deletions is not a backup against the
 # things it exists for. A mistaken `rm`, a retention bug or ransomware on the box would be
 # replicated to the copy within the hour. Prune the far side by hand, deliberately.
-# 30 9 * * * rsync -a --include='scheduled-*.bak' --exclude='*' <that path>/backups/ <your-backup-host>:/srv/backyard/
+# `cutover-*.bak` is in the pattern too: it is the name reserved for an archive you took by
+# HAND that must reach the far side (the final backup before a server move). Anything else
+# you name a hand-taken archive stays on the box.
+# 30 9 * * * rsync -a --include='scheduled-*.bak' --include='cutover-*.bak' --exclude='*' <that path>/backups/ <your-backup-host>:/srv/backyard/
 ```
 
 #### Telling the instance how the copy went (optional)
@@ -193,7 +196,7 @@ set -u
 backups="$(docker volume inspect backyard_appdata --format '{{ .Mountpoint }}')/backups"
 status="$backups/.offbox-status.json"
 
-if err="$(rsync -a --include='scheduled-*.bak' --exclude='*' \
+if err="$(rsync -a --include='scheduled-*.bak' --include='cutover-*.bak' --exclude='*' \
             "$backups/" <your-backup-host>:/srv/backyard/ 2>&1)"; then
   ok=true; err=""
 else
@@ -293,12 +296,36 @@ docker compose exec -T web sh -c \
 #          python manage.py backup_instance /path/out.tar --no-encrypt'
 ```
 
-Then copy the archive off the box and encrypt it:
+Then copy the archive off the box. It is **already encrypted** — that is what
+`backup_instance` writes unless you passed `--no-encrypt` — so there is nothing to wrap it
+in:
 
 ```sh
-docker compose cp web:/data/backups/backup-YYYY-MM-DD.tar ./
-age -r "$YOUR_AGE_PUBLIC_KEY" -o backup-YYYY-MM-DD.tar.age backup-YYYY-MM-DD.tar
+docker compose cp web:/data/backups/backup-YYYY-MM-DD.bak ./
 ```
+
+> This block used to name `backup-YYYY-MM-DD.tar` and pipe it through `age -r <key>`.
+> Neither is right any more: archives are `.bak`, encryption is the command's own default
+> (`core/backup_crypto`), and there is no `age` anywhere in this project. Copying a file
+> that does not exist and then encrypting ciphertext is the kind of step an operator
+> discovers is wrong at the worst moment.
+
+### Name it `cutover-…` if the off-box copy must pick it up
+
+The host-side copy job in "Getting a copy off the box" below deliberately copies by pattern
+rather than by wildcard, because `preflight-*.dump` sits in the same directory and is
+plaintext when no passphrase is configured. The patterns it copies are `scheduled-*.bak`
+(the nightly) and `cutover-*.bak`. So an archive you take **by hand** that has to reach the
+second site — the final backup before a server move, the one before a risky migration —
+must be named `cutover-<something>.bak`, or the job will leave it on the box:
+
+```sh
+docker compose exec -T web sh -c \
+  'export DJANGO_SECRET_KEY=$(cat /data/secret_key); python manage.py backup_instance /data/backups/cutover-$(date +%F).bak'
+```
+
+Retention never touches it either: the nightly prune deletes only archives a scheduled run
+recorded writing, so a `cutover-*.bak` stays until you remove it yourself.
 
 ## Restore
 
@@ -349,6 +376,24 @@ afterwards and check the roster before telling anyone the instance is up.
 Mint fresh elder links for every grandparent as part of the restore, not after
 somebody reports that theirs is broken.
 
+### Getting the archive INTO the container
+
+If the archive is on the host rather than already on the data volume, **stream it in as the
+app user**. Do not use `docker compose cp` for this direction:
+
+```sh
+cat backup-YYYY-MM-DD.bak | docker compose exec -T web sh -c \
+  'umask 077; cat > /data/backups/backup-YYYY-MM-DD.bak'
+```
+
+`docker compose cp` writes the file owned by the **host's** uid with mode 600, and the
+container runs as an unprivileged user with no `DAC_OVERRIDE`, so the app user cannot read
+its own archive and `chown` inside the container fails too. The restore then refuses on a
+file that is sitting right there. Streaming it through the app user's own `cat` makes the
+ownership correct by construction, and `umask 077` keeps it 600.
+
+### Restoring
+
 On a fresh instance (no members yet):
 
 ```sh
@@ -372,6 +417,35 @@ docker compose exec -T web sh -c \
 
 To overwrite an instance that still has data (you have decided to roll back),
 add `--force`.
+
+### Then restart, and only then say it is up
+
+**`restore_instance` does not run migrations, and it is not the thing that does.** The
+entrypoint runs `migrate` at container start, so restoring an archive taken on an OLDER
+schema leaves the database behind the code, and `migrate --check` exits **1** until the
+containers come back:
+
+```sh
+docker compose restart web worker
+docker compose exec -T web sh -c \
+  'DJANGO_SECRET_KEY=$(cat /data/secret_key) python manage.py migrate --check'
+```
+
+That command must exit **0** before anyone is told the instance is back. It is the whole
+check: a restored box that answers `/healthz` while the schema is a release behind will
+serve some pages and 500 on others, which reads as a bad restore rather than an unfinished
+one. Check the roster in the same breath — a restore brings back anybody removed since the
+backup (the table above).
+
+### A restart right after a failed pre-flight dump is expected
+
+The entrypoint refuses to migrate if its pre-flight dump fails, so the container exits 1 and
+Docker restarts it. That is the guard working, not a crash loop: on a boot where `web` wins
+the race against Postgres, `pg_dump` fails, the container exits, and the next attempt
+succeeds a few seconds later once the database is accepting connections. Observed for real
+on an unattended-reboot morning. The failure path now removes the partial file it wrote, so
+a failed dump no longer leaves a 0-byte plaintext `preflight-<stamp>.dump` behind. If the
+restarts do not stop, read the `web` log for the dump's own error rather than the migration's.
 
 ## The restore drill (run it on your own box, before you need it)
 

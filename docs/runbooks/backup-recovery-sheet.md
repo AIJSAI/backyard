@@ -92,7 +92,10 @@ admin (Members → Set role → Instance admin) and write their name below. One 
 
 1. Bring up the stack (see `docs/runbooks/live-repro.md` §B). It will generate a new
    `DJANGO_SECRET_KEY`; that is fine, the restore replaces the database.
-2. Put the archive somewhere the `web` container can read, and the passphrase in a file:
+2. Put the archive somewhere the `web` container can read — **stream it in**, because
+   `docker compose cp` lands it owned by the host's user and the container cannot read it
+   (`backup-restore.md`, "Getting the archive INTO the container") — and the passphrase in
+   a file the container can reach:
 
        printf '%s' '<the passphrase above>' > /root/backyard.key
        chmod 600 /root/backyard.key
@@ -103,7 +106,16 @@ admin (Members → Set role → Instance admin) and write their name below. One 
          python manage.py restore_instance \
          /data/backups/<archive>.bak --passphrase-file /root/backyard.key --force'
 
-4. **A restore is a security event (TM-7).** The command will tell you what it did: every
+4. **Restart, then check.** `restore_instance` does not migrate — the entrypoint does — so
+   an archive from an older release leaves the schema behind until the containers come back:
+
+       docker compose restart web worker
+       docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+         python manage.py migrate --check'
+
+   That must exit 0 before you tell anyone the instance is up.
+
+5. **A restore is a security event (TM-7).** The command will tell you what it did: every
    elder link, digest link and reply-by-email address the backup carried is dead, every
    session is flushed, and outstanding invites are void. Re-provision only the people who
    should still have access — and remember the restore cannot know who was removed *after*
