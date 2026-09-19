@@ -22,11 +22,13 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   runner's `--debug-sql`, and Postgres overrides the one shared call site), so the reason to
   take them is that a scanner does not do reachability analysis and a red required check
   blocks every other fix behind it.
-- **The Postgres image moves from 18.4 to 18.6**, which closes 27 upstream CVEs, six of them
-  core-server arbitrary code execution. Reaching any of them needs an authenticated database
-  role, and the database publishes no port and shares no network with the edge — so this is
-  the layer under the app, not a door onto it. A minor Postgres upgrade needs no dump and
-  restore; the new digest is pulled on the next `up -d`.
+- **The Postgres image moves from 18.4 to 18.6**, which closes 27 upstream CVEs, ten of them
+  scored 8.8 for arbitrary code execution. The container publishes no port and shares no
+  network with the edge, so the only things that can speak SQL to it are the app and the
+  worker — this is the layer beneath a compromised app rather than a door onto it. Two of
+  the ten are worth naming anyway, because they fire through `pg_dump` rather than through a
+  query: the entrypoint runs `pg_dump` before every migration, on every boot. A minor
+  Postgres upgrade needs no dump and restore; the new digest is pulled on the next `up -d`.
 - **The Caddy image is refreshed** to a current Alpine base. Same Caddy v2.11.4 binary.
 - **The documented upgrade now builds with `--pull`.** The app image installs `pg_dump` and
   `ffmpeg` in a layer above the application code, so nothing an upgrade changes could reach
