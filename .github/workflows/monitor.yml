@@ -41,12 +41,26 @@ permissions:
   contents: read
   issues: write
 
+# No `concurrency` group on purpose, and the reason is the same one the whole file is built
+# around. Cancelling an in-flight run is the one thing an alarm must never do, and a group
+# WITHOUT cancellation is worse here than none: a run that stalls on a hung TLS handshake
+# would queue every later run behind it and GitHub drops all but one of those, so the alarm
+# goes quiet on exactly the condition it exists to report. The overlap risk a group would
+# solve is already handled twice over -- runs are half an hour apart and bounded by
+# `timeout-minutes` below, and the alarm is idempotent by design (one issue, commented at
+# most once a day).
+
 jobs:
   probe:
     # A fork inherits the workflow file but not the point of it: without this guard every
     # fork of this repository starts polling someone else's family instance every half hour.
     if: github.repository == 'AIJSAI/backyard'
     runs-on: ubuntu-latest
+    # The health half retries five times across ~100 seconds and the certificate half has its
+    # own `timeout 20`, so a well-behaved run is under three minutes. This bounds the case
+    # neither of those covers -- a `gh` call that never returns -- so a stuck alarm fails
+    # loudly instead of holding a scheduled slot open.
+    timeout-minutes: 15
     steps:
       # ONE job, on purpose. Two jobs would be two check runs for one outage, and the
       # certificate question is only meaningful about the host the health check just asked.

@@ -13,19 +13,31 @@ name: Measure transcode latency (S-402 gate)
 on:
   workflow_dispatch:
 
+# Reads the repository to build and measure. Nothing is published from here; the run LOG is
+# the receipt.
 permissions:
   contents: read
+
+# No `concurrency` group on purpose. This is `workflow_dispatch` only, so there is no
+# superseding push to cancel, and two deliberate runs are two deliberate measurements -- the
+# point of the job is the number it records, and cancelling one would throw a measurement
+# away because somebody started another.
 
 jobs:
   measure:
     runs-on: ubicloud-standard-2
+    # A software libx264 transcode on the weakest realistic box, deliberately. Generous, so
+    # the measurement is never truncated into a wrong number; it still catches a hang.
+    timeout-minutes: 60
     env:
       # Not a secret: this job never sends mail or touches a database; settings.py just
       # needs a long-enough key to boot so the transcoding module imports.
       DJANGO_SECRET_KEY: measure-transcode-not-a-secret-0123456789abcdef
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      # SHA-pinned with the release tag in the comment, for the reason ci.yml records: a
+      # major tag is a mutable pointer, and Dependabot rewrites both halves of this line.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           version: "0.11.6"
       - run: uv sync --frozen

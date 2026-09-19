@@ -5,19 +5,36 @@ on:
     branches: [main]
   pull_request:
 
+# Read the repository and nothing else. Not one job here writes a comment, a check run, a
+# release or a package, so no job needs a token that could.
 permissions:
   contents: read
 
+# One run per ref. A pull-request run superseded by a newer push is cancelled: it would
+# answer about a commit nobody is merging, and `code` alone boots a four-container stack for
+# six minutes. Pushes to `main` are NOT cancelled -- main's run is the record of what was
+# merged, and no later run replaces it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Every third-party action below is pinned to a full commit SHA with its release tag in a
+# trailing comment. A tag is mutable -- `v4` is a pointer its owner can move, and moving it
+# is the whole of the tj-actions supply-chain attack -- and this repository is public, so the
+# workflow that runs `uv sync` and `docker build` is worth retagging. The comment is not
+# decoration: Dependabot's github-actions ecosystem reads it, and rewrites the SHA and the
+# comment together, so the pin gets to stay current without anybody remembering.
 jobs:
   gates:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       # fetch-depth: 0 so `git merge-base` can find where this branch left main. A shallow
       # checkout has no merge base, and the sign-off check says so rather than passing.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
       - run: pip install pyyaml
@@ -35,6 +52,10 @@ jobs:
 
   code:
     runs-on: ubuntu-latest
+    # The long one: lint, typecheck, the unit suite, a docker build, and a four-container
+    # compose probe that waits on healthchecks. It runs in about six and a half minutes, so
+    # this is a hang-catcher, not a budget.
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:18-alpine
@@ -55,7 +76,7 @@ jobs:
       POSTGRES_HOST: localhost
       POSTGRES_PASSWORD: ci-not-a-secret
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # TAGS, or test_documented_version_resolves is decorative here. checkout does a
           # shallow fetch without them, so `git tag --list` came back empty in CI and the
@@ -64,7 +85,7 @@ jobs:
           # gates, and this time it was in a gate written to catch that class.
           fetch-tags: true
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           version: "0.11.6"
       - run: uv sync --frozen
@@ -271,6 +292,9 @@ jobs:
     # device emulation, against a live server. Its own job because it needs the Playwright
     # browsers; excluded from the unit `code` job via the `-m 'not e2e'` default.
     runs-on: ubuntu-latest
+    # Two browser engines to install and drive; about three minutes today. A browser lane
+    # that hangs hangs on a `wait_for`, and without this it would hold a runner for six hours.
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:18-alpine
@@ -290,8 +314,8 @@ jobs:
       POSTGRES_HOST: localhost
       POSTGRES_PASSWORD: ci-not-a-secret
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           version: "0.11.6"
       - run: uv sync --frozen
@@ -301,11 +325,11 @@ jobs:
         # -m e2e overrides the pyproject default `-m 'not e2e'`, so ONLY the e2e tests run;
         # they must actually run here (both engines), so the gate is not vacuous.
         run: uv run pytest -m e2e -v
-
   secrets:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Install gitleaks (pinned + checksum-verified)
@@ -399,9 +423,10 @@ jobs:
     # planted eval MUST be caught, or the build fails, so a broken scanner can never go
     # silently green. This gate is what caught the Pillow 11.3 image-decoder CVEs.
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           version: "0.11.6"
       - run: uv sync --frozen
