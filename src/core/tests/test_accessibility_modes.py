@@ -113,13 +113,26 @@ def test_the_help_affordance_is_in_the_same_place_on_every_surface(client: Clien
 def test_the_elder_surface_is_excluded_from_all_of_it() -> None:
     """The elder page is standalone and its guard requires EVERY href on it — <link>
     elements included — to be the elder-feed URL. A nav, a skip link, a favicon link or
-    a help link there reds the build. It is also the one surface deliberately exempt
-    from the shared footer. Pin the exclusion so a future "consistency" pass does not
-    helpfully add one."""
+    a help LINK there reds the build. Pin the exclusion so a future "consistency" pass
+    does not helpfully add one.
+
+    The help SENTENCE is no longer on this list. It used to be — the page was the one
+    surface deliberately exempt from the shared footer — and owner direction 2026-09-19
+    reversed that: a grandparent is the person most likely to be stuck and least likely
+    to guess who to ring, so she gets the same line as everybody else. It is text, not an
+    anchor, so the no-dead-ends guarantee is untouched, and test_plain_pages.py asserts
+    the rendered page carries it.
+    """
     elder = (_BASE.parent / "elder_feed.html").read_text()
     assert "{% extends" not in elder, "the elder page must stay standalone"
-    for forbidden in ("<nav", "skip-link", 'rel="icon"', "Ask whoever in the family"):
+    for forbidden in ("<nav", "skip-link", 'rel="icon"'):
         assert forbidden not in elder, f"{forbidden!r} must never appear on the elder page"
+    assert "Stuck? Ask" in elder, (
+        "the grandparent's page lost its help line; she is the reader SC 3.2.6 is for"
+    )
+    assert "<a href" not in elder.split("Stuck? Ask")[1], (
+        "the help line became a link, which S-601 forbids on this surface"
+    )
 
 
 def test_the_rail_refactor_did_not_hoist_a_gated_link_out_of_its_condition() -> None:

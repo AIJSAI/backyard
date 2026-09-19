@@ -167,7 +167,7 @@ def test_choosing_weekly_enrolls_and_still_confirms_the_address(pod: Pod) -> Non
     assert subscription.cadence == DigestSubscription.WEEKLY
     assert subscription.confirmed_at is None, "family content would flow unconfirmed"
     assert len(mail.outbox) == 1
-    assert "Confirm" in mail.outbox[0].subject
+    assert mail.outbox[0].subject == "Is this your email address?"
     assert mail.outbox[0].to == ["cousin@example.com"]
 
 

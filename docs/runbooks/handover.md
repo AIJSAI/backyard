@@ -89,7 +89,7 @@ come to miss a credential class.
 
 **Then re-issue the elder links**, or the grandparents are locked out with no way to ask:
 
-1. **Members → the elder → Elder link** for each one.
+1. **Members → the grandparent's row → No-login link** for each one.
 2. Hand each link over in person or by private message, and reprint any QR.
 3. Post something to the whole side of the family **first**, so the page they open is not
    empty — see the note at the top of [`founder-qa.md`](founder-qa.md).

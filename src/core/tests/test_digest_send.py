@@ -129,8 +129,8 @@ def test_bridge_member_gets_exactly_two_clean_emails(world: World) -> None:
     assert report.sent == 2 and report.failed == 0
     assert len(mail.outbox) == 2
     by_subject = {message.subject: message for message in mail.outbox}
-    maternal_message = by_subject["Maternal: your family digest"]
-    paternal_message = by_subject["Paternal: your family digest"]
+    maternal_message = by_subject["Maternal: what the family has been up to"]
+    paternal_message = by_subject["Paternal: what the family has been up to"]
     assert "MAT-BODY" in maternal_message.body and "PAT-BODY" not in maternal_message.body
     assert "Paternal cousin" not in maternal_message.body
     assert "PAT-BODY" in paternal_message.body and "MAT-BODY" not in paternal_message.body
@@ -539,7 +539,7 @@ def test_a_quiet_side_is_skipped_while_a_busy_one_still_sends(world: World) -> N
     report = send_due_digests(timezone.now())
 
     assert report.sent == 1
-    assert [message.subject for message in mail.outbox] == ["Maternal: your family digest"]
+    assert [m.subject for m in mail.outbox] == ["Maternal: what the family has been up to"]
     assert DigestIssue.objects.filter(member=world.bridge).count() == 1
 
 

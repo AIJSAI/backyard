@@ -153,7 +153,7 @@ This is the product's central bet and the part that was most broken.
 
 | # | Do | Wrong looks like |
 |---|----|------------------|
-| A1 | From the admin roster, mint an elder link for a test member. Print or open the QR. | No link, or a page that errors |
+| A1 | From the admin roster, use **No-login link** on a test member's row and mint one. Print or open the QR. | No link, or a page that errors |
 | A2 | 📱 Open the link on a phone **you are not logged in on**. Use a private window. | Anything asking you to log in |
 | A3 | **Can you see a photograph?** Scroll to a post with photos. | Captions with no pictures. *This was broken for weeks while the tracker said it worked.* |
 | A4 | Can you read the replies under a post? | Replies missing entirely |

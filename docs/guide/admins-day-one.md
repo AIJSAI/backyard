@@ -1,9 +1,9 @@
 # A guide for the two of you
 
 The same text as the in-product page at `/members/day-one/`, reachable from **Family
-members**. It lives here too so it can be read (and reviewed) outside the running
-instance; the page is the copy the family actually sees, and the two are kept identical
-by `test_admins_day_one.py`.
+members**. It lives here too so it can be read and reviewed without a running server; the
+page is the copy the family actually sees, and the two are kept together by
+`test_admins_day_one.py`.
 
 ---
 
