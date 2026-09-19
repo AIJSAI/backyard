@@ -159,6 +159,7 @@ def test_registry_is_the_only_shape(household: dict[str, object]) -> None:
         revocation._void_digest_tokens,  # wave 4: per-digest read links, row-level belt
         revocation._void_reply_addresses,  # wave 4: reply-by-email capabilities
         revocation._void_elder_tokens,  # wave 5: the elder master token
+        revocation._void_recovery_tokens,  # BY-01: the admin-issued "get back in" link
     )
     member = household["member"]
     assert isinstance(member, Member)

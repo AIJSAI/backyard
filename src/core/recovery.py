@@ -145,11 +145,12 @@ def redeem(raw: str, new_password: str) -> None:
     path: there is no way to set a password through this token that skips the validators.
     """
     with transaction.atomic():
+        # No select_related on the lock. Member.user is nullable, so joining it makes a
+        # LEFT OUTER JOIN and Postgres refuses `FOR UPDATE` on the nullable side of one
+        # ("FOR UPDATE cannot be applied to the nullable side of an outer join"). The row
+        # this needs locked is the token's anyway; the member and the user are read after.
         token = (
-            RecoveryToken.objects.select_for_update()
-            .select_related("member", "member__user")
-            .filter(token_digest=_digest(raw))
-            .first()
+            RecoveryToken.objects.select_for_update().filter(token_digest=_digest(raw)).first()
         )
         if token is None or token.used_at is not None:
             raise RecoveryInvalid

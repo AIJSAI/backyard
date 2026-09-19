@@ -162,10 +162,82 @@ _UNLINKED_BY_DESIGN = {
     # `test_every_excluded_route_still_exists` below is the signal.
     "directory_vcards": "a download of the whole directory, offered as an attachment",
     "member_vcard": "one member's contact card, offered as an attachment",
+    "recover": "the 'get back in' link an admin hands over by text (BY-01); the person "
+    "opening it cannot sign in, so it has no in-product entrance by definition",
     # Reached only partway through a flow this crawl cannot drive with GETs.
     "compose_cancel": "the Cancel button on the widen-audience confirm step, which only "
     "exists after a POST that proposes widening",
+    # --- allauth's URLconf ---------------------------------------------------------
+    # This block used to be one line of exemption in the assertion itself: the route set
+    # was built from `get_resolver().url_patterns` only, described as "an included URLconf
+    # owns its own reachability and is not this project's to police". It is. Mounting
+    # `allauth.urls` puts ~30 pages in this product, and three of them — the sign-in email,
+    # the password change and the passkey/code pages — had ZERO inbound links from anywhere
+    # a member could stand, for months, while `join.html` promised "You can add a passkey
+    # once you are in". The exemption is why the crawl could not see it: the same defect
+    # this file exists for, hidden by a clause about whose code it is.
+    #
+    # So the allauth routes are now judged like every other route, and the ones with no
+    # entrance are listed here with the reason, one by one.
+    "account_login": "the signed-out entrance, linked from home; a signed-in member is "
+    "redirected away from it",
+    "account_signup": "allauth's open signup, which the adapter refuses (S-101, invite "
+    "only). Linking it would hand a new relative a dead end on their first screen",
+    "account_inactive": "where allauth sends a deactivated account at sign-in",
+    "account_confirm_email": "the confirm link inside the address-verification email",
+    "account_email_verification_sent": "the interstitial after an address is submitted",
+    "account_reset_password": "allauth's own 'forgot your password', reached from sign-in "
+    "by somebody who cannot sign in",
+    "account_reset_password_done": "the 'check your inbox' page after a reset request",
+    "account_reset_password_from_key": "the reset link inside the password-reset email",
+    "account_reset_password_from_key_done": "the 'password changed' page after that link",
+    "account_set_password": "for an account with no usable password; allauth routes to it "
+    "from the password-change page when there is nothing to change",
+    "account_confirm_login_code": "a step inside the login-by-code flow",
+    "account_reauthenticate": "the 'confirm it is you' step allauth inserts before a "
+    "sensitive change; reached from the flow, never linked",
+    "mfa_reauthenticate": "the same step, second-factor variant",
+    "mfa_reauthenticate_webauthn": "the same step, passkey variant",
+    "mfa_authenticate": "the second-factor prompt during sign-in",
+    "mfa_login_webauthn": "the passkey half of sign-in",
+    "mfa_activate_totp": "reached from the passkeys and codes page, after choosing to add "
+    "an authenticator app",
+    "mfa_deactivate_totp": "reached from the same page once an app is enrolled",
+    "mfa_add_webauthn": "reached from the same page, after choosing to add a passkey",
+    "mfa_list_webauthn": "reached from the same page once a passkey is enrolled",
+    "mfa_edit_webauthn": "a per-key control on the passkey list",
+    "mfa_remove_webauthn": "a per-key control on the passkey list",
+    "mfa_generate_recovery_codes": "reached from the same page, for one-time codes",
+    "mfa_view_recovery_codes": "reached from the same page once codes exist",
+    "mfa_download_recovery_codes": "a download of those codes, offered as an attachment",
 }
+
+
+def _all_named_routes() -> set[str]:
+    """Every named route the project serves, INCLUDING the ones an included URLconf owns.
+
+    Deliberately recursive. The two assertions below used to read
+    `get_resolver().url_patterns` — top level only — under the rule that "an included
+    URLconf (allauth's, the webhook's) owns its own reachability and is not this project's
+    to police". That exemption hid the defect this whole file exists to catch: mounting
+    `allauth.urls` puts the sign-in email, the password change and the passkey pages in
+    THIS product, `src/templates/allauth/layouts/manage.html` calls them "the account pages
+    a signed-in member reaches from inside the app", and a member reached them from
+    nothing. Whose repository the view lives in has nothing to do with whether a person can
+    get to it.
+    """
+    found: set[str] = set()
+
+    def walk(patterns: object) -> None:
+        for pattern in patterns:  # type: ignore[attr-defined]
+            nested = getattr(pattern, "url_patterns", None)
+            if nested is not None:
+                walk(nested)
+            elif isinstance(name := getattr(pattern, "name", None), str):
+                found.add(name)
+
+    walk(get_resolver().url_patterns)
+    return found
 
 
 def _crawl(client: Client) -> tuple[set[str], set[str], set[tuple[str, int]]]:
@@ -301,7 +373,13 @@ def test_every_route_is_reachable_by_clicking_or_is_listed_as_deliberately_not()
     # link only exists beside a post, a reply, an invite or a pod it can act on. That would
     # be an artefact of an empty fixture rather than a defect in the product, and it would
     # push toward listing real defects in _UNLINKED_BY_DESIGN to get to green.
-    other = Member.objects.create(display_name="Someone Else")
+    # WITH a login. Several roster controls are offered only for a member who has one —
+    # "Get back in link" (BY-01) is meaningless for an elder, who holds a token link and no
+    # password — so a fixture whose only other member is user-less reports those routes
+    # unreachable and blames the product for the fixture.
+    other = Member.objects.create(
+        display_name="Someone Else", user=User.objects.create_user(username="someone-else")
+    )
     PodMembership.objects.create(member=other, pod=pod)
     post = Post.objects.create(author=admin, pod=pod, body="something to act on")
     Comment.objects.create(post=post, author=other, body="a reply to act on")
@@ -329,14 +407,7 @@ def test_every_route_is_reachable_by_clicking_or_is_listed_as_deliberately_not()
         "this check cannot fail for the right reason"
     )
 
-    # Only top-level `path(..., name=...)` entries: an included URLconf (allauth's, the
-    # webhook's) owns its own reachability and is not this project's to police.
-    all_named: set[str] = {
-        name
-        for pattern in get_resolver().url_patterns
-        if isinstance(name := getattr(pattern, "name", None), str)
-    }
-    unreachable = sorted(all_named - reachable - set(_UNLINKED_BY_DESIGN))
+    unreachable = sorted(_all_named_routes() - reachable - set(_UNLINKED_BY_DESIGN))
     assert not unreachable, (
         f"routed, but a signed-in instance admin cannot reach them by clicking: "
         f"{unreachable}.\n\nA member cannot type a URL they have never seen. Either link "
@@ -349,13 +420,12 @@ def test_every_excluded_route_still_exists() -> None:
     """`_UNLINKED_BY_DESIGN` is only ever SUBTRACTED, so a stale key excuses nothing and
     reports nothing. It contained `"vcard"`, which is not a route at all — the real names
     are `directory_vcards` and `member_vcard` — so the entry had been a no-op since it was
-    written, and would have gone on misleading whoever edited the list next."""
-    all_named = {
-        name
-        for pattern in get_resolver().url_patterns
-        if isinstance(name := getattr(pattern, "name", None), str)
-    }
-    stale = sorted(set(_UNLINKED_BY_DESIGN) - all_named)
+    written, and would have gone on misleading whoever edited the list next.
+
+    This matters more now that the list carries allauth's route names: those move with a
+    library upgrade, and a renamed route would otherwise turn into a silent exemption for
+    a page nobody can reach."""
+    stale = sorted(set(_UNLINKED_BY_DESIGN) - _all_named_routes())
     assert not stale, (
         f"_UNLINKED_BY_DESIGN names routes that do not exist: {stale}. Each entry excuses a "
         "route from the reachability check, so one that matches nothing is silently dead."
@@ -492,8 +562,13 @@ def test_no_link_the_product_offers_is_refused_when_you_click_it(role: str) -> N
     admin = Member.objects.create(display_name="Admin", user=user, role=role)
     PodMembership.objects.create(member=admin, pod=own)
     # Someone in the same yard but a household the actor is not in — the exact shape that
-    # separates can_manage_member from can_provision_token.
-    elsewhere = Member.objects.create(display_name="Someone Elsewhere")
+    # separates can_manage_member from can_provision_token. Given a login, so the roster
+    # also offers the recovery link (BY-01) on this row and the click is measured too: that
+    # control is gated on the WIDER of the two predicates, so a fixture without a login
+    # would leave the one row where the two disagree untested.
+    elsewhere = Member.objects.create(
+        display_name="Someone Elsewhere", user=User.objects.create_user(username="elsewhere")
+    )
     PodMembership.objects.create(member=elsewhere, pod=other)
 
     client = Client()
