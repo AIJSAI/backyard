@@ -9,6 +9,10 @@ a point somebody deliberately stopped at, with a full green gate behind it.
 
 ## [Unreleased]
 
+<!-- Bracketed, because `_release_in_flight` in test_documented_version_resolves.py reads a
+     BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
+     link at the foot of the file: there is no tag to compare against yet. -->
+
 Day one for the two relatives about to be made yard admins: nobody gets locked out, and the
 one control that destroys something asks first.
 
@@ -67,6 +71,41 @@ one control that destroys something asks first.
   reachability. Mounting those routes puts them in this product, and three of them had no
   entrance for months. Each one is now either reachable by clicking or listed with the reason
   it has none.
+
+### Security
+
+- **Django 5.2.17 and sqlparse 0.6.0.** Ten advisories across the two, and the `deps` gate —
+  the required check that scans the resolved lock on every pull request — had been failing on
+  all ten. Neither is reachable in this app (the Django one is GeoDjango, which is not
+  installed; sqlparse is only called by the SQLite and MySQL backends and by the test
+  runner's `--debug-sql`, and Postgres overrides the one shared call site), so the reason to
+  take them is that a scanner does not do reachability analysis and a red required check
+  blocks every other fix behind it.
+- **The Postgres image moves from 18.4 to 18.6**, which closes 28 upstream CVEs, 14 of them
+  scored 8.8. The container publishes no port and shares no network with the edge, so the
+  only things that can speak SQL to it are the app and the worker — this is the layer
+  beneath a compromised app rather than a door onto it. The bump also refreshes the `psql`
+  the self-host guide has you run by hand against the box, which is where the 8.8 `psql`
+  entry (CVE-2026-18408, `\unrestrict`) lives, so this bump closes that one. What it does NOT
+  close is the 8.8 entry that fires through `pg_dump` (CVE-2026-19385): every dump and
+  restore this product takes — the entrypoint's pre-flight backup on every boot,
+  `backup_instance`, `restore_instance` — runs the `postgresql-client-18` installed in the
+  APP image, not the client in this container, so that one closes only on the `build --pull`
+  below, which refreshes the app image's `psql` as well. A minor Postgres upgrade needs no
+  dump and restore; the new digest is pulled on the next `up -d`.
+- **The Caddy image is refreshed** to a current Alpine base. Same Caddy v2.11.4 binary.
+- **Every documented redeploy now builds with `--pull`, chained to the `up`.** The app image
+  installs `pg_dump` and `ffmpeg` in a layer built BEFORE the application code is copied
+  in, so an upgrade that only changes the code never invalidates it: both binaries stayed at their first-build versions for the
+  life of an instance, on the process that decodes uploaded video and the one that takes
+  your pre-flight backup. `--pull` re-resolves the base tag and rebuilds that layer whenever
+  upstream has published a new `python:3.13-slim`; when it has not and you are acting on an
+  advisory anyway, `build --pull --no-cache` is the only command that forces it, and the
+  self-host guide now says so. The `&&` matters as much as the `--pull`: as two separate
+  lines, a failed build was followed by an `up -d` that quietly started the previous image.
+  Fixed in the self-host guide's Upgrades section, the handover runbook, and the overlay's
+  own header; a new test pins every documented deploy as a first install or a redeploy, so
+  the next one cannot be missed.
 
 ## [0.1.2] — 2026-08-07
 
