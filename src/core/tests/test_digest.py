@@ -405,34 +405,42 @@ def test_the_email_says_why_it_arrived(world: World) -> None:
         assert "You are getting this because you asked for the Family email." in flat, name
 
 
-def test_it_offers_reply_by_email_only_where_replies_are_actually_received(
+def test_the_email_never_promises_a_reply_route_a_relative_has_not_got(
     world: World,
 ) -> None:
-    """The headline feature of this message is that you can answer it by hitting reply,
-    and it was visible only as the machine-looking separator at the top of the page.
+    """Walk item 33, and the inverse of what this test asserted when it was written an
+    hour earlier in the same sitting.
 
-    But it is NOT always true: reply-by-email needs an inbound provider and one manual
-    step with it, and without them a reply is accepted and silently dropped — which the
-    README and the self-host guide both say plainly. So the sentence is keyed to whether
-    this issue actually minted a reply address, and an instance that cannot take a reply
-    does not promise one. A false promise here costs somebody the message they typed.
+    Reading the message as a first-time relative, the obvious thing to do with it is hit
+    reply — so the first version of this change added a sentence saying you could. That
+    sentence was wrong. #101 stopped putting a per-post reply address in the message, and
+    nothing in the product hands anybody one: a plain reply cannot be routed to a post and
+    lands in the admin-only "Replies we couldn't post" quarantine, where the relative
+    never learns their words went nowhere.
+
+    So the mail promises nothing of the kind, and neither does the machine marker that
+    used to sit at the top of it. What it offers instead is "Reply in Backyard" on each
+    post, which opens the thread — a route that works.
+
+    Asserted even when the send path HAS minted addresses, because it does: `mint_for_issue`
+    still runs and the map still reaches the builder. The addresses are live capabilities
+    for the inbound parser; they are simply not handed out, and this test is what keeps a
+    future change from quietly printing one again.
     """
     post = _post(world.maternal_cousin, world.m_pod, "A quiet week.")
     issue = _issue(world, world.maternal_cousin, world.maternal)
-
-    without = digest.build_digest(issue, digest_token="digest-raw", unsubscribe_token="unsub-raw")
-    for part in (without.text, without.html):
-        assert "replying to this message" not in part, (
-            "the email promises a reply route this instance has not got"
-        )
-
     domain = emailing.reply_domain()
-    with_replies = digest.build_digest(
+
+    built = digest.build_digest(
         issue,
         digest_token="digest-raw",
         unsubscribe_token="unsub-raw",
         reply_addresses={post.id: f"reply+abc@{domain}"},
     )
-    for part, name in ((with_replies.text, "text part"), (with_replies.html, "HTML part")):
+    for part, name in ((built.text, "text part"), (built.html, "HTML part")):
         flat = " ".join(part.split())
-        assert "You can answer it by replying to this message" in flat, name
+        assert "replying to this message" not in flat, name
+        assert "reply above this line" not in flat.lower(), name
+        assert f"@{domain}" not in flat, f"{name} prints a reply address"
+        # Non-vacuity, and the route that DOES work.
+        assert f"/posts/{post.id}/#reply" in flat, name

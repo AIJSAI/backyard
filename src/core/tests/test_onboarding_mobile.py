@@ -167,12 +167,24 @@ def _drive_invite_mint_handover_and_redeem(
         page = _admin_context(browser, device_args, base_url, cookie).new_page()
         page.goto(f"{base_url}/members/invite-household/")
         page.fill('input[name="household_name"]', "The Reed family")
-        # A household may belong to more than one side, so this is a checkbox set rather
-        # than the single `<select name="yard_id">` it used to be. This driver is why that
-        # change did not ship silently: the unit suite passed (`addopts = -m 'not e2e'`
-        # deselects this whole lane) and CI's e2e job failed with
+        # WHICH SIDE, AND WHY THERE IS NOTHING TO TICK HERE.
+        #
+        # A household may belong to more than one side, so when there is a choice this is a
+        # checkbox set rather than the single `<select name="yard_id">` it once was. This
+        # driver is why THAT change did not ship silently: the unit suite passed
+        # (`addopts = -m 'not e2e'` deselects this whole lane) and CI's e2e job failed with
         # `TimeoutError: waiting for locator("select[name=\"yard_id\"]")`.
-        page.check(f'input[name="yard_ids"][value="{yard_id}"]')
+        #
+        # It caught the next one the same way. The 2026-09-19 walk (item 9) found that with
+        # only ONE side available the form rendered a lone pre-ticked checkbox under the
+        # sentence "Tick both if this household belongs to both sides" — a control with
+        # nothing to choose between, naming a second side that does not exist. With one
+        # side the form now STATES it and the view derives it from the actor's own
+        # permitted set, so there is no input to fill. This fixture seeds exactly one side,
+        # which is why the tick is gone rather than merely optional; the branch with two or
+        # more sides is unchanged and is covered by test_invite_household.py.
+        expect(page.locator('input[name="yard_ids"]')).to_have_count(0)
+        expect(page.get_by_text("This household joins")).to_be_visible()
         page.click('button[type="submit"]')
 
         # The hand-over artifacts render: the one-time link, the copy affordance, the QR.

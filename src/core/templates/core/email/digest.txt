@@ -1,6 +1,4 @@
-{% autoescape off %}{{ separator }}
-
-{{ header.yard_name }}: what the family has been up to
+{% autoescape off %}{{ header.yard_name }}: what the family has been up to
 {{ header.window_text }}
 
 {% for block in post_blocks %}{{ block.author_line }} on {{ block.date_text }}:
@@ -15,7 +13,7 @@ Open this post: {{ block.url }}
 {% endfor %}
 {% endif %}See everything in your backyard: {{ footer.digest_url }}
 
-You are getting this because you asked for the Family email.{% if can_reply_by_email %} You can answer it by replying to this message - your reply goes to the family, above the line at the top.{% endif %}
+You are getting this because you asked for the Family email.
 
 Too many emails? Pause them here (you stay in the family): {{ footer.unsubscribe_url }}
 {% endautoescape %}

@@ -244,9 +244,16 @@ def revoke_member_credentials(member: Member) -> None:
     generation bump in a single transaction: after it commits, every credential
     class the member held is dead on its next use; if it raises, none are.
 
-    Fired by removal, voluntary leave, pod-leaves-yard and deceased marking: the flows
-    where the member is GONE. Those lifecycle flows land in their stories (S-702, S-706)
-    and all call this, never their own partial subset.
+    ONE CALLER TODAY: `removal.remove_member` (S-702). The docstring used to list four —
+    "removal, voluntary leave, pod-leaves-yard and deceased marking" — and three of them
+    have never existed in this product. A docstring naming callers that are not there is
+    worse than one naming none: it reads as a survey of the flows that revoke, so the next
+    person to add a lifecycle flow sees a list they think they are already on (walk item
+    34, 2026-09-19).
+
+    The contract that DOES bind any future caller is the paragraph below about ordering,
+    and the rule that a flow where the member is GONE calls this whole function rather
+    than its own partial subset of the steps.
 
     NOT for regeneration -- use regenerate_member_credentials, which keeps the digest
     subscription and the invites OTHER admins issued (it still voids the ones she minted).

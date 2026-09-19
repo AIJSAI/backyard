@@ -183,6 +183,15 @@ itself up and telling somebody when it cannot.
   every page this product serves, including the sign-in screen, both password-reset pages,
   About and every 404. Signed-in members and anyone holding a link a relative sent them
   still get the name; a stranger who typed the domain gets the same help in other words.
+- **The Family email stops implying you can reply to it.** Replying by e-mail was
+  retired for relatives when the per-post reply address came out of the message: nothing
+  hands anybody an address, so a plain reply cannot be routed to a post and lands in the
+  admin-only "Replies we couldn't post" instead, where the sender never learns their words
+  went nowhere. The message no longer carries the "reply above this line" marker, and the
+  metrics page says plainly that "Replied by email" is a retired route rather than leaving
+  an admin to read a permanent zero as a family that stopped answering. The way to reply
+  is the link on each post, which opens the thread. The inbound parser itself is untouched,
+  because messages sent before this are still in inboxes.
 - **Mail has a name on it.** Messages arrived as a bare address — or as just "digests" in
   the clients that shorten it — which is how a family's own photographs come to look like
   spam. Every message now carries a display name (`BACKYARD_MAIL_FROM_NAME`), including

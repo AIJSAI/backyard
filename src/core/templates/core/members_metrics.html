@@ -12,6 +12,17 @@
   <p class="muted">A weekly count of posts and replies for each side of the family. We
     record whether someone visited in a week, never what they looked at, and no number
     here is about any one person.</p>
+  {% comment %} SAY WHY A COLUMN READS ZERO (walk item 33). "Replied by email" counts
+     replies that arrived as e-mail, and since #101 stopped putting a per-post reply
+     address in the Family email there is no way for a relative to send one — nothing
+     hands anybody an address. The column is kept rather than dropped because the inbound
+     pipeline is still armed and still tested, and a row from before the change carries a
+     real number; but an admin reading a permanent zero deserves to know it is a retired
+     route and not a family that stopped replying. {% endcomment %}
+  <p class="muted">&ldquo;Replied by email&rdquo; is a retired route: replying to the
+    Family email was turned off, so this column counts nothing new and reads zero for
+    every week since. Replies made on the web are counted under &ldquo;Posts with a
+    reply&rdquo;.</p>
   {% comment %} A real thead/tbody, and data-label on every cell. Both are load-bearing,
      not tidiness: without <thead> the stylesheet's `thead th` rule never matched, so the
      header rendered as an ordinary cell AND the zebra counted it and striped the wrong
