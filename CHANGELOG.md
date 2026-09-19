@@ -493,6 +493,50 @@ itself up and telling somebody when it cannot.
   own header; a new test pins every documented deploy as a first install or a redeploy, so
   the next one cannot be missed.
 
+### Documentation
+
+- **The documents now say what the code does.** Every claim in this pass was re-derived by
+  opening the code or running the command, never by reading a neighbouring document, and
+  where two documents disagreed both were fixed rather than one being quietly deleted. The
+  corrections that change what an operator would do: the handoff note told them in one half
+  that production's backups were encrypted and in the other half that the whole family
+  database was sitting in plaintext three copies deep (it is encrypted, and always was since
+  August); it told them a demo password published in a public repository still opened the
+  instance (it does not — one outside-in attempt was rejected); and it told them to take the
+  first backup production had ever had (it takes one nightly, and an archive of it has now
+  been restored onto other hardware). The founder QA script drove every command at a
+  differently-configured stack, because it was the one document that never carried the
+  production compose overlay.
+- **A runbook for moving an instance to a new server**, written from having done it:
+  carry the environment file across, take the final backup, restore, restart, prove
+  `migrate --check` is clean, copy the TLS volume so the certificate never lapses, verify the
+  new machine before DNS moves, and keep the old machine's volumes until a real walk passes.
+- **The threat model is true of the code again.** Its backup row named a command this project
+  has never run; its revocation requirement described four lifecycle transitions and a
+  supervised-account custody step as though they were built, when two of the transitions and
+  the custody step have no implementation at all; and its deceased-member requirement
+  described a feature the founder cancelled a month after it was written. Each is corrected
+  and the corrections are recorded in a new section rather than edited in silently, because a
+  row that overstates is read as an answer and stops anybody looking.
+- **The weekly family email is one-way, and the documents now say so everywhere.** The
+  per-post reply address was removed from the mail some time ago — it is a bearer credential,
+  so printing it forwarded the ability to post as you — but the README, the install guide and
+  the QA script all still described replying by email as a working feature. The inbound
+  pipeline is live and configured; nothing hands anybody an address to use it with.
+- **The printed recovery sheet's restore actually works now.** Its steps had you write the
+  passphrase to a file on the host and then pass that host path to a command running inside
+  the container, where it does not exist — so the one document read when the instance is
+  already gone failed on a tired person's first attempt. The passphrase goes in the box's
+  environment file before the stack comes up (which the new box needs anyway, so its own
+  nightly backups keep encrypting under the same passphrase), the archive is streamed in as
+  the app user, and the restore takes no passphrase flag at all because the command reads the
+  environment. A new guard asserts that any `--passphrase-file` path a runbook documents is
+  introduced by a mount in the same document; it was proven to fail on the sheet's old text.
+- **`docs/RESUME-HERE.md` is short and current**; the five-hundred-line version it replaces
+  is kept unedited under `docs/archive/` with a banner saying it is history. Open work lives
+  in GitHub issues, and the two remaining documents say plainly which of them is a record and
+  which is a list of criteria.
+
 ## [0.1.2] — 2026-08-07
 
 `v0.1.1` could not be installed from its own README, and several things it shipped were

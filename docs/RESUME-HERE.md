@@ -1,505 +1,194 @@
-# Resume here — session state, 2026-08-06/07
+# Resume here
 
-Written to survive a context compaction. Read this, then
-**[`docs/OUTSTANDING.md`](OUTSTANDING.md)** — the ranked backlog. Its **§7** is the record of
-the 2026-08-06 session, and its **§6** is the only record of the 2026-08-01 readiness audit
-(that audit has no separate document, which is why its findings had to be re-derived a week
-later). Then `docs/PATH-TO-100.md`.
+A handoff note for whoever picks the work up next. It is in the open because the project is
+built in the open; it is **not** documentation, and it is not a status board.
 
-Verify with a primary check (`git log`, `gh pr list`, run the probe an item names) rather
-than trusting anything written down — including this file. That instruction earned its keep
-twice: OUTSTANDING.md called itself "the single list" and a re-measurement found ~30 items it
-did not contain, and this header claimed the production exposures were closed while a third
-one was still live.
+The rule this file is written under, which it learned by breaking: **state the rule and the
+command that derives a number, never the number.** Any count written down here is stale the
+moment somebody merges — including the count in a paragraph that merging this one changes.
+So every row below is something to run.
 
-## SESSION HANDOFF — 2026-08-07
-
-**Read this block first, then verify every line of it with a primary check.** This file has
-been wrong before, in this exact header, about exactly the kind of claim it makes.
-
-### Where the code is
-
-Every row is a command, not a fact. Four rounds of review on this table found the same defect
-each time — a number, a date or a PR reference that was true when written and false when
-read. So it states nothing that can go stale; it tells you what to run.
-
-| question | run this |
-|---|---|
-| how far past `v0.1.1` is `main`? | `git rev-list --count v0.1.1..origin/main` |
-| which PRs are in this release? | `git log --oneline v0.1.1..origin/main \| grep -oE '\(#[0-9]+\)$'` — contiguous from `#127` except `#138` and `#142`, closed unmerged (superseded by `#139`, `#143`) |
-| is `v0.1.2` cut? | `git tag --list`. **It was not, as of this being written** — and `README.md`, `docs/runbooks/self-host.md` and `CHANGELOG.md` all name it, so cutting it is the next job |
-| anything still open? | `gh pr list --state open` |
-| is the tree green? | `gh run list --branch main --limit 1` then `gh run view <id> --json jobs` — CI is the authority, especially when Docker is down locally |
-
-**The next two steps, in order.** Step 1 is several commands and they are deliberately
-NOT chained — read each result:
-
-```bash
-cd ~/projects/backyard
-git checkout main
-git pull
-
-# Preconditions: Docker up (Postgres is a container), and no other pytest running —
-# the local lane shares one test database and a concurrent run produces false reds.
-docker ps >/dev/null || echo "START DOCKER FIRST"
-ps aux | grep "[p]ytest"          # must print nothing
-
-# Step 1 — the full gate, ONE COMMAND AT A TIME. Read each result.
-# Chaining these with && and reading the tail as evidence about the head is how
-# "lint ok" got reported over a tree with nine lint findings.
-uv run ruff check src scripts
-uv run ruff format --check src scripts
-uv run mypy src
-uv run pytest -q
-uv run pytest -q -m e2e
-make gates
-
-# Step 2 — tag, only once every line above was read and green.
-git tag -a v0.1.2 -m "v0.1.2"
-git push origin v0.1.2
-```
-
-Tagging turns the version gate back ON: `_release_in_flight` exempts the newest CHANGELOG
-version only while it has no tag, so every `--branch v0.1.2` in `README.md` and `docs/runbooks/self-host.md`
-starts being checked against a real tag the moment it exists.
-
-### What is DONE
-
-Every item from the original `OUTSTANDING` §7 audit. §7.8 is a closed-items table, §7.9 was
-in flight and has landed, §7.10 is closed, §7.11 records what was found while closing it.
-Nothing from the audit is open.
-
-The defects that would have reached the family, each measured not reasoned:
-
-* **The wipe's refusal was blind to `Collector.fast_deletes`** — including `Reaction`, a
-  model named in the tuple it iterates. A real relative's reaction was deleted with no
-  refusal, absent from the preview, and listed in the receipt afterwards. *(The cure
-  changed on 2026-09-19, walk item 30: a reaction is not authorship and no longer BLOCKS
-  the wipe — it goes with the post it sits on, and the dry run counts it as "reactions by
-  real people". A real person's post or reply still refuses. The half that was the actual
-  defect — the preview and the receipt disagreeing with what was destroyed — is fixed.)*
-* **The seed minted an `INSTANCE_ADMIN` on anyone else's box**, keyed to the literal
-  username `james`, unmarked so no wipe removes it, with its password printed.
-* **An ad-hoc pod froze permanently** when its owner left, was removed (S-702), or was
-  deleted. A *departed* owner also kept control of a group they had walked out of.
-* **A parent could not create their own child's account** — permission said yes, the only
-  page said 403.
-* **15 routes were unreachable** and the product had no sign-out link.
-* **Six stories did not exist** while `PATH-TO-100` marked a phase complete citing them.
-
-### What is NEXT — and which parts are the operator's
-
-**Phase 10, the launch.** `docs/runbooks/founder-qa.md` has the sequence. The order matters:
-
-1. Deploy. The deploy is `tar czf - src | ssh …` and ships **`src/` only**. Run the check in
-   the "Deploying" section below first — this release's non-`src` delta is
-   `caddy/Caddyfile.prod` and `scripts/`.
-2. `mark_demo_data --dry-run` — production's demo family **predates the marker**, so
-   `wipe_demo_data` correctly finds nothing until this is run. List the yards first; two
-   seed scripts used different slugs (`moms-side`/`dads-side` vs `whitfield-side`/…).
-3. **OPERATOR JUDGEMENT.** Read the *"Deliberately NOT marked"* list. It names real people.
-   In rehearsal it correctly spared the founder, who was in a marked pod *and* their own
-   household — a naive rule would have deleted him and locked him out of his own family.
-   Confirming that list is a judgement about this family and must not be automated.
-4. `wipe_demo_data --dry-run`, read the counts, then `--yes`.
-5. Seed the founder's profile, a welcome post and photos **through the product**.
-6. Create the real yards; promote uncle and sister to `yard_admin` — *not* instance admin.
-7. Register the Resend inbound webhook.
-8. **OPERATOR JUDGEMENT.** The founder QA walk (PATH-TO-100 criterion 4, still NOT DONE) and
-   the S-721 delegate rehearsal — filed as `spec` today, deliberately not `passing`, because
-   it has not been run. The retro is explicit that the founder must not role-play the
-   delegate.
-
-### Traps this session paid for
-
-* **A count that includes the document stating it is wrong on arrival.** This handoff said
-  "33 PRs"; merging it made 34. Same for "N commits past v0.1.1". Any self-including number
-  in a repo document is stale the instant it lands — state the RULE and the command that
-  derives the number, never the number.
-* **The local test lane needs Docker running.** Postgres is the `backyard-testdb`
-  container; with the daemon down, `pytest` returns hundreds of errors whose first line is
-  `connection to server at "127.0.0.1", port 5432 failed: Connection refused`. Read that
-  line before diagnosing — on 2026-08-07 I read a wall of `ProgrammingError` and concluded
-  the test database was missing, when the daemon was simply not running. **CI is the
-  authority when local cannot run**: `gh run list --branch main --limit 1` then
-  `gh run view <id> --json jobs`.
-* **The local pytest lane shares ONE database.** `uv run pytest -q` uses `test_backyard` on
-  the shared `backyard-testdb` container, so a second process running pytest in this checkout
-  — another session, or your own fanned-out subagents — drops it mid-run. Measured: three
-  consecutive false reds (`column "seeded_by" ... does not exist`, `DeadlockDetected`,
-  `AdminShutdown: terminating connection due to administrator command`) on a tree that was
-  green. Before believing a red, run `ps aux | grep pytest`; to run concurrently, give each
-  its own `POSTGRES_DB=<unique>`.
-
-* **`git checkout -- <file>` discards uncommitted work.** It destroyed a template edit
-  mid-probe. Back probes up to the scratchpad and restore from there.
-* **Never edit a running bash script.** Bash reads it incrementally from a byte offset, so
-  an edit can make it resume mid-line. A merge-train helper was edited eight times while
-  live; harmless by luck, not by design. Whatever you rebuild, have it take its queue as
-  ARGUMENTS rather than as a constant you edit in place. (The 2026-08-07 helper lived in the
-  session scratchpad, which is wiped between sessions — it is gone, and that is the second
-  lesson: session-scoped tooling does not survive, so anything worth keeping goes in the
-  repo.)
-* **`gh` reports an in-progress check as the empty STRING**, and jq's `//` defaults only on
-  null — so `"" // "RUNNING"` is `""`. The train announced "all five green" over a running
-  job because of it.
-* **A `&&` chain with output to `/dev/null` will make you misread which command passed.** I
-  reported "lint ok" when ruff had never run clean; the tree had 9 lint findings.
-* **A probe that does not fire looks exactly like a probe that passed.** Several non-vacuity
-  probes silently no-opped (wrong indent, a `-k` filter matching nothing, an equality check
-  against a longer line). Assert the mutation applied before trusting the result.
-
-> **Start here after a compaction.** Production is clean as of **2026-08-07 UTC**, and every
-> item below was verified from OUTSIDE the box rather than from a command's exit code:
->
-> * **The burned credential and the plaintext backups** were closed on the evening of
->   2026-08-01 US Central — **2026-08-02 UTC**, the date the box stamps on its own artefacts
->   (`backup-2026-08-02.bak`). Same moment; compare in UTC when matching a runbook entry to a
->   file on the box (OUTSTANDING §0).
-> * **A third live exposure was closed on 2026-08-06**: a relative on the public instance
->   still carried the author's real surname. `b8b9813` had renamed her in the repo and added
->   a guard a week earlier — **the data was never migrated**. A rename in code does not
->   migrate rows. Fixed after an encrypted backup; confirmed by signing in over the public
->   internet and reading `/directory/`.
-> * **The `worker` container was running 7-day-old code** — genuinely different images, so
->   every async path (digests, transcoding, link previews, `rollup_metrics`, `clearsessions`)
->   was stale. The deploy step restarts `web` only. Rebuilt; both now carry the same build
->   stamp.
-> * **6 orphaned media files** removed, measured rather than estimated. Nothing in the
->   product would ever have removed them: every purge path needs the row.
->
-> Secrets live in the **1Password `Backyard` vault**. The **server SSH key is stored as a
-> DOCUMENT**, not an SSH Key item, so the 1Password SSH agent does not serve it — fetch with
-> `op document get`. The box user is **`ubuntu`**, not `root`, and the box has **no `.git`**:
-> it was deployed by file copy, so `git pull` is not the upgrade path there.
->
-> There is **no key escrow** for `BACKYARD_BACKUP_PASSPHRASE`: if that item is lost, every
-> backup taken with it is permanently unreadable.
->
-> **`v0.1.0` is WITHDRAWN.** It carried the burned credential in three tracked files and the
-> cross-yard disclosure fixed in #110. The credential is rotated and dead, so this is hygiene
-> rather than a live exposure — but do not point anyone at the old tag.
-
-**`v0.1.1` is the current TAG; `0.1.2` is written up in the CHANGELOG but not yet cut.**
-Until that tag exists the README points at a version that cannot be cloned, which is the
-in-flight window `test_documented_version_resolves` exempts — cut the tag as soon as the
-release PRs are merged, because the exemption expires the moment it exists and that is what
-turns the check back on. The README installs the tag, not `main`, and `CHANGELOG.md` lists what
-does not work as prominently as what does. If you add a user-visible change, add a changelog
-entry under an `## [Unreleased]` heading — the install path is now a fixed point that people
-can be pointed at, and the whole value of that is it not moving under them.
-
-**Do not put a real credential in a receipt.** The `secrets` job caught exactly that: a receipt
-quoted the generated demo password as evidence, and gitleaks' `generic-api-key` rule matched a
-16-character random string on sight. Redact to a shape (`<16 url-safe random characters>`), never
-allowlist. Note the asymmetry that caused the whole pass: gitleaks is **blind** to
-`PW = "<a password a person chose>"` and **catches** a high-entropy value, so the fix moved the credential
-into the class the gate can see. The enforcing check for the blind class is
-`src/core/tests/test_no_hardcoded_demo_credentials.py` (an `ast` check — a comment cannot defeat
-it), and it covers two shapes, the second being a literal fallback inside
-`os.environ.get(KEY, "literal")`.
+Its predecessor grew to five hundred lines and ended up contradicting itself inside one
+file, telling the operator both that the family database was encrypted and that it was
+sitting in plaintext three copies deep. It is kept, unedited, at
+[`docs/archive/2026-08-07-resume-here.md`](archive/2026-08-07-resume-here.md), because a
+handoff that quietly loses its history stops being checkable — but nothing in it describes
+the instance now.
 
 ---
 
-## Where things stand
+## Where things are
 
-| | |
+| question | run this |
 |---|---|
-| `main` | verify with `git log --oneline -1` |
-| production | `https://backyard.family`, deployed from `main` after every merge this session |
-| stories | **45 passing · 2 superseded · 2 spec** — verify with the snippet below |
-| open PRs | `gh pr list` |
-| gate | ruff + format + mypy(165) clean · **pytest 737 passed / 2 skipped** |
+| what is `main`? | `git log --oneline -1 origin/main` |
+| what is tagged? | `git tag --list` |
+| anything open? | `gh pr list --state open` and `gh issue list --state open` |
+| is the tree green? | `gh run list --branch main --limit 1`, then `gh run view <id> --json jobs` |
+| what does the release say? | `CHANGELOG.md` — what does not work is as prominent as what does |
 
-```bash
-uv run --with pyyaml python -c "
-import re,collections,pathlib
-t=pathlib.Path('stories/stories.yaml').read_text()
-print(dict(collections.Counter(re.findall(r'status:\s*(\S+)', t))))
-blocks=re.split(r'\n(?=\s*-\s*id:)', t)
-print('spec:', [re.search(r'id:\s*(\S+)',b).group(1) for b in blocks if re.search(r'status:\s*spec\b',b)])"
-```
+**Production** is one small Linux VM with a public IP, serving one domain over TLS from a
+four-container compose stack (Caddy, the web app, a worker, Postgres). It is a **git
+checkout**, so the deployed revision is a thing you can ask it for rather than infer. The
+host, the provider and the credentials are not written down in a public repository: they are
+on the succession sheet ([`runbooks/backup-recovery-sheet.md`](runbooks/backup-recovery-sheet.md))
+and in the password manager it names.
 
-## What is actually left
-
-**One story.** S-904 (vCard export) shipped in #103 — serializer over `ViewableProfile`,
-never a `Member`, registered as threat row **T-YARD-10**.
-
-**S-603 — ambient photo frame** is the last `spec` entry, and the riskiest thing remaining: a
-signed display URL rotating recent photos on an old tablet with zero interaction. It is a NEW
-always-on bearer-credential class living on a device in a room, so per the threat model's own
-rule (*"New capability types cannot ship without registering here"*) it needs a threat-model
-entry — TM-1 registry + `T-DISPLAY-*` rows — **before** code. A draft of that entry, with five
-rows worked out, is in the S-603 section below.
-
-### S-603 carries a founder decision, and it is not a small one
-
-Its second acceptance criterion reads *"Display heartbeat counts as an elder touch when
-assigned to an elder."* **That criterion contradicts the metrics doc, inside one file:**
-
-- `docs/metrics.md:9` — *"'Active' means any **deliberate** touch: opening the feed, posting,
-  reacting, replying by email, or a token-link visit."*
-- `docs/metrics.md:21` — the Elder touch rate row counts *"frame display heartbeat"*, and that
-  row is described as *"The hardest segment; if elders connect, the design is working."*
-
-A heartbeat is a powered-on tablet, not a deliberate act. Every current input to
-`metrics.touched` is a human doing something. Wire a heartbeat in and the one signal that would
-tell the family Nana has gone quiet reads "active" for as long as her frame has electricity —
-and the KPI becomes unfalsifiable for any member who owns a frame.
-
-**Recommendation on record:** keep the heartbeat, record it under its own name (*"the frame in
-the kitchen has been dark for nine days"* is a real signal, arguably a better one), and keep it
-**out of `touched`**. That is the reversible direction — wiring a signal into the KPI later is
-one line; un-corrupting a metric's history is not. Founder call, because it is a measurement
-judgment, not a mechanical one.
-
-Then: **founder manual QA** (PATH-TO-100 criterion 4) is and always was the gate.
-
-## Founder decisions made this session — do not re-litigate
-
-- **The `v1: false` flag on five stories was inherited, not decided.** `story-map.md`
-  justified it with *"None is required to pass the alpha KPI"* — a KPI the founder
-  superseded on 2026-07-22. Corrected in place; each story re-decided individually.
-- **S-706 (deceased-member state) — SUPERSEDED.** *"No to the passed away thing... it can
-  just be a deactivation from admin controls. That is not sensitive at all."*
-- **S-503 (email-photo-to-pod) — SUPERSEDED.** *"I wouldn't put too much energy into the
-  reply by email thing... it would be better if it just opened the app to where they reply."*
-- **The warm/cream palette was REJECTED on sight** as belonging to a design run already
-  turned down. The colour system is v3.1's, token for token. **Do not re-warm the ground.**
-- **Lone photos are CENTRED** in their card. Left-aligning them was tried and called.
-- **Verify design by looking at a render at 1440**, not by axe. The standing lesson: axe
-  reported 154 renders / 0 violations with every desktop defect present. It paid again in
-  #103: "Save to my contacts" sat at the contact list's own row pitch and read as a third
-  contact field. Nothing automated would have said so.
-- **Park the screenshot harness's cursor off the content** (`page.mouse.move(2, 2)`). Playwright
-  leaves the mouse where it last clicked — after a login-then-navigate that lands on a card and
-  renders it `:hover`, which reads as an inconsistent-underline bug that is not there.
-
-## The environment recipe (non-obvious, cost real time)
-
-The compose Postgres does **not** publish 5432, so tests need their own database.
-
-```bash
-docker run -d --rm --name bk-test-pg -p 127.0.0.1:55433:5432 \
-  -e POSTGRES_DB=backyard -e POSTGRES_USER=backyard -e POSTGRES_PASSWORD=ci-not-a-secret \
-  postgres:18-alpine
-
-export DJANGO_SECRET_KEY=local-not-a-secret-deadbeef-cafe-1234567890 \
-       POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=55433 POSTGRES_PASSWORD=ci-not-a-secret
-
-uv run ruff check src && uv run ruff format --check src && uv run mypy src && uv run pytest -q
-uv run --with pyyaml python scripts/check_stories.py        # needs pyyaml, not in the venv
-uv run --with pyyaml python scripts/check_digest_confinement.py
-```
-
-For a **live** instance (design work, live repro):
-
-```bash
-cd src
-export MEDIA_ROOT=/tmp/by-media BACKYARD_BASE_URL=http://127.0.0.1:8765 \
-       DJANGO_DEBUG=1 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
-../.venv/bin/python ../manage.py migrate
-../.venv/bin/python ../manage.py shell < ../scripts/demo_seed.py   # prints the elder token
-../.venv/bin/python ../manage.py runserver 127.0.0.1:8765 --noreload
-```
-
-Traps that each wasted a cycle:
-
-- **`BACKYARD_BASE_URL` must point at the dev server.** Unset, invite links are minted for
-  `localhost:8000` — where a *stale container* may answer, so links appear to 404 for
-  mysterious reasons.
-- **`MEDIA_ROOT` defaults to `/data/media`**, which is read-only outside the container.
-- **Seeding after `migrate` leaves demo members unstamped**, so they see the S-906
-  orientation. That is correct behaviour, not a bug.
-- **allauth rate-limits logins per IP** (`30/5m`, and `10/1h` for *failures*). A sweep that
-  logs in repeatedly will trip it. Do **not** probe the limit with wrong passwords — that
-  burns the failure budget for an hour. Clear it with
-  `docker exec bk-test-pg psql -U backyard -d backyard -c "TRUNCATE backyard_cache;"`.
-- **Playwright: `form[action*='comment']` also matches the delete-comment forms.** Use
-  `form[action$="/comment/"]`.
-- **A yard-wide compose goes through the TM-3 widen-confirmation hop** — the click after
-  Post lands on a confirm page, not the feed.
-- **Count rendered elements on a FRESH page load.** Counting right after a submit reports
-  stale numbers; this produced two phantom "rendering bugs" that the database disproved.
-
-## Deploying (there is no automation)
-
-```bash
-tar czf - src | ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST 'cd ~/backyard && tar xzf -'
-ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST \
-  'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml build --pull web worker && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d web worker'
-```
-
-**`build --pull`, and not `up --build`.** This is the deploy that actually happens here, so
-it is the one that has to reach the apt layer: `up --build` reuses the cached base and the
-`pg_dump` client and `ffmpeg` installed on top of it stay at the versions of the first
-build, for the life of the box. The two runbooks say the same thing (self-host.md, Upgrades;
-handover.md §2), but a stranger reads those and nobody reads them before redeploying this
-instance. Chained, because a failed build must not be followed by an `up` that silently
-restarts the image you already had.
-
-**This ships `src/` and nothing else.** Most of what lives outside it — `docs/`,
-`stories/`, `.github/`, `README.md`, `Makefile`, `.gitleaks.toml` — has no effect on the
-running box. Seven paths do:
-
-| path | why it matters at runtime |
-|---|---|
-| `pyproject.toml`, `uv.lock` | the dependency set `--build` installs |
-| `Dockerfile` | how the image is built at all |
-| `docker-compose.yml`, `docker-compose.prod.yml` | services, ports, env |
-| `caddy/` | the edge config, including every security header |
-| `scripts/` | the seed and the operational scripts you run on the box |
-
-A `--build` after a `src`-only push rebuilds with the OLD dependencies, the OLD Caddyfile
-and the OLD Dockerfile, silently and with a green-looking deploy. Check before pushing:
-
-```bash
-git diff --name-only <deployed-ref>..HEAD \
-  -- pyproject.toml uv.lock Dockerfile 'docker-compose*.yml' caddy scripts
-```
-
-Empty output means the `src` tar is the whole deploy. Anything listed has to be copied too.
-
-Run for `v0.1.1..main` while preparing `v0.1.2` it returned `pyproject.toml`, `uv.lock`,
-`caddy/Caddyfile.prod` and three `scripts/`. Of those, only the caddy config and the seed
-change behaviour — the pyproject/lock delta is `pytest`, a dev dependency — and production
-already carried the current Caddyfile, verified from outside: no `Server`, no `Via`, and
-`content-encoding: zstd` on the front page.
-
-**Rebuild, never just restart** (the image ships `staticfiles`). `main` moving proves
-nothing — verify by fetching a string only the new code serves. The manifest's
-`background_color` is **no longer** a useful proof: the palette reverted, so it is the value
-it always was.
-
-Run a shell on production by piping a file, not with `-c`:
-
-```bash
-ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST \
-  'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web \
-     sh -c "DJANGO_SECRET_KEY=\$(cat /data/secret_key) python manage.py shell"' < local_script.py
-```
-
-## Accessibility verification
-
-`scripts/axe_sweep.py` is committed now (it used to be rewritten every session). Fetch
-`scripts/axe.min.js` first — it is not vendored:
-
-```bash
-curl -sSL -o scripts/axe.min.js https://cdn.jsdelivr.net/npm/axe-core@4.10.2/axe.min.js
-uv run --with playwright python scripts/axe_sweep.py http://127.0.0.1:8765 /tmp/axe.json \
-    <admin> <password> [elder-token] [mfa-user] [mfa-password]
-```
-
-It runs a **deliberate hover pass** and **names what it skipped**. Both exist because a
-resting-only sweep reported 0 violations twice while every primary button was 3.92:1 in dark
-mode while hovered.
-
-**CI runs it too, since 2026-09-19** (gate audit G6): a step of the `e2e` job seeds a
-throwaway instance, starts a server and sweeps it, and the script now **exits non-zero** on a
-serious or critical finding. So a run by hand is for looking at a real instance with real
-content — production, or your own box — not for catching a regression somebody else pushed.
-The CI step fetches `axe.min.js` with a pinned version and a SHA-256 check; the command above
-does not, which is fine on your own machine and is why the checksum lives in the workflow.
-
-## Method that kept paying off
-
-- **Prove every new guard fires** by breaking the thing it guards, then restoring. Several
-  guards written this session were vacuous until probed — including one where removing a
-  URL from an on-origin check failed no test at all.
-- **Assert behaviour, not prose.** Three separate tests broke on legitimate copy because
-  they searched for a bare word (`"photo"`, `"posted"`, `"role-key"`) that the page says for
-  good reasons. Anchor on the rule, or on the rendered element.
-- **Comments ship.** A CSS comment quoting a removed tagline kept sending it to every
-  client; another mentioning "manifest" broke a guard asserting that word was absent from a
-  token surface.
-- **Check the data before believing a measurement.** Four apparent defects this session were
-  harness errors.
-
-## Operator actions waiting, in priority order
-
-**Admin 2FA (T-ADMIN-1) is no longer waiting on you — ruled 2026-09-19: offered, not
-enforced.** The threat model claimed "passkey or TOTP, enforced in the wizard so a
-password-only admin never exists" and nothing ever enforced it. The record was corrected
-rather than the code: requiring one means lockouts for the two relatives becoming admins,
-and a locked-out admin is recovered only from a server shell they have not got. What ships
-is the offer — one calm dismissible prompt on the member roster for an admin with nothing
-enrolled, linking to the account-security page that Settings already reaches. Enforcement
-for the INSTANCE ADMIN alone is filed as issue 182 if you want to revisit it.
-
-The first three below are things a person must do on the box; the classifier in an agent
-session refuses `compose exec ... manage.py shell`, so they cannot be done for you.
-
-Both are blocked for an agent in this harness (the command classifier refuses
-`docker compose exec … manage.py shell`), so they are copy-paste ready rather than done.
-Set the host once — it is a placeholder rather than a literal so the box can be rebuilt without
-editing repo history, and so a public repo is not also a target list:
+Set the host once, as a placeholder, so nothing here is a target list:
 
 ```bash
 export BACKYARD_HOST=<the instance IPv4 or hostname>
 ```
 
-**1. Rotate the demo accounts on production.** `scripts/demo_seed.py` used to hardcode
-a fixed password, and **that password still works on the live instance** until it is re-seeded.
-It is deliberately not repeated here: it is still live, so writing it down again is a fresh
-disclosure, in the one document that explains why not. It is in the git history of
-`scripts/demo_seed.py` if you genuinely need it.
-The repo no longer publishes it, which closes the disclosure half — this closes the rest. The
-re-seed mints and prints a fresh password:
+## Deploying (there is no automation)
+
+There is no pipeline. A deploy is a tag checkout and a rebuild, run on the box:
 
 ```bash
-ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST \
-  'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web \
-     sh -c "DJANGO_SECRET_KEY=\$(cat /data/secret_key) python manage.py shell"' \
-  < scripts/demo_seed.py
+ssh ubuntu@$BACKYARD_HOST 'cd ~/backyard && git fetch --tags && git checkout <tag>'
+ssh ubuntu@$BACKYARD_HOST \
+  'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml build --pull && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d'
 ```
 
-Keep the `DEMO_PASSWORD=` line it prints — it is the only copy. Or wipe instead, with
-`manage.py wipe_demo_data --dry-run` then `--yes`, if you are done with the demo family.
+**`build --pull`, and not `up --build`.** The app image installs `postgresql-client-18` and
+`ffmpeg` in a layer above `python:3.13-slim`, and `up --build` reuses whatever base the box
+has cached — so the client that takes your pre-flight backup and the decoder that reads
+video somebody sent your family would stay at their first-build versions for the life of the
+box. **Chained**, because a failed build must not be followed by an `up` that silently
+restarts the image you already had. `self-host.md`'s Upgrades section says the same thing at
+length, and `handover.md` §2 again; this is the one the live instance is redeployed from.
 
-**2. Set BACKYARD_BACKUP_PASSPHRASE on production.** It is unset, so the pre-flight dump
-written on every boot is **plaintext** -- and there are three of them on the volume right
-now, each the whole family database. The instance says so itself on every start since the
-security pass:
+**Rebuild, never just restart** — the image ships `staticfiles`. And `up -d` with no service
+named, so the **worker** moves too: a deploy that restarts `web` only leaves every async
+path (digests, transcoding, link previews, metrics rollups, session cleanup) running
+week-old code, which is a thing that happened and took a while to notice.
 
-```
-WARNING: BACKYARD_BACKUP_PASSPHRASE is unset, so the pre-flight backup is PLAINTEXT at
-/data/backups/preflight-*.dump -- that is the entire family database.
-```
+The earlier `tar czf - src | ssh …` deploy is gone with the file that described it. It
+shipped `src/` only, so a rebuild silently used the old dependencies, the old Caddyfile and
+the old seed, and keeping a list of "which non-`src` paths changed" up to date was a
+permanent source of wrong numbers. A checkout has no such list.
 
-Add it to `~/backyard/.env` on the box, restart web, and confirm the next line reads
-`Pre-flight backup written ENCRYPTED`. Record the passphrase on the succession sheet: there
-is no key escrow, so losing it loses those archives. Then delete the plaintext dumps.
+Moving the instance to different hardware is its own procedure:
+[`runbooks/move-to-a-new-server.md`](runbooks/move-to-a-new-server.md).
 
-**3. Take a backup. Production has never had one**, and the weekly health email has been
-saying so since it shipped. This is the largest real risk in the project: there is no backup,
-so *restore has never been exercised against production data* either.
+## Backups and restore
+
+The instance backs itself up nightly to its own data volume and says so on the weekly health
+email, on `/healthz`, and in the worker log when it cannot. That is **not** an off-box copy:
+the copy job lives on the host, and the instance only knows how it went if the job writes
+`.offbox-status.json` back. All of it, including the restore drill and what a restore does
+to credentials people are holding, is in
+[`runbooks/backup-restore.md`](runbooks/backup-restore.md).
+
+Three things worth knowing before you need them:
+
+- **There is no key escrow.** Lose `BACKYARD_BACKUP_PASSPHRASE` and every archive taken with
+  it is unreadable by anyone, permanently.
+- **A restore is a security event.** It kills every elder link, digest link, reply address
+  and session the archive carried, and it brings back anybody removed since the backup.
+- **A restore does not migrate.** Restart `web` and `worker` afterwards and require
+  `manage.py migrate --check` to exit 0 before telling anyone the instance is up.
+
+Running any management command on the box needs the persisted secret exported first — the
+entrypoint exports it for gunicorn only, so a fresh `exec` has never had it:
 
 ```bash
-# `output` is POSITIONAL, not --output. And no passphrase is passed here at all: once
-# action #2 is done, BACKYARD_BACKUP_PASSPHRASE is in the container's environment and the
-# command reads it from there. backup_instance deliberately refuses a passphrase on argv so
-# it cannot reach shell history or `ps`; inlining one would walk around the protection the
-# command exists to provide.
-ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST \
-  'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web \
-     sh -c "DJANGO_SECRET_KEY=\$(cat /data/secret_key) \
-        python manage.py backup_instance /data/backup-$(date +%F).tar.enc"'
-# then copy it OFF the box, and record the passphrase location on the succession sheet.
-# DOUBLE quotes: single ones stop $BACKYARD_HOST expanding, so this used to try to reach a
-# host literally named "$BACKYARD_HOST" and fail -- on the step that turns a backup sitting
-# on the same disk into an actual backup. Double quotes still stop the LOCAL shell
-# expanding the glob, which is what scp needs (the remote end expands it).
-mkdir -p ~/backyard-backups
-scp -i ~/.ssh/backyard_vm "ubuntu@$BACKYARD_HOST:/data/backup-*.tar.enc" ~/backyard-backups/
+ssh ubuntu@$BACKYARD_HOST \
+  'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web sh -c "export DJANGO_SECRET_KEY=\$(cat /data/secret_key); python manage.py check"'
 ```
 
-## Founder-owned, unchanged
+A bare `exec web python manage.py …` exits with `DJANGO_SECRET_KEY is empty` before argparse
+is reached, which reads like a broken command rather than a missing variable.
 
-1. The **90-minute QA walk** (`docs/runbooks/founder-qa.md`) — the gate.
-2. **Post something to a whole side of the family BEFORE handing out elder links**, or a
-   grandparent opens her link to an empty page and nobody can preview it for her.
-3. **Wipe the demo family** (`manage.py wipe_demo_data --dry-run`, then `--yes`) before
-   the first real invite. The old `BACKYARD_DEMO_WIPE=1` was unscoped and is removed.
-4. The **S-601** decision: may an elder follow a link off her page? (Recommendation on
-   record: keep the rule.)
-5. The **go-public** decision (criterion 7).
+## Where the open work lives
+
+**GitHub issues.** `gh issue list --state open` is the list; nothing in this repository is a
+second copy of it, and a document claiming to be "the single list" is how thirty items went
+missing once already.
+
+Two documents remain and neither is a backlog:
+
+- [`OUTSTANDING.md`](OUTSTANDING.md) — the security-pass record and the session records
+  behind it. Findings are kept with their verdicts so the reasoning survives; anything still
+  open carries its issue number.
+- [`PATH-TO-100.md`](PATH-TO-100.md) — the v1.0 criteria. A box is checked only with an
+  evidence link on the same line, and CI enforces it.
+
+The gate before anything is shared with anybody is still the founder's own QA walk,
+[`runbooks/founder-qa.md`](runbooks/founder-qa.md), with the S-721 delegate rehearsal beside
+it as issue 194 — a second person, because the founder must not role-play the delegate.
+
+## The runbooks
+
+[`self-host.md`](runbooks/self-host.md) (the install, and the honest limitations) ·
+[`backup-restore.md`](runbooks/backup-restore.md) ·
+[`backup-recovery-sheet.md`](runbooks/backup-recovery-sheet.md) (print it) ·
+[`move-to-a-new-server.md`](runbooks/move-to-a-new-server.md) ·
+[`founder-qa.md`](runbooks/founder-qa.md) ·
+[`setting-up-your-side.md`](runbooks/setting-up-your-side.md) ·
+[`handover.md`](runbooks/handover.md) · [`shutdown.md`](runbooks/shutdown.md) ·
+[`live-repro.md`](runbooks/live-repro.md) ·
+[`measure-transcode.md`](runbooks/measure-transcode.md)
+
+[`docs/README.md`](README.md) is the map to everything else.
+
+## The environment recipe (non-obvious, cost real time)
+
+The compose Postgres does **not** publish 5432, so the tests need their own database. One
+shared container, and a database name per checkout so two runs cannot drop each other's:
+
+```bash
+docker run -d --name backyard-testdb -p 127.0.0.1:5432:5432 \
+  -e POSTGRES_DB=backyard -e POSTGRES_USER=backyard -e POSTGRES_PASSWORD=ci-not-a-secret \
+  postgres:18-alpine
+
+export POSTGRES_HOST=127.0.0.1 POSTGRES_PASSWORD=ci-not-a-secret
+export POSTGRES_DB=test_backyard_<this checkout>
+export DJANGO_SECRET_KEY=<50+ throwaway characters; settings refuses a short one>
+```
+
+Then the gate, **one command at a time**, reading each exit code. Chaining these with `&&`
+and reading the tail as evidence about the head is how "lint ok" got reported over a tree
+with nine lint findings:
+
+```bash
+uv run ruff check src scripts
+uv run ruff format --check src scripts
+uv run mypy src
+uv run pytest -q
+make gates
+make secrets
+```
+
+`make e2e` is the browser lane; a plain `pytest` deselects it and still reads green.
+
+Traps that each cost a cycle:
+
+- **The local lane needs Docker running.** With the daemon down, `pytest` returns hundreds
+  of errors whose *first* line is `connection to server at "127.0.0.1", port 5432 failed`.
+  Read that line before diagnosing the wall of `ProgrammingError` under it.
+- **Two pytest runs sharing one `POSTGRES_DB` drop each other's database mid-run**, and the
+  false red looks like a real one (`column … does not exist`, `DeadlockDetected`,
+  `AdminShutdown`). Give each checkout its own name, as above. Before believing a red, run
+  `ps aux | grep [p]ytest`.
+- **The `secrets` job scans every branch.** CI checks out with `fetch-depth: 0`, so
+  `gitleaks git .` walks the whole commit graph: one credential-shaped literal on a single
+  unmerged branch fails `secrets` on every open PR at once. `make secrets` reproduces it.
+- **`BACKYARD_BASE_URL` must point at the dev server** for a local live instance, or invite
+  links are minted for `localhost:8000` where a stale container may answer.
+- **`MEDIA_ROOT` defaults to `/data/media`**, which is read-only outside the container.
+- **allauth rate-limits logins per address** (`30/5m`, `10/1h` for *failures*), and so does
+  the app's own link-surface throttle. Do not probe a limit with wrong passwords — that
+  burns the failure budget for an hour. Clear it by truncating `backyard_cache`.
+
+## Method that keeps paying off
+
+- **Prove every new guard fires** by breaking the thing it guards, then restoring. Several
+  guards in this repository were vacuous until somebody probed them.
+- **Assert behaviour, not prose.** Three tests have broken on legitimate copy because they
+  searched for a bare word the page says for good reasons.
+- **Comments ship.** A CSS comment quoting a removed tagline kept sending it to every
+  client; another broke a guard asserting a word was absent from a token surface.
+- **Read the artifact before describing its state**, including your own last commit. Most of
+  the corrections in this repository's history are a document describing a state that had
+  stopped being true, found by opening the code instead of the neighbouring document.

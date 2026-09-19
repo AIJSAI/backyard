@@ -253,10 +253,28 @@ Then, in the Resend dashboard: verify the sending domain (SPF + DKIM), add the i
 record, and register an `email.received` webhook pointing at
 `https://your-domain/anymail/resend/inbound/`.
 
-> **If you skip the webhook registration, inbound replies fail SILENTLY.** The mail server
+> **If you skip the webhook registration, inbound mail fails SILENTLY.** The mail server
 > accepts the message with a 250, the sender gets no bounce, and it never reaches the app.
-> After your first digest goes out, check that replies actually arrive before telling
-> anyone the feature exists.
+> Check that inbound actually arrives before telling anyone the feature exists.
+
+**What inbound does and does not give you today, precisely.** The route is only mounted when
+the inbound secret is configured — on an SMTP or console instance it does not exist at all,
+rather than answering every unauthenticated POST with a 500. When it is mounted, a message is
+attributed from the address the provider says it was **delivered to** (`data.received_for`),
+never from the sender-written `To:` header, and a delivery naming more than one recipient is
+refused rather than resolved to its first address. The fetch that collects the message is
+bounded in bytes **and** in wall-clock time, so a slow or enormous message cannot occupy the
+app. A refused message is not lost: it lands on **Members → "Replies we couldn't post"** with
+the reason.
+
+**But nothing currently hands a family member an address to use it with.** The weekly email
+used to print a per-post reply address in every body; that address is a bearer credential, so
+printing it forwarded the ability to comment as you along with the email, and it was removed.
+There is no `Reply-To` header either. What each post carries instead is a **"Reply in
+Backyard"** link straight to that thread's reply box, which carries no capability and takes
+photographs. So the inbound pipeline is live, tested and worth configuring — and reply-by-email
+is not a feature your family will use this release. Set inbound up if you want the capability
+present; do not promise anyone they can answer the email.
 
 ### Deliverability
 
@@ -412,6 +430,51 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres
 
 A fresh install gets this automatically and needs nothing.
 
+### Let the operating system patch itself, and choose the reboot hour
+
+Docker keeps the app's dependencies; nothing keeps the host's. Turn on unattended security
+upgrades and pick the reboot window **deliberately** — it is the one moment the instance goes
+down without you in front of it:
+
+```bash
+sudo apt-get install -y unattended-upgrades
+sudo dpkg-reconfigure --priority=low unattended-upgrades
+# then, in /etc/apt/apt.conf.d/50unattended-upgrades:
+#   Unattended-Upgrade::Automatic-Reboot "true";
+#   Unattended-Upgrade::Automatic-Reboot-Time "09:00";
+```
+
+That time is **UTC**, like everything else on the box, so work out what it is where your
+family lives before choosing it. Watched end to end on the reference instance: upgrades
+installed at 06:47, reboot at the 09:00 window onto a new kernel, all four containers back
+healthy with nobody touching it.
+
+**One `web` restart right after a reboot is expected.** On a boot where the app wins the race
+against Postgres, the pre-flight database dump fails, the entrypoint refuses to migrate and
+the container exits 1 — which is the guard working — and the next attempt succeeds seconds
+later. It is not a crash loop unless it keeps going, and the log names the dump's own error.
+
+---
+
+## Rate limits on the unauthenticated surfaces
+
+Every page that can be opened with a link and no password — the elder page, the family
+email's web version, the join and get-back-in pages, break-glass and the two digest
+confirm/unsubscribe pages — is bounded at **240 opens and 60 actions per 10 minutes per
+address**, on `GET` as well as `POST`. Over the limit, the visitor gets the product's own
+calm "too many requests" page rather than a bare error.
+
+Two things worth knowing before you read a support message about it. The limits are generous
+on purpose: a whole household behind one home connection is one address, and a grandmother
+refreshing because she is not sure it worked is perhaps twenty requests. And `/media/` is
+excused by name — an elder's page pulls many photographs in a burst, and the audience check
+on every byte is the control there, not a counter.
+
+Both the app's limits and the sign-in limits share one store, the database cache table, so
+they hold across all three web processes and survive a restart. That is deliberate: a
+per-process limiter gives an attacker three times the attempts and a clean slate on every
+deploy.
+
 ---
 
 ## Monitoring
@@ -438,7 +501,17 @@ stops uploads, backups and transcoding at once.
 
 Stated plainly, because finding out later is worse:
 
-- **Inbound reply-by-email is Resend-only.** SMTP covers outbound only.
+- **Nobody can answer the family email.** The inbound pipeline exists and is Resend-only
+  (SMTP covers outbound only), but no reply address is published in the mail and there is no
+  `Reply-To`, so replying goes nowhere. The post blocks link into the app instead. See
+  [Email](#email).
+- **A second factor is offered, never required.** Passkeys, an authenticator app and recovery
+  codes are available to every account and an admin with none enrolled sees one calm,
+  dismissible prompt. Nothing enforces it, on purpose: on a family box the locked-out admin
+  is exactly the person who does not have a server shell to recover from.
+- **There is no "send the email now" button.** The worker sends what is **due** — the
+  cadence has to have elapsed since confirmation or since the last window — so testing the
+  family email means waiting for a window rather than forcing one.
 - **No web push.** The notification opt-in sends **email**, not a push notification.
 - **No native apps.** It is an installable PWA; add it to your home screen from the
   browser. That is a deliberate decision, not a gap ([ADR-002](../adr/ADR-002-stack.md)).

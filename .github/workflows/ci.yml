@@ -232,8 +232,11 @@ jobs:
 
           echo "--- backup -> restore round trip against a REAL Postgres (S-802, S-704) ---"
           # Until this existed, `pg_restore` had never executed anywhere: the unit tests
-          # stub pg_dump/pg_restore entirely, and production has never taken a backup. The
+          # stub pg_dump/pg_restore entirely, and production had never taken a backup. The
           # first real restore would have happened on the day the data was already gone.
+          # Both halves of that have since changed -- production backs itself up nightly,
+          # and an archive of it has been restored onto other hardware -- but this round
+          # trip is what stops the code path rotting between those events, so it stays.
           # A Yard is the isolation primitive, so its survival is a meaningful assertion
           # rather than a row count.
           RUNSHELL='DJANGO_SECRET_KEY="$(cat /data/secret_key)" python manage.py'

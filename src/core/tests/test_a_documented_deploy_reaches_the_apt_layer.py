@@ -36,7 +36,18 @@ _ROOT = Path(__file__).resolve().parents[3]
 # Dated records of what was true when they were written. Rewriting one to keep a scan clean
 # is how a project loses the ability to trust its own history -- the same carve-out, for the
 # same reason, as `test_documented_version_resolves.py`.
-_RECORD_DIRECTORIES = ("docs/audits", "docs/receipts", "docs/retro", "docs/research")
+#
+# `docs/archive/` joined them when `RESUME-HERE.md` was replaced with a current one and the
+# superseded handoff was kept rather than deleted. It carries a deploy command that was real
+# in August and is not how this instance is deployed now; holding it to the live rules would
+# either fail the build for preserving history or push somebody to edit the record.
+_RECORD_DIRECTORIES = (
+    "docs/archive",
+    "docs/audits",
+    "docs/receipts",
+    "docs/retro",
+    "docs/research",
+)
 
 _SUFFIXES = {".md", ".yml", ".yaml", ".py", ".sh", ""}
 
@@ -89,6 +100,11 @@ _REDEPLOY = (
         "docs/RESUME-HERE.md",
         "## Deploying (there is no automation)",
         "the deploy that actually happens, against the one live instance",
+    ),
+    (
+        "docs/runbooks/move-to-a-new-server.md",
+        "## 4. Build the image and start the app, with Caddy held back",
+        "standing an existing instance back up on new hardware",
     ),
 )
 
