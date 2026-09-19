@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 from django.utils import timezone
 
-from core import digest, media
+from core import digest, emailing, media
 from core.models import DigestIssue, Member, Pod, PodMembership, Post, Yard
 
 pytestmark = pytest.mark.django_db
@@ -387,3 +387,60 @@ def test_confinement_guard_catches_traversal_and_multi_name_import(tmp_path: Pat
             check=False,
         )
         assert tripped.returncode == 1, poison_line
+
+
+# --- what a first-time relative needs the message to say (walk item 32) ---------------
+
+
+def test_the_email_says_why_it_arrived(world: World) -> None:
+    """Read as a relative who had forgotten they opted in, 2026-09-19. The message named
+    the side of the family and the week, and never once said who had signed them up for it
+    or why it had turned up — which is the first question anybody asks of an e-mail they
+    were not expecting, and the one that decides whether it gets reported as spam."""
+    _post(world.maternal_cousin, world.m_pod, "A quiet week.")
+    built = _build(world, world.maternal_cousin, world.maternal)
+
+    for part, name in ((built.text, "text part"), (built.html, "HTML part")):
+        flat = " ".join(part.split())
+        assert "You are getting this because you asked for the Family email." in flat, name
+
+
+def test_the_email_never_promises_a_reply_route_a_relative_has_not_got(
+    world: World,
+) -> None:
+    """Walk item 33, and the inverse of what this test asserted when it was written an
+    hour earlier in the same sitting.
+
+    Reading the message as a first-time relative, the obvious thing to do with it is hit
+    reply — so the first version of this change added a sentence saying you could. That
+    sentence was wrong. #101 stopped putting a per-post reply address in the message, and
+    nothing in the product hands anybody one: a plain reply cannot be routed to a post and
+    lands in the admin-only "Replies we couldn't post" quarantine, where the relative
+    never learns their words went nowhere.
+
+    So the mail promises nothing of the kind, and neither does the machine marker that
+    used to sit at the top of it. What it offers instead is "Reply in Backyard" on each
+    post, which opens the thread — a route that works.
+
+    Asserted even when the send path HAS minted addresses, because it does: `mint_for_issue`
+    still runs and the map still reaches the builder. The addresses are live capabilities
+    for the inbound parser; they are simply not handed out, and this test is what keeps a
+    future change from quietly printing one again.
+    """
+    post = _post(world.maternal_cousin, world.m_pod, "A quiet week.")
+    issue = _issue(world, world.maternal_cousin, world.maternal)
+    domain = emailing.reply_domain()
+
+    built = digest.build_digest(
+        issue,
+        digest_token="digest-raw",
+        unsubscribe_token="unsub-raw",
+        reply_addresses={post.id: f"reply+abc@{domain}"},
+    )
+    for part, name in ((built.text, "text part"), (built.html, "HTML part")):
+        flat = " ".join(part.split())
+        assert "replying to this message" not in flat, name
+        assert "reply above this line" not in flat.lower(), name
+        assert f"@{domain}" not in flat, f"{name} prints a reply address"
+        # Non-vacuity, and the route that DOES work.
+        assert f"/posts/{post.id}/#reply" in flat, name

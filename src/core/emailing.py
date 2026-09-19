@@ -22,6 +22,7 @@ compose stack, locmem in tests, a real provider when the founder picks one.
 from __future__ import annotations
 
 import unicodedata
+from email.utils import formataddr
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
@@ -61,6 +62,23 @@ _JOINERS = "‍‌"
 # Newline and tab are the two control characters that ARE ordinary writing, so a body
 # keeps them and a single-line label does not.
 _BODY_KEPT = f"{_JOINERS}\n\t"
+
+
+def from_address() -> str:
+    """The From header every message this product sends carries.
+
+    `"Backyard" <backyard@example.com>`, built here and nowhere else. Two callers: the
+    send seam below, and core.adapters.AccountAdapter.get_from_email, which is how
+    allauth's own mail (the address confirmation, the password reset) picks up the same
+    identity — those bypass send_family_email entirely, and before this they were the two
+    messages that arrived unnamed.
+
+    The name is control-stripped for the same reason a subject is: it reaches a header
+    position, and a newline in a header position is header injection. `formataddr` quotes
+    and, where needed, RFC 2047-encodes the rest, so a name with a comma or an accent in
+    it cannot break the address apart.
+    """
+    return formataddr((strip_control(settings.MAIL_FROM_NAME), settings.DEFAULT_FROM_EMAIL))
 
 
 def strip_control(text: str) -> str:
@@ -115,7 +133,7 @@ def send_family_email(
     message = EmailMultiAlternatives(
         subject=strip_control(subject),
         body=f"{text.rstrip()}\n\n--\n{STANDING_FOOTER}\n",
-        from_email=settings.DEFAULT_FROM_EMAIL,
+        from_email=from_address(),
         to=[to],
     )
     if html is not None:

@@ -108,11 +108,19 @@ class Member(models.Model):
     YARD_ADMIN = "yard_admin"
     INSTANCE_ADMIN = "instance_admin"
     SUPERVISED = "supervised"
+    # THE LABELS ARE WHAT A RELATIVE READS; the values above are what the code stores,
+    # and they are deliberately not the same words. "Yard admin" and "Instance admin" were
+    # this project's internal nouns wearing a capital letter: the walk on 2026-09-19 found
+    # them on the roster badge, in the role select and in "What the roles mean", where the
+    # person being handed the controls has no screen anywhere defining a yard or an
+    # instance. Renaming the VALUES would be a migration of live rows and every permission
+    # predicate; renaming the labels is a copy pass, which is all this ever needed.
+    # `test_one_word_per_concept.py` now reads these, so they cannot drift back.
     ROLE_CHOICES = [
         (MEMBER, "Member"),
-        (POD_OWNER, "Pod owner"),
-        (YARD_ADMIN, "Yard admin"),
-        (INSTANCE_ADMIN, "Instance admin"),
+        (POD_OWNER, "Group owner"),
+        (YARD_ADMIN, "Side admin"),
+        (INSTANCE_ADMIN, "Family admin"),
         (SUPERVISED, "Child account"),
     ]
     # S-907. The roster used to render these five names and nothing else, so the
@@ -146,7 +154,11 @@ class Member(models.Model):
             "Manages members, but only on their own side of the family. "
             "Cannot touch an admin, or anyone who also belongs to the other side."
         ),
-        INSTANCE_ADMIN: "Manages anyone, on either side. This is the whole instance.",
+        # "This is the whole instance." was the second sentence here until 2026-09-19. It
+        # was the only place in the product that used the word at a relative, and it told
+        # them nothing they could act on; what they need to know is that this role reaches
+        # everyone, which the first sentence already says.
+        INSTANCE_ADMIN: ("Manages anyone, on either side. The whole family, not one side of it."),
         SUPERVISED: "A managed account with no login of its own. Their parent edits it.",
     }
 

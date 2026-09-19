@@ -1,12 +1,12 @@
 {% extends "core/base.html" %}
-{% block title %}Stop the family email{% endblock %}
+{% block title %}Stop the Family email{% endblock %}
 {% block body %}
   {% if done %}
-    <h1>The family email is off</h1>
+    <h1>The Family email is off</h1>
     <p>Nothing more will be sent to this address. You are still part of the family;
     you can turn it back on any time under Settings.</p>
   {% else %}
-    <h1>Stop the family email?</h1>
+    <h1>Stop the Family email?</h1>
     <p>This stops the email only. It does not remove you from the family.</p>
     <form method="post">
       {% csrf_token %}

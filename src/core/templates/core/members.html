@@ -6,22 +6,40 @@
    this template's to change; these are the minimum that make the roster usable on the
    phone both new admins will actually hold. */
 
-/* THE ROSTER ROW, AT 390px. A member's head is a flex row whose last item is a
-   two-control form, and the row centres its one-line links against that form — so
-   "No-login link" floated in the middle of an indented select with "Change role"
-   stacked under it, and Dave's row laid out differently from Priya's because his name
-   is shorter. Below 40rem a member is a stack, not a row. */
-/* The row's links are ONE group, so they keep real gaps between them and no label
-   splits across a line break. Without this, "Edit profile No-login link Get back in link"
-   ran together as a single phrase at 390px and wrapped mid-label. */
+/* THE LINKS INSIDE MANAGE. They are ONE group, so they keep real gaps between them and no
+   label splits across a line break. Without this, "Edit profile No-login link Get back in
+   link" ran together as a single phrase at 390px and wrapped mid-label. They used to live
+   on the head row, where the row centred them against a two-control form and each name's
+   length changed the layout; there is no head row to fight with now. */
 .member-links { display: flex; flex-wrap: wrap; align-items: center; gap: 0 1.1rem; }
 .member-links a { white-space: nowrap; padding: 0.4rem 0; }
-@media (max-width: 40rem) {
-  .member-head { display: block; }
-  .member-head .member-links { margin-top: 0.1rem; }
-  .member-head form.inline { display: block; margin-top: 0.6rem; }
-  .member-head form.inline select { width: 100%; min-width: 0; max-width: 20rem; }
-}
+
+/* THE MANAGE DISCLOSURE (walk item 13). Every control for every relative used to be open
+   at once — about five phone screens for a six-person family, four-fifths of it
+   destruction UI — so "who is in this family" was the one thing you had to scroll past to
+   read. One line per person now; the actions sit behind a native <details>.
+
+   Almost nothing is needed here, on purpose: base.html already dresses a plain <details>
+   as a quiet green disclosure with a 44px target and a caret that turns, and reusing that
+   is how Manage, Remove and Add-a-child read as three of the same kind of control rather
+   than three inventions. The first attempt drew its OWN caret and got two of them,
+   pointing opposite ways, on one summary — measured at 390px.
+
+   What is left is spacing, and the one thing the shared rule cannot know: the body is a
+   stack of blocks rather than a paragraph. */
+.member-manage { margin-top: 0.15rem; }
+.manage-body { padding: 0.35rem 0 0.2rem; }
+/* The role control is a block inside Manage rather than something floated to the end of a
+   head row: there is no head row left to float against, and at 390px a select and its
+   button do not share a line with anything. */
+.manage-body form.inline { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.7rem 0 0; }
+.manage-body form.inline select { width: 100%; max-width: 20rem; min-width: 0; margin: 0;
+  min-height: 44px; padding-top: 0.35rem; padding-bottom: 0.35rem; font-size: 0.92rem; }
+.manage-body a { font-size: 0.92rem; text-decoration: none; }
+.manage-body a:hover { text-decoration: underline; }
+
+/* WHY A ROW HAS NOTHING ON IT (walk item 8). Quiet, one line, under the name. */
+.why-no-actions { margin: 0.1rem 0 0; font-size: 0.88rem; }
 
 /* THE WAYFINDING. Seven destinations rendered as one middot-separated paragraph
    wrapping over four lines: this is the family's whole control panel and it read as a
@@ -112,10 +130,21 @@
 
   <ul class="members">
     {% for row in rows %}
-      {% comment %} The row is a HEADER line plus optional blocks beneath it. It used to
-         be one flat flex row containing a tall removal fieldset, so the wrapping put a
-         member's name vertically centred against the destruction form to its right and
-         the role control floating above both. {% endcomment %}
+      {% comment %} ONE COMPACT LINE PER PERSON, and everything else behind Manage.
+
+         Walked on 2026-09-19: every control for every relative was open at once. A
+         six-person family filled about five phone screens — a role select and its button,
+         a remove disclosure and an add-a-child disclosure, repeated down the page — and
+         the thing an admin actually came for, "who is in this family", was the one thing
+         you had to scroll past four destruction forms to read. The roster is now a list of
+         people again; the actions are one tap away, on the row they belong to.
+
+         A native <details>, no JavaScript, for the same reason the removal disclosure
+         inside it is one: it is keyboard-operable and announced as a disclosure by a
+         screen reader without a line of script, and it works on the oldest phone in this
+         family. The summary carries the person's name in visually-hidden text, so a
+         screen reader hears "Manage Priya Whitfield" rather than six identical "Manage"
+         buttons; it stays out of the visible line because the name is already there. {% endcomment %}
       <li>
         <div class="member-head">
           <span class="member-name">{{ row.member.display_name }}</span>
@@ -124,120 +153,151 @@
              said the same thing about a child's account, side by side on the same row.
              {% endcomment %}
           <span class="role">{{ row.member.get_role_display }}</span>
-          <span class="member-links">
-          {% if row.can_edit_profile %}
-            <a href="{% url 'managed_profile_edit' row.member.id %}">Edit profile</a>
-          {% endif %}
-          {% comment %} Gated on can_provision_token, NOT on manageable. Minting this link
-             hands over a working no-login credential for that person's whole scope, so a
-             yard admin may only do it for someone whose households are a subset of their
-             own — stricter than "may I administer them". Measured before that change: a
-             yard admin saw this link on every row in their side and got a refusal on
-             click. {% endcomment %}
-          {% if row.can_provision_elder %}
-            <a href="{% url 'provision_elder' row.member.id %}">No-login link</a>
-          {% endif %}
-          {% comment %} BY-01. Before this, a relative who forgot their password and had
-             never given an email address could be helped by nobody in the product: the
-             reset page says "sent" either way (ACCOUNT_PREVENT_ENUMERATION), and the only
-             real cure was `manage.py changepassword` at a server shell. Same gate as the
-             view (can_manage_member, plus having a password at all), so it never refuses
-             on click. {% endcomment %}
-          {% if row.can_issue_recovery %}
-            <a href="{% url 'issue_recovery' row.member.id %}">Get back in link</a>
-          {% endif %}
-          {% comment %} BY-14. Before this, somebody who already had an account could only
-             enter a household by redeeming an invite — and redeeming MINTS A NEW MEMBER —
-             so a person in the wrong household, an adult child who moved out, or two
-             households merging had no answer anywhere in the product. {% endcomment %}
-          {% if row.can_change_household %}
-            <a href="{% url 'change_household' row.member.id %}">Change household</a>
-          {% endif %}
-          </span>
-          {% if row.manageable %}
-            {% if row.assignable_roles %}
-              {% comment %} The select used to render only the roles the actor could GRANT,
-                 with no `selected` anywhere — so it always displayed the first option and
-                 every ordinary relative's row read as though they were already an admin,
-                 next to a pill saying "Member". The current role is now the selected
-                 option and says plainly that it changes nothing; the view treats the empty
-                 value as "no change" rather than refusing it. {% endcomment %}
-              <form method="post" action="{% url 'assign_role' row.member.id %}" class="inline">
-                {% csrf_token %}
-                <label class="visually-hidden" for="role-{{ row.member.id }}">Change {{ row.member.display_name }}&rsquo;s role</label>
-                <select id="role-{{ row.member.id }}" name="role">
-                  <option value="" selected>{{ row.member.get_role_display }} &mdash; no change</option>
-                  {% for value, label in row.assignable_roles %}
-                    <option value="{{ value }}">{{ label }}</option>
-                  {% endfor %}
-                </select>
-                <button type="submit">Change role</button>
-              </form>
-            {% endif %}
-          {% endif %}
         </div>
-        {% if row.manageable %}
-          {% comment %} S-702: removal asks what happens to their content, and the
-             answer is required. This used to be a bare Remove button, which silently
-             kept everything — a decision nobody was ever asked to make.
 
-             The form is unchanged — same action, same required radio, same POST. It is
-             now behind a disclosure because it was rendered OPEN for every member at
-             once: on a six-person family the admin page was four-fifths destruction UI,
-             five red "Remove" buttons deep, which is not what an admin came to do. A
-             closed <summary> is markup, not JavaScript, and the extra click before an
-             irreversible act is a feature of the arrangement rather than a cost. {% endcomment %}
-          <details class="removal-disclosure">
-            <summary>Remove {{ row.member.display_name }}&hellip;</summary>
-            <form method="post" action="{% url 'member_remove' row.member.id %}" class="removal">
-              {% csrf_token %}
-              <fieldset>
-                <legend>What happens to their posts?</legend>
-                {% for value, label in content_choices %}
-                  <label class="inline-check">
-                    <input type="radio" name="content" value="{{ value }}" required>
-                    {{ label }}
-                  </label>
-                {% endfor %}
-                {% comment %} NB-5: the third choice erases photographs from the server for
-                   good. Say so beside the radio, and say that there is another step, so the
-                   button is not the last thing between an admin and an irreversible act.
-                   The step itself is enforced in the view, not here. {% endcomment %}
-                <p class="hint">Deleting erases their photos from the server for good. We
-                  will ask you to confirm first.</p>
-              </fieldset>
-              <button type="submit" class="danger">Remove {{ row.member.display_name }}</button>
-            </form>
+        {% if row.has_actions %}
+          <details class="member-manage">
+            <summary>Manage<span class="visually-hidden"> {{ row.member.display_name }}</span></summary>
+            <div class="manage-body">
+              <span class="member-links">
+              {% if row.can_edit_profile %}
+                <a href="{% url 'managed_profile_edit' row.member.id %}">Edit profile</a>
+              {% endif %}
+              {% comment %} Gated on can_provision_token, NOT on manageable. Minting this link
+                 hands over a working no-login credential for that person's whole scope, so a
+                 yard admin may only do it for someone whose households are a subset of their
+                 own — stricter than "may I administer them". Measured before that change: a
+                 yard admin saw this link on every row in their side and got a refusal on
+                 click. {% endcomment %}
+              {% if row.can_provision_elder %}
+                <a href="{% url 'provision_elder' row.member.id %}">No-login link</a>
+              {% endif %}
+              {% comment %} BY-01. Before this, a relative who forgot their password and had
+                 never given an email address could be helped by nobody in the product: the
+                 reset page says "sent" either way (ACCOUNT_PREVENT_ENUMERATION), and the only
+                 real cure was `manage.py changepassword` at a server shell. Same gate as the
+                 view (can_manage_member, plus having a password at all), so it never refuses
+                 on click. {% endcomment %}
+              {% if row.can_issue_recovery %}
+                <a href="{% url 'issue_recovery' row.member.id %}">Get back in link</a>
+              {% endif %}
+              {% comment %} BY-14. Before this, somebody who already had an account could only
+                 enter a household by redeeming an invite — and redeeming MINTS A NEW MEMBER —
+                 so a person in the wrong household, an adult child who moved out, or two
+                 households merging had no answer anywhere in the product. {% endcomment %}
+              {% if row.can_change_household %}
+                <a href="{% url 'change_household' row.member.id %}">Change household</a>
+              {% endif %}
+              </span>
+
+              {% if row.assignable_roles %}
+                {% comment %} The select used to render only the roles the actor could GRANT,
+                   with no `selected` anywhere — so it always displayed the first option and
+                   every ordinary relative's row read as though they were already an admin,
+                   next to a pill saying "Member". The current role is now the selected
+                   option and says plainly that it changes nothing; the view treats the empty
+                   value as "no change" rather than refusing it. {% endcomment %}
+                <form method="post" action="{% url 'assign_role' row.member.id %}" class="inline">
+                  {% csrf_token %}
+                  <label class="visually-hidden" for="role-{{ row.member.id }}">Change {{ row.member.display_name }}&rsquo;s role</label>
+                  <select id="role-{{ row.member.id }}" name="role">
+                    <option value="" selected>{{ row.member.get_role_display }} &mdash; no change</option>
+                    {% for value, label in row.assignable_roles %}
+                      <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                  <button type="submit">Change role</button>
+                </form>
+              {% endif %}
+
+              {% if row.manageable %}
+                {% comment %} S-702: removal asks what happens to their content, and the
+                   answer is required. This used to be a bare Remove button, which silently
+                   kept everything — a decision nobody was ever asked to make.
+
+                   The form is unchanged — same action, same required radio, same POST. It
+                   keeps its own disclosure inside Manage: nesting them means an admin who
+                   opens a person's row to mint a link is still two deliberate taps from the
+                   control that erases photographs, which is the arrangement, not an
+                   accident of layout. {% endcomment %}
+                <details class="removal-disclosure">
+                  <summary>Remove {{ row.member.display_name }}&hellip;</summary>
+                  <form method="post" action="{% url 'member_remove' row.member.id %}" class="removal">
+                    {% csrf_token %}
+                    <fieldset>
+                      <legend>What happens to their posts?</legend>
+                      {% for value, label in content_choices %}
+                        <label class="inline-check">
+                          <input type="radio" name="content" value="{{ value }}" required>
+                          {{ label }}
+                        </label>
+                      {% endfor %}
+                      {% comment %} NB-5: the third choice erases photographs from the server
+                         for good. Say so beside the radio, and say that there is another
+                         step, so the button is not the last thing between an admin and an
+                         irreversible act. The step itself is enforced in the view. {% endcomment %}
+                      <p class="hint">Deleting erases their photos from the server for good. We
+                        will ask you to confirm first.</p>
+                    </fieldset>
+                    <button type="submit" class="danger">Remove {{ row.member.display_name }}</button>
+                  </form>
+                </details>
+                {% comment %} S-703 shipped as a POST-only endpoint that 404s on GET, and no
+                   template in the tree posted to it — so a child account could not be created
+                   from anywhere in the product, by anybody. Kept here rather than promoted
+                   (owner direction 5: no children in this family), reachable on the row of the
+                   parent it belongs to: this is "give <name> a child account", not a
+                   free-standing form. {% endcomment %}
+                {% if not row.member.is_supervised and row.own_pods %}
+                  <details class="supervised-disclosure">
+                    <summary>Add a child account looked after by {{ row.member.display_name }}&hellip;</summary>
+                    <form method="post" action="{% url 'create_supervised' %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="parent_id" value="{{ row.member.id }}">
+                      <label for="child-name-{{ row.member.id }}">Their name</label>
+                      <input id="child-name-{{ row.member.id }}" type="text" name="display_name"
+                             maxlength="100" required>
+                      {% comment %} The PARENT's households, not every household the admin can
+                         see. This offered `assignable_pods` — every household on the instance
+                         for an instance admin — so picking the wrong line placed a child in a
+                         family their own parent is not in. {% endcomment %}
+                      <label for="child-pod-{{ row.member.id }}">Which of their households</label>
+                      <select id="child-pod-{{ row.member.id }}" name="pod_id">
+                        {% for pod in row.own_pods %}
+                          <option value="{{ pod.id }}">{{ pod.name }}</option>
+                        {% endfor %}
+                      </select>
+                      <button type="submit">Create the account</button>
+                    </form>
+                  </details>
+                {% endif %}
+              {% endif %}
+            </div>
           </details>
-          {% comment %} S-703 shipped as a POST-only endpoint that 404s on GET, and no
-             template in the tree posted to it — so a child account could not be created
-             from anywhere in the product, by anybody. Kept here rather than promoted
-             (owner direction 5: no children in this family), reachable on the row of the
-             parent it belongs to: this is "give <name> a child account", not a
-             free-standing form. {% endcomment %}
-          {% if not row.member.is_supervised and row.own_pods %}
-            <details class="supervised-disclosure">
-              <summary>Add a child account looked after by {{ row.member.display_name }}&hellip;</summary>
-              <form method="post" action="{% url 'create_supervised' %}">
-                {% csrf_token %}
-                <input type="hidden" name="parent_id" value="{{ row.member.id }}">
-                <label for="child-name-{{ row.member.id }}">Their name</label>
-                <input id="child-name-{{ row.member.id }}" type="text" name="display_name"
-                       maxlength="100" required>
-                {% comment %} The PARENT's households, not every household the admin can
-                   see. This offered `assignable_pods` — every household on the instance
-                   for an instance admin — so picking the wrong line placed a child in a
-                   family their own parent is not in. {% endcomment %}
-                <label for="child-pod-{{ row.member.id }}">Which of their households</label>
-                <select id="child-pod-{{ row.member.id }}" name="pod_id">
-                  {% for pod in row.own_pods %}
-                    <option value="{{ pod.id }}">{{ pod.name }}</option>
-                  {% endfor %}
-                </select>
-                <button type="submit">Create the account</button>
-              </form>
-            </details>
-          {% endif %}
+        {% else %}
+          {% comment %} A row with nothing on it used to just stop after the badge, which
+             reads as a bug. Each of these is a real, deliberate rule, so say which one —
+             an admin who knows why can go and ask the right person instead of tapping at a
+             row that will never respond. The family admin's first name comes from the same
+             `help_contact` the footer uses; with no admin resolvable it degrades to a
+             sentence that still makes sense. {% endcomment %}
+          <p class="muted why-no-actions">
+            {% if row.no_actions_reason == "you" %}
+              This is you. Someone else has to make changes to your own account.
+            {% elif row.no_actions_reason == "other-side" %}
+              Also on the other side of the family, so only
+              {% if help_contact %}{{ help_contact }}{% else %}the family admin{% endif %}
+              can change this.
+            {% elif row.no_actions_reason == "admin" %}
+              An admin, so only
+              {% if help_contact %}{{ help_contact }}{% else %}the family admin{% endif %}
+              can change this.
+            {% else %}
+              Not yours to change. Ask
+              {% if help_contact %}{{ help_contact }}{% else %}the family admin{% endif %}
+              if it needs to be.
+            {% endif %}
+          </p>
         {% endif %}
       </li>
     {% endfor %}

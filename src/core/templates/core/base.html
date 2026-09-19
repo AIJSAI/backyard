@@ -353,6 +353,9 @@ img.digest-photo { display: block; width: 100%; height: auto; margin: 0.8rem 0;
    would defeat a grep meant to prove it was gone. */
 footer.site { border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 0.82rem; }
 footer.site .wrap { padding-top: 1.1rem; padding-bottom: 1.1rem; }
+/* Sign out, at the end of the footer. Quiet: it is the rarest thing anybody does in a
+   family's photo album, and it left the nav so five items fit one line at 360px. */
+footer.site a.sign-out { font-size: 0.88rem; }
 footer.site a { color: var(--ink-soft); }
 footer.site .wrap { display: flex; flex-wrap: wrap; justify-content: center;
   text-align: center; gap: 0.35rem 1.25rem; }
@@ -498,13 +501,20 @@ legend { font-weight: 700; padding: 0 0.4rem; color: var(--ink); font-size: 0.9r
 /* A control that governs who may SEE the field above it, rather than another field.
    These were bare selects with only an aria-label, so the page was axe-clean and
    humanly baffling: "Phone", a box, then an unexplained "No one". */
-.visibility { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem;
-  margin: -0.35rem 0 1.2rem; }
+/* STACKED, ALWAYS, AND ALL THE SAME WIDTH (walk item 15). As a wrapping flex row, the
+   label sat BESIDE the select when the label was short and ABOVE it when it was not — so
+   on one screen "Who can see my phone" and "Who can see my email" were inline and "Who
+   can see my address" was stacked, and the three selects came out at three different
+   widths. Nothing in the content justified the difference; it was a wrap point. A column
+   makes the five controls one shape, and the shape does not change when somebody renames
+   a field or a phone is a little narrower. */
+.visibility { display: flex; flex-direction: column; align-items: stretch; gap: 0.3rem;
+  margin: -0.35rem 0 1.2rem; max-width: var(--field-measure); }
 /* Inside a fieldset the box already supplies the bottom breathing room; the
    token margin left a band of empty space under each date. */
 fieldset .visibility { margin: 0.7rem 0 0; }
 .visibility label { margin: 0; font-weight: 400; font-size: 0.88rem; color: var(--ink-soft); }
-.visibility select { width: auto; min-width: 12rem; max-width: 100%; margin: 0;
+.visibility select { width: 100%; min-width: 0; max-width: 100%; margin: 0;
   min-height: 40px; padding-top: 0.35rem; padding-bottom: 0.35rem; font-size: 0.92rem; }
 /* A search field and the button that runs it are one control, not two rows. */
 .search-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.6rem;
@@ -1309,6 +1319,23 @@ ul.contacts > li { padding: 0.15rem 0; }
     justify-content: space-between; gap: 0 0.75rem; }
 }
 
+/* ONE LINE AT 360px, WITH FIVE ITEMS (walk item 11). An admin had six — Feed, Groups,
+   Directory, Settings, Members, Sign out — which wrapped to a second row at 390px and
+   pushed the family's own content down a whole band of chrome on every screen they
+   opened. Sign out left the nav for the foot of Settings and the footer, because it is
+   an action rather than a place and the rarest thing anybody does here.
+
+   Five still needed the last few pixels on the narrowest phone this product supports.
+   The label text is not shortened — "Directory" and "Members" are the words, and
+   abbreviating them to fit would be solving the wrong problem — so the SPACING gives
+   way instead: a slightly tighter tracking and gap below 24rem. The 44px target is
+   untouched; only the horizontal padding moves, and `space-between` already spreads the
+   items across the full width. */
+@media (max-width: 24rem) {
+  header.site nav.site-nav { gap: 0 0.35rem; }
+  header.site nav.site-nav a { font-size: 0.88rem; padding-left: 0; padding-right: 0; }
+}
+
 /* ---- sm: 37.5rem ----------------------------------------------------------- */
 @media (min-width: 37.5rem) {
   header.site .wrap, main.wrap, footer.site .wrap { padding-left: 2rem; padding-right: 2rem; }
@@ -1493,7 +1520,17 @@ ul.contacts > li { padding: 0.15rem 0; }
            lives in one place and this is not it.
 
            Sign out was missing entirely: there was no way to leave a session from any
-           surface in the product. {% endcomment %}
+           surface in the product. It was added HERE, and the 2026-09-19 walk found what
+           that cost: six items for an admin, which wraps to two lines at 390px and pushes
+           the family's own content down a whole row of chrome on every screen they open.
+           Five items fit one line at 360px.
+
+           Sign out is the one that left, and it is the right one: it is the rarest thing
+           anybody does here — this is a family's photo album on their own phone, not a
+           shared terminal — and it is the only nav item that is an ACTION rather than a
+           place. It now lives at the foot of Settings, under "Your account", where the
+           other account controls already are, and in the footer, which is on every page.
+           So it did not become harder to reach; it stopped being a destination. {% endcomment %}
         <nav class="site-nav" aria-label="Backyard">
           <a href="{% url 'feed' %}"{% if request.resolver_match.url_name == 'feed' %} aria-current="page"{% endif %}>Feed</a>
           {% comment %} "Pods" was the product's own word for a thing the family has two
@@ -1505,7 +1542,6 @@ ul.contacts > li { padding: 0.15rem 0; }
           {% if viewer_is_admin %}
             <a href="{% url 'members' %}"{% if request.resolver_match.url_name == 'members' %} aria-current="page"{% endif %}>Members</a>
           {% endif %}
-          <a href="{% url 'account_logout' %}">Sign out</a>
         </nav>
       {% endif %}
     </div>
@@ -1551,9 +1587,19 @@ ul.contacts > li { padding: 0.15rem 0; }
          on a family's photo album. It now lives on /about/, one tap from Settings and from
          the sign-in page, and test_agpl_source_offer.py walks both routes.
 
-         No link is added HERE: this footer is asserted to carry no links at all
-         (test_accessibility_modes.py, WCAG 2.2 SC 3.2.6), because the help affordance is a
-         sentence rather than a link to a help page that does not exist. {% endcomment %}
+         THE HELP AFFORDANCE ITSELF IS NEVER A LINK — that is the invariant, and
+         test_accessibility_modes.py and test_plain_pages.py both hold it: there is no help
+         route in this app, and a link to a page that does not exist is worse than no link
+         (WCAG 2.2 SC 3.2.6). It used to be stated as "this footer carries no links at
+         all", which was the same thing while the footer held nothing else.
+
+         Sign out is now the one exception, for signed-in readers only (walk item 11). It
+         is an action rather than a help mechanism, it sits AFTER the help line so the
+         help affordance keeps its position on every surface, and a signed-out footer is
+         byte-for-byte what it always was. {% endcomment %}
+      {% if user.is_authenticated %}
+        <a class="sign-out" href="{% url 'account_logout' %}">Sign out</a>
+      {% endif %}
     </div>
   </footer>
   {% if user.is_authenticated %}
@@ -1569,6 +1615,18 @@ ul.contacts > li { padding: 0.15rem 0; }
       }
     </script>
   {% endif %}
+  {% comment %} The timestamp localiser is NOT included here, and that is deliberate.
+
+     It carries the response's CSP nonce, which is fresh per request — so putting it on
+     EVERY page put a per-request random string into the 404 body, and the byte-identical
+     404 that this product's whole isolation story rests on (a denial and a
+     does-not-exist must be indistinguishable) stopped being byte-identical. Caught by
+     test_every_dead_link_answers_identically, which is exactly what it is for.
+
+     So each page that actually renders a `{% templatetag openblock %} when
+     {% templatetag closeblock %}` includes it in `extra_body` instead. That is a line per
+     template rather than one line here, and it is the better trade twice over: a page
+     with no timestamp on it now ships no script at all. {% endcomment %}
   {% block extra_body %}{% endblock %}
 </body>
 </html>

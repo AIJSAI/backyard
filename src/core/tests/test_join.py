@@ -218,6 +218,162 @@ def test_a_rejected_join_comes_back_filled_in(invite_to_pod: tuple[Pod, str]) ->
     assert f'value="{too_common}"' not in body
 
 
+# --- what the page SAYS (design walk 2026-09-19, item 21) ---------------------------
+#
+# The page asked a relative for a name, a username and a password and told them nothing:
+# it never said which household the link joined them to, gave no hint for either field a
+# person has to INVENT, and offered no way to see what they had typed into the password
+# box. It did find room for "You can add a passkey once you are in" — the product's own
+# jargon, third sentence in, about a control that is not on this screen.
+#
+# These drive the rendered page rather than the template source: a comment must not be
+# able to satisfy them, which is the failure mode this repo's guards already learned once.
+
+
+def _household(name: str, *, slug: str) -> str:
+    """A live invite to a household with this name, returning the raw token."""
+    yard = Yard.objects.create(name=f"{name} side", slug=slug)
+    pod = Pod.objects.create(name=name)
+    pod.yards.set([yard])
+    _, raw = mint_invite(pod, None)
+    return raw
+
+
+def _page(raw: str) -> str:
+    response = Client().get(reverse("join", args=[raw]))
+    assert response.status_code == 200
+    return response.content.decode()
+
+
+def test_the_join_page_names_the_household_the_link_joins_them_to() -> None:
+    body = " ".join(_page(_household("The Ferraras", slug="ferraras")).split())
+    assert "You're joining <strong>The Ferraras</strong>." in body, (
+        "the page still does not say what the person is being asked to join"
+    )
+
+
+def test_a_different_invite_names_a_different_household() -> None:
+    """The denominator for the test above, and the one that proves the name is read off
+    THIS invite rather than hardcoded or read off whichever household happens to be first
+    in the table. Two live invites, two households, one page each."""
+    ferraras = _page(_household("The Ferraras", slug="ferraras"))
+    cousins = _page(_household("The Cousins", slug="cousins"))
+
+    assert "The Ferraras" in ferraras and "The Cousins" not in ferraras
+    assert "The Cousins" in cousins and "The Ferraras" not in cousins
+
+
+def test_the_join_page_names_the_household_and_nobody_in_it() -> None:
+    """Anybody holding the link opens this page without having been let in, so naming the
+    household is as far as it goes. A member's display name on this page would hand a
+    stranger a relative's name for the price of a forwarded text message."""
+    yard = Yard.objects.create(name="Mom's side", slug="moms-side")
+    pod = Pod.objects.create(name="The Ferraras")
+    pod.yards.set([yard])
+    resident = Member.objects.create(display_name="Great Aunt Marguerite")
+    PodMembership.objects.create(member=resident, pod=pod)
+    _, raw = mint_invite(pod, None)
+
+    body = _page(raw)
+    assert "The Ferraras" in body  # non-vacuity: the household IS named
+    assert "Marguerite" not in body, (
+        "the join page prints a relative's name to whoever holds the link"
+    )
+
+
+def test_the_username_field_says_what_to_put_in_it(invite_to_pod: tuple[Pod, str]) -> None:
+    """The username box is the one on this form whose answer a relative has to invent, and
+    it carried no hint at all."""
+    _, raw = invite_to_pod
+    body = " ".join(_page(raw).split())
+    assert "What you type to sign in. Your first name is fine." in body
+    # Tied to the field, not merely present on the page: an unlinked sentence is not read
+    # out to somebody who reaches the box with a screen reader.
+    assert 'aria-describedby="username-help"' in body
+    assert 'id="username-help"' in body
+
+
+def test_the_password_field_gives_the_same_advice_as_the_get_back_in_page(
+    invite_to_pod: tuple[Pod, str],
+) -> None:
+    """Word for word with core/recover.html. The only advice this product used to give
+    about choosing a password arrived AFTER one was rejected, as a validator error."""
+    _, raw = invite_to_pod
+    body = " ".join(_page(raw).split())
+    assert (
+        "Use something you will remember. Three or four unrelated words work well and are "
+        "easy to type on a phone." in body
+    )
+    assert 'aria-describedby="password-help"' in body
+
+
+def test_the_first_screen_does_not_talk_about_passkeys(invite_to_pod: tuple[Pod, str]) -> None:
+    """Scoped to the words a person READS, not to the served bytes.
+
+    The design system is one inline <style> block in core/base.html and it carries
+    `.entrance #passkey_login` plus a comment about it — so a bare substring search over the
+    response finds "passkey" on every page in the product and proves nothing about this one.
+    """
+    _, raw = invite_to_pod
+    body = _page(raw)
+    text = re.sub(r"<(style|script)[^>]*>.*?</\1>", " ", body, flags=re.S | re.I)
+    assert "passkey" not in text.lower(), (
+        "the product's jargon is back in the lede of the first screen a relative ever reads"
+    )
+    # The sentence itself, named, so the reason this assertion exists survives a reword.
+    assert "You can add a passkey once you are in" not in body
+
+
+def test_without_javascript_the_page_ships_no_show_control_at_all(
+    invite_to_pod: tuple[Pod, str],
+) -> None:
+    """The Show toggle is built by the script, so a browser that never runs it is handed a
+    form with one button — the one that joins — rather than a dead control that looks
+    exactly like a working one.
+
+    The alternative shape (ship `<button hidden>`, unhide it in script) would have shipped
+    a VISIBLE dead button here: the design system sets `button { display: inline-flex }`,
+    and an author rule beats the user agent's `[hidden] { display: none }`.
+    """
+    _, raw = invite_to_pod
+    body = _page(raw)
+    assert body.count("<button") == 1, "a second button is being served to a browser with no JS"
+    assert '<button type="submit">Join</button>' in body
+
+
+def test_the_show_control_is_delivered_the_only_way_this_product_allows(
+    invite_to_pod: tuple[Pod, str],
+) -> None:
+    """The policy is `script-src 'self' 'nonce-<per-request>'` with no 'unsafe-inline'
+    (core/middleware.py), so an inline script without THIS response's nonce is markup the
+    browser refuses to run — and the control would silently never appear."""
+    _, raw = invite_to_pod
+    response = Client().get(reverse("join", args=[raw]))
+    body = response.content.decode()
+    match = re.search(r"'nonce-([A-Za-z0-9_-]+)'", response["Content-Security-Policy"])
+    assert match
+    assert f'<script nonce="{match.group(1)}">' in body
+    assert re.search(r"<script(?![^>]*\bnonce=)[^>]*>", body) is None, "a bare inline script"
+    # It builds a real button that cannot submit the form it sits in. Asserted on the
+    # script's own source because nothing in this suite runs JavaScript; the browser-level
+    # proof is the phone walk (test_onboarding_mobile.py drives the same page).
+    assert 'toggle.type = "button"' in body
+    assert '"Show password"' in body and '"Hide password"' in body
+
+
+def test_the_password_still_posts_over_the_same_route_untouched(
+    invite_to_pod: tuple[Pod, str],
+) -> None:
+    """Nothing above is allowed to have weakened the form: the field name, the route and
+    Django's validators are what they were. Proven by joining with no JavaScript anywhere
+    in sight (the test client runs none) and by a weak password still being refused."""
+    pod, raw = invite_to_pod
+    assert _post(raw, password="123").status_code == 200  # the validators still run
+    assert Member.objects.count() == 0
+    assert _post(raw).status_code == 302  # and a good one still joins, same route
+    assert PodMembership.objects.filter(pod=pod).count() == 1
+
+
 def test_the_password_is_never_echoed_back(invite_to_pod: tuple[Pod, str]) -> None:
     """Denominator for the test above: it asserts three values ARE present, so it would
     also pass if the view started echoing everything. The one field that must not come

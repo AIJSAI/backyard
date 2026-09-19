@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load times %}
 {% comment %} Each invite used to render as one run-on line of five unrelated pieces —
    "The Nolan family 0/8 joined expires Sep 26, 2026 no one has joined yet [New link]
    [Revoke]" — wrapping on a phone so that "no one" ended one line and "has joined yet"
@@ -33,18 +34,18 @@ ul.invites .invite-actions form { margin: 0; }
           {% if invite.revoked_at %}
             <span class="flag">revoked</span> This link no longer works.
           {% elif invite.expires_at <= now %}
-            <span class="flag">expired</span> This link stopped working on {{ invite.expires_at|date:"M j, Y" }}.
+            <span class="flag">expired</span> This link stopped working on {% when_date invite.expires_at %}.
           {% elif invite.use_count >= invite.max_uses %}
             <span class="flag">full</span> {{ invite.max_uses }} {{ invite.max_uses|pluralize:"person,people" }} have used this link, which is all it allows.
           {% else %}
-            Works until {{ invite.expires_at|date:"M j, Y" }}, for up to {{ invite.max_uses }} people.
+            Works until {% when_date invite.expires_at %}, for up to {{ invite.max_uses }} people.
           {% endif %}
         </span>
         {% with redemptions=invite.redemptions.all %}
           {% if redemptions %}
             <ul class="redeemers">
               {% for redemption in redemptions %}
-                <li>{{ redemption.member.display_name }} joined {{ redemption.created_at|date:"M j, Y" }}</li>
+                <li>{{ redemption.member.display_name }} joined {% when_date redemption.created_at %}</li>
               {% endfor %}
             </ul>
           {% else %}
@@ -69,3 +70,4 @@ ul.invites .invite-actions form { margin: 0; }
     {% endfor %}
   </ul>
 {% endblock %}
+{% block extra_body %}{% include "core/_localise_times.html" %}{% endblock %}

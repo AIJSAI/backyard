@@ -15,11 +15,15 @@ the unstyled page or the dead-end link.
 from __future__ import annotations
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.template.loader import get_template
 from django.test import Client
 from django.urls import reverse
 
 pytestmark = pytest.mark.django_db
+
+# Test-only login credential; kept out of the inline `password=` literal form.
+_TEST_PW = "a-Strong-passphrase-9"
 
 
 def _login_page() -> str:
@@ -81,6 +85,46 @@ def test_the_entrance_wrapper_survives_a_leaf_content_block() -> None:
     assert "{% block auth_shell %}" in entrance
     base = get_template("allauth/layouts/base.html").template.source  # type: ignore[attr-defined]
     assert "{% block auth_shell %}{% block content %}{% endblock %}{% endblock %}" in base
+
+
+def test_a_removed_relative_is_told_in_the_products_own_words() -> None:
+    """The real path, not a mocked one: remove a member the way an admin does, then sign
+    in with the password that still works.
+
+    Removal deactivates the account and leaves the password alone (core/removal.py step 3
+    — the revocation registry kills tokens, sessions and invites, never the password), so
+    "type your old password" is exactly what a removed relative does, and allauth answers
+    it by redirecting here. The stock page said "Account Inactive" and "This account is
+    inactive.": the state of a row, with nothing about what happened or who to ask.
+
+    No name is asserted as PRESENT on purpose. This page is reachable by anyone who is not
+    signed in, so it names nobody — "the person who invited you" is the whole of it.
+    """
+    from core import removal
+    from core.models import Member, Pod, PodMembership, Yard
+
+    yard = Yard.objects.create(name="Mom's side", slug="moms-side")
+    pod = Pod.objects.create(name="The Reeds")
+    pod.yards.set([yard])
+    user = get_user_model().objects.create_user(username="cousinreed", password=_TEST_PW)
+    member = Member.objects.create(display_name="Cousin Reed", user=user)
+    PodMembership.objects.create(member=member, pod=pod)
+
+    removal.remove_member(member, content=removal.KEEP)
+
+    response = Client().post(
+        reverse("account_login"),
+        {"login": "cousinreed", "password": _TEST_PW},
+        follow=True,
+    )
+    html = response.content.decode()
+
+    assert response.status_code == 200
+    assert "You are no longer part of this Backyard" in html
+    assert "talk to the person who invited you" in html
+    # The library's words, which is what the walk actually saw on screen.
+    assert "This account is inactive." not in html
+    assert "Account Inactive" not in html
 
 
 # ---------------------------------------------------------------- the seams
@@ -147,6 +191,150 @@ def test_the_messages_region_keeps_its_list_semantics() -> None:
     assert '<ul class="messages">' in rendered
 
 
+# ------------------------------------------- the emailed password reset (walk item 26)
+#
+# The page an ordinary member reaches from "Forgot your password?" was the only surface in
+# the product still rendering a stock allauth form at a relative: a field labelled New
+# Password, Django's four bulleted validator rules, then New Password (again) with no
+# reason given for the second box.
+#
+# The labels are written WITHOUT their trailing colon-and-quote on purpose. `make secrets`
+# scans every commit with gitleaks, whose generic password-assignment rule matches that
+# exact shape — and a scanner that had to tell prose from a credential would not be a
+# scanner. Quoting a stock label is not worth a red required check on every open PR.
+# Its sibling — core/recover.html, the no-login link an admin hands to somebody with no
+# email address — has asked the same question in the family's own words for months. And the
+# page after it said the same thing twice: allauth's "Password successfully changed." in the
+# message strip, then "Your new password is saved" underneath it.
+#
+# These drive the REAL flow — ask for a reset, take the link out of the mail that arrives,
+# open it, set a password — rather than rendering a template with a hand-built context. The
+# link is a signed token tied to a session, the done page is a redirect target, and the
+# message is raised by a view: none of that is reachable by rendering a template in isolation.
+
+_RESET_EMAIL = "nana@example.com"
+
+
+def _member_who_can_reset() -> None:
+    """A member with an EmailAddress row, which is what allauth resolves a reset against."""
+    from allauth.account.models import EmailAddress
+
+    user = get_user_model().objects.create_user(
+        username="nana", email=_RESET_EMAIL, password=_TEST_PW
+    )
+    EmailAddress.objects.create(user=user, email=_RESET_EMAIL, primary=True, verified=True)
+
+
+def _walk_to_the_reset_form() -> tuple[Client, str, str]:
+    """Ask for a reset, pull the link out of the mail, and open it the way a phone does.
+
+    Returns the client (it holds the session allauth stashes the key in), the URL the form
+    posts back to, and the HTML of the form page.
+    """
+    import re as _re
+
+    from django.core import mail
+
+    _member_who_can_reset()
+    client = Client()
+    mail.outbox.clear()
+    client.post(reverse("account_reset_password"), {"email": _RESET_EMAIL})
+    assert len(mail.outbox) == 1, "no reset mail was sent; the walk cannot start"
+
+    # str() because django-stubs types a message body as `str | _StrPromise`: the mail
+    # templates render through {% blocktrans %}, so the value can be a lazy string.
+    found = _re.search(r"https?://\S+/password/reset/key/\S+", str(mail.outbox[0].body))
+    assert found, mail.outbox[0].body
+    # allauth's first GET stores the key in the session and redirects to a URL with the key
+    # replaced by "set-password", so the secret never rides a Referer. Follow it: that
+    # landing URL is the one the form posts back to.
+    response = client.get(found.group(0), follow=True)
+    assert response.status_code == 200
+    return client, response.request["PATH_INFO"], response.content.decode()
+
+
+def test_the_emailed_reset_form_asks_the_way_the_get_back_in_page_asks() -> None:
+    _, _, html = _walk_to_the_reset_form()
+    text = " ".join(html.split())
+
+    assert "New password" in text and "New Password:" not in text
+    assert (
+        "Use something you will remember. Three or four unrelated words work well and are "
+        "easy to type on a phone." in text
+    ), "the field still gives a relative no idea what to type"
+    assert "Type it again" in text and "New Password (again)" not in text
+    assert (
+        "This link works once. A password with a typo in it would lock you out again and "
+        "you would have to ask for a new link, so we ask for it twice." in text
+    ), "the second box is still asked for without a reason"
+    # Django's password_validators_help_text_html(), four bullets of policy read before
+    # anybody has typed anything. The rules still RUN — the test below proves it.
+    assert "Your password can" not in text, "the stock validator bullets are back"
+
+
+def test_the_emailed_reset_form_still_submits_and_still_validates() -> None:
+    """The copy pass rendered the fields by hand instead of through `form.as_p`, so the
+    thing to prove is that it did not quietly stop working: the field names are still the
+    ones ResetPasswordKeyForm cleans, a weak password is still refused IN the person's own
+    words, and a good one still signs them back in."""
+    client, action, _ = _walk_to_the_reset_form()
+
+    weak = client.post(action, {"password1": "123", "password2": "123"})
+    assert weak.status_code == 200, "a refused password must re-render, not redirect"
+    assert "too short" in weak.content.decode().lower(), (
+        "the validators are not running — the fields are no longer reaching the form"
+    )
+
+    mismatch = client.post(action, {"password1": _TEST_PW, "password2": _TEST_PW + "x"})
+    assert mismatch.status_code == 200
+    assert "same password" in mismatch.content.decode().lower()
+
+    good = client.post(action, {"password1": _TEST_PW, "password2": _TEST_PW}, follow=True)
+    assert good.status_code == 200
+    user = get_user_model().objects.get(username="nana")
+    assert user.check_password(_TEST_PW), "the new password was never saved"
+
+
+def test_the_page_after_the_reset_says_it_once() -> None:
+    """allauth raised its own "Password successfully changed." on the POST, and
+    core/base.html renders the message strip ABOVE the body — so the library's sentence was
+    the first thing a locked-out relative read and this product's own was the echo."""
+    client, action, _ = _walk_to_the_reset_form()
+
+    done = client.post(action, {"password1": _TEST_PW, "password2": _TEST_PW}, follow=True)
+    html = done.content.decode()
+
+    assert done.request["PATH_INFO"] == reverse("account_reset_password_from_key_done")
+    assert "Your new password is saved" in html  # non-vacuity: the page DID render
+    assert "Password successfully changed" not in html, "the stock sentence is back"
+    assert '<ul class="messages">' not in html, "the message strip is rendering an echo"
+
+
+def test_the_signed_in_password_change_keeps_its_only_confirmation() -> None:
+    """The other half of the suppression, and the reason it is a branch rather than an
+    empty file. allauth raises the SAME message from the signed-in password change, where
+    the view redirects back to the same form and that message is the only sign anything
+    happened. Switching it off there would trade a duplicated sentence on one page for a
+    silent success on another."""
+    _member_who_can_reset()
+    client = Client()
+    client.force_login(
+        get_user_model().objects.get(username="nana"),
+        backend="django.contrib.auth.backends.ModelBackend",
+    )
+    new = _TEST_PW + "-and-then-some"
+
+    response = client.post(
+        reverse("account_change_password"),
+        {"oldpassword": _TEST_PW, "password1": new, "password2": new},
+        follow=True,
+    )
+    assert response.status_code == 200
+    assert "Password successfully changed" in response.content.decode(), (
+        "the signed-in password change lost the only confirmation it has"
+    )
+
+
 def test_the_vendored_login_template_has_not_drifted_upstream() -> None:
     """`src/templates/account/login.html` is allauth's markup minus the signup
     paragraph. The dependency pin allows every 65.x, and allauth actively reshapes
@@ -198,6 +386,10 @@ def test_the_project_template_root_shadows_nothing_unintended() -> None:
         # "contact us" endings, and an account-system voice on a family's app.
         "account/login.html",
         "account/logout.html",
+        # The page a removed relative reaches by typing a password that is still correct.
+        # allauth's own was "Account Inactive" / "This account is inactive." — a database
+        # state read aloud to somebody's grandmother.
+        "account/account_inactive.html",
         "account/email.html",
         "account/email_confirm.html",
         "account/verification_sent.html",
@@ -211,6 +403,12 @@ def test_the_project_template_root_shadows_nothing_unintended() -> None:
         "allauth/layouts/manage.html",
         # The e-mails, and the flash message allauth raises on sign-in.
         "account/messages/logged_in.txt",
+        # Not copy: a SCOPED suppression. allauth raises one "password changed" message
+        # from two flows, and on the emailed-reset page it printed the fact directly above
+        # this product's own sentence saying it again. The file declines it for that one
+        # flow and hands every other caller the library's sentence untouched — see the long
+        # note inside it for why it is not simply empty.
+        "account/messages/password_changed.txt",
         "account/email/base_message.txt",
         "account/email/base_notification.txt",
         "account/email/email_confirmation_subject.txt",

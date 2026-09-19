@@ -19,6 +19,7 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import render
 
 from . import digesting
+from .context_processors import note_the_reader_holds_a_link
 from .feed_views import _acting_member
 from .models import DigestSubscription
 
@@ -72,15 +73,31 @@ def digest_settings(request: HttpRequest) -> HttpResponse:
     subscription = digesting.subscribe(
         member, address=address, cadence=request.POST.get("cadence", "")
     )
-    # "sent" is honest: a cadence tweak on a confirmed address sends no email, so
-    # the page must not tell the member to go look for one.
+    # "SENT" IS READ OFF THE TOKEN, not off `confirmed_at`, and that is the whole fix.
+    #
+    # `subscribe` mints a confirm token only on the path that actually sends a mail. It
+    # sends none on two other paths: a cadence tweak on an already-confirmed address, and
+    # the same-address branch (walk item 24), where the account confirmation does the job
+    # instead. `confirmed_at is None` cannot tell the last of those from a real send, so
+    # this page told a member "Check <address> for one email" when no email existed —
+    # and re-submitting the form took the same branch and sent nothing again, so the
+    # Family email could never start. Reached whenever the join confirmation failed to
+    # send (`join._send_confirmation` swallows every exception) or has aged past allauth's
+    # three-day expiry. A live token is the only honest evidence that a mail went out.
+    waiting_on_the_account_confirmation = (
+        subscription.confirmed_at is None and not subscription.confirm_token_digest
+    )
     return render(
         request,
         "core/digest_settings.html",
         {
             "member": member,
             "subscription": subscription,
-            "sent": subscription.confirmed_at is None,
+            "sent": bool(subscription.confirm_token_digest),
+            # The state that had no words: nothing was sent HERE, and nothing will be,
+            # because the tap that starts this is the one already sitting in their inbox.
+            # The page has to say which e-mail to look for and how to get another.
+            "waiting_on_the_account_confirmation": waiting_on_the_account_confirmation,
             "saved": True,
         },
     )
@@ -88,11 +105,19 @@ def digest_settings(request: HttpRequest) -> HttpResponse:
 
 def confirm_digest(request: HttpRequest, token: str) -> HttpResponse:
     """Acknowledge an address (T-EMAIL-6). GET shows the button; POST confirms."""
+    # The token resolved (or was just burnt by confirming), so this reader holds a link a
+    # relative's instance mailed to them and the help line may name whoever runs it. Set
+    # inside the try, after the lookup: /digest/confirm/garbage/ 404s below and names
+    # nobody. This is the surface the reviewer measured as WRONG the other way round —
+    # a real link got the anonymous fallback because the old gate keyed on a URL prefix
+    # that did not include this route.
     try:
         if request.method == "POST":
             digesting.confirm(token)
+            note_the_reader_holds_a_link(request)
             return render(request, "core/digest_confirm.html", {"done": True})
         digesting.peek_confirmation(token)
+        note_the_reader_holds_a_link(request)
     except digesting.DigestTokenInvalid as exc:
         raise Http404 from exc
     return render(request, "core/digest_confirm.html", {"done": False})
@@ -104,8 +129,10 @@ def unsubscribe_digest(request: HttpRequest, token: str) -> HttpResponse:
     try:
         if request.method == "POST":
             digesting.unsubscribe(token)
+            note_the_reader_holds_a_link(request)
             return render(request, "core/digest_unsubscribe.html", {"done": True})
         digesting.peek_unsubscribe(token)
+        note_the_reader_holds_a_link(request)
     except digesting.DigestTokenInvalid as exc:
         raise Http404 from exc
     return render(request, "core/digest_unsubscribe.html", {"done": False})

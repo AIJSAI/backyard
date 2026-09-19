@@ -10,6 +10,30 @@
   <h1>Say hello</h1>
   <p>Only if you feel like it. Your household will see this.</p>
 
+  {% comment %} What screen two actually did (walk item 22). Picking "weekly" there set a
+     Family email going to an address that still has to be acknowledged before anything
+     from the family follows it — and this page used to say nothing at all about that, so
+     the one remaining step sat unread in an inbox and the relative found out a week later
+     by not getting one.
+
+     Two states, because since walk item 24 there is not always a mail owed: if the
+     address was already their proven sign-in address, nothing was sent and nothing needs
+     tapping. Saying "we sent one email" there would be a plain untruth. {% endcomment %}
+  {% if family_email_address %}
+    <p class="notice">
+      {% if family_email_confirmed %}
+        The Family email is on. It goes to {{ family_email_address }}.
+      {% elif family_email_mail_sent %}
+        We sent one email to {{ family_email_address }}. Tap the link in it and the Family
+        email starts.
+      {% else %}
+        The Family email will go to {{ family_email_address }} once that address is
+        confirmed. Tap the link in the email Backyard sent you when you joined; one tap
+        answers both.
+      {% endif %}
+    </p>
+  {% endif %}
+
   {% if households %}
     <form method="post" action="{% url 'compose' %}" class="composer" enctype="multipart/form-data">
       {% csrf_token %}

@@ -23,6 +23,7 @@ import hashlib
 import secrets
 from dataclasses import dataclass
 
+from allauth.account.models import EmailAddress
 from django.db import transaction
 from django.utils import timezone
 
@@ -58,6 +59,34 @@ _CADENCE_PERIOD = {
 }
 
 
+def _own_signin_address(member: Member, address: str) -> EmailAddress | None:
+    """This member's OWN sign-in address row, if it is the same address (walk item 24).
+
+    Case-insensitively, because a mailbox is case-insensitive in practice and a relative
+    who typed `Rose@example.com` at join and `rose@example.com` here has not given the
+    product a second address to prove anything about.
+
+    Scoped to `member.user` and nothing else, and that scope is the security property: it
+    can only ever return a row that already belongs to this member, so nothing downstream
+    of it can reach another person's address or another person's subscription. A member
+    with no login (an elder, a supervised child) has no sign-in address and gets None.
+
+    PRIMARY ONLY, and this is a consent boundary rather than a tidy-up. Collapsing the two
+    confirmations means a tap on the ACCOUNT confirmation starts the Family email — which
+    is a fair reading of one tap when the address in question is the one the member signs
+    in with and was told about at join. It is not fair for a SECONDARY address they added
+    later: the account mail for it says only that confirming proves the address, and
+    nothing would have asked them whether family content should start flowing there. A
+    secondary address therefore falls through to the ordinary path and gets its own
+    content-free confirmation, which is the screen that asks that question.
+    """
+    if member.user_id is None:
+        return None
+    return EmailAddress.objects.filter(
+        user_id=member.user_id, email__iexact=address, primary=True
+    ).first()
+
+
 def subscribe(member: Member, *, address: str, cadence: str) -> DigestSubscription:
     """Enroll (or re-point) a member's digest, confirming only when it must.
 
@@ -69,6 +98,25 @@ def subscribe(member: Member, *, address: str, cadence: str) -> DigestSubscripti
     of #35 LOW-1: an elder switching weekly to daily must not silently pause their
     digest behind a new confirmation link). Cadence falls back to weekly on an
     unknown value (fail to the default, never to an error page from a form race).
+
+    ONE ADDRESS, ONE PROOF (walk item 24, 2026-09-19). A relative who gave an e-mail at
+    join and then picked "weekly" on the welcome screen got TWO messages inside a minute,
+    with the same subject — "Is this your email address?" — from the same sender, threaded
+    together by their mail client into what looked like one message sent twice. Both asked
+    them to tap a link. Neither said which was which, and tapping one left the other
+    apparently unanswered.
+
+    They were proving the same fact about the same mailbox. So when the Family email
+    address IS the member's own sign-in address:
+
+      * already verified -> the member has proven control of it. Confirm here, send
+        nothing. Asking somebody to re-prove what they proved last week is a nag.
+      * not yet verified -> send nothing EITHER, because the account confirmation is
+        already in their inbox and one tap on it now confirms both (the `email_confirmed`
+        receiver in core/signals.py). The mail they were told about is the mail they got.
+
+    Different addresses are untouched: two mailboxes are two facts, and each is proven
+    where it was mailed.
     """
     if cadence not in _CADENCE_PERIOD:
         cadence = DigestSubscription.WEEKLY
@@ -79,6 +127,54 @@ def subscribe(member: Member, *, address: str, cadence: str) -> DigestSubscripti
             existing.enabled = True
             existing.save(update_fields=["cadence", "enabled", "updated_at"])
             return existing
+        # The same-address branch (walk item 24). Inside the same transaction and the same
+        # `select_for_update` as everything else here, so two concurrent subscribes cannot
+        # produce one confirmed row and one mail.
+        own = _own_signin_address(member, address)
+        if own is not None:
+            # THE PROVEN SPELLING, not the typed one. A member who signs in as `rose@` and
+            # types `ROSE@` here has given the product one mailbox, and the row that
+            # records what was proven is `own`. Storing the typed string would leave the
+            # subscription pointing at a spelling nothing ever confirmed, and the
+            # `email_confirmed` receiver would then have to match it back case-insensitively
+            # forever to keep working.
+            proven = own.email
+            # NEVER UN-CONFIRM A MAILBOX THIS MEMBER ALREADY CONFIRMED. `update_or_create`
+            # writes `confirmed_at` unconditionally, so a member who re-points their Family
+            # email away and back — or who simply re-saves the settings form — had their
+            # working subscription silently set back to unconfirmed and, with no token
+            # minted here, no way at all to confirm it again. Control of THIS mailbox by
+            # THIS member does not stop being proven because a form was submitted twice.
+            same_mailbox_already_confirmed = (
+                existing is not None
+                and existing.confirmed_at is not None
+                and existing.address.lower() == proven.lower()
+            )
+            confirmed_at: datetime.datetime | None
+            if own.verified:
+                # Verified means control is already proven FOR THIS MEMBER and FOR THIS
+                # ADDRESS — exactly what an EmailAddress row with verified=True records,
+                # and the same fact this confirmation exists to establish.
+                confirmed_at = timezone.now()
+            elif same_mailbox_already_confirmed and existing is not None:
+                confirmed_at = existing.confirmed_at
+            else:
+                confirmed_at = None
+            subscription, _created = DigestSubscription.objects.update_or_create(
+                member=member,
+                defaults={
+                    "address": proven,
+                    "cadence": cadence,
+                    "enabled": True,
+                    "confirmed_at": confirmed_at,
+                    # No confirm token either way: there is no second link to mint,
+                    # because there is no second mail. An empty digest is unmatchable
+                    # (_by_token refuses an empty raw token before it queries).
+                    "confirm_token_digest": "",  # nosec B105
+                    "unsubscribe_token_digest": _digest(secrets.token_urlsafe(32)),
+                },
+            )
+            return subscription
         raw_confirm = secrets.token_urlsafe(32)  # 256 bits, shown once (in the email)
         # The raw unsubscribe value is deliberately dropped: nothing emails it at
         # this stage. The send path rotates unsubscribe_token_digest per issue and

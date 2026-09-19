@@ -1,6 +1,35 @@
 {% extends "core/base.html" %}
 {% load avatars %}
+{% load times %}
 {% block title %}{% if is_archive_page %}Older posts{% else %}Your backyard{% endif %}{% endblock %}
+{% block extra_head %}
+<style>
+/* THE EMAIL LINE (walk item 5). One quiet line under the composer, where a screen-tall
+   card used to sit above it. The sentence and the way to decline share a line when there
+   is room and stack when there is not; "Not now" is a quiet button rather than the
+   loudest thing on the page, which is what it had become. */
+.email-prompt {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.9rem;
+  /* THE SAME 2rem THE COMPOSER CARD CARRIES BELOW IT (base.html `.composer`). With no
+     bottom margin this line sat flush against the first post — `ul.feed` resets its own
+     margin to 0, so nothing else was going to supply the gap, and the effect was that
+     "Not now" read as though it belonged to somebody's photograph rather than to the
+     composer above it. The top margin collapses against the composer's own 2rem, so the
+     block sits in one rhythm with the card it belongs to. */
+  margin: 0.85rem 0 2rem; font-size: 0.92rem; color: var(--ink-soft);
+}
+.email-prompt form { margin: 0; }
+/* Borderless here, unlike the ghost button it inherits from. Everywhere else .btn-quiet
+   sits BESIDE a primary and needs a border to read as a control at all; this one sits at
+   the end of a sentence, and a bordered pill on that line is how "Not now" became the
+   loudest thing on the page in the first place. It keeps the 44px target. */
+.email-prompt .btn-quiet {
+  border-color: transparent; padding-left: 0; padding-right: 0;
+  font-size: 0.92rem; text-decoration: underline; text-underline-offset: 3px;
+}
+.email-prompt .btn-quiet:hover { background: none; border-color: transparent; }
+</style>
+{% endblock %}
 {% block body %}
   {% comment %} Paging back is a different page and it has to say so. It used to keep the
      title "Your backyard", the orientation card, the whole composer and the
@@ -37,26 +66,6 @@
      news, and a returning member should open this page and see the family. It moved to
      the two places somebody actually goes looking for it: the directory, which is where
      you go when you are thinking about who is here, and the How this works page. {% endcomment %}
-
-  {% comment %} BY-02/BY-03. This member has no email address anywhere — not on their
-     account and not as an allauth address — so "Forgot your password?" cannot reach them,
-     and the reset page says "sent" either way (ACCOUNT_PREVENT_ENUMERATION), so they would
-     only discover it the day they are locked out. Separate from the orientation card
-     because it must reach the members who joined BEFORE the join form had an email box,
-     and those are precisely the ones the orientation backfill already dismissed. {% endcomment %}
-  {% if show_email_prompt %}
-    <aside class="prompt" aria-labelledby="email-prompt-heading">
-      <h2 id="email-prompt-heading">Add an email address?</h2>
-      <p>You have not given one, so you can be signed in here without it — but if you ever
-        forget your password there is no way to send you a new one.</p>
-      <p><a href="{% url 'account_email' %}">Add an email address</a> so you can get back in
-        if you forget your password. Nothing is ever sent to it unless you ask.</p>
-      <form method="post" action="{% url 'dismiss_email_prompt' %}">
-        {% csrf_token %}
-        <button type="submit">Not now</button>
-      </form>
-    </aside>
-  {% endif %}
 
   {% if errors %}
     <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
@@ -133,6 +142,33 @@
 
     <div class="composer-submit"><button type="submit">Post</button></div>
   </form>
+
+  {% comment %} BY-02/BY-03. This member has no email address anywhere — not on their
+     account and not as an allauth address — so "Forgot your password?" cannot reach them,
+     and the reset page says "sent" either way (ACCOUNT_PREVENT_ENUMERATION), so they would
+     only discover it the day they are locked out. Separate from the orientation card
+     because it must reach the members who joined BEFORE the join form had an email box,
+     and those are precisely the ones the orientation backfill already dismissed.
+
+     IT WAS A CARD ABOVE THE COMPOSER, and the walk on 2026-09-19 found what that cost: a
+     full phone screen of chrome between a member and the box they came here to type in,
+     saying the same thing in two paragraphs, with "Not now" as the loudest button on the
+     page — and after posting, their own new post sat two screens down. It is one line
+     now, under the composer, where it is still the first thing below what you came to do
+     but is no longer in front of it. The offer did not change; its volume did. {% endcomment %}
+  {% if show_email_prompt %}
+    {% comment %} A <div>, not a <p>: a <form> inside a paragraph is invalid, and a browser
+       hoists it out of the <p> on parse, which breaks the line it was meant to sit on.
+       {% endcomment %}
+    <div class="email-prompt">
+      <span><a href="{% url 'account_email' %}">Add an email address</a> so you can reset
+        your own password.</span>
+      <form method="post" action="{% url 'dismiss_email_prompt' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn-quiet">Not now</button>
+      </form>
+    </div>
+  {% endif %}
   {% endif %}
 
   <ul class="feed">
@@ -148,7 +184,7 @@
           {% avatar item.post.author.display_name item.post.author_id %}
           <span class="who">
             <span class="author">{{ item.post.author.display_name }}{% if item.post.author.kinship_name %} ({{ item.post.author.kinship_name }}){% endif %}</span>
-            <span class="when">{{ item.post.created_at|date:"M j, g:i a" }}</span>
+            <span class="when">{% when item.post.created_at %}</span>
             {% if item.post.edited_at %}<span class="edited">(edited)</span>{% endif %}
           </span>
         </div>
@@ -192,11 +228,13 @@
             {% if item.is_editable %}<a href="{% url 'edit_post' item.post.id %}">Edit</a>{% endif %}
             <a class="destructive" href="{% url 'delete_post' item.post.id %}">Delete</a>
           {% endif %}
-          {% if is_moderator %}
-            <form method="post" action="{% url 'take_down_post' item.post.id %}" class="inline takedown">
-              {% csrf_token %}
-              <button type="submit" class="danger">Take down</button>
-            </form>
+          {% comment %} `not item.is_own`: an admin looking at their OWN post was offered
+             Delete AND Take down, side by side, in the same red. Taking down your own post
+             is what Delete already is — the moderation route exists for somebody ELSE's —
+             so the pair was two names for one outcome and a chance to pick the wrong one.
+             On your own post you get Edit and Delete, which is what a member gets. {% endcomment %}
+          {% if is_moderator and not item.is_own %}
+            <a class="destructive" href="{% url 'take_down_post' item.post.id %}">Take down</a>
           {% endif %}
         </span>
       </li>
@@ -224,3 +262,4 @@
 
   {% if not is_archive_page %}{% include "core/_composer_media.html" %}{% endif %}
 {% endblock %}
+{% block extra_body %}{% include "core/_localise_times.html" %}{% endblock %}

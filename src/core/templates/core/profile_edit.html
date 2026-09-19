@@ -178,6 +178,16 @@
       <a href="{% url 'about' %}">About this Backyard</a> &mdash;
       who looks after it, and the licence the software is under.
     </p>
+    {% comment %} Sign out came off the header nav on 2026-09-19: six items wrapped to two
+       lines at 390px for an admin, which cost the family a whole row of chrome on every
+       screen they opened. It is the right one to move — the rarest thing anybody does in
+       their own family's photo album, and the only nav item that was an action rather
+       than a place. Last in this list because it is the end of what you came here to do,
+       and repeated in the footer so it is still one tap from anywhere. {% endcomment %}
+    <p class="settings-link">
+      <a href="{% url 'account_logout' %}">Sign out</a> &mdash;
+      you will need your password to get back in.
+    </p>
   {% endif %}
 
   {% comment %} A parent making their own child's account. `can_create_supervised` has

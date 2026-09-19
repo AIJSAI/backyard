@@ -389,7 +389,18 @@ def test_sent_digest_offers_the_app_and_publishes_no_bearer_address(world: World
     post.audience_yards.set([world.maternal])
     send_due_digests(timezone.now())
     body = mail.outbox[0].body
-    assert digest.REPLY_SEPARATOR in body  # the separator ships in every digest
+    # THE SEPARATOR NO LONGER SHIPS, and this assertion is the inverse of what it was
+    # (walk item 33, 2026-09-19). "=== reply above this line ===" is a machine marker, but
+    # it reads as an instruction — and since #101 stopped putting a per-post reply address
+    # in the message there is nothing for a relative's reply to be routed to: it lands in
+    # the admin-only quarantine instead. A marker telling somebody to type above a line
+    # that leads nowhere is a promise the product cannot keep.
+    #
+    # The CONSTANT and the whole inbound parser stay, deliberately: messages sent before
+    # this change are sitting in inboxes with the separator in them, and a reply to one of
+    # those must still parse exactly as it always did. That is what test_inbound.py covers,
+    # and none of it scrapes an outgoing body.
+    assert digest.REPLY_SEPARATOR not in body
 
     assert f"/posts/{post.id}/#reply" in body, "the digest offers no way to reply"
     assert "Reply to this post by email" not in body

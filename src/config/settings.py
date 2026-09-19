@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 
 from config.base_url_guard import is_local_url, validate_base_url
+from config.time_zone_guard import validate_time_zone
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -193,6 +194,16 @@ DATABASES = {
 # switch to signed-cookie sessions (which cannot be revoked) is a deliberate, visible change.
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
+# Flash messages live in the SESSION, not in a cookie. Django's default is FallbackStorage,
+# which writes a message into a signed cookie and only spills to the session when it will
+# not fit — and since walk item 2 one of these messages carries a member's USERNAME ("Your
+# new password is saved. Sign in as <username>."), set on the one request where somebody
+# has just proved they are locked out of that account. Signed is not encrypted: a cookie is
+# readable by anyone holding the device or watching a plaintext hop, and it persists in the
+# jar after the page that consumed it is gone. The session backend above is server-side and
+# individually revocable, so the username never leaves this machine.
+MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -289,7 +300,18 @@ MFA_PASSKEY_SIGNUP_ENABLED = False
 MFA_WEBAUTHN_ALLOW_INSECURE_ORIGIN = not BASE_URL.lower().startswith("https://")
 
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = "UTC"
+# The instance's own clock (design walk 2026-09-19). Left at Django's "UTC" default, every
+# timestamp on the family's feed was an hour-or-six wrong for the family reading it, stated
+# with no hedge. This is the zone the server renders in and the zone every outgoing e-mail
+# is written in; a signed-in relative's *browser* then re-renders page timestamps into
+# their own zone on top of it, so a cousin who moved away still reads their own wall clock.
+# Validated at boot — a typo here is a wrong fact on every screen, so it fails loudly.
+# The name is spelled out rather than imported as a constant on purpose:
+# test_self_host_docs reads this file as TEXT to check that every variable the guide
+# documents is one the app actually reads, and an indirection is invisible to it. That
+# guard is also what caught this variable missing from docker-compose.yml, where it
+# would have been documented, validated, and silently inert in production.
+TIME_ZONE = validate_time_zone(os.environ.get("BACKYARD_TIME_ZONE", "UTC"))
 USE_I18N = True
 USE_TZ = True
 
@@ -358,6 +380,18 @@ EMAIL_USE_TLS = env_flag(os.environ.get("EMAIL_USE_TLS", "1"))
 EMAIL_USE_SSL = env_flag(os.environ.get("EMAIL_USE_SSL", "0"))
 EMAIL_TIMEOUT = 30
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "backyard@localhost")
+# The NAME beside that address in a relative's inbox (walk item 1... item 23, 2026-09-19).
+# Mail from this instance arrived as bare "digests@mail.example" — or, in the clients that
+# shorten it, as "digests" — which is how a family's own photographs come to look like
+# something a spam filter should eat. A display name costs nothing and is the difference
+# between "digests" and "Backyard" in the one line of an inbox anybody reads.
+#
+# Kept SEPARATE from DEFAULT_FROM_EMAIL rather than folded into it: emailing.reply_domain()
+# splits that setting on "@" to derive the reply-capability domain, and "Backyard <a@b>"
+# would hand it "b>". The two are combined, correctly, at the one send seam
+# (emailing.from_address) and in the allauth adapter, which are the only two ways mail
+# leaves this product.
+MAIL_FROM_NAME = os.environ.get("BACKYARD_MAIL_FROM_NAME", "Backyard")
 
 # Anymail wires the Resend provider (send + inbound) behind the EMAIL_BACKEND seam
 # (ADR-002). Both secrets come from the environment; the boot guard below refuses

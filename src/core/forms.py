@@ -19,6 +19,8 @@ from typing import Any
 from allauth.account.forms import LoginForm as AllauthLoginForm
 from allauth.account.forms import ResetPasswordForm as AllauthResetPasswordForm
 
+from core.recovery import take_the_recovered_username
+
 
 class LoginForm(AllauthLoginForm):  # type: ignore[misc]  # allauth is untyped
     """allauth's login form with the labels a family would write."""
@@ -33,6 +35,29 @@ class LoginForm(AllauthLoginForm):  # type: ignore[misc]  # allauth is untyped
         # KeyError on the sign-in page.
         if "login" in self.fields:
             self.fields["login"].label = "Your username or email"
+            # WHOEVER JUST USED A GET-BACK-IN LINK ARRIVES HERE WITH AN EMPTY BOX.
+            #
+            # That link exists for the relatives who have no email address on file — so
+            # "Forgot your password?" can never reach them — and a good share of them do
+            # not know what username an admin typed for them a year ago. Before this, the
+            # recovery flow ended on a blank sign-in form with no message, which is the
+            # one screen where "what was my username again?" has no answer in the product.
+            #
+            # `recovery_views.recover` writes the name into the session only after
+            # `recovery.redeem` has returned, which happens only for a live, unused,
+            # unexpired link. An invalid or replayed link 404s before that line, so this
+            # cannot be made to reveal a username for a token that was not just used.
+            #
+            # POPPED, not read, and honoured for ten minutes only: it prefills exactly one
+            # render, and a stale stamp is dropped rather than used. Leaving it in the
+            # session would put somebody's username into the box on every later visit from
+            # that browser, including a visit by whoever borrows the tablet.
+            request = getattr(self, "request", None)
+            session = getattr(request, "session", None)
+            if session is not None:
+                recovered = take_the_recovered_username(session)
+                if recovered:
+                    self.fields["login"].initial = recovered
         if "password" in self.fields:
             self.fields["password"].label = "Password"
         if "remember" in self.fields:

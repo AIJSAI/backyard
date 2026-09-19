@@ -219,7 +219,17 @@ def test_delete_confirm_states_digests_cannot_be_recalled(world: dict[str, objec
     post = _post(author, m_pod)
     response = _client_for(author).get(reverse("delete_post", args=[post.id]))
     assert response.status_code == 200
-    assert "cannot be recalled" in response.content.decode()
+    body = response.content.decode()
+    assert "cannot be recalled" in body
+    # The feature has ONE name and one capitalisation, because a relative who reads "the
+    # Family email" on the How this works page, on their own settings and on the takedown
+    # confirmation has to recognise the same thing here. This page said "a family email",
+    # which reads as any old email somebody in the family happened to send rather than as
+    # the weekly one they can turn on and off themselves — and it was the single sentence
+    # telling them what deleting a post cannot undo. takedown_confirm.html already carried
+    # the identical sentence with the capital F; this page was the odd one out.
+    assert "the Family email" in body
+    assert "a family email" not in body
 
 
 def test_delete_someone_elses_visible_post_is_403(world: dict[str, object]) -> None:

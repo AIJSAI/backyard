@@ -30,12 +30,14 @@ from typing import cast
 
 from allauth.core import ratelimit
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from . import permissions, recovery
+from .context_processors import note_the_reader_holds_a_link
 from .feed_views import _acting_member
 from .handover import apply_token_body_headers, consume_intent, fresh_intent, link_artifacts
 
@@ -104,6 +106,9 @@ def recover(request: HttpRequest, token: str) -> HttpResponse:
         live = recovery.resolve(token)
     except recovery.RecoveryInvalid as exc:
         raise Http404 from exc
+    # A live get-back-in link, minted by an admin for this one person, so the help line
+    # may name them — this is the page somebody reads when they are already locked out.
+    note_the_reader_holds_a_link(request)
 
     errors: list[str] = []
     if request.method == "POST":
@@ -127,6 +132,28 @@ def recover(request: HttpRequest, token: str) -> HttpResponse:
                 # Consumed or revoked between the GET and now: still the uniform 404.
                 raise Http404 from exc
             else:
+                # WHERE THIS USED TO END: a bare redirect to a blank sign-in form. The
+                # button said "Save it and sign in", and then the page said nothing at all
+                # — no confirmation that the password had saved, and an empty username box
+                # in front of somebody who, by construction, has NO EMAIL ON FILE. That is
+                # who this link exists for: the relatives who cannot use "Forgot your
+                # password?" because there is nothing to send it to. Half of them do not
+                # know what username an admin typed for them a year ago.
+                #
+                # So the sign-in page is told two things, and both are one-shot:
+                #   * a flash naming what happened and who to sign in as, and
+                #   * the username itself, which core.forms.LoginForm pops out of the
+                #     session and prefills.
+                #
+                # Set HERE and nowhere else, which is the security property: this line is
+                # only reachable after `redeem` has returned, and `redeem` returns only for
+                # a live, unused, unexpired, un-superseded token. An invalid or replayed
+                # link raises above and answers the same bare 404 as an unknown route, so
+                # nothing on any failure path can be made to print a username.
+                username = live.member.user.username if live.member.user else ""
+                if username:
+                    recovery.remember_the_recovered_username(request.session, username)
+                    messages.success(request, f"Your new password is saved. Sign in as {username}.")
                 return redirect("account_login")
     return render(
         request,

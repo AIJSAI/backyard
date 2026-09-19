@@ -30,9 +30,12 @@ against a base URL that would carry it in the clear.
 
 from __future__ import annotations
 
+import datetime
 import hashlib
 import secrets
+from collections.abc import MutableMapping
 from datetime import timedelta
+from typing import Any
 
 from django.conf import settings
 from django.contrib.auth.password_validation import validate_password
@@ -165,6 +168,59 @@ def resolve(raw: str) -> RecoveryToken:
     if token.expires_at <= timezone.now():
         raise RecoveryInvalid
     return token
+
+
+# The session key `recovery_views.recover` writes after a successful redeem and
+# `core.forms.LoginForm` pops on the next render of the sign-in page (walk item 2). It
+# lives HERE, in the service both sides already depend on, rather than in either of them:
+# the form importing a views module is a cycle waiting to happen, and two spellings of one
+# key is how a prefill quietly stops working while the page still looks fine.
+RECOVERED_USERNAME_KEY = "recovered_username"
+# HOW LONG THE PREFILL IS HONOURED. The session key is written the moment a link is
+# redeemed and popped when the sign-in form next renders — but nothing guarantees that
+# render ever happens. Somebody who saves a new password and then closes the tab leaves
+# their username sitting in the session of a browser that, on the shared family tablet
+# this product is partly for, the next person picks up. Ten minutes is the walk from
+# "Save it and sign in" to the sign-in page with room to spare, and short enough that a
+# borrowed device is not carrying somebody's username around.
+#
+# NOT `session.set_expiry`, which was the obvious reach and is wrong here: `login()`
+# cycles the session key but KEEPS its data, so a short expiry would follow them past the
+# sign-in and log them out minutes after they finally got back in. The stamp is checked
+# by hand instead, and the value is popped either way.
+RECOVERED_USERNAME_TTL = timedelta(minutes=10)
+
+
+def remember_the_recovered_username(session: MutableMapping[str, Any], username: str) -> None:
+    """Record who just used a link, with the moment it happened.
+
+    Called only after `redeem` returns, which happens only for a live, unused, unexpired,
+    un-superseded token — so nothing on any failure path can put a username here.
+    """
+    session[RECOVERED_USERNAME_KEY] = {
+        "username": username,
+        "at": timezone.now().isoformat(),
+    }
+
+
+def take_the_recovered_username(session: MutableMapping[str, Any]) -> str:
+    """The username to prefill, once, if the link was used in the last ten minutes.
+
+    POPPED regardless of the answer: a stamp too old is a value that should not be sitting
+    there at all, and leaving it would mean the next render got a second chance at it.
+    """
+    stored = session.pop(RECOVERED_USERNAME_KEY, None)
+    if not isinstance(stored, dict):
+        # Nothing, or a value from before this was a dict. Either way, no prefill.
+        return ""
+    username = stored.get("username") or ""
+    try:
+        used_at = datetime.datetime.fromisoformat(str(stored.get("at")))
+    except ValueError:
+        return ""
+    if timezone.now() - used_at > RECOVERED_USERNAME_TTL:
+        return ""
+    return str(username)
 
 
 def redeem(raw: str, new_password: str) -> None:

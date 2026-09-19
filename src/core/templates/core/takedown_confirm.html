@@ -1,0 +1,39 @@
+{% extends "core/base.html" %}
+{% block title %}Take this {% if comment %}reply{% else %}post{% endif %} down?{% endblock %}
+{% block body %}
+  {% comment %} A CONFIRM PAGE, because a takedown is the most destructive single tap in
+     this product and it did not have one.
+
+     Walked on 2026-09-19: a side admin taps "Take down" on somebody's post and it is gone
+     that instant — a 404 for everyone, the photographs purged from the server for good, no
+     message, no undo, and the day-one guide two taps away promising "nothing here is a
+     one-tap disaster". The author's own "Delete this post?" page has asked for a second
+     tap since the beginning; the route that erases somebody ELSE's photographs did not.
+
+     Shaped like that page on purpose, because it is the same shape of decision and the
+     admin has already seen the other one. What is added is the two facts that are only
+     true of a takedown: it is not your post, and the person is not told. Saying so here is
+     the point — an admin who would rather ask them first can still close this page, and
+     "Keep it" is the quiet way out. {% endcomment %}
+  <h1>Take this {% if comment %}reply{% else %}post{% endif %} down?</h1>
+  <p class="muted">{{ author_name }} wrote this.</p>
+  <blockquote class="quoted-post">{% if comment %}{{ comment.body }}{% else %}{{ post.body }}{% endif %}</blockquote>
+  <p class="muted">
+    This removes it from the family for everyone and permanently deletes any photos on it.
+    A copy that already went out in the Family email cannot be recalled. {{ author_name }}
+    is not told, and there is no way to put it back.
+  </p>
+  {% if comment %}
+    <form method="post" action="{% url 'take_down_comment' comment.id %}">
+      {% csrf_token %}
+      <button type="submit" class="danger">Take it down</button>
+    </form>
+    <p><a href="{% url 'post_detail' comment.post_id %}">Keep it</a></p>
+  {% else %}
+    <form method="post" action="{% url 'take_down_post' post.id %}">
+      {% csrf_token %}
+      <button type="submit" class="danger">Take it down</button>
+    </form>
+    <p><a href="{% url 'post_detail' post.id %}">Keep it</a></p>
+  {% endif %}
+{% endblock %}

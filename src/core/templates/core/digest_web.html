@@ -1,11 +1,12 @@
 {% extends "core/base.html" %}
-{% block title %}Your family email{% endblock %}
+{% load times %}
+{% block title %}Your Family email{% endblock %}
 {% block body %}
   <h1>{{ issue.yard.name }}: what the family has been up to</h1>
-  <p class="muted">What your family shared, {{ issue.window_start|date }} to {{ issue.window_end|date }}.</p>
+  <p class="muted">What your family shared, {% when_date issue.window_start %} to {% when_date issue.window_end %}.</p>
   {% for post in posts %}
     <article class="post">
-      <p class="byline">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %} · {{ post.created_at|date }}</p>
+      <p class="byline">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %} · {% when post.created_at %}</p>
       {% comment %} The same shape the feed keeps (C3): their line breaks survive and a
          link they typed is tappable. `urlize` autoescapes, so this opens no injection
          path on a surface that has no login behind it. {% endcomment %}
@@ -29,3 +30,4 @@
     <p class="empty">A quiet stretch; nothing new this time.</p>
   {% endfor %}
 {% endblock %}
+{% block extra_body %}{% include "core/_localise_times.html" %}{% endblock %}

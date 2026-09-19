@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load times %}
 {% block title %}Replies we couldn't post{% endblock %}
 {% block body %}
   <h1>Replies we couldn&rsquo;t post</h1>
@@ -10,7 +11,7 @@
       <li>
         <strong>{{ row.get_reason_display }}</strong>
         {% if row.member %}(capability of {{ row.member.display_name }}){% endif %}
-        · from {{ row.from_header|default:"(no sender)" }} · {{ row.created_at }}
+        · from {{ row.from_header|default:"(no sender)" }} · {% when row.created_at %}
         {% if row.body_excerpt %}<blockquote>{{ row.body_excerpt }}</blockquote>{% endif %}
         <form method="post" action="{% url 'member_quarantine' %}">
           {% csrf_token %}
@@ -23,3 +24,4 @@
     {% endfor %}
   </ul>
 {% endblock %}
+{% block extra_body %}{% include "core/_localise_times.html" %}{% endblock %}

@@ -63,6 +63,19 @@ class Command(BaseCommand):
         for label, count in sorted(planned.items()):
             self.stdout.write(f"  {count:>6}  {label}")
 
+        # Said in words as well as in a count, because it is the one line that is a real
+        # person's row and does NOT stop the command: a bare number next to a label is easy
+        # to read as information rather than as something about to be deleted.
+        if demo_data.REAL_REACTION_LABEL in planned:
+            self.stdout.write(
+                f"\n`{demo_data.REAL_REACTION_LABEL}` is real people reacting to FIXTURE "
+                "posts — a breakdown of the `core.Reaction` line above, not extra rows. "
+                "They go with the posts they are on: a reaction is not writing or "
+                "photographs, it means nothing once its post is gone, and once that post is "
+                "down there is no screen left on which its author could remove it. A real "
+                "person's own post or reply DOES stop this command."
+            )
+
         if options["dry_run"]:
             self.stdout.write(self.style.WARNING("\nDry run. Nothing was deleted."))
             return

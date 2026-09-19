@@ -490,6 +490,10 @@ def delete_post(request: HttpRequest, post_id: int) -> HttpResponse:
     if request.method == "POST":
         posting.delete_post(actor=member, post=post)
         media.purge_post_media(post)  # hard-delete the photo files too (T-MEDIA-6)
+        # The walk found the feed simply re-rendering with the post gone, which reads as
+        # "did that work?" on a phone where the post was already below the fold. The same
+        # calm flash the composer uses, for the same reason: the product says it worked.
+        messages.success(request, "Post deleted.")
         return redirect("feed")
     return render(request, "core/delete_confirm.html", {"post": post})
 
@@ -837,32 +841,58 @@ def delete_comment(request: HttpRequest, comment_id: int) -> HttpResponse:
 
 @login_required
 def take_down_post(request: HttpRequest, post_id: int) -> HttpResponse:
-    """Moderator takedown of one post (S-713). POST-only, admins only. The post resolves
-    through the MODERATOR's read guard, so a post they cannot see is a byte-identical 404 —
-    a yard admin can never take down a pod-private post outside their visibility (the
+    """Moderator takedown of one post (S-713). Admins only. The post resolves through the
+    MODERATOR's read guard, so a post they cannot see is a byte-identical 404 — a yard
+    admin can never take down a pod-private post outside their visibility (the
     reach-vs-visibility rule; route those to the parent/pod post-v1). Distinct from the
-    author-only self-delete: an admin may take down anyone's post that they can see."""
+    author-only self-delete: an admin may take down anyone's post that they can see.
+
+    GET CONFIRMS, POST PERFORMS, since the 2026-09-19 walk. It was POST-only and fired on
+    one tap: gone at once, photographs purged for good, no message, no undo — while the
+    author's own delete route had asked for a second tap since the beginning. The check
+    ORDER is unchanged and is the part that matters: admin first (403), then the read
+    guard (404), so neither the confirm page nor the action tells a stranger whether a
+    post exists.
+    """
     member = _acting_member(request)
-    if request.method != "POST":
+    if request.method not in ("GET", "POST"):
         raise Http404
     if not permissions.is_admin(member):
         raise PermissionDenied
     post = scoping.require_visible_post(member, post_id)
+    if request.method == "GET":
+        return render(
+            request,
+            "core/takedown_confirm.html",
+            {"post": post, "author_name": post.author.display_name},
+        )
     moderation.take_down_post(moderator=member, post=post)
     media.purge_post_media(post)  # a takedown hard-purges the post's photos too (T-MEDIA-6)
+    messages.success(request, "Post taken down.")
     return redirect("feed")
 
 
 @login_required
 def take_down_comment(request: HttpRequest, comment_id: int) -> HttpResponse:
-    """Moderator takedown of one comment (S-713). POST-only, admins only, scoped to the
-    moderator's visibility: a comment on a post they cannot see is a byte-identical 404."""
+    """Moderator takedown of one comment (S-713). Admins only, scoped to the moderator's
+    visibility: a comment on a post they cannot see is a byte-identical 404.
+
+    GET confirms and POST performs, for the reason given on `take_down_post`: a reply is
+    somebody's words too, and taking one down was the same one-tap, no-undo action.
+    """
     member = _acting_member(request)
-    if request.method != "POST":
+    if request.method not in ("GET", "POST"):
         raise Http404
     if not permissions.is_admin(member):
         raise PermissionDenied
     comment = scoping.require_visible_comment(member, comment_id)
+    if request.method == "GET":
+        return render(
+            request,
+            "core/takedown_confirm.html",
+            {"comment": comment, "author_name": comment.author.display_name},
+        )
     post_id = comment.post_id
     moderation.take_down_comment(moderator=member, comment=comment)
+    messages.success(request, "Reply taken down.")
     return redirect("post_detail", post_id=post_id)

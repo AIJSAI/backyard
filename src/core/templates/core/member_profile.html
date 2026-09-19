@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% load avatars %}
+{% load times %}
 {% block title %}{{ profile.display_name }}{% endblock %}
 {% block body %}
   <p class="back-link"><a class="back" href="{% url 'directory' %}">Back to the directory</a></p>
@@ -41,7 +42,7 @@
       <li>
         <div class="who-row">
           {% avatar profile.display_name profile.member_id "sm" %}
-          <span class="who"><span class="when">{{ post.created_at|date:"M j, g:i a" }}</span></span>
+          <span class="who"><span class="when">{% when post.created_at %}</span></span>
         </div>
         <p class="post-body">{{ post.body|urlize }}</p>
         <span class="actions"><a href="{% url 'post_detail' post.id %}">Open thread</a></span>
@@ -51,3 +52,4 @@
     {% endfor %}
   </ul>
 {% endblock %}
+{% block extra_body %}{% include "core/_localise_times.html" %}{% endblock %}

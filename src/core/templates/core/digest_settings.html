@@ -15,9 +15,21 @@
     it on, and a quiet week sends nothing at all.</p>
 
   {% if error %}<div class="errors"><p>{{ error }}</p></div>{% endif %}
+  {% comment %} THREE STATES, because there are three. "Sent" is read off the confirm
+     TOKEN in the view, not off `confirmed_at`: no token means no mail was sent, and this
+     page used to tell a member to go and look for one that did not exist. The middle
+     state is the same-address case (walk item 24) — the tap that starts the Family email
+     is the account confirmation already in their inbox, and if that mail failed or has
+     expired the only way forward is a fresh one, so the notice says so and links to the
+     page that sends it. {% endcomment %}
   {% if sent %}
     <p class="notice">Check {{ subscription.address }} for one email asking if the address
     is yours. Nothing from the family is sent until you tap the link in it.</p>
+  {% elif waiting_on_the_account_confirmation %}
+    <p class="notice">This is your sign-in address, and it is not confirmed yet. Tap the
+    link in the email Backyard sent when you joined. One tap answers both, and the Family
+    email starts with it. If that email has gone, ask for another one from
+    <a href="{% url 'account_email' %}">Your sign-in email</a>.</p>
   {% elif saved %}
     <p class="notice">Saved.</p>
   {% endif %}

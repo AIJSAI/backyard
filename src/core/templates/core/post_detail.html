@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% load avatars %}
+{% load times %}
 {% block title %}A post and its replies{% endblock %}
 {% block body %}
   <p class="back-link"><a class="back" href="{% url 'feed' %}">Back to the feed</a></p>
@@ -13,7 +14,7 @@
 
   <div class="post">
     {% comment %} The author is the h1 above; repeating it here read as a bug. {% endcomment %}
-    <span class="when">{{ post.created_at|date:"M j, g:i a" }}</span>
+    <span class="when">{% when post.created_at %}</span>
     {% if post.edited_at %}<span class="edited">(edited)</span>{% endif %}
     <p class="post-body">{{ post.body|urlize }}</p>
     {% if media_list %}
@@ -57,11 +58,16 @@
     {% endif %}
   </div>
 
-  {% if is_moderator %}
-    <form method="post" action="{% url 'take_down_post' post.id %}" class="inline">
-      {% csrf_token %}
-      <button type="submit" class="danger">Take down post</button>
-    </form>
+  {% comment %} A QUIET TEXT ACTION, with the others. It was a large outlined button
+     sitting on its own between the post and the reactions — the loudest control on a page
+     whose subject is somebody's photograph, and the one that erases it. It now reads like
+     "Open thread" and "Delete" do on the feed, in the destructive treatment, and it leads
+     to a confirm page rather than firing on the tap. An admin reading their OWN post gets
+     Delete on the feed instead; offering both was two names for one outcome. {% endcomment %}
+  {% if is_moderator and post.author_id != member.id %}
+    <p class="actions">
+      <a class="destructive" href="{% url 'take_down_post' post.id %}">Take down post</a>
+    </p>
   {% endif %}
 
   <div class="reactions">
@@ -84,7 +90,7 @@
           {% avatar comment.author.display_name comment.author_id "sm" %}
           <span class="who">
             <span class="author">{{ comment.author.display_name }}{% if comment.author.kinship_name %} ({{ comment.author.kinship_name }}){% endif %}</span>{% if comment.via_email %} <span class="via-email">via email</span>{% endif %}
-            <span class="when">{{ comment.created_at|date:"M j, g:i a" }}</span>
+            <span class="when">{% when comment.created_at %}</span>
           </span>
         </div>
         {% comment %} A reply keeps its shape for the same reason a post does (C3). {% endcomment %}
@@ -117,11 +123,10 @@
             <button type="submit" class="danger">Delete</button>
           </form>
         {% endif %}
-        {% if is_moderator %}
-          <form method="post" action="{% url 'take_down_comment' comment.id %}" class="inline">
-            {% csrf_token %}
-            <button type="submit" class="danger">Take down</button>
-          </form>
+        {% comment %} Same two changes as the post above: a confirm page rather than a
+           one-tap erase, and never offered on your own reply, where Delete already is. {% endcomment %}
+        {% if is_moderator and comment.author_id != member.id %}
+          <a class="destructive" href="{% url 'take_down_comment' comment.id %}">Take down</a>
         {% endif %}
       </li>
     {% empty %}
@@ -151,3 +156,4 @@
   </form>
   {% include "core/_composer_media.html" %}
 {% endblock %}
+{% block extra_body %}{% include "core/_localise_times.html" %}{% endblock %}

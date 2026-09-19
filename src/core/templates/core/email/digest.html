@@ -17,7 +17,6 @@
         <span style="display:inline-block;vertical-align:middle;font-family:Georgia,serif;font-weight:700;font-size:20px;color:#1e5c46;letter-spacing:-0.01em;">&nbsp;Backyard</span>
       </div>
 
-      <p style="color: #5d6a61; font-size: 12px; margin: 0 0 10px;">{{ separator }}</p>
       <h1 style="font-size: 24px; color: #1e5c46; margin: 0 0 4px; font-family: Georgia, 'Iowan Old Style', Palatino, serif; line-height: 1.2;">{{ header.yard_name }}: what the family has been up to</h1>
       <p style="color: #4c5a52; margin: 0 0 8px;">{{ header.window_text }}</p>
 
@@ -50,6 +49,19 @@
       {% endif %}
 
       <p style="margin: 24px 0 0;"><a href="{{ footer.digest_url }}" style="color: #1e5c46;">See everything in your backyard</a></p>
+      {% comment %} WHY THIS ARRIVED. Read as a first-time relative, 2026-09-19: the
+         message never said who had signed them up for it or why it turned up, which is the
+         first question anybody asks of an e-mail they did not expect, and the one that
+         decides whether it is reported as spam.
+
+         It says nothing about replying BY E-MAIL, and that absence is deliberate (walk
+         item 33). That route was retired for relatives when #101 stopped putting a
+         per-post reply address in the message — nothing hands anybody an address any
+         more, so a plain reply cannot be routed to a post and lands in the admin-only
+         "Replies we couldn't post" instead. The way to answer is "Reply in Backyard" on
+         each post above, which opens the thread. {% endcomment %}
+      <p style="font-size: 16px; color: #4c5a52; margin: 14px 0 0;">You are getting this
+        because you asked for the Family email.</p>
       <p style="font-size: 16px; color: #4c5a52; margin: 10px 0 0;">Too many emails?
         <a href="{{ footer.unsubscribe_url }}" style="color: #1e5c46;">Pause them here</a> - you stay in the family.</p>
       <p style="font-size: 14px; color: #5d6a61; margin: 14px 0 0;">{{ footer.standing_text }}</p>

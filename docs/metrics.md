@@ -16,7 +16,7 @@ WCM is driven by four inputs, each per yard:
 
 | Input | Definition | Why it leads WCM |
 |---|---|---|
-| Posting breadth | Distinct pods that posted this week | A feed with one poster is a broadcast, not a backyard; breadth predicts return visits |
+| Households and groups that posted | Distinct pods that posted this week. Stored as `YardWeekMetrics.posting_breadth`, which is what the model, the migration and `rollup_metrics` still call it. The screen says "Households and groups that posted" because the number counts pods, not people — three people in one household posting counts one — and because "posting breadth" was jargon on a page a relative reads. An ad-hoc group counts as one too, which the label now names | A feed with one poster is a broadcast, not a backyard; breadth predicts return visits |
 | Reciprocity rate | Share of posts receiving any response (reaction, comment, or elder email reply) within 7 days | The field-research failure mode was one-way flow; responses close the loop that keeps posters posting (R2) |
 | Elder touch rate | Share of elder members with any touch this week (token link, digest open proxy, email reply) | The hardest segment; if elders connect, the design is working (R3) |
 | Catch-up regularity | Members with at least one feed visit in the week | The lurker habit is legitimate participation and the base of the pyramid |
