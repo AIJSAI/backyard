@@ -175,7 +175,7 @@ That must exit **0**. It is the whole proof that the new box is serving the same
 code expects; a box that answers `/healthz` with a schema a release behind renders some
 pages and 500s on others, which reads as a bad restore rather than an unfinished one.
 
-A restore is a security event: every elder link, digest link, reply address and session the
+A restore is a security event: every no-login link, email-update link, reply address and session the
 archive carried is dead, instance-wide, and anybody removed **after** the backup comes back.
 Read the table in [`backup-restore.md`](backup-restore.md) and check the roster before you
 tell anyone the instance is up.
@@ -248,7 +248,7 @@ record back is a two-minute recovery, and it stops being available the moment yo
 them.
 
 **Keep them until the walk passes.** Sign in as a real member on the new instance, open a
-photograph, post something, open an elder link, and take a backup on the new box and prove
+photograph, post something, open a no-login link, and take a backup on the new box and prove
 it decrypts. Only when all of that is done:
 
 ```bash
@@ -260,7 +260,7 @@ ssh OLDBOX 'cd ~/backyard && docker compose -f docker-compose.yml -f docker-comp
 
 ## Afterwards
 
-- **Mint fresh elder links** for everybody who had one. The restore killed them all, and
+- **Make fresh no-login links** for everybody who had one. The restore killed them all, and
   "her link stopped working" is not something to discover from the person holding it.
 - **Re-point the off-box backup job** at the new host, and check `.offbox-status.json`
   appears where the instance can read it (`backup-restore.md`). Until it does, the weekly

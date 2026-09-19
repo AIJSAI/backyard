@@ -404,7 +404,7 @@ epics:
       - T-EMAIL-G1
       - T-TOKEN-8
       hardening: |
-        Reply addresses are >=128-bit-entropy, per-member, per-post bearer capabilities, revoked on any membership change. Attribution comes from the reply address alone; the From: header is only a secondary consistency check that quarantines on mismatch and never attributes. Bounce responses are byte-identical for 'no such thread' and 'not your thread'. Comments created via email carry a visible 'via email' badge. Each per-post reply block in the digest states in plain large text where a reply goes, and a confirmation receipt after posting offers one-tap removal.
+        Reply addresses are >=128-bit-entropy, per-member, per-post bearer capabilities, revoked on any membership change. Attribution comes from the reply address alone; the From: header is only a secondary consistency check that quarantines on mismatch and never attributes. Bounce responses are byte-identical for 'no such thread' and 'not your thread'. Comments created via email carry a visible 'Via Email' badge. Each per-post reply block in the digest states in plain large text where a reply goes, and a confirmation receipt after posting offers one-tap removal.
       source: docs/security/threat-model.md
     evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
   - id: S-503

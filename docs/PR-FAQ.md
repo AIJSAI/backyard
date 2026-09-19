@@ -35,7 +35,7 @@ Those are parent-to-grandparent baby-photo pipes, and they are good at that. Bac
 No. Separateness is a feature. Yards keep whole branches of a family apart (they never see each other), pods scope every post, and each post can be aimed precisely. Nothing forces togetherness that doesn't exist in real life.
 
 **What about the relative with no smartphone?**
-They tap a link, or they get an email digest, or a photo frame on the shelf shows the week's posts. They can reply by email.
+They tap a link, or they get an email update, or a photo frame on the shelf shows the week's posts. They can reply by email.
 
 **Who moderates it? What are the content rules?**
 There are none in the software, on purpose. A 40-person family doesn't need a trust-and-safety department; it needs rooms. Pod owners can write one human sentence of house rules. Individuals can mute or leave quietly. Admins can remove people. That is the whole system, and it is the same one Thanksgiving dinner runs on.

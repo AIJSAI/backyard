@@ -45,12 +45,12 @@ this one, and what is still missing, is in [CHANGELOG.md](CHANGELOG.md).
 
 Read the one-time setup secret with `make setup-secret` (it is written to a private file
 on the data volume, never to the container log), open your domain, and the first-run
-screen makes you the instance admin. The full guide —
+screen makes you the Family Admin. The full guide —
 DNS, TLS, email, backups, upgrades, and what genuinely does not work yet — is
 **[docs/runbooks/self-host.md](docs/runbooks/self-host.md)**.
 
-> **Before you put your own family on it:** the family email goes out but nobody can answer
-> it — replying by email is not wired up to a recipient in this release, and the mail links
+> **Before you put your own family on it:** Email Updates go out but nobody can answer
+> them — replying by email is not wired up to a recipient in this release, and the mail links
 > back into the app instead. And nobody outside this project has security-reviewed it. Both
 > are stated plainly in the changelog and in
 > [the install guide](docs/runbooks/self-host.md#what-does-not-work-yet).
@@ -67,8 +67,8 @@ Backyard is for both problems: an async feed for your household, and ambient awa
 
 - A calm feed of links, photos, video and short updates. Chronological. It ends.
 - **Pods and yards**: every household is a pod; each branch of the family is a yard with its own shared **backyard**. A household can belong to more than one yard, and nothing forces the sides together. Cross-yard access answers a 404 that is byte-identical to "no such thing", so it leaks not even existence.
-- An elder path that requires no account and no app store: tap a link and you're in, in large single-column type, and photos and video work there too. Each post in the Family email carries a link that opens the app at the thread. (Yes, a link that just works is a link that can be forwarded — that trade-off is argued out in [ADR-003](docs/adr/ADR-003-token-links.md).)
-- Installable PWA (iPhone and Android, no gatekeepers), with a weekly family email that links straight back to the thread it is about. (It is deliberately one-way: a per-post reply address is a bearer credential, so printing one in every email forwarded the ability to post as you. The inbound pipeline is still there for whoever wants it — see [the install guide](docs/runbooks/self-host.md#email).)
+- An elder path that requires no account and no app store: tap a link and you're in, in large single-column type, and photos and video work there too. Each post in an email update carries a link that opens the app at the thread. (Yes, a link that just works is a link that can be forwarded — that trade-off is argued out in [ADR-003](docs/adr/ADR-003-token-links.md).)
+- Installable PWA (iPhone and Android, no gatekeepers), with weekly Email Updates that link back to the thread each post is about. (It is deliberately one-way: a per-post reply address is a bearer credential, so printing one in every email forwarded the ability to post as you. The inbound pipeline is still there for whoever wants it — see [the install guide](docs/runbooks/self-host.md#email).)
 - Profiles that double as the family directory: the names the kids actually use, birthdays as month-and-day with no year and no age, contact fields whose visibility you set one by one, and a vCard download so the numbers in your phone stop being stale.
 - Admin a non-technical person can hold: five documented roles with the permissions written beside the control, household invites, removal that asks what happens to their posts, and break-glass recovery. A second factor — passkey, authenticator app or recovery codes — is offered to everyone and required of nobody, because on a family box the locked-out admin is the person without a server shell.
 - Export everything you authored, whenever, ungated. Encrypted backups, a restore that cannot resurrect a removed member's credentials, and a weekly health email that tells you when the backup stopped running.

@@ -358,8 +358,8 @@ none of it is an error, and all of it will look like one.
 
 | What | What happens | Who notices |
 |---|---|---|
-| Every elder link | Dies, instance-wide | Every grandparent, at once. The page shows the shared 404 |
-| Every digest deep link and reply-by-email address | Dies, instance-wide | Anyone who replies to an old email |
+| Every no-login link | Dies, instance-wide | Every grandparent, at once. The page shows the shared 404 |
+| Every email-update deep link and reply-by-email address | Dies, instance-wide | Anyone who replies to an old email |
 | Every signed media URL | Dies, instance-wide | Anyone with a photo open in a tab |
 | Everyone's session | Flushed | Everybody is signed out |
 | Invites minted since the backup | Gone | Whoever was mid-join |

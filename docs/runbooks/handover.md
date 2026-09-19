@@ -16,8 +16,8 @@ Fill in [`backup-recovery-sheet.md`](backup-recovery-sheet.md) *now*, not on the
 the only document that connects the backup passphrase, the registrar, the host, and the
 second admin. Everything below assumes it exists and is current.
 
-**A second admin is not optional.** One admin is one bus. Appoint one today: **Members →
-the person → Set role → Instance admin**. What that lets them do is described in the role
+**A second admin is not optional.** One admin is one bus. Appoint one today: **Members**, then **Manage** on their row, then **Change Role** to
+**Family Admin**. What that lets them do is described in the role
 key on the same page.
 
 ---
@@ -26,7 +26,7 @@ key on the same page.
 
 | | |
 |---|---|
-| Backyard | Make them **Instance admin** (Members → Set role). Confirm they can reach `/members/`. |
+| Backyard | Make them a **Family Admin** (Members, then Manage on their row, then Change Role). Confirm they can reach `/members/`. |
 | Server | Add their SSH key to `~/.ssh/authorized_keys` on the box. Confirm they can log in **before** you remove yours. |
 | Host account | Transfer or share the VPS provider account. A shared password manager entry beats a forwarded email. |
 | Registrar | Transfer the domain, or add them to the registrar account. See §4 — the domain is the part people forget. |
@@ -75,7 +75,7 @@ and destroy the old archives once you have verified the new one restores.
 
 ## 3. Regenerate every token
 
-Rotating the Django key kills sessions. It does **not** kill elder links, digest links or
+Rotating the Django key kills sessions. It does **not** kill no-login links, email-update links or
 reply addresses — those are generation-anchored per member. One command kills all of them:
 
 ```bash
@@ -87,9 +87,9 @@ from core import backups; print(backups.revoke_every_credential())"'
 **This is the same code a restore runs**, deliberately — one implementation, so neither can
 come to miss a credential class.
 
-**Then re-issue the elder links**, or the grandparents are locked out with no way to ask:
+**Then re-issue the no-login links**, or the grandparents are locked out with no way to ask:
 
-1. **Members → the grandparent's row → No-login link** for each one.
+1. **Members**, then **Manage** on the grandparent's row, then **No-Login Link**, for each one.
 2. Hand each link over in person or by private message, and reprint any QR.
 3. Post something to the whole side of the family **first**, so the page they open is not
    empty — see the note at the top of [`founder-qa.md`](founder-qa.md).
@@ -99,7 +99,7 @@ come to miss a credential class.
 ## 4. The domain is a family asset
 
 A lapsed domain is the worst outcome in this document. Every printed QR, every bookmark and
-every elder link points at a hostname; a bearer URL cannot tell the new host from the old
+every no-login link points at a hostname; a bearer URL cannot tell the new host from the old
 one, so a squatter who re-registers it inherits **working credentials** and can stand up a
 convincing phishing surface plus the family's mail (threat row **T-OP-G4**).
 
@@ -119,13 +119,13 @@ flags it inside 45 days. If that email is not arriving, see below.
 ## 5. Confirm the health email actually reaches the new person
 
 The instance's only way of telling anyone it is unwell is the weekly health email, and it
-only goes to **instance admins with a confirmed email address**. An admin who never
+only goes to **Family Admins with a confirmed email address**. An admin who never
 confirmed one gets nothing — and then nobody is watching, which is the whole condition the
 email exists to prevent.
 
 So, as the new admin:
 
-1. **Settings → Digest** and confirm your address.
+1. **Settings → Email Updates** and confirm your address.
 2. Check you receive the Monday health email.
 3. It should report: last backup, disk headroom, domain days-remaining. Failed sign-ins will
    say `not measured yet` — honest, not broken: there is no auth audit log yet, and it is
@@ -159,5 +159,5 @@ Do the parts that stop the clock, in this order, and leave the rest for later:
 3. **Appoint a second admin** so the instance is not one login away from unreachable.
 
 Then stop. The rotations can wait a week. Marking the person's account is covered by
-**Members → Remove → "Keep their posts, still attributed to them"**, which stops their
+**Members**, then **Manage** on their row, then **Remove** and **Keep Their Posts**, which stops their
 credentials without erasing them from the family's history.

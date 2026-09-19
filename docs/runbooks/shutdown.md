@@ -20,7 +20,7 @@ the VM off. This procedure is for ending it.
 have destroyed access to data nobody held a copy of.
 
 **Revoke before destroy, while the box still answers.** Every printed QR and bookmarked
-elder link points at your hostname. Revoking while the instance is up means an old link
+no-login link points at your hostname. Revoking while the instance is up means an old link
 meets a real 404 from *you*. Skip it, and the first thing those links meet is whoever
 re-registers the domain (threat row **T-OP-G4**).
 
@@ -97,7 +97,7 @@ is not a recoverable mistake.
 
 Do **not** drop the registration the week you shut down.
 
-Printed QR codes are in kitchen drawers. Elder links are in text-message history. Those
+Printed QR codes are in kitchen drawers. No-login links are in text-message history. Those
 point at a hostname, and a bearer URL cannot distinguish your host from the next one — so
 a squatter who picks the domain up inherits every one of them, plus the ability to receive
 mail addressed to your family.

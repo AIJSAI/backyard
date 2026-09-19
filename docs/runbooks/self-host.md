@@ -15,7 +15,7 @@ exercise. Where something is unfinished, it says so rather than being left out.
 - **A domain name** you can point at that box. Backyard serves one domain.
 
   **Treat the domain as a family asset, not a subscription** (threat row T-OP-G4). Every
-  printed QR code, every bookmarked elder link and every link in an old digest points at
+  printed QR code, every bookmarked no-login link and every link in an old email update points at
   this hostname, and a bearer URL cannot tell your host from the next one — so if the
   registration lapses, whoever re-registers it inherits *working* credentials and can stand
   up a convincing phishing surface plus your family's mail. That is the single worst
@@ -129,7 +129,7 @@ BACKYARD_TIME_ZONE=America/Chicago   # an IANA name; the default is UTC
 ```
 
 **Set this.** It is the clock your family reads. Left unset, every date and time in the
-product — the feed, a thread, an invite's last day, the Family email — is stated in UTC,
+product — the feed, a thread, an invite's last day, Email Updates — is stated in UTC,
 which for most families is several hours wrong and says so with no hedge. A post written
 at 4:28 in the morning read "9:28 a.m." on a real instance before this setting existed.
 
@@ -177,7 +177,7 @@ make setup-secret
 docker compose exec web cat /data/first-run-secret
 ```
 
-Open `https://your.domain/setup/`, paste it, and create the first instance admin. The
+Open `https://your.domain/setup/`, paste it, and create the first Family Admin. The
 secret is single-use, it is replaced on every boot until it is used, and both it and the
 file are deleted the moment the first admin exists — there is no default login to forget
 about.
@@ -190,11 +190,10 @@ does not belong there. Set `SETUP_HANDOVER_FILE` if you want it somewhere other 
 
 ## 4. Make it a family
 
-As instance admin, from the **Members** link in the header (or `/members/`):
+As the Family Admin, from the **Members** link in the header (or `/members/`):
 
-1. **Create a yard** per side of the family ("The Whitfields", "The Ferraras") —
-   *Family sides*.
-2. **Create a household and invite it in one step** — *Invite a household*. Creating the
+1. **Create a side of the family** ("The Whitfields", "The Ferraras") — **Sides**.
+2. **Create a household and invite it in one step** — **Invite A Household**. Creating the
    pod and minting its invite is the same action; there is no separate "create a pod" step,
    which is why step 2 used to have no referent.
 
@@ -206,9 +205,9 @@ As instance admin, from the **Members** link in the header (or `/members/`):
    It is **not** single-use; this document said it was, and
    `docs/runbooks/setting-up-your-side.md` said the opposite. The code is `invites.py`:
    `max_uses = 8`, 7-day expiry.
-4. **For anyone who will not manage an account** — grandparents, usually — mint an
-   **elder link** on their member page. It is a URL that logs them in by itself, forever,
-   until you revoke it. Print the QR code and put it on the fridge.
+4. **For anyone who will not manage an account** — grandparents, usually — make a
+   **No-Login Link**: **Members**, then **Manage** on their row. It is a URL that logs them
+   in by itself, forever, until you revoke it. Print the QR code and put it on the fridge.
 
 ---
 
@@ -218,7 +217,7 @@ As instance admin, from the **Members** link in the header (or `/members/`):
 
 Out of the box, Backyard sends **no email at all** — the console backend prints messages to
 the container log. That is a working configuration: the app is fully usable without email.
-You lose the weekly digest and reply-by-email.
+You lose the weekly Email Updates and reply-by-email.
 
 ### Option A — your own SMTP server
 
@@ -264,7 +263,7 @@ attributed from the address the provider says it was **delivered to** (`data.rec
 never from the sender-written `To:` header, and a delivery naming more than one recipient is
 refused rather than resolved to its first address. The fetch that collects the message is
 bounded in bytes **and** in wall-clock time, so a slow or enormous message cannot occupy the
-app. A refused message is not lost: it lands on **Members → "Replies we couldn't post"** with
+app. A refused message is not lost: it lands on **Members → Held Replies** with
 the reason.
 
 **But nothing currently hands a family member an address to use it with.** The weekly email
@@ -278,7 +277,7 @@ present; do not promise anyone they can answer the email.
 
 ### Deliverability
 
-Family email to Gmail addresses from a new domain lands in spam until the domain has a
+An email update to a Gmail address from a new domain lands in spam until the domain has a
 reputation. Set SPF, DKIM and DMARC. Ask the first few people to mark it "not spam".
 
 ---
@@ -343,7 +342,7 @@ somewhere that is not the same building as the server.
 Copy the archive off the box. A backup on the same disk is not a backup.
 
 Restoring is [backup-restore.md](backup-restore.md). A restore is a **security event**: it
-kills every elder link, digest link and session the backup carried, because a restore can
+kills every no-login link, email-update link and session the backup carried, because a restore can
 otherwise resurrect the credentials of someone you removed.
 
 ---
@@ -513,8 +512,8 @@ on that account. Rehearsed here: the issue opened, the monitor closed it on reco
 GitHub recorded the mention — and no mail arrived, so "the instance is down" reached nobody.
 The weekly health email cannot cover that case either, because a box that is down sends
 nothing. So the monitor posts the alarm to Resend from the runner, outside the box, on the
-two state **changes** only: once when a new alarm issue is opened (subject "Backyard needs
-attention") and once when it closes on recovery ("Backyard is well again"). The daily
+two state **changes** only: once when a new alarm issue is opened (subject "Backyard Needs
+Attention") and once when it closes on recovery ("Backyard Is Well Again"). The daily
 reminder comment mails nothing — that is what the issue is for.
 
 Three repository **secrets** arm that half. Secrets rather than variables: two of them are
@@ -568,7 +567,7 @@ without send permission, or a `MONITOR_ALERT_FROM` on a domain it has not verifi
 
 Stated plainly, because finding out later is worse:
 
-- **Nobody can answer the family email.** The inbound pipeline exists and is Resend-only
+- **Nobody can answer an email update.** The inbound pipeline exists and is Resend-only
   (SMTP covers outbound only), but no reply address is published in the mail and there is no
   `Reply-To`, so replying goes nowhere. The post blocks link into the app instead. See
   [Email](#email).
@@ -578,7 +577,7 @@ Stated plainly, because finding out later is worse:
   is exactly the person who does not have a server shell to recover from.
 - **There is no "send the email now" button.** The worker sends what is **due** — the
   cadence has to have elapsed since confirmation or since the last window — so testing the
-  family email means waiting for a window rather than forcing one.
+  email update means waiting for a window rather than forcing one.
 - **No web push.** The notification opt-in sends **email**, not a push notification.
 - **No native apps.** It is an installable PWA; add it to your home screen from the
   browser. That is a deliberate decision, not a gap ([ADR-002](../adr/ADR-002-stack.md)).
