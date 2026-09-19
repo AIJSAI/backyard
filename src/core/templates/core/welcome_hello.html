@@ -16,9 +16,11 @@
       <label class="visually-hidden" for="welcome-body">Your first post</label>
       <textarea id="welcome-body" name="body" rows="3" required>{{ suggested_body }}</textarea>
 
-      <label for="welcome-photos">Add photos</label>
-      <input id="welcome-photos" type="file" name="photos"
-             accept="image/jpeg,image/png,image/webp,image/gif" multiple>
+      {% comment %} THE shared media control, not a second one. This screen shipped with
+         its own plain file input, which is how a product ends up with two pickers that
+         drift; it now includes the same block the composer and the reply form use, so a
+         phone offers its own Photo Library sheet here too. {% endcomment %}
+      {% include "core/_media_picker.html" with picker_id="welcome-media" %}
 
       {% if households|length > 1 %}
         <label for="welcome-pod">Which household</label>
@@ -32,6 +34,8 @@
       <button type="submit">Post it</button>
     </form>
   {% endif %}
+
+  {% if households %}{% include "core/_composer_media.html" %}{% endif %}
 
   {% comment %} A plain link, not a POST: the welcome is already marked as seen by the
      time this screen renders, so leaving it changes nothing. {% endcomment %}

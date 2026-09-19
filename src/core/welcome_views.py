@@ -41,7 +41,7 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from . import digesting, scoping
+from . import digesting, feed_views, scoping
 from .feed_views import _acting_member
 from .join import email_errors
 from .models import DigestSubscription, Member, Pod
@@ -165,5 +165,10 @@ def welcome_hello(request: HttpRequest) -> HttpResponse:
             "member": member,
             "households": households,
             "suggested_body": SUGGESTED_FIRST_LINE,
+            # The shared picker states the limits in words, so it needs the same two
+            # numbers the composer gets — read from the one place that defines them
+            # rather than copied, or this screen would promise a different ceiling.
+            "max_photos": feed_views._MAX_PHOTOS,
+            "max_videos": feed_views._MAX_VIDEOS,
         },
     )
