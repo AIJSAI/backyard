@@ -23,8 +23,10 @@ services:
     # (none), contrib/pgcrypto PGP data (not installed), and psql scripts with a failing
     # COPY ... FROM STDIN (none in this repo); there are no GIN indexes to re-ANALYZE and no
     # btree_gist/ltree indexes to reindex; and the pre-18.2 clause cannot apply because this
-    # pin has never been anything but 18.4. Both images are alpine3.24, so the collation
-    # hazard TS-PG-8 names (a libc or ICU change under an existing volume) is not in play.
+    # pin has never been anything but 18.4. The old pin and this one are both alpine 3.24
+    # (3.24.1 -> 3.24.2), so the collation hazard TS-PG-8 names — a libc or ICU change under
+    # an existing volume — is not in play. Caddy's base is a different line; it holds no
+    # volume, so it is not part of this.
     image: postgres:18-alpine@sha256:6c538e7206ea40ff740ef27883529390a690b6ead6ba96b44c67a9f7c638e8fd
     restart: unless-stopped
     logging: *default-logging
