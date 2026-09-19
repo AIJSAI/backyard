@@ -10,7 +10,13 @@
    loudest thing on the page, which is what it had become. */
 .email-prompt {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.9rem;
-  margin: 0.85rem 0 0; font-size: 0.92rem; color: var(--ink-soft);
+  /* THE SAME 2rem THE COMPOSER CARD CARRIES BELOW IT (base.html `.composer`). With no
+     bottom margin this line sat flush against the first post — `ul.feed` resets its own
+     margin to 0, so nothing else was going to supply the gap, and the effect was that
+     "Not now" read as though it belonged to somebody's photograph rather than to the
+     composer above it. The top margin collapses against the composer's own 2rem, so the
+     block sits in one rhythm with the card it belongs to. */
+  margin: 0.85rem 0 2rem; font-size: 0.92rem; color: var(--ink-soft);
 }
 .email-prompt form { margin: 0; }
 /* Borderless here, unlike the ghost button it inherits from. Everywhere else .btn-quiet
