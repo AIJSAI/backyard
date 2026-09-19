@@ -243,3 +243,38 @@ def test_a_returning_member_lands_on_the_family_and_not_on_a_stack_of_notices() 
     assert "Adding people is an admin" not in body
     assert 'class="prompt"' not in body
     assert "Share something with your family" in body  # the composer is what they get
+
+
+@pytest.mark.django_db
+def test_a_removed_instance_admin_is_never_the_person_to_ask() -> None:
+    """Removal keeps the Member row and deactivates the account, so a lookup by role
+    alone would go on telling relatives to ask somebody who can no longer sign in — on
+    the footer of every page, on About, and in the password-reset guidance, which is the
+    one screen read by somebody who is already locked out.
+
+    The fallback sentence stands when nobody is left to name.
+    """
+    from core import removal
+
+    pod = _family()
+    admin = _instance_admin(pod, "Jim Whitfield")
+    successor_user = User.objects.create_user(username="successor")
+    successor = Member.objects.create(
+        display_name="Ada Whitfield", user=successor_user, role=Member.INSTANCE_ADMIN
+    )
+    PodMembership.objects.create(member=successor, pod=pod)
+
+    # Denominator: the first admin by pk is the one named while they are still here.
+    assert "Stuck? Ask Jim." in Client().get(reverse("account_login")).content.decode()
+
+    removal.remove_member(admin, content=removal.KEEP)
+
+    html = Client().get(reverse("account_login")).content.decode()
+    assert "Stuck? Ask Jim." not in html, "the footer still names a removed admin"
+    assert "Stuck? Ask Ada." in html
+
+    removal.remove_member(successor, content=removal.KEEP)
+    assert (
+        "whoever in the family set this up"
+        in Client().get(reverse("account_login")).content.decode()
+    )

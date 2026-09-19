@@ -43,6 +43,7 @@ from django.views.decorators.http import require_POST
 
 from . import digesting, scoping
 from .feed_views import _acting_member
+from .join import email_errors
 from .models import DigestSubscription, Member, Pod
 
 # What screen two offers. Daily is deliberately absent (owner direction 2): a family
@@ -122,10 +123,15 @@ def welcome_family_email(request: HttpRequest) -> HttpResponse:
         context["error"] = "Choose how often you would like it, or choose No thanks."
         return render(request, "core/welcome_email.html", context)
 
-    address = request.POST.get("address", "").strip()[:254]
-    if not address or "@" not in address:
+    # NOT truncated, and not checked for a bare "@". This is the address a Family email
+    # will be sent to and the one that gets them back in if they forget their password, so
+    # it goes through the join form's validator — the same words, the same rules, and a
+    # refusal rather than a quiet rewrite of what they typed.
+    address = request.POST.get("address", "").strip()
+    problems = email_errors(address) if address else ["Tell us where to send it."]
+    if problems:
         context["address"] = address
-        context["error"] = "That does not look like an email address."
+        context["error"] = problems[0]
         return render(request, "core/welcome_email.html", context)
     # Enrolling sends mail to an address the member typed, so it rides the same
     # outbound-shaped limit as the settings page and the join view: per IP and per

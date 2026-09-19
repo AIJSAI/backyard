@@ -27,7 +27,11 @@
       <label for="pod-add">Household</label>
       <select id="pod-add" name="pod_id">
         {% for pod, sides in joinable %}
-          <option value="{{ pod.id }}">{{ pod.name }} — {% for side in sides %}{{ side.name }}{% if not forloop.last %} and {% endif %}{% endfor %} side</option>
+          {% comment %} The side's NAME as it was given, never the name plus the word
+             "side". Families name a side with the word already in it — "Mom's side" —
+             so appending it rendered "Mom's side side" on the live instance, on every
+             screen that did this. {% endcomment %}
+          <option value="{{ pod.id }}">{{ pod.name }} — {% for side in sides %}{{ side.name }}{% if not forloop.last %} and {% endif %}{% endfor %}</option>
         {% endfor %}
       </select>
       {% comment %} Both forms on this page submit a step called "Continue"; the hidden
@@ -66,7 +70,7 @@
       {% for pod, pod_sides, is_last in current %}
         <li>
           <p><strong>{{ pod.name }}</strong>
-            <span class="muted">{% for side in pod_sides %}{{ side.name }}{% if not forloop.last %} and {% endif %}{% endfor %} side</span></p>
+            <span class="muted">{% for side in pod_sides %}{{ side.name }}{% if not forloop.last %} and {% endif %}{% endfor %}</span></p>
           {% if is_last %}
             {% comment %} No button at all, rather than one that is refused on tap: a link
                that lies is worse than a missing one. {% endcomment %}

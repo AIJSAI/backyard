@@ -47,12 +47,19 @@ _TEMPLATE_ROOTS = (_SRC / "core" / "templates", _SRC / "templates")
 BANNED: dict[str, str] = {
     "pod": "household (or group, for an ad-hoc one)",
     "pods": "households (or groups)",
+    # "house" was DOCUMENTED as banned above and missing from this dict, so the guard
+    # could not see the placeholders that still said "e.g. Our house" — which is exactly
+    # the kind of gap an allowlist-shaped check rots into. Review caught it.
+    "house": "household",
+    "houses": "households",
     "yard": "side of the family",
     "yards": "sides of the family",
     "digest": "the Family email",
     "digests": "Family emails",
     "instance": "this Backyard",
     "instances": "Backyards",
+    "token": "link",
+    "tokens": "links",
     "elder path": "no-login link",
     "elder link": "no-login link",
 }
@@ -69,13 +76,21 @@ ALLOWED: dict[str, set[str]] = {
 }
 
 
+# Attributes whose VALUE is copy a person reads or hears: the grey hint inside an empty
+# box, the name a screen reader announces, a tooltip, a picture's description. Stripping
+# tags wholesale took these with the ids and the class names, which is how "e.g. Our
+# house" survived the vocabulary pass on the setup screen.
+_VISIBLE_ATTRS = re.compile(r'\b(?:placeholder|aria-label|title|alt)="([^"]*)"', re.I)
+
+
 def _visible_text(source: str) -> str:
     """What a person actually reads on the page.
 
     Everything a browser does not render as words comes out first: both comment
     syntaxes, <style> and <script> bodies, template tags and variables, and finally HTML
     tags — which takes every attribute with them, so an id, a class, a form field name
-    and a `{% url %}` route name cannot trip this guard.
+    and a `{% url %}` route name cannot trip this guard. The four attributes above are
+    lifted back out before that happens, because their values are read aloud or shown.
     """
     text = re.sub(r"\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}", " ", source, flags=re.S)
     text = re.sub(r"\{#.*?#\}", " ", text, flags=re.S)
@@ -83,7 +98,8 @@ def _visible_text(source: str) -> str:
     text = re.sub(r"<script[^>]*>.*?</script>", " ", text, flags=re.S | re.I)
     text = re.sub(r"\{\{.*?\}\}", " ", text, flags=re.S)
     text = re.sub(r"\{%.*?%\}", " ", text, flags=re.S)
-    return re.sub(r"<[^>]+>", " ", text)
+    spoken = " ".join(_VISIBLE_ATTRS.findall(text))
+    return re.sub(r"<[^>]+>", " ", text) + " " + spoken
 
 
 def _prose(text: str) -> str:
@@ -146,8 +162,10 @@ def test_the_guard_is_not_vacuous() -> None:
     assert _offences(_visible_text("<h1>Your yards</h1>"), set())
     assert _offences(_visible_text("<p>Turn on the digest</p>"), set())
     assert _offences(_visible_text("<p>This is the elder path.</p>"), set())
-    # ...and cannot fail for the wrong reasons.
     assert not _offences(_visible_text("<h1>Your backyard</h1>"), set())
+    assert _offences(_visible_text('<input placeholder="e.g. Our house">'), set())
+    assert _offences(_visible_text('<a aria-label="Your pods">Groups</a>'), set())
+    # ...and cannot fail for the wrong reasons.
     assert not _offences(_visible_text('<a href="/pods/" class="pods">Groups</a>'), set())
     assert not _offences(_visible_text("{% url 'pod_list' %}{{ pod.name }}"), set())
     assert not _offences(_visible_text("{% comment %}the pod list{% endcomment %}"), set())

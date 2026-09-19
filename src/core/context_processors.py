@@ -74,8 +74,13 @@ def help_contact_name() -> str:
     One indexed query on the hottest path in the app, so it is kept to the single column
     it needs. If that ever shows up in a profile it wants caching, not removing.
     """
+    # `user__is_active=True` is the load-bearing clause. Removal keeps the Member row and
+    # deactivates the account (removal.py step 3), so without it the footer, the About page
+    # and the password-reset guidance would go on telling relatives to ask somebody who can
+    # no longer sign in — on the one screen a locked-out member reads. It also excludes a
+    # row with no user at all, which cannot be running anything either.
     admin = (
-        Member.objects.filter(role=Member.INSTANCE_ADMIN)
+        Member.objects.filter(role=Member.INSTANCE_ADMIN, user__is_active=True)
         .exclude(display_name="")
         .order_by("pk")
         .only("display_name")

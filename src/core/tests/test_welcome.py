@@ -210,6 +210,37 @@ def test_a_bad_address_is_refused_rather_than_enrolled(pod: Pod) -> None:
     assert mail.outbox == []
 
 
+def test_an_over_long_address_is_refused_and_never_silently_shortened(pod: Pod) -> None:
+    """The join form stopped truncating for exactly this reason, and this path must not
+    reintroduce it: a 260-character address cut to 254 is a valid-looking address that
+    belongs to NOBODY — and this is the field somebody's account recovery depends on.
+
+    Refused with the same words the join form uses, through the same validator.
+    """
+    client, member = _join(pod)
+    too_long = ("a" * 250) + "@example.com"
+    assert len(too_long) > 254
+
+    response = client.post(
+        reverse("welcome_family_email"), {"choice": "weekly", "address": too_long}
+    )
+
+    assert response.status_code == 200
+    assert "too long" in response.content.decode()
+    assert not DigestSubscription.objects.filter(member=member).exists(), (
+        "a shortened address was stored, and it is not the one they typed"
+    )
+    assert mail.outbox == []
+
+
+def test_an_empty_address_is_asked_for_rather_than_guessed(pod: Pod) -> None:
+    client, member = _join(pod)
+    response = client.post(reverse("welcome_family_email"), {"choice": "weekly", "address": ""})
+    assert response.status_code == 200
+    assert "Tell us where to send it" in response.content.decode()
+    assert not DigestSubscription.objects.filter(member=member).exists()
+
+
 def test_a_submission_with_no_choice_asks_again(pod: Pod) -> None:
     """Neither a cadence nor a refusal is a half-submitted form, and guessing which
     answer somebody meant about their own inbox is not an option."""

@@ -3,83 +3,61 @@
 The same text as the in-product page at `/members/day-one/`, reachable from **Family
 members**. It lives here too so it can be read and reviewed without a running server; the
 page is the copy the family actually sees, and the two are kept together by
-`test_admins_day_one.py`.
+`test_admins_day_one.py`. The page names whoever looks after this Backyard in its last
+section, read from the database at render time; a file in a repository cannot, so this copy
+says it in general terms.
 
 ---
 
-Five things that come up. Everything here starts from **Family members**, which is the
-**Members** link at the top of every page.
+Everything here starts from **Family members**, the **Members** link at the top of every
+page.
 
 ## 1. Invite a household
 
 A household is one home: a couple, a family, a sibling and their kids. One link covers all
 of them.
 
-**Family members → Invite a household.** Name it the way the family would say it, tick
-which side of the family it belongs to, and you get a link with a Copy button and a QR
-code. The page says how many people it works for and the day it stops working.
+**Family members → Invite a household.** Name it, tick which side of the family it belongs
+to, and send the link however you normally reach them.
 
-Send it however you normally reach them. Text is fine. They open it, pick a name and a
-password, and they are in the feed.
-
-The link is shown once. If you lose it, make another from **Outstanding invites** — that
-costs nothing, and the old one keeps working until it expires or you revoke it.
+It is shown once. Lost it? Make another from **Outstanding invites**.
 
 ## 2. Give a grandparent a no-login link
 
-For somebody who does not want a password. The link just opens: large text, the family's
-posts and photos, one button to send love. Nothing to install.
+**Post something to their side of the family first**, or they will open the link and find
+an empty page. You cannot preview it for them.
 
-**Post something to their side of the family first.** Their page shows only what their
-household can see, so if nobody has posted to that side yet they will open it and read
-"Nothing new right now." You cannot preview it for them. Put a photo up first, then send
-the link.
+Then **Family members → Add a grandparent** for somebody new, or **No-login link** on the
+row of somebody already here.
 
-**Family members → Add a grandparent** sets up a new one: their name, what the family
-calls them, their household, and which side of the family. Somebody who is already here
-gets theirs from **No-login link** on their row.
-
-Hand it over in person or in a private message. Anyone holding that link can read and send
-love as them — that is the trade that buys "no password, ever". Not in a group chat.
+Hand it over in person or in a private message. Anyone holding it can read and send love as
+them. Not in a group chat.
 
 ## 3. Help someone who is locked out
 
-If they gave an email address, they can do it themselves with **Forgot your password?** on
-the sign-in page.
+If they gave an email address, **Forgot your password?** on the sign-in page does it without
+you.
 
-If they did not, find them on **Family members** and use **Get back in link** on their
-row. That makes a one-time link you text to them or read out over the phone; they choose a
-new password with it and they are in. It works once and stops working after two days.
+If not, use **Get back in link** on their row. It works once and stops working after two
+days.
 
 **Make sure you are really talking to them first** — a call, or a text to the number you
-already have. Whoever holds that link can set the password.
+already have.
 
-You will see that control only for ordinary members on your own side of the family.
-Another admin, or somebody who belongs to both sides, is not yours to recover.
+## 4. Move or remove someone
 
-## 4. Remove someone
+**Change household** on their row moves somebody who is already here into another
+household, or out of one.
 
-On their row, open **Remove …**. Before it will do anything it asks what happens to what
-they wrote, and you have to answer:
+**Remove …** asks what happens to what they wrote, and you have to answer: keep their
+posts, keep them without their name, or delete them.
 
-- **Keep their posts**, still with their name on them.
-- **Keep their posts, without their name.** They stay in the family's history as "a family
-  member".
-- **Delete their posts, replies and photos.** The photos are erased from the server and
-  cannot be brought back. This one asks you to type their name before it goes through.
-
-Nobody else's posts are touched. One thing does surprise people, so it is worth knowing:
-if you choose to delete, photos that *other* people added when replying to their posts are
-erased as well. The confirmation page counts those separately before you go through with
-it.
-
-Removing somebody also stops every link and every email they had, straight away.
+Deleting erases their photos from the server for good, and asks you to type their name
+first. Photos other people added replying to their posts go too.
 
 ## 5. When you are stuck
 
-Ask whoever in the family set this up. Nothing here is urgent enough to lose an evening
-over, and nothing you can do from these pages is a one-tap disaster — the two that cannot
-be undone both ask you twice.
+Ask whoever in the family set this up. Nothing here is a one-tap disaster — the two that
+cannot be undone both ask you twice.
 
-**How this works** — the same page the rest of the family reads, if somebody asks you who
-can see what.
+**How this works** — the page the rest of the family reads.

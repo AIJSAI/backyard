@@ -555,3 +555,64 @@ def test_a_window_whose_only_post_is_invisible_sends_nothing(world: World) -> No
 
     assert send_due_digests(timezone.now()).sent == 0
     assert mail.outbox == []
+
+
+def test_a_post_deleted_between_the_two_looks_still_sends_nothing(
+    world: World, monkeypatch: Any
+) -> None:
+    """The gap the quiet-week rule left open, and the reviewer's exact probe.
+
+    The window is measured once, then the email is BUILT — and the builder re-resolves
+    audience live (TM-2), so a post deleted in between simply is not in it. Between those
+    two moments the run had already decided to send, so the family got the greeting, the
+    date line and the footer with nothing in between.
+
+    Driven deterministically by standing in the gap: the first look reports the post, and
+    the post is gone by the time the builder asks.
+    """
+    _confirmed(world.maternal_cousin, "cousin@example.com")
+    post = _posted(world.maternal_cousin, world.m_pod, yard=world.maternal, body="GOING-AWAY")
+
+    def vanishes_after_the_first_look(*args: Any, **kwargs: Any) -> bool:
+        Post.objects.filter(pk=post.pk).update(deleted_at=timezone.now())
+        return True  # ...but the run has already been told there is something to send
+
+    monkeypatch.setattr("core.digest_send._window_has_posts", vanishes_after_the_first_look)
+
+    report = send_due_digests(timezone.now())
+
+    assert report.sent == 0, "an email went out with no family in it"
+    assert mail.outbox == []
+    assert not DigestIssue.objects.filter(member=world.maternal_cousin).exists(), (
+        "the window was recorded as covered, so those days can never be sent"
+    )
+    assert not DigestDelivery.objects.exists()
+
+
+def test_the_second_look_leaves_the_window_open_for_the_next_run(
+    world: World, monkeypatch: Any
+) -> None:
+    """Rolling the window back is only correct if the days come round again."""
+    _confirmed(world.maternal_cousin, "cousin@example.com")
+    doomed = _posted(world.maternal_cousin, world.m_pod, yard=world.maternal, body="GOING-AWAY")
+    first_run = timezone.now()
+
+    def vanishes_after_the_first_look(*args: Any, **kwargs: Any) -> bool:
+        Post.objects.filter(pk=doomed.pk, deleted_at__isnull=True).update(deleted_at=timezone.now())
+        return True
+
+    monkeypatch.setattr("core.digest_send._window_has_posts", vanishes_after_the_first_look)
+    assert send_due_digests(first_run).sent == 0
+
+    monkeypatch.undo()
+    _posted(
+        world.maternal_cousin,
+        world.m_pod,
+        yard=world.maternal,
+        body="STILL-HERE",
+        at=first_run + datetime.timedelta(days=1),
+    )
+    second = send_due_digests(first_run + datetime.timedelta(days=8))
+
+    assert second.sent == 1
+    assert "STILL-HERE" in mail.outbox[0].body

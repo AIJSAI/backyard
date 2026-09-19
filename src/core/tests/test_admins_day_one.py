@@ -91,12 +91,18 @@ def test_it_covers_the_five_things_and_nothing_else() -> None:
         "Invite a household",
         "no-login link",
         "locked out",
-        "Remove someone",
+        "remove someone",
         "stuck",
     ):
         assert subject.lower() in body.lower(), f"the guide never covers {subject!r}"
     # The grandparent rule the runbook calls "the one rule that matters".
     assert "Post something to their side of the family first" in body
+    # ONE SCREEN. It was 667 words, which is accurate and not useful on a phone; the owner
+    # asked for concise. Counted on the repo copy, which is the same text without the
+    # page's chrome, stylesheet and scripts. A ceiling rather than an exact count, so
+    # tightening a sentence is never a test change — but growing it back into an essay is.
+    words = _GUIDE_DOC.read_text(encoding="utf-8").split("---", 1)[1].split()
+    assert len(words) < 420, f"the guide is {len(words)} words again"
 
 
 def test_every_control_the_guide_names_is_one_the_admin_can_see() -> None:
@@ -129,16 +135,19 @@ def test_every_control_the_guide_names_is_one_the_admin_can_see() -> None:
 
 
 def test_the_three_removal_choices_it_describes_are_the_three_the_form_offers() -> None:
-    """The guide lists what happens to somebody's posts. If the form's choices changed
-    and the guide did not, an admin would be promised an outcome that is not on offer."""
+    """The guide says the question has three answers. If the form's choices changed and
+    the guide did not, an admin would be promised an outcome that is not on offer."""
     from core import removal
 
     client, _, _ = _world()
     guide = _text(client.get(reverse("admins_day_one")).content.decode())
     assert len(removal.CONTENT_CHOICES) == 3, removal.CONTENT_CHOICES
-    assert "Keep their posts , still with their name on them" in guide.replace("  ", " ")
-    assert "Keep their posts, without their name" in guide
-    assert "Delete their posts, replies and photos" in guide
+    assert "keep their posts, keep them without their name, or delete them" in guide
+    # And the two facts that must survive any cut: what deleting destroys, and that it
+    # asks first.
+    assert "erases their photos from the server for good" in guide
+    assert "type their name first" in guide
+    assert "Photos other people added replying to their posts go too" in guide
 
 
 def test_the_repo_copy_says_the_same_thing_as_the_page() -> None:
@@ -155,7 +164,7 @@ def test_the_repo_copy_says_the_same_thing_as_the_page() -> None:
         "1. Invite a household",
         "2. Give a grandparent a no-login link",
         "3. Help someone who is locked out",
-        "4. Remove someone",
+        "4. Move or remove someone",
         "5. When you are stuck",
     ):
         assert heading in page, f"the page is missing the section {heading!r}"

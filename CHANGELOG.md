@@ -239,7 +239,10 @@ itself up and telling somebody when it cannot.
   period whether or not anyone had posted — a greeting, a date line and a footer with no
   family in it. A window with nothing in it now sends nothing, records nothing as
   delivered, and stays open, so anything written during that quiet stretch arrives in the
-  next one.
+  next one. The window is looked at twice, the second time at the built email itself, so
+  a post deleted while the run is working cannot produce that empty mail either.
+- **A side of the family is called what it was named.** Every screen that listed one
+  appended the word "side" to it, so a side named "Mom's side" read "Mom's side side".
 - **The roster's role control showed the wrong role, on every row.** It rendered the roles
   an admin could grant, with nothing marked as selected, so it always displayed the first
   option and every ordinary relative's row read as though they were already an admin — next

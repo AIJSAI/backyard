@@ -40,7 +40,7 @@ from dataclasses import dataclass, field
 from django.db import transaction
 
 from . import digest, digest_links, digesting, emailing, reply_addresses, scoping
-from .models import DigestDelivery, DigestIssue, DigestSubscription
+from .models import DigestDelivery, DigestIssue, DigestSubscription, Member
 
 
 @dataclass
@@ -88,6 +88,21 @@ def send_due_digests(now: datetime.datetime) -> SendReport:
             setattr(report, outcome, getattr(report, outcome) + 1)
             report.note(outcome, f"member={member.pk} yard={yard.pk}")
     return report
+
+
+def _window_has_posts(
+    member: Member,
+    yard_id: int,
+    window_start: datetime.datetime,
+    window_end: datetime.datetime,
+) -> bool:
+    """Is there anything in this window for this member and this side of the family?
+
+    A named seam rather than an inline `.exists()`: it is the FIRST of two looks at the
+    same question (the second is on the built blocks, at send time), and a test needs to
+    be able to stand between them.
+    """
+    return digest_links.window_posts(member, yard_id, window_start, window_end).exists()
 
 
 def _send_one(
@@ -147,9 +162,13 @@ def _send_one(
         # so the next period would start after it and the posts that arrive tomorrow
         # would fall into a window nobody is anchored on. With no row, the anchor stays
         # where it was and the next run's window still reaches back over these days.
-        if not digest_links.window_posts(member, yard_id, yard_window_start, window_end).exists():
+        if not _window_has_posts(member, yard_id, yard_window_start, window_end):
             return "skipped", unsubscribe_raw
 
+        # The window row and everything after it sit behind THIS savepoint, so the second
+        # look below can undo the whole window — the issue, its read token, its reply
+        # addresses — and leave the period genuinely uncovered.
+        window_savepoint = transaction.savepoint()
         issue, created = DigestIssue.objects.get_or_create(
             member=member,
             yard_id=yard_id,
@@ -187,6 +206,20 @@ def _send_one(
             unsubscribe_token=unsubscribe_raw,
             reply_addresses=reply_map,
         )
+        # THE SECOND LOOK, on the thing that would actually be sent. The check above ran
+        # against the window a moment earlier; a member who deletes their only post in
+        # between — or an admin who takes it down — would otherwise get exactly the
+        # greeting-and-footer email the quiet-week rule exists to prevent, because the
+        # builder re-resolves audience live and simply comes back with no posts.
+        #
+        # Rolling back to the window savepoint takes the issue row with it, so the days
+        # stay uncovered and the next run reaches back over them. If the unsubscribe
+        # rotation happened inside that region its raw value no longer resolves, so the
+        # next yard must mint a fresh one — the same contract the transport-failure path
+        # below keeps.
+        if not any(isinstance(block, digest.PostBlock) for block in built.blocks):
+            transaction.savepoint_rollback(window_savepoint)
+            return "skipped", (None if rotated_here else unsubscribe_raw)
         try:
             emailing.send_family_email(
                 to=subscription.address,

@@ -23,7 +23,7 @@
     <p>Everything on these sides of the family — the posts, the photographs and who is in
     them, including everything posted before today:</p>
     <ul class="sides-gained">
-      {% for side in proposal.gained %}<li>The {{ side.name }} side</li>{% endfor %}
+      {% for side in proposal.gained %}<li>{{ side.name }}</li>{% endfor %}
     </ul>
   {% endif %}
   {% if proposal.act != "remove" %}
@@ -47,7 +47,7 @@
     <h2>What {{ target.display_name }} will stop seeing</h2>
     <p>These sides of the family go away for them, from the moment you do this:</p>
     <ul class="sides-lost">
-      {% for side in proposal.lost %}<li>The {{ side.name }} side</li>{% endfor %}
+      {% for side in proposal.lost %}<li>{{ side.name }}</li>{% endfor %}
     </ul>
   {% elif proposal.act == "remove" %}
     <p>Their other household keeps them on the same sides of the family, so this does not
