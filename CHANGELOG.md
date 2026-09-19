@@ -15,6 +15,18 @@ a point somebody deliberately stopped at, with a full green gate behind it.
 
 ### Added
 
+- **A household invite can make its first joiner the side admin.** Handing somebody a side
+  of the family took two steps that nothing connected: invite them, then notice and promote
+  them. An invite carried no role, so the relative landed as an ordinary member who cannot
+  invite anybody. The family admin — and only the family admin — can now tick one box when
+  making a household link; the first person through it becomes the side admin for that
+  household's side (or both sides, if it bridges) and everyone after them joins as a member.
+  Capped at the side-admin role in three places, including a database constraint: no link
+  can ever grant the family-admin role. Decided inside the same locked transaction as the
+  one-use check, so two phones racing cannot both become admin. Seven-day expiry, revocable
+  and voided on its creator's removal like any other invite, never re-armed by "Make another
+  link", and the mint page, the invite ledger and the day-one guide all say what it does.
+  Threat model row T-INVITE-2.
 - **`mark_demo_data --include-departed`.** A member removed from a fixture household keeps
   their Member row and loses every membership, so selection by containment can never reach
   them — while their posts stay inside a household being marked, because "keep their posts"
@@ -32,6 +44,9 @@ a point somebody deliberately stopped at, with a full green gate behind it.
 - **Starting a group and leaving one say so**, through the same calm flash the composer
   uses: "&lt;Group&gt; is ready." and "You left &lt;Group&gt;." A leave removes the row and
   said nothing at all, which on a phone is indistinguishable from a tap that did nothing.
+- **A post widened to two sides names them in a sentence**: "Share with Mom's side and
+  Dad's side?", not a comma list, in the heading, the sentence and the button. Three or
+  more get commas and a final "and".
 - **The second-factor offer on the roster tells a side admin the truth, and is one line.**
   It claimed "your sign-in opens every side of the family" to whoever opened the page; that
   is true of the family admin and of nobody else. It was also a screen-tall card between an
