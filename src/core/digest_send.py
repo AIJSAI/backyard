@@ -8,6 +8,11 @@ scoping.py states for reads). It carries identifiers only, never content
 time, so a post deleted or narrowed after the due list was computed simply is
 not in what goes out.
 
+An empty window sends nothing at all: no email, no issue row, no delivery
+record, and the window is left OPEN so the next period still covers those days.
+That is the difference between "we have nothing to tell you" and a mail with a
+header and a footer and no family in it.
+
 Each (member, yard) send is one atomic act. The subscription is re-fetched
 under lock INSIDE the transaction, so a member revoked or unsubscribed between
 due-resolution and send gets nothing (TM-1: revocation's registry step disables
@@ -134,6 +139,16 @@ def _send_one(
             yard_window_start = subscription.confirmed_at or window_start
         if yard_window_start >= window_end:
             return "skipped", unsubscribe_raw  # this yard is already covered
+
+        # NOTHING HAPPENED, SO NOTHING IS SENT. A family that posts occasionally was
+        # getting a Family email every period regardless — header, no posts, footer —
+        # which is the shape that teaches people to ignore it. The check sits BEFORE
+        # the issue row on purpose: creating one would record this window as covered,
+        # so the next period would start after it and the posts that arrive tomorrow
+        # would fall into a window nobody is anchored on. With no row, the anchor stays
+        # where it was and the next run's window still reaches back over these days.
+        if not digest_links.window_posts(member, yard_id, yard_window_start, window_end).exists():
+            return "skipped", unsubscribe_raw
 
         issue, created = DigestIssue.objects.get_or_create(
             member=member,

@@ -26,7 +26,7 @@ from django.db import models
 from django.utils import timezone
 
 from . import scoping
-from .models import DigestIssue, DigestToken, Post
+from .models import DigestIssue, DigestToken, Member, Post
 
 # Link fetches that arrive almost immediately after minting are scanners
 # (Outlook SafeLinks, AV prefetch), not people; stamping them would systematically
@@ -108,6 +108,29 @@ def in_yard_posts_q(yard_id: int) -> models.Q:
     )
 
 
+def window_posts(
+    member: Member,
+    yard_id: int,
+    window_start: datetime.datetime,
+    window_end: datetime.datetime,
+) -> models.QuerySet[Post]:
+    """The posts one (member, yard, window) slice covers, resolved live.
+
+    Split out of `issue_posts` so the send path can ask "is there anything to
+    send?" BEFORE it creates a DigestIssue row. Asking through `issue_posts`
+    would have meant minting the issue first and deleting it again on an empty
+    window, which is the shape that leaves half-state behind when a run dies.
+    One query definition either way, so the email and the is-it-empty check can
+    never disagree about what the window contains.
+    """
+    return (
+        scoping.visible_posts(member)
+        .filter(in_yard_posts_q(yard_id))
+        .filter(created_at__gte=window_start, created_at__lt=window_end)
+        .distinct()
+    )
+
+
 def issue_posts(issue: DigestIssue) -> models.QuerySet[Post]:
     """The posts one issue covers, resolved live: a FILTER over the one audience
     query (TM-2), never a re-derivation of audience.
@@ -119,9 +142,4 @@ def issue_posts(issue: DigestIssue) -> models.QuerySet[Post]:
     scoping.visible_posts evaluated NOW, a post deleted or narrowed after the
     email went out is simply absent from the still-valid link.
     """
-    return (
-        scoping.visible_posts(issue.member)
-        .filter(in_yard_posts_q(issue.yard_id))
-        .filter(created_at__gte=issue.window_start, created_at__lt=issue.window_end)
-        .distinct()
-    )
+    return window_posts(issue.member, issue.yard_id, issue.window_start, issue.window_end)
