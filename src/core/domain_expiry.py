@@ -7,10 +7,18 @@ detection is the entire control, and this is the detection half.
 
 WORKER ONLY. This is the second outbound fetch in the product after the link-preview
 fetcher, and it lives under the same rule (S-725, TS-CO-4): the edge process makes no
-outbound connections. Unlike the link fetcher the URL here is NOT user-shaped — it is
-derived from the instance's own configured BASE_URL and nothing else — so there is no SSRF
-surface to defend, but it still runs off the edge because a hanging registry must not hold
-a web worker.
+outbound connections.
+
+The docstring here used to say "the URL here is NOT user-shaped ... so there is no SSRF
+surface to defend". That was half true and the wrong half was load-bearing (S18). The
+FIRST URL is ours. `rdap.org` is a REDIRECTOR, so the SECOND one is chosen by a third
+party — `_HttpsOnlyRedirects` exists precisely because of that — and a redirect to
+`https://169.254.169.254/` or to a name resolving into the compose network was accepted
+by everything in this file. So the same address gate the link fetcher uses now runs on
+every hop: `core.outbound_addresses` resolves the host, rejects if ANY resolved address
+is not globally routable, and pins the connection to the one validated IP so a re-resolve
+cannot rebind between the check and the connect. One validator, shared, rather than a
+second copy that can drift.
 
 Every failure degrades the FIELD, never the email: an operator hearing nothing at all from
 their instance is exactly the T-MON-1 condition, so a registry outage must not silence the
@@ -23,9 +31,12 @@ import datetime
 import json
 import urllib.error
 import urllib.request
+from typing import Any
+from urllib.parse import urlsplit
 
 from django.utils import timezone
 
+from . import outbound_addresses
 from .health import instance_domain
 from .models import DomainStatus
 
@@ -69,6 +80,43 @@ class _HttpsOnlyRedirects(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)  # type: ignore[arg-type]
 
 
+class _ValidatedHTTPSHandler(urllib.request.HTTPSHandler):
+    """HTTPS that refuses to connect to anything but a globally routable address.
+
+    This runs on EVERY request the opener makes, first hop and every redirect, because
+    urllib routes a redirect back through the opener. So the private-range rejection
+    happens BEFORE the connect, not after a hop has already been followed — which is the
+    only ordering that means anything for a redirect to `http://169.254.169.254`.
+
+    `do_open` takes the connection class as an argument, so the pinned connection from
+    `outbound_addresses` slots straight in: the host is resolved once here, checked, and
+    the socket is opened to that one IP while SNI and certificate validation still use
+    the real hostname. A second resolve cannot rebind us in between.
+    """
+
+    def https_open(self, req: urllib.request.Request) -> Any:
+        parts = urlsplit(req.full_url)
+        host = parts.hostname
+        if not host:
+            raise urllib.error.URLError("no host in the RDAP URL")
+        port = parts.port or 443
+        try:
+            pinned = outbound_addresses.resolve_and_pin(host, port)
+        except outbound_addresses.BlockedAddress as exc:
+            # URLError, not BlockedAddress: fetch_expiry already catches URLError and
+            # degrades the FIELD rather than the health email, which is the posture this
+            # module's docstring promises for every other failure.
+            raise urllib.error.URLError(f"refusing to fetch: {exc}") from exc
+
+        def connection(host: str, **kwargs: Any) -> outbound_addresses.PinnedHTTPSConnection:
+            return outbound_addresses.PinnedHTTPSConnection(host, pinned_ip=pinned, **kwargs)
+
+        # `_context` is the SSLContext HTTPSHandler.__init__ builds; typeshed does not
+        # declare it, and passing it on is the whole reason this overrides https_open
+        # rather than wrapping the opener.
+        return self.do_open(connection, req, context=self._context)  # type: ignore[attr-defined]
+
+
 def _build_opener() -> urllib.request.OpenerDirector:
     """An opener that can speak HTTPS and nothing else.
 
@@ -81,10 +129,13 @@ def _build_opener() -> urllib.request.OpenerDirector:
     Only these four: HTTPS, the https-only redirect policy, and the two error handlers
     redirect processing needs. No proxy handler either — an opener that honoured http_proxy
     would route this lookup through whatever the environment said.
+
+    The HTTPS handler is `_ValidatedHTTPSHandler`, not the stock one, so the address check
+    is part of the opener rather than a rule a caller has to remember (S18).
     """
     opener = urllib.request.OpenerDirector()
     for handler in (
-        urllib.request.HTTPSHandler(),
+        _ValidatedHTTPSHandler(),
         _HttpsOnlyRedirects(),
         urllib.request.HTTPErrorProcessor(),
         urllib.request.HTTPDefaultErrorHandler(),

@@ -1,0 +1,18 @@
+{% extends "core/base.html" %}
+{% comment %} 429 — what a family link shows when it has been opened very many times
+   from one internet connection in a few minutes. django-allauth's handler429 renders
+   this template by name; without it the answer is its built-in bare "429 Too Many
+   Requests" page, which is the one thing a grandparent must never be handed.
+
+   Calm, no blame, no numbers, no technical words: whoever reads this did nothing
+   wrong, and the honest instruction is "wait a minute and open your link again".
+{% endcomment %}
+{% block title %}Just a moment — Backyard{% endblock %}
+{% block body %}
+  <div class="page-center">
+    <h1>Just a moment</h1>
+    <p class="muted">This has been opened a lot of times from your internet connection in the last few minutes, so Backyard has paused for a moment. Nothing is wrong, and nothing you did was lost.</p>
+    <p class="muted">Wait a minute, then open your link again.</p>
+    <p><a class="btn" href="/">Go to your backyard</a></p>
+  </div>
+{% endblock %}

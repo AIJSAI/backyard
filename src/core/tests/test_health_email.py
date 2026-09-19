@@ -405,7 +405,11 @@ def test_the_opener_installs_no_extra_transports() -> None:
 
     # `handlers` exists at runtime but not in the typeshed stub for OpenerDirector.
     installed = {type(h).__name__ for h in domain_expiry._OPENER.handlers}  # type: ignore[attr-defined]
-    assert "HTTPSHandler" in installed
+    # The VALIDATING subclass, not the stock handler: rdap.org is a redirector, so the
+    # address on the second hop is third-party-chosen and is resolved, range-checked and
+    # pinned before the connect (S18). A bare HTTPSHandler here would be the old hole.
+    assert "_ValidatedHTTPSHandler" in installed
+    assert "HTTPSHandler" not in installed
     assert "_HttpsOnlyRedirects" in installed
     # These are what `build_opener` silently added, and why the opener is now built from a
     # bare OpenerDirector. Each is a transport this lookup has no business speaking.

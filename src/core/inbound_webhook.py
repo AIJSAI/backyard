@@ -2,21 +2,36 @@
 
 Resend's ``email.received`` webhook is metadata-only; django-anymail's Resend
 inbound handler makes the second API fetch for the full message and fires the
-``anymail.signals.inbound`` signal. This receiver is the ONE adapter between that
+``anymail.signals.inbound`` signal. This module is the ONE adapter between that
 signal and core/inbound: it serializes the message to raw RFC-5322 bytes and
 hands them to the same ``process_inbound`` the fixture (and a future IMAP) source
 uses, so every security property — size caps, the three kill clocks, From
 consistency, the separator strip, dedup, and the second visible_posts lock — is
 shared with zero duplication.
 
+It also owns the two things upstream does not do, both of which happen INSIDE the
+webhook's own request cycle, on a gunicorn worker:
+
+* **The fetch is bounded** (S1). `anymail.webhooks.resend` makes three
+  ``requests.get`` calls with no ``timeout=`` and reads ``.content`` whole. A slow
+  provider therefore pins a worker for as long as it likes, and a large response
+  is buffered entirely before our 256 KB message cap is ever consulted — the cap
+  applies to the parsed message, after the download. `BoundedResendInboundWebhookView`
+  re-implements the two fetch helpers with a connect/read timeout and a streamed,
+  size-capped read, so neither a slow nor a fat response can hold or fill a worker.
+* **The route only exists when the secret does** (S4). Anymail verifies the svix
+  signature against ``RESEND_INBOUND_SECRET``; with no secret configured there is
+  nothing to verify against, and an SMTP-configured self-hoster would answer every
+  unauthenticated POST with an unhandled 500. ``config/urls`` does not mount the
+  route in that case, and ``dispatch`` below refuses it anyway, so neither half
+  alone is the whole control.
+
 The capability is read from the address Resend RECORDED DELIVERING TO, taken from
-the webhook payload (``event.esp_event["data"]``), not from the raw-MIME
+the webhook payload (``event.esp_event["data"]["received_for"]``), not from the raw-MIME
 To/Delivered-To header a sender fully controls (T-EMAIL-1). Anymail's Resend
 handler is the one ESP that does not populate ``AnymailInboundMessage.
 envelope_recipient`` (verified against the installed anymail source), so we read
-Resend's own recipient record here rather than that always-None attribute. NOTE:
-whether ``received_for`` (the envelope-delivered-for address) or ``to`` carries
-the reply address is confirmed by the wave-4 live round-trip receipt.
+Resend's own recipient record here rather than that always-None attribute.
 
 Anymail verifies the webhook's signature against ``RESEND_INBOUND_SECRET`` (svix)
 before this fires, so an unsigned or wrong-secret POST never reaches here; the
@@ -29,29 +44,218 @@ happen inside ``process_inbound``; its InboundResult is intentionally dropped.
 
 from __future__ import annotations
 
+import json
+import logging
 from typing import Any
+from urllib.parse import urljoin
 
+import requests
+from anymail.inbound import AnymailInboundMessage
 from anymail.signals import inbound
+from anymail.webhooks.resend import ResendInboundWebhookView
+from django.conf import settings
 from django.dispatch import receiver
+from django.http import Http404, HttpRequest, HttpResponse
 
 from . import inbound as inbound_pipeline
 
+logger = logging.getLogger(__name__)
+
+# Connect and read timeouts for the two fetches the webhook makes, in seconds. The read
+# timeout is per socket read, not for the whole body — which is why the size cap below is
+# the other half of the bound: a trickle that sends one byte inside every read window
+# would otherwise never time out.
+_FETCH_TIMEOUT = (5, 20)
+# The ceiling on any one fetched body. Deliberately ABOVE the pipeline's 256 KB message
+# cap (`inbound._MAX_MESSAGE_BYTES`) so that an over-long but honest message is refused by
+# the pipeline, which records a quarantine row the admin can see, rather than vanishing
+# here. What this stops is the unbounded case: a body with no Content-Length and no end.
+_MAX_FETCH_BYTES = 1024 * 1024
+# Attachments are fetched one per download URL. The pipeline ignores attachments entirely
+# (only the first text/plain part becomes a comment), so the only thing these bytes can do
+# is cost memory; cap how many we are willing to pull at the same number of parts the
+# pipeline tolerates.
+_MAX_ATTACHMENTS = 20
+
+
+class InboundFetchRefused(Exception):
+    """The inbound fetch was refused before it could hold or fill a worker."""
+
+
+def _read_capped(response: requests.Response, *, what: str) -> bytes:
+    """Stream a response body, refusing past `_MAX_FETCH_BYTES`.
+
+    `response.content` reads to the end, whatever the end turns out to be. This reads in
+    chunks and gives up the moment the total passes the cap, so the worker never buffers
+    an unbounded body — and closes the response, so the socket does not linger.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    try:
+        for chunk in response.iter_content(65536):
+            total += len(chunk)
+            if total > _MAX_FETCH_BYTES:
+                raise InboundFetchRefused(f"{what} exceeded {_MAX_FETCH_BYTES} bytes")
+            chunks.append(chunk)
+    finally:
+        response.close()
+    return b"".join(chunks)
+
+
+class BoundedResendInboundWebhookView(ResendInboundWebhookView):  # type: ignore[misc]
+    """Anymail's Resend inbound view with a bounded, timed fetch (S1).
+
+    The two overridden helpers mirror `anymail.webhooks.resend` 15.0 exactly, other than
+    the timeout and the capped read. They are re-implemented rather than wrapped because
+    the unbounded `requests.get` calls are inline in the upstream method bodies, with no
+    seam to pass a timeout through — a comment pinning the mirrored version is the price
+    of that, and a dependency bump should re-read it.
+    """
+
+    def dispatch(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        """Refuse the route outright when no inbound secret is configured (S4).
+
+        `config/urls` already declines to mount it, so this is the second lock rather than
+        the first: without a secret, Anymail's svix verification has nothing to verify
+        against and falls through to a basic-auth check nobody configured, which answers an
+        unauthenticated POST with an unhandled 500. A 404 is the honest answer — on an
+        SMTP-configured instance this endpoint genuinely does not exist.
+        """
+        if not settings.RESEND_INBOUND_SECRET:
+            raise Http404
+        response: HttpResponse = super().dispatch(request, *args, **kwargs)
+        return response
+
+    def _fetch_inbound_email(self, email_id: str) -> AnymailInboundMessage | None:
+        """Fetch the full message from the Resend API, bounded in time and in size.
+
+        Returns None when the fetch is refused, which `handle_inbound` treats exactly like
+        Anymail's own message-less event: dropped, with a quarantine row, and never raised
+        into a provider retry loop (a retry cannot make an over-large message smaller).
+        """
+        url = urljoin(self.api_url, f"emails/receiving/{email_id}")
+        try:
+            response = requests.get(
+                url,
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                timeout=_FETCH_TIMEOUT,
+                stream=True,
+            )
+            response.raise_for_status()
+            data = json.loads(_read_capped(response, what="the inbound message record"))
+
+            raw_url = (data.get("raw") or {}).get("download_url")
+            if raw_url:
+                # Prefer raw MIME when available (more complete representation).
+                raw_response = requests.get(raw_url, timeout=_FETCH_TIMEOUT, stream=True)
+                raw_response.raise_for_status()
+                raw = _read_capped(raw_response, what="the raw inbound message")
+                return AnymailInboundMessage.parse_raw_mime_bytes(raw)
+            return self._construct_from_fields(data)
+        except InboundFetchRefused as exc:
+            logger.warning("inbound fetch refused: %s", exc)
+            inbound_pipeline.quarantine_transport_refusal()
+            return None
+        except (requests.Timeout, ValueError) as exc:
+            # A timeout and unparseable JSON are both "we have nothing to process". Neither
+            # is worth a 500: Resend would retry, and each retry re-runs the fetch.
+            logger.warning("inbound fetch failed: %s", exc)
+            inbound_pipeline.quarantine_transport_refusal()
+            return None
+
+    def _construct_from_fields(self, data: dict[str, Any]) -> AnymailInboundMessage:
+        """Anymail 15.0's parsed-field fallback, used when Resend offers no raw MIME.
+
+        Mirrors upstream `_fetch_inbound_email`'s second half; the only difference is that
+        the attachments it pulls come through the bounded fetch below and are capped in
+        number.
+        """
+        headers: list[tuple[str, str]] = []
+        esp_headers = data.get("headers") or {}
+        if isinstance(esp_headers, dict):
+            for name, value in esp_headers.items():
+                if isinstance(value, list):
+                    headers.extend((name, item) for item in value)
+                else:
+                    headers.append((name, value))
+        elif isinstance(esp_headers, list):
+            headers = [(h["name"], h["value"]) for h in esp_headers]
+
+        attachments = [
+            self._fetch_attachment(att)
+            for att in (data.get("attachments") or [])[:_MAX_ATTACHMENTS]
+        ]
+        message = AnymailInboundMessage.construct(
+            from_email=data.get("from"),
+            to=", ".join(data.get("to") or []) or None,
+            cc=", ".join(data.get("cc") or []) or None,
+            bcc=", ".join(data.get("bcc") or []) or None,
+            subject=data.get("subject"),
+            headers=headers,
+            text=data.get("text"),
+            html=data.get("html"),
+            attachments=attachments,
+        )
+        if data.get("reply_to") and "Reply-To" not in message:
+            message["Reply-To"] = ", ".join(data["reply_to"])
+        if data.get("message_id") and "Message-ID" not in message:
+            message["Message-ID"] = data["message_id"]
+        return message
+
+    def _fetch_attachment(self, attachment: dict[str, Any]) -> AnymailInboundMessage:
+        """One attachment, timed and size-capped like every other fetch here."""
+        response = requests.get(attachment["download_url"], timeout=_FETCH_TIMEOUT, stream=True)
+        response.raise_for_status()
+        content_type = response.headers.get("Content-Type") or attachment.get(
+            "content_type", "application/octet-stream"
+        )
+        content = _read_capped(response, what="an inbound attachment")
+        constructed: AnymailInboundMessage = AnymailInboundMessage.construct_attachment(
+            content_type=content_type,
+            content=content,
+            filename=attachment.get("filename"),
+            content_id=attachment.get("content_id"),
+        )
+        return constructed
+
+
+class UntrustedRecipient(Exception):
+    """The webhook payload carried no address we are willing to treat as the capability."""
+
 
 def _trusted_recipient(esp_event: Any) -> str:
-    """The address Resend recorded delivering to, from the webhook payload: its
-    envelope-delivered-for record (``received_for``) if present, else the parsed
-    recipient (``to``). This is Resend's server-side record, not a raw-MIME
-    header a sender controls, so it is the trustworthy capability source
-    (T-EMAIL-1). Empty string when neither is present -> process_inbound falls
-    back to the message header (the fixture/IMAP contract)."""
+    """The address Resend RECORDED DELIVERING TO: its envelope-delivered-for record.
+
+    ``received_for`` and nothing else, and a refusal rather than a guess (S5). The two
+    behaviours that were here before both converted TM-4's "the address IS the credential"
+    into "a header is the credential":
+
+    * it fell back to ``data["to"]``, which is the parsed To recipients of the received
+      message. A sender writes that field. Delivering a message to their OWN valid inbound
+      address while addressing it ``To: reply+<somebody-else's-capability>@…`` would have
+      posted a comment as that somebody else, which is the precise forgery T-EMAIL-1
+      exists to prevent;
+    * when neither field was present it returned ``""``, and ``process_inbound`` reads
+      ``""`` as "this transport has no envelope recipient, use the message header" — the
+      fixture/IMAP contract, where the header really is MTA-prepended. Through the webhook
+      it is the sender's own header.
+
+    A multi-recipient list is REFUSED rather than resolved to its first element: an
+    envelope delivered for two addresses has two capabilities, and picking one is picking
+    one arbitrarily. Reply addresses are minted per member and per post, so a genuine
+    reply is always delivered for exactly one.
+    """
     data = (esp_event or {}).get("data") or {}
-    for field in ("received_for", "to"):
-        value = data.get(field)
-        if isinstance(value, list) and value:
-            return str(value[0])
-        if isinstance(value, str) and value:
-            return value
-    return ""
+    value = data.get("received_for")
+    if isinstance(value, list):
+        if len(value) != 1:
+            raise UntrustedRecipient(
+                f"the webhook payload names {len(value)} delivered-for addresses"
+            )
+        value = value[0]
+    if not isinstance(value, str) or not value.strip():
+        raise UntrustedRecipient("the webhook payload carries no delivered-for address")
+    return value
 
 
 @receiver(inbound, dispatch_uid="core.inbound_webhook.handle_resend_inbound")
@@ -66,10 +270,20 @@ def handle_inbound(sender: object, event: Any, esp_name: str = "", **kwargs: Any
     message = event.message
     if message is None:
         # Anymail sets message=None for an email.received event that carries no
-        # email_id (nothing to fetch or process). Drop it rather than raising:
-        # a malformed-but-signed event must not become a poison HTTP-500 retry
+        # email_id (nothing to fetch or process), and the bounded view above returns
+        # None for a fetch it refused. Drop it rather than raising: a
+        # malformed-but-signed event must not become a poison HTTP-500 retry
         # loop at Resend (security review LOW-1).
         return
+    try:
+        recipient = _trusted_recipient(getattr(event, "esp_event", None))
+    except UntrustedRecipient as exc:
+        # Fail CLOSED, visibly. Nothing is posted and nothing falls back to a header, but
+        # a quarantine row puts it on the admin's panel — so if Resend's payload shape is
+        # ever not what this expects, whoever registers the webhook finds out from the
+        # product rather than from replies quietly never arriving.
+        logger.warning("inbound refused, no trustworthy delivered-for address: %s", exc)
+        inbound_pipeline.quarantine_transport_refusal()
+        return
     raw = bytes(message.as_bytes())
-    recipient = _trusted_recipient(getattr(event, "esp_event", None))
     inbound_pipeline.process_inbound(raw, envelope_recipient=recipient)

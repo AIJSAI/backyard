@@ -144,6 +144,10 @@ def join(request: HttpRequest, token: str) -> HttpResponse:
     if request.user.is_authenticated:
         return redirect("feed")
 
+    # The bearer-surface limit (S2) covers this route from
+    # `core.throttling.FamilyLinkThrottleMiddleware`, including the GET that property 3's
+    # login limit exempts by design.
+
     # Property 2: a non-redeemable invite is a 404, identical to an unknown route.
     try:
         invites.peek_invite(token)

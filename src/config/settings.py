@@ -124,6 +124,14 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",  # required by allauth
+    # The unauthenticated bearer surfaces (S2, issue 173). LAST on purpose: the 429
+    # page extends core/base.html, so rendering a refusal needs the session,
+    # request.user and the CSP nonce that every middleware above has set up. And
+    # middleware at all, rather than a line in each view, because ATOMIC_REQUESTS
+    # rolls a view's counter write back whenever the view raises Http404 — which is
+    # every unknown token, i.e. exactly the requests worth counting. Measured: 400
+    # consecutive requests to a bad break-glass URL, counter still at zero.
+    "core.throttling.FamilyLinkThrottleMiddleware",
 ]
 
 AUTHENTICATION_BACKENDS = [
@@ -228,6 +236,25 @@ ACCOUNT_RATE_LIMITS = {
     "login": "30/5m/ip",
     "signup": "20/1h/ip",
     "reset_password": "20/1h/ip,5/1h/key",
+    # The unauthenticated BEARER surfaces (S2, issue 173): the invite join page, the
+    # no-login link, the web view of an emailed family update with its confirm and
+    # unsubscribe pages, the "get back in" link, and break-glass. Consumed through
+    # core/throttling, which carries the full reasoning; the short version is that these
+    # carry 256-bit tokens, so the control is about COST rather than guessing, and the
+    # binding case is a whole family behind one home IP address.
+    #
+    # Per IP with no `/key` half, unlike every credential limit above, and deliberately:
+    # there is no account until the token resolves, and keying on the token would do
+    # nothing against guessing (every guess is a different key) while capping how many of
+    # a family can open the one link they were all sent.
+    #
+    # 240 opens / 10 min: a household of eight opening the same invite and retrying
+    # through password complaints is ~40; a grandparent refreshing because she is not
+    # sure it worked is ~20. Five times the worst realistic case, and still a bound.
+    "family_link": "240/10m/ip",
+    # 60 acts / 10 min: an explicit POST behind one of those links. Rarer than an open by
+    # an order of magnitude, and every one of them writes.
+    "family_link_action": "60/10m/ip",
 }
 ALLAUTH_TRUSTED_PROXY_COUNT = 1
 
@@ -265,6 +292,19 @@ MEDIA_ROOT = os.environ.get("MEDIA_ROOT", "/data/media")
 # same shape as MEDIA_ROOT above, for an operator who mounts a second volume; tests point it
 # at a temp dir (conftest) so a test run can never write an archive into /data.
 BACKUP_ROOT = os.environ.get("BACKUP_ROOT", "/data/backups")
+
+# Where the first-run setup secret is handed over (G10). It used to be PRINTED, under a
+# banner, straight to stdout — and docker-compose.yml sets the json-file logging driver, so
+# every boot before the first admin exists wrote a live instance-takeover credential to a
+# file on disk that `docker compose logs` replays to anyone who can run it, and that a
+# rotation keeps for three files of 10 MB. The token is one-time and dies when an admin is
+# created, but "bounded window" is not the same as "not in the log".
+#
+# So it is written here instead, 0600, on the same persistent volume the Django secret key
+# already lives on — the operator reads it with one documented command and the entrypoint
+# deletes it the moment setup completes. Same shape as MEDIA_ROOT/BACKUP_ROOT above, for an
+# operator who mounts things elsewhere; tests point it at a temp dir (conftest).
+SETUP_HANDOVER_FILE = os.environ.get("SETUP_HANDOVER_FILE", "/data/first-run-secret")
 # There is deliberately NO backup-passphrase setting here. Both routes to it
 # (BACKYARD_BACKUP_PASSPHRASE and the keyfile BACKYARD_BACKUP_PASSPHRASE_FILE names) are
 # read in one place, core/backup_passphrase.py, which is stdlib-only because the
@@ -358,6 +398,19 @@ LOGGING = {
         # setup, so this wins). INFO, not WARNING: gunicorn's worker lifecycle lines are
         # the operational signal for a family box and must not be silenced to fix a leak.
         "gunicorn.error": {
+            "handlers": ["console_redacted"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        # The application's OWN loggers, which were the third unfiltered sink (S17).
+        # `core.transcoding` logs the tail of ffmpeg's stderr on a failed transcode, and
+        # ffmpeg names the file it was reading — which is MEDIA_ROOT/media/source/<the
+        # asset's media token>.mp4. That token is the whole credential the /media/ route
+        # accepts, so one refused clip wrote a live media capability into the container
+        # log. Declared as `core` rather than per-module so a new module under it cannot
+        # ship a fourth unfiltered sink; the filter's route patterns already cover a
+        # `/media/<token>` substring wherever it appears in a message, path or URL.
+        "core": {
             "handlers": ["console_redacted"],
             "level": "INFO",
             "propagate": False,

@@ -43,7 +43,9 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 a tag is a point someone deliberately stopped at with a green gate behind it. What is in
 this one, and what is still missing, is in [CHANGELOG.md](CHANGELOG.md).
 
-Open your domain, and the first-run screen makes you the instance admin. The full guide —
+Read the one-time setup secret with `make setup-secret` (it is written to a private file
+on the data volume, never to the container log), open your domain, and the first-run
+screen makes you the instance admin. The full guide —
 DNS, TLS, email, backups, upgrades, and what genuinely does not work yet — is
 **[docs/runbooks/self-host.md](docs/runbooks/self-host.md)**.
 

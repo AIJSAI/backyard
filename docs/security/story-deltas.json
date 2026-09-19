@@ -157,6 +157,6 @@
     "proposal": "As the family tech person, if I lose my admin second factor I can recover admin access only through server shell. Acceptance: break-glass admin recovery is a one-time console command that prints a short-lived reset URL (the same trust anchor as the first-run setup secret), never a web flow; no email or web 'recover admin' path exists; deploy docs recommend configuring a second instance admin.",
     "answers": ["T-AUTH-G1", "TM-7", "TM-8"],
     "v1": true,
-    "rationale": "Mandatory admin 2FA (shipped in v1) makes lockout probable for a hobbyist, and whichever recovery path exists, or the vacuum where it should be, ships with the first line of auth code."
+    "rationale": "Lockout is probable for a hobbyist who enrols a second factor, and whichever recovery path exists, or the vacuum where it should be, ships with the first line of auth code. (This said 'mandatory admin 2FA (shipped in v1)'; it never shipped, and T-ADMIN-1 has since been ruled OFFERED rather than required. S-805 stands on its own: an admin who does enrol can still lose the thing they enrolled.)"
   }
 ]

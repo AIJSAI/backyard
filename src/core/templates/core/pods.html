@@ -5,6 +5,13 @@
      so this was a second, differently-styled copy of a link already on screen. {% endcomment %}
   <h1>Your pods</h1>
 
+  {% comment %} A refused "Leave" lands back here with the reason, rather than on an
+     error page: the only thing that refuses is the leave that would leave somebody in
+     no household at all, and the answer to it is a sentence, not a status code. {% endcomment %}
+  {% if refusal %}
+    <div class="errors" role="alert"><p>{{ refusal }}</p></div>
+  {% endif %}
+
   <ul class="pods">
     {% for row in rows %}
       <li>

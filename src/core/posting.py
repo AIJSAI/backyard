@@ -27,7 +27,7 @@ from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.utils import timezone
 
-from . import scoping
+from . import emailing, scoping
 from .models import Member, Pod, Post, Yard
 
 # How long after posting a member may still edit the text. Long enough to fix a
@@ -67,7 +67,13 @@ def create_post(*, author: Member, pod: Pod, audience_yards: list[Yard], body: s
             raise AudienceNotAllowed("You can only post to a yard you belong to.")
 
     with transaction.atomic():
-        post = Post.objects.create(author=author, pod=pod, body=body)
+        # Stripped in the SERVICE, like the audience integrity above and for the same
+        # reason: the composer view is not the only writer (the arrival card below, and
+        # whatever ships next), and a body reaches `email/digest.txt`, which renders with
+        # autoescape off. The email path has stripped the same characters since S-502.
+        post = Post.objects.create(
+            author=author, pod=pod, body=emailing.strip_control_keep_breaks(body)
+        )
         if audience_yards:
             post.audience_yards.set(audience_yards)
         return post
@@ -132,7 +138,10 @@ def edit_post(*, actor: Member, post: Post, body: str) -> Post:
         raise PermissionDenied("This post has been deleted and can no longer be edited.")
     if not within_edit_window(post):
         raise EditWindowClosed("The window for editing this post has passed.")
-    post.body = body
+    # The edit path is a SECOND writer to the same column, so it carries the same strip
+    # as create_post. A body that could only be cleaned on the way in would be one
+    # "fix a typo" away from carrying whatever create_post refused.
+    post.body = emailing.strip_control_keep_breaks(body)
     post.edited_at = timezone.now()
     post.save(update_fields=["body", "edited_at"])
     return post

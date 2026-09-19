@@ -200,10 +200,26 @@ def test_an_anniversary_the_viewer_may_not_see_is_absent(world: World) -> None:
 # --- 2. escaping: member text cannot inject a property line ---
 
 
-def test_a_crlf_in_a_name_cannot_inject_a_property(world: World) -> None:
+def test_a_crlf_never_reaches_a_stored_name_in_the_first_place(world: World) -> None:
+    """The first line, added with S3: `core.signals` strips control characters from every
+    name on its way into the database, so the injected line never exists to be escaped."""
     author = world.author
     author.display_name = "Ann\r\nTEL:+15550000000"
     author.save()
+    author.refresh_from_db()
+    assert author.display_name == "AnnTEL:+15550000000"
+
+
+def test_a_crlf_in_a_name_cannot_inject_a_property(world: World) -> None:
+    """The SECOND line, and the one that matters here: even if a CRLF reaches the column
+    by some route the pre_save receiver does not cover, the renderer escapes it.
+
+    Written through `QuerySet.update()`, which bypasses signals by design — that is what
+    makes this a test of the vCard escaping rather than a second test of the strip.
+    """
+    author = world.author
+    Member.objects.filter(pk=author.pk).update(display_name="Ann\r\nTEL:+15550000000")
+    author.refresh_from_db()
 
     card = _card_for(world.yard_mate, author)
     assert "TEL" not in _properties(card)  # the injected line is not a property
@@ -378,9 +394,12 @@ def test_a_cross_yard_member_vcard_is_a_404(world: World) -> None:
 
 
 def test_a_name_that_would_break_a_header_is_slugified(world: World) -> None:
+    """`update()`, not `save()`: the S3 pre_save receiver strips the CRLF before it is
+    stored, and this test is about the SLUG, which has to hold for a value that reached
+    the column another way."""
     author = world.author
-    author.display_name = '../../etc/passwd"\r\nX-Injected: 1'
-    author.save()
+    Member.objects.filter(pk=author.pk).update(display_name='../../etc/passwd"\r\nX-Injected: 1')
+    author.refresh_from_db()
     response = _client_for(world.yard_mate).get(reverse("member_vcard", args=[author.id]))
     assert response.status_code == 200
     assert response["Content-Disposition"] == 'attachment; filename="etcpasswd-x-injected-1.vcf"'

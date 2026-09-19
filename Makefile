@@ -20,8 +20,14 @@ up:
 	@echo "Backyard is starting. Read the one-time setup secret with:  make setup-secret"
 	@echo "Then open http://localhost:8000/setup/"
 
+# The first-run secret is NOT in the logs any more (G10): it used to be printed to
+# stdout, and compose's json-file driver wrote it to disk, where `docker compose logs`
+# replays it and rotation keeps it for three files of 10 MB. It is written 0600 on the
+# data volume instead, and deleted the moment the first admin exists — so this reads the
+# file, and says so plainly when it is gone.
 setup-secret:
-	@docker compose logs --no-log-prefix web 2>/dev/null | awk '/paste this one-time secret/{getline; gsub(/^ +/,""); print}' | tail -1
+	@docker compose exec -T web sh -c 'cat "$${SETUP_HANDOVER_FILE:-/data/first-run-secret}"' 2>/dev/null \
+	  || echo "No first-run secret on the volume — either the instance is not up, or an admin already exists and setup is closed."
 
 down:
 	docker compose down

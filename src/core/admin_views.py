@@ -19,6 +19,7 @@ from django.db.models import Prefetch
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from . import handover, invites, permissions, recovery, removal, scoping, supervised
 from .models import (
@@ -33,6 +34,34 @@ from .models import (
 )
 from .removal import remove_member
 from .views import _unique_yard_slug
+
+# Session key for "I have seen the second-factor prompt this time". The SESSION, not a
+# column: the record it makes true (T-ADMIN-1) is that a second factor is offered and
+# encouraged and NEVER enforced, so a permanent dismissal would quietly turn an
+# encouragement into a thing you can switch off for good. Signing in again asks once more,
+# which is as much nagging as a relative who did not want to do it deserves.
+_SECOND_FACTOR_PROMPT_DISMISSED = "second_factor_prompt_dismissed"
+
+
+def _offer_a_second_factor(request: HttpRequest, actor: Member) -> bool:
+    """Should the calm second-factor prompt appear for this admin right now?
+
+    Answered here rather than in a template: "has this person enrolled anything" is an
+    allauth question (`allauth.mfa.models.Authenticator` covers passkeys, authenticator
+    apps and recovery codes alike), and a template that asked it field by field would
+    fork the definition.
+
+    Never blocking, and deliberately: two non-technical relatives are becoming admins of
+    this instance, and a forced second factor for them means lockouts — a locked-out admin
+    on a family box is recovered only from a server shell (S-805), which is exactly the
+    person who does not have one. So this is an offer with a "not now" beside it.
+    """
+    from allauth.mfa.models import Authenticator
+
+    if actor.user_id is None or request.session.get(_SECOND_FACTOR_PROMPT_DISMISSED):
+        return False
+    return not Authenticator.objects.filter(user_id=actor.user_id).exists()
+
 
 # The roles the roster's appoint control may set (S-707). SUPERVISED is deliberately
 # absent: a supervised child is a created state (create_supervised), not a role a member
@@ -192,6 +221,9 @@ def members(request: HttpRequest) -> HttpResponse:
             "content_choices": removal.CONTENT_CHOICES,
             "actor": actor,
             "rows": rows,
+            # FD-2: one calm offer, on the page where admins are made and the page every
+            # other admin surface links back to. Never a gate.
+            "offer_a_second_factor": _offer_a_second_factor(request, actor),
             "can_create_yard": permissions.is_instance_admin(actor),
             # The households a supervised child can be placed in. `create_supervised` is
             # POST-only and 404s on GET, and NO template posted to it — so S-703 shipped as
@@ -640,3 +672,20 @@ def family_sides(request: HttpRequest) -> HttpResponse:
             "intent": handover.fresh_intent(request, "create_yard_intent"),
         },
     )
+
+
+@login_required
+@require_POST
+def dismiss_second_factor_prompt(request: HttpRequest) -> HttpResponse:
+    """The admin says "not now" to the second-factor offer (FD-2).
+
+    POST-only, like every other dismissal here: a GET that dismissed it would let a link
+    preview or a browser prefetch clear a prompt nobody has read.
+
+    In the SESSION, not on the member row. The threat model's T-ADMIN-1 record now says a
+    second factor is offered and never required, and a permanent dismissal would make the
+    offer switch-off-able for good — so it comes back at the next sign-in, which is the
+    gentlest possible reminder and still not a gate.
+    """
+    request.session[_SECOND_FACTOR_PROMPT_DISMISSED] = True
+    return redirect("members")

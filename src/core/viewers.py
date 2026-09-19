@@ -83,11 +83,23 @@ def _reader_from_login(request: HttpRequest) -> Reader | None:
 
 
 def _reader_from_elder_session(request: HttpRequest) -> Reader | None:
-    """The member behind a live elder session, with the ADR-003 generation re-check.
+    """The member behind a live elder session, with the ADR-003 generation re-check AND
+    the live-token check `elder_views._elder_member` applies to the same session.
 
     The generation is re-read from the member NOW and compared with the snapshot taken
     at exchange, so one revocation act ends the session mid-flight — a stale cookie
     cannot outlive the token it came from.
+
+    The `elder_token` half is the one this reader was missing (S16). `revocation`
+    registers TWO kills for an elder link, deliberately: the generation bump, and
+    `_void_elder_tokens`, which DELETES the row so "a revoked member holds no token row
+    at all". `remove_from_household` fires the shrink registry, whose invite step is
+    narrowed — but whose elder-token and generation steps both run, so on that path the
+    two checks agree. The path where they did NOT agree is any future or hand-run
+    deletion of the row without a bump: `elder_views` 404s her feed while this resolver
+    still handed out her family's photographs, because `serve_media` asks HERE. Two
+    readers of one session contract with different validity rules is the shape that
+    produced this project's other token bugs, so they now ask the same two questions.
     """
     member_id = request.session.get(_ELDER_SESSION_MEMBER)
     if not member_id:
@@ -96,6 +108,8 @@ def _reader_from_elder_session(request: HttpRequest) -> Reader | None:
     if member is None:
         return None
     if request.session.get(_ELDER_SESSION_GENERATION) != member.token_generation:
+        return None
+    if not hasattr(member, "elder_token"):
         return None
     return Reader(member)
 

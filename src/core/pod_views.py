@@ -16,7 +16,7 @@ from django.shortcuts import redirect, render
 
 from . import pods, scoping
 from .feed_views import _acting_member
-from .models import Pod
+from .models import Member, Pod
 
 
 @dataclass
@@ -27,11 +27,13 @@ class PodRow:
     is_adhoc: bool
 
 
-@login_required
-def pod_list(request: HttpRequest) -> HttpResponse:
-    """The member's pods: household and ad-hoc, with mute/leave and, for pods they
-    own, the house rule and add-member controls."""
-    member = _acting_member(request)
+def _pod_list_response(request: HttpRequest, member: Member, refusal: str = "") -> HttpResponse:
+    """Render the pod list, optionally with one sentence explaining a refused act.
+
+    Extracted so a refused leave lands back on the page the member was already looking
+    at, with the reason on it, rather than on an error page. `pods.PodLeaveRefused` is
+    answerable — somebody has to put them in a household — and a 403 says nothing.
+    """
     muted = pods.muted_pod_ids(member)
     rows = [
         PodRow(
@@ -48,10 +50,18 @@ def pod_list(request: HttpRequest) -> HttpResponse:
         {
             "member": member,
             "rows": rows,
+            "refusal": refusal,
             "yards": scoping.visible_yards(member),
             "candidates": scoping.visible_members(member).exclude(id=member.id),
         },
     )
+
+
+@login_required
+def pod_list(request: HttpRequest) -> HttpResponse:
+    """The member's pods: household and ad-hoc, with mute/leave and, for pods they
+    own, the house rule and add-member controls."""
+    return _pod_list_response(request, _acting_member(request))
 
 
 @login_required
@@ -111,7 +121,10 @@ def pod_leave(request: HttpRequest, pod_id: int) -> HttpResponse:
     pod = scoping.require_visible_pod(member, pod_id)
     if request.method != "POST":
         raise Http404
-    pods.leave_pod(member=member, pod=pod)
+    try:
+        pods.leave_pod(member=member, pod=pod)
+    except pods.PodLeaveRefused as exc:
+        return _pod_list_response(request, member, refusal=str(exc))
     return redirect("pod_list")
 
 

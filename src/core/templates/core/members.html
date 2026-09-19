@@ -3,6 +3,29 @@
 {% block body %}
   <h1>Family members</h1>
   <p class="muted">Everyone in your yards. Supervised accounts are managed by a parent.</p>
+
+  {% comment %} FD-2. One calm offer, never a gate: the threat model used to claim a second
+     factor was REQUIRED of admins and nothing enforced it, and the honest fix is not to
+     start enforcing. Two relatives are becoming admins here, and a forced second factor
+     for them means lockouts — and a locked-out admin on a family box is recovered only
+     from a server shell (S-805), which is exactly the person who has not got one. So:
+     offered, explained in the words a person uses, dismissible for this sign-in, and it
+     never stands between anybody and their family. {% endcomment %}
+  {% if offer_a_second_factor %}
+    <aside class="orientation" aria-labelledby="second-factor-heading">
+      <h2 id="second-factor-heading">Add a second way to prove it&rsquo;s you</h2>
+      <p>You look after this Backyard, so your sign-in opens every side of the family.
+        Right now a password is the only thing in the way.</p>
+      <p>Your phone can be the second thing: the same fingerprint or face you already use
+        to unlock it. It takes about a minute, and it means a stolen password is not enough
+        on its own.</p>
+      <p><a class="btn" href="{% url 'mfa_index' %}">Set that up</a></p>
+      <form method="post" action="{% url 'dismiss_second_factor_prompt' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn-secondary btn">Not now</button>
+      </form>
+    </aside>
+  {% endif %}
   {% comment %} Wayfinding in the margin rail at >=64rem; plain flow below. {% endcomment %}
   {% comment %} Three of these were routed and linked from nowhere. `member_digests` and
      `member_metrics` had ZERO `{% url %}` references in the entire template tree, and

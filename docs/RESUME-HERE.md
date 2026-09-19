@@ -406,12 +406,14 @@ mode while hovered.
 
 ## Operator actions waiting, in priority order
 
-**A decision first, because it gates nothing else and needs you: enforce admin 2FA.** T-ADMIN-1 claims "passkey or TOTP,
-enforced in the wizard so a password-only admin never exists". Nothing enforces it: a
-password-only superuser reaches every admin surface. It was deliberately left open by the
-2026-07-30 security pass because switching it on can lock the only admin out of their own
-instance, and `breakglass.py` already assumes the control exists. The safe order is enrol
-first, then enforce — which is a rollout call.
+**Admin 2FA (T-ADMIN-1) is no longer waiting on you — ruled 2026-09-19: offered, not
+enforced.** The threat model claimed "passkey or TOTP, enforced in the wizard so a
+password-only admin never exists" and nothing ever enforced it. The record was corrected
+rather than the code: requiring one means lockouts for the two relatives becoming admins,
+and a locked-out admin is recovered only from a server shell they have not got. What ships
+is the offer — one calm dismissible prompt on the member roster for an admin with nothing
+enrolled, linking to the account-security page that Settings already reaches. Enforcement
+for the INSTANCE ADMIN alone is filed as issue 182 if you want to revisit it.
 
 The first three below are things a person must do on the box; the classifier in an agent
 session refuses `compose exec ... manage.py shell`, so they cannot be done for you.

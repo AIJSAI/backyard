@@ -233,6 +233,58 @@ itself up and telling somebody when it cannot.
 
 ### Security
 
+- **A family link that is opened hundreds of times in a few minutes pauses for a moment.**
+  Every link somebody is handed — an invitation, a grandparent's no-login link, the web
+  copy of the weekly email with its confirm and unsubscribe pages, a "get back in" link,
+  and the console-minted admin reset — could be asked for as fast as anything cared to ask.
+  Each one is generous enough that a whole household opening the same invitation from one
+  home connection, or a grandmother refreshing a page she is not sure worked, is never
+  turned away; when it does pause, the page says so in plain words and tells you to try
+  again in a minute.
+- **Control characters are stripped from what people type.** A name, a post and a reply
+  are stored clean now, so an invisible character cannot reverse a line of the weekly
+  email, which is plain text and does not escape anything. Replies that arrive by email
+  were already treated this way; the browser now matches them, from one shared rule.
+- **Leaving a group revokes what leaving takes away.** Until now, walking out of a group
+  dropped the membership and left everything else alive — including, for somebody whose
+  only tie to a side of the family was that group, links that still reached it. A leave
+  now does exactly what an admin taking you out of a household does: it signs you out
+  everywhere, kills the links already sitting in your emails, cancels unused invitations
+  into the side you are leaving, and keeps your weekly email. Leaving the only group you
+  are in is refused, with a sentence saying why, because somebody in no household can see
+  nobody and be seen by nobody.
+- **A grandparent's photographs stop being served the moment her link is revoked.** Two
+  parts of the product read the same no-login session and disagreed about when it was
+  still valid: her page refused her correctly while every picture on it was still being
+  handed out. They ask the same questions now.
+- **The first-run setup secret is no longer written into the container log.** It is kept
+  in a private file on the data volume that only the app can read, and it is deleted the
+  moment the first admin exists. `make setup-secret` reads it; the README and the
+  self-host guide say so.
+- **A restore refuses, loudly, before it fills the disk.** Restoring a backup deletes the
+  existing photographs before it writes the new ones, so a media archive bigger than the
+  free space left a box with neither. It is now checked against the volume's free space, a
+  per-file ceiling and an absolute ceiling, and refuses before a byte is written.
+- **The registry lookup that watches the domain's expiry cannot be redirected inside the
+  box.** It follows a redirect from a third party, and it had no check on where that
+  redirect pointed. It now shares the same address gate the link-preview fetcher has
+  always used: a private, loopback or link-local destination is refused before the connect.
+- **A failed video no longer writes a live media link into the log.** The tail of the
+  converter's error output names the file it could not read, and that filename is the
+  credential the photo path accepts.
+- **Reply-by-email is stricter about who a reply is from, and cannot hold a worker.** The
+  address a reply was delivered to is the only thing that decides whose reply it is; a
+  message addressed to somebody else's reply address is refused rather than posted as
+  them. The fetch that collects the message now has a time limit and a size limit, so a
+  slow or enormous one cannot occupy the app. The endpoint is not published at all unless
+  inbound email is configured.
+- **Admin second factor: offered, never required — and the security record now says so.**
+  The threat model claimed a second factor was enforced for admins and nothing enforced
+  it. Requiring one would mean lockouts for relatives who are not technical, and a
+  locked-out admin is recovered only from a server shell. So an admin with none sees one
+  calm prompt on the members page, in plain words, with a link to set one up and a "not
+  now" beside it. It never blocks anything. Whether the one instance admin should be the
+  exception is filed as issue 182.
 - **Django 5.2.17 and sqlparse 0.6.0.** Ten advisories across the two, and the `deps` gate —
   the required check that scans the resolved lock on every pull request — had been failing on
   all ten. Neither is reachable in this app (the Django one is GeoDjango, which is not

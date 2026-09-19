@@ -1,10 +1,15 @@
 """Break-glass admin recovery (S-805, T-AUTH-G1): a console-only reset path.
 
-An admin who loses their second factor cannot recover through any web or email
-flow, by design, because a web "recover admin" form is exactly the front door
-mandatory admin 2FA closes. Instead this command, run by whoever has server
-shell (the same trust anchor as the first-run setup secret), prints a
-short-lived one-time reset URL for one named admin.
+An admin who is locked out -- a forgotten password, or a lost second factor if they
+enrolled one -- cannot recover through any web or email flow, by design: a web
+"recover admin" form would be a password-reset front door onto the most privileged
+account on the instance, reachable by anyone who can read an inbox. Instead this
+command, run by whoever has server shell (the same trust anchor as the first-run
+setup secret), prints a short-lived one-time reset URL for one named admin.
+
+A second factor is OFFERED to admins and never required (T-ADMIN-1, ruled 2026-09-19),
+so the common lockout here is a forgotten password rather than a lost passkey. This
+command is the answer to both.
 
 The token is Django's PasswordResetTokenGenerator: time-limited by
 PASSWORD_RESET_TIMEOUT and one-time by construction (it hashes the user's current

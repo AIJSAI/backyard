@@ -37,7 +37,7 @@ from email.utils import parseaddr
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
 
-from . import commenting, digest, reply_addresses
+from . import commenting, digest, emailing, reply_addresses
 from .models import DigestSubscription, InboundLedger, InboundQuarantine
 
 # MTA-edge shapes (T-EMAIL-4, TS-PP-7): applied before real parsing.
@@ -173,8 +173,13 @@ def _strip_below_separator(body: str) -> str | None:
 
 
 def _strip_control(text: str) -> str:
-    """Comment bodies keep newlines and tabs; every other control char dies."""
-    return "".join(ch for ch in text if ch in ("\n", "\t") or ch.isprintable())
+    """Comment bodies keep newlines and tabs; every other control char dies.
+
+    Delegates rather than re-implementing: the web composer applies the same rule now
+    (S3), and a body arriving by email and the same body typed in the browser must be
+    stored identically. Kept as a name here because it is the pipeline's vocabulary.
+    """
+    return emailing.strip_control_keep_breaks(text)
 
 
 def _quarantine_malformed() -> InboundResult:
@@ -201,6 +206,24 @@ def _quarantine_malformed() -> InboundResult:
     except ValueError:  # culled between get_or_set and incr; restart the window
         cache.set(key, 1, timeout=3600)
     return _quarantine(InboundQuarantine.MALFORMED)
+
+
+def quarantine_transport_refusal() -> InboundResult:
+    """Record inbound mail the TRANSPORT refused before this pipeline ever saw it.
+
+    Two callers, both in `inbound_webhook`: a fetch that was too slow or too large to
+    finish (S1), and a webhook payload carrying no address we are willing to treat as
+    the capability (S5). Neither can produce a message to quarantine, so the row holds
+    only the reason — but it holds SOMETHING, which is the point: a refusal that leaves
+    no trace is indistinguishable from mail that never arrived, and the person who would
+    notice is the admin looking at the quarantine panel.
+
+    Reuses the MALFORMED reason rather than adding a choice (and a migration) for a row
+    an admin cannot act on differently: from the family's side, "a message we could not
+    make sense of was refused" is the same fact either way, and it rides the same hourly
+    budget so an abusive sender cannot turn refusals into unbounded writes.
+    """
+    return _quarantine_malformed()
 
 
 def _boundary_depth_exceeds(raw: bytes, limit: int) -> bool:

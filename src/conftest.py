@@ -35,6 +35,13 @@ def _media_root_tmp(settings: pytest.FixtureRequest, tmp_path: Path) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _setup_handover_tmp(settings: pytest.FixtureRequest, tmp_path: Path) -> None:
+    """Same reason again, for the first-run hand-over file: a test run must never write
+    (or delete) anything under /data, and this one holds a live credential."""
+    settings.SETUP_HANDOVER_FILE = str(tmp_path / "first-run-secret")  # type: ignore[attr-defined]
+
+
+@pytest.fixture(autouse=True)
 def _backup_root_tmp(settings: pytest.FixtureRequest, tmp_path: Path) -> None:
     """Same reason, for the scheduled backup's archives: a test run must never write a
     copy of anything into /data, and retention DELETES files in this directory."""
