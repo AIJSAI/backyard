@@ -60,35 +60,6 @@ regexes = [
 ]
 
 [[allowlists]]
-description = """Two RETIRED synthetic passphrases that exist only in this branch's history.
-
-BY-01 first wrote `src/core/tests/test_get_back_in_link.py` with two invented passphrases
-that were not named in the fixtures block above, so `gitleaks git` -- which scans the whole
-commit graph, not the working tree -- reported them on every open PR at once, exactly the
-failure mode the header of this file describes. The tree was corrected in the next commit to
-reuse the fixtures already enumerated above; these two values appear in NO tracked file.
-
-They are allowlisted rather than rewritten out of history for the reason the burned-password
-block below gives: `git push --force` is deny-listed in this environment, and the commits were
-already pushed, so history cannot be rewritten and a gate that can never go green is a gate
-people route around. Neither value was ever a real credential -- both were invented for a test
-that sets a password and then checks the link cannot be replayed.
-
-ANCHORED, per the lesson recorded in the block below: `^...$` against the captured value, so
-these exempt themselves and nothing that merely contains them. SCOPED to the same three rules
-as the fixtures block, and MEASURED -- with these two entries removed, gitleaks reports both
-again."""
-targetRules = [
-  "backyard-generic-password-assignment",
-  "backyard-unquoted-env-credential-assignment",
-  "generic-api-key",
-]
-regexes = [
-  '''^an-Old-passphrase-9$''',
-  '''^a-Brand-new-passphrase-42$''',
-]
-
-[[allowlists]]
 description = "False positive: the literal phrase 'SHA-256-digest' in a design doc is not a key"
 regexes = ['''SHA-256-digest''']
 
