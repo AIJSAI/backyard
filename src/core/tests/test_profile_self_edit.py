@@ -158,3 +158,165 @@ def test_an_admin_can_maintain_an_elder_s_profile(world: dict[str, object]) -> N
     assert response.status_code == 302
     elder.refresh_from_db()
     assert elder.display_name == "Nana Whitfield"
+
+
+# --- the contact half, which BY-11 did NOT widen -----------------------------------
+#
+# BY-11 opened this form to any admin who may manage the target, so a yard admin can fix a
+# name typed wrong at invite time. This page renders the RAW `Member` row rather than
+# `profiles.viewable_profile`, so without a second line the same widening would hand every
+# yard admin a plaintext read of a phone number and a home address their owner scoped to
+# "No one", plus the visibility select that publishes it to a whole side of the family.
+
+_HIDDEN_PHONE = "555 0101"
+_HIDDEN_ADDRESS = "12 Rowan Lane"
+
+
+def _with_hidden_contact_details(member: Member) -> Member:
+    member.phone = _HIDDEN_PHONE
+    member.phone_visibility = Member.HIDDEN
+    member.address = _HIDDEN_ADDRESS
+    member.address_visibility = Member.HIDDEN
+    member.contact_email = "nana@example.com"
+    member.contact_email_visibility = Member.HIDDEN
+    member.save()
+    return member
+
+
+def _yard_admin_over(pod: Pod) -> Member:
+    return _member(pod, "The Delegate", role=Member.YARD_ADMIN)
+
+
+def test_a_yard_admin_editing_a_relative_never_sees_their_contact_details(
+    world: dict[str, object],
+) -> None:
+    """Showing the field is the same disclosure as changing it: the value arrives in a
+    text input, in cleartext, on a page the owner never opened."""
+    pod, podmate = world["pod"], world["podmate"]
+    assert isinstance(pod, Pod) and isinstance(podmate, Member)
+    _with_hidden_contact_details(podmate)
+    delegate = _yard_admin_over(pod)
+
+    body = (
+        _client_for(delegate)
+        .get(reverse("managed_profile_edit", args=[podmate.pk]))
+        .content.decode()
+    )
+    assert _HIDDEN_PHONE not in body
+    assert _HIDDEN_ADDRESS not in body
+    assert "nana@example.com" not in body
+    assert 'name="address_visibility"' not in body, "the control that publishes it"
+    # ...and the half BY-11 was actually about is still there.
+    assert 'name="display_name"' in body
+    assert 'name="birthday_month"' in body
+
+
+def test_a_hand_written_post_cannot_set_a_contact_field_the_page_would_not_show(
+    world: dict[str, object],
+) -> None:
+    """The template `{% if %}` is presentation. The view refuses on the same predicate, or
+    the control is a suggestion — `update_fields` simply never lists them."""
+    pod, podmate = world["pod"], world["podmate"]
+    assert isinstance(pod, Pod) and isinstance(podmate, Member)
+    _with_hidden_contact_details(podmate)
+    delegate = _yard_admin_over(pod)
+
+    response = _client_for(delegate).post(
+        reverse("managed_profile_edit", args=[podmate.pk]),
+        _payload(
+            display_name="Sam Corrected",
+            phone="555 9999",
+            address="somewhere else",
+            address_visibility=Member.YARD,
+            contact_email="attacker@example.com",
+        ),
+    )
+    assert response.status_code == 302
+    podmate.refresh_from_db()
+    assert podmate.display_name == "Sam Corrected", "the widening BY-11 shipped is gone"
+    assert podmate.phone == _HIDDEN_PHONE
+    assert podmate.address == _HIDDEN_ADDRESS
+    assert podmate.address_visibility == Member.HIDDEN, "an address was published silently"
+    assert podmate.contact_email == "nana@example.com"
+
+
+@pytest.mark.parametrize("editor", ["self", "instance_admin"])
+def test_the_contact_half_stays_open_to_whoever_it_was_open_to_before(
+    world: dict[str, object], editor: str
+) -> None:
+    """The set `can_edit_profile_of` had BEFORE BY-11: yourself, a managing parent (below),
+    and the instance admin, who holds the database anyway (T-OP-G1)."""
+    podmate, admin = world["podmate"], world["admin"]
+    assert isinstance(podmate, Member) and isinstance(admin, Member)
+    _with_hidden_contact_details(podmate)
+
+    if editor == "self":
+        client, url = _client_for(podmate), reverse("profile_edit")
+    else:
+        client = _client_for(admin)
+        url = reverse("managed_profile_edit", args=[podmate.pk])
+
+    assert _HIDDEN_PHONE in client.get(url).content.decode()
+    assert client.post(url, _payload(display_name="Sam", phone="555 2222")).status_code == 302
+    podmate.refresh_from_db()
+    assert podmate.phone == "555 2222"
+
+
+def test_a_managing_parent_keeps_the_contact_half_for_their_own_child(
+    world: dict[str, object],
+) -> None:
+    """A supervised child's details are the parent's to keep: there is nobody else to
+    keep them, since the account has no login of its own (TM-10)."""
+    parent, pod = world["parent"], world["pod"]
+    assert isinstance(parent, Member) and isinstance(pod, Pod)
+    child = supervised.create_supervised_member(parent=parent, display_name="Kiddo", pod=pod)
+
+    url = reverse("managed_profile_edit", args=[child.pk])
+    assert 'name="phone"' in _client_for(parent).get(url).content.decode()
+    assert _client_for(parent).post(url, _payload(phone="555 3333")).status_code == 302
+    child.refresh_from_db()
+    assert child.phone == "555 3333"
+
+
+# --- BY-11 follow-on: the roster's link and this route have to agree ----------------
+
+
+def test_the_instance_admins_edit_link_is_not_a_dead_link_across_a_side(
+    world: dict[str, object],
+) -> None:
+    """The roster offers `Edit profile` on every row an admin may administer, and for the
+    instance admin that is every member on the instance — they own it and sit above yard
+    isolation (`permissions.administrable_members`; the threat model states plainly that
+    isolation is a member-level promise, not an admin-level one, and the role's own
+    description is "Manages anyone, on either side"). This route resolved the target
+    through the READ guard instead, so the offered link 404d on click: the permission said
+    yes and the page said the person does not exist.
+
+    Removal, re-roling and the recovery link all resolve through the administrable set
+    already. This one now does too, so the link and the route answer the same question.
+    """
+    admin, stranger = world["admin"], world["stranger"]
+    assert isinstance(admin, Member) and isinstance(stranger, Member)
+    client = _client_for(admin)
+    url = reverse("managed_profile_edit", args=[stranger.pk])
+
+    assert url in client.get(reverse("members")).content.decode(), "the roster stopped offering it"
+    assert client.get(url).status_code == 200
+    assert client.post(url, _payload(display_name="Distant Cousin Reid")).status_code == 302
+    stranger.refresh_from_db()
+    assert stranger.display_name == "Distant Cousin Reid"
+
+
+def test_a_yard_admin_still_cannot_edit_across_a_side(world: dict[str, object]) -> None:
+    """The other half of the same change: widening the lookup to the ADMINISTRABLE set
+    must not widen it for anybody below the instance admin. A yard admin's administrable
+    set IS the yard-scoped visible set, so the other side stays a byte-identical 404."""
+    pod, stranger = world["pod"], world["stranger"]
+    assert isinstance(pod, Pod) and isinstance(stranger, Member)
+    delegate = _member(pod, "The Delegate", role=Member.YARD_ADMIN)
+    url = reverse("managed_profile_edit", args=[stranger.pk])
+
+    assert _client_for(delegate).get(url).status_code == 404
+    assert _client_for(delegate).post(url, _payload()).status_code == 404
+    stranger.refresh_from_db()
+    assert stranger.display_name == "Distant Cousin"

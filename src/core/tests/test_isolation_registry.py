@@ -45,6 +45,11 @@ _ISOLATION_EXEMPT: dict[str, str] = {
     "LinkPreview": "rendered via its post only; no read route of its own (image is covered)",
     "SetupToken": "first-run secret, deleted once an admin exists; no member content",
     "ElderToken": "hashed token credential; elder-feed isolation is the visible_posts path",
+    "RecoveryToken": (
+        "a hashed admin-issued password-recovery credential (BY-01), never rendered as "
+        "content; issuing is yard-scoped by can_manage_member and redeeming resolves the "
+        "token alone, so there is no member read path to isolate"
+    ),
     "DigestToken": "a digest deep-link credential; /d/ isolation is the visible_posts path",
     "DigestSubscription": "per-member digest infra; admin views scope it via visible_members",
     "DigestIssue": "internal per-(member,yard) send record; builder's visible_posts isolates it",

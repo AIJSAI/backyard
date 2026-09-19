@@ -10,6 +10,10 @@ The token is Django's PasswordResetTokenGenerator: time-limited by
 PASSWORD_RESET_TIMEOUT and one-time by construction (it hashes the user's current
 password, so the moment the reset changes the password the token stops working).
 No token is ever minted by a web request; this command is the only source.
+
+"Admin" means the INSTANCE_ADMIN role (S10), the same predicate the view uses, not
+the Django superuser flag — a relative promoted through the S-707 succession path
+holds the role and not the flag.
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 
-from core.breakglass import break_glass_tokens
+from core.breakglass import break_glass_tokens, is_recoverable_admin
 
 User = get_user_model()
 
@@ -35,12 +39,22 @@ class Command(BaseCommand):
     def handle(self, *args: Any, **options: Any) -> None:
         username = options["username"]
         try:
-            user = User.objects.get(username=username, is_superuser=True)
+            user = User.objects.get(username=username)
         except User.DoesNotExist as exc:
             raise CommandError(
-                f"No admin (superuser) named {username!r}. Break-glass recovers an existing "
+                f"No account named {username!r}. Break-glass recovers an existing instance "
                 "admin; it never creates one."
             ) from exc
+        # The same predicate the view resolves with (S10), so the command cannot print a
+        # URL the view would 404. Keyed on the INSTANCE_ADMIN role rather than
+        # `is_superuser`: `assign_role` promotes a relative to instance admin by writing
+        # `Member.role` alone, so the second admin the succession path exists to create was
+        # refused here while being, by every rule in the product, an instance admin.
+        if not is_recoverable_admin(user):
+            raise CommandError(
+                f"{username!r} is not an instance admin. Break-glass recovers an existing "
+                "instance admin; it never creates one and never promotes anybody."
+            )
 
         uid = urlsafe_base64_encode(force_bytes(user.pk))
         token = break_glass_tokens.make_token(user)

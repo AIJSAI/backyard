@@ -1,0 +1,63 @@
+{% extends "core/base.html" %}
+{% block title %}Delete {{ target.display_name }}&rsquo;s posts and photos?{% endblock %}
+{% block body %}
+  <h1>Delete {{ target.display_name }}&rsquo;s posts and photos?</h1>
+  <p><a href="{% url 'members' %}">No, take me back</a></p>
+
+  {% if mismatch %}
+    <div class="errors">
+      <p>That is not {{ target.display_name }}&rsquo;s name as it appears in the family.
+        Type it exactly: <strong>{{ target.display_name }}</strong></p>
+    </div>
+  {% endif %}
+
+  {% comment %} NB-5. The counts come from removal.preview_deletion, which reads the same
+     querysets remove_member deletes from, so this page cannot describe a different act
+     than the one the button performs. {% endcomment %}
+  <p class="notice">This removes {{ target.display_name }} from the family
+    <strong>and destroys what they shared</strong>:</p>
+  <ul>
+    <li><strong>{{ preview.posts }}</strong> post{{ preview.posts|pluralize }} of theirs</li>
+    <li><strong>{{ preview.replies }}</strong> repl{{ preview.replies|pluralize:"y,ies" }} of theirs</li>
+    {% comment %} Spelled out per number rather than with two `pluralize` filters: one item
+       is a photo OR a clip, never "1 photo and video clip". The zero line stays — it is the
+       most reassuring number on the page, because it says nothing is erased from disk.
+       {% endcomment %}
+    <li><strong>{{ preview.photos }}</strong>
+      {% if preview.photos == 1 %}photo or video clip{% else %}photos and video clips{% endif %},
+      erased from the server</li>
+    {% comment %} The purge takes every file on the post, and a shared link leaves one
+       behind: we save a copy of the picture the web page comes with, so the card in the
+       feed does not phone out to somebody else's server. Said in those words, and only
+       when there is one — a zero line here would teach a relative an internal idea they
+       have no reason to learn, unlike the photo count above, whose zero is the most
+       reassuring number on the page. {% endcomment %}
+    {% if preview.link_images %}
+      <li><strong>{{ preview.link_images }}</strong>
+        saved picture{{ preview.link_images|pluralize }} from
+        {% if preview.link_images == 1 %}a link{% else %}links{% endif %} they shared — the
+        little picture a web page brings with it — erased from the server as well</li>
+    {% endif %}
+  </ul>
+  {% if preview.others_photos %}
+    <p>{{ preview.others_photos }} of those photo{{ preview.others_photos|pluralize }} were
+      put there by <strong>other people</strong>, replying to {{ target.display_name }}.
+      They go too.</p>
+  {% endif %}
+  <p><strong>This cannot be undone.</strong> The photographs are erased from the server, not
+    hidden. Nobody can get them back — not you, and not whoever runs this. Copies already
+    sent out in a weekly email cannot be recalled either.</p>
+
+  <p>If you only want {{ target.display_name }} to leave, go back and choose one of the
+    other two options instead: their posts can stay as they are, or stay with their name
+    taken off them.</p>
+
+  <form method="post" action="{% url 'member_remove' target.id %}">
+    {% csrf_token %}
+    <input type="hidden" name="content" value="delete">
+    <label for="confirm-name">Type <strong>{{ target.display_name }}</strong> to confirm</label>
+    <input id="confirm-name" type="text" name="confirm_name" autocomplete="off"
+           autocapitalize="off" autocorrect="off" spellcheck="false" required>
+    <button type="submit" class="danger">Delete {{ target.display_name }}&rsquo;s posts and photos</button>
+  </form>
+{% endblock %}

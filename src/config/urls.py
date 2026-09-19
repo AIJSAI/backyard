@@ -16,6 +16,7 @@ from core import (
     profile_views,
     provisioning_views,
     pwa_views,
+    recovery_views,
     views,
 )
 from core.breakglass import break_glass
@@ -53,6 +54,9 @@ urlpatterns = [
     # S-906: the newcomer's orientation, dismissed once and never shown again.
     # POST-only, so a prefetch cannot clear it before it has been read.
     path("feed/oriented/", feed_views.dismiss_orientation, name="dismiss_orientation"),
+    # BY-02: the same shape for the add-an-email prompt shown to a member who has no
+    # address on file and therefore no password reset at all.
+    path("feed/email-prompt/", feed_views.dismiss_email_prompt, name="dismiss_email_prompt"),
     # Ad-hoc pods and quiet exits (S-204, S-205).
     path("pods/", pod_views.pod_list, name="pod_list"),
     path("pods/create/", pod_views.pod_create, name="pod_create"),
@@ -132,6 +136,17 @@ urlpatterns = [
     # New-elder onboarding (S-213): a delegate stands up a net-new grandparent's household
     # + token in one flow, so the no-login path can be handed out without a shell.
     path("members/new-elder/", provisioning_views.new_elder, name="new_elder"),
+    # Admin-issued password recovery (BY-01). Email is optional at join, so a member who
+    # gave none has no reset path at all; an admin mints a one-time link here and hands it
+    # over by text, and the member sets a new password at /get-back-in/. The mint is gated
+    # on can_manage_member, so a yard admin can do it only for a plain member of their own
+    # side — this is the control that stops a forgotten password becoming a shell call.
+    path(
+        "members/<int:member_id>/get-back-in/",
+        recovery_views.issue_recovery,
+        name="issue_recovery",
+    ),
+    path("get-back-in/<str:token>/", recovery_views.recover, name="recover"),
     # The /d/ read surface (TM-5): what a digest deep link opens. The token only
     # authenticates; every render re-resolves through the one audience query.
     # The elder path (S-102): the handed-over link exchanges for a session and
