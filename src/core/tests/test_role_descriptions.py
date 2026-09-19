@@ -126,7 +126,9 @@ def test_the_yard_admin_description_is_true_on_all_three_of_its_claims(side: Yar
     text = Member.ROLE_DESCRIPTIONS[Member.YARD_ADMIN]
     assert "only on their own side of the family" in text
     assert permissions.can_manage_member(admin, same_side), "cannot manage their own side"
-    assert "Cannot touch an admin" in text
+    # "Cannot touch an admin" until the copy pass of 2026-09-19: "touch" is an idiom, and
+    # the guide says say the literal thing. The claim is identical; the word is not.
+    assert "Cannot manage an admin" in text
     assert not permissions.can_manage_member(admin, an_admin), "privilege inversion"
     assert "belongs to the other side" in text
     assert not permissions.can_manage_member(admin, bridger), "reached a bridging member"
