@@ -13,7 +13,36 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
-Nothing yet.
+### Added
+
+- **`mark_demo_data --include-departed`.** A member removed from a fixture household keeps
+  their Member row and loses every membership, so selection by containment can never reach
+  them — while their posts stay inside a household being marked, because "keep their posts"
+  and "remove their name" both keep the author. `wipe_demo_data` then refused forever on
+  "a post written by someone real", and the only cure was a shell. With the flag such a
+  member is marked too, but only when they are in no household or group anywhere AND every
+  post, reply and reaction they ever made is inside the households being marked; one row
+  anywhere else and they are never selected. The dry run names each of them under its own
+  heading; without the flag they are listed as deliberately not marked, with the reason and
+  the flag. `--undo` clears them like any other marked row, and the wipe's own refusals —
+  real writing, stranding — are unchanged.
+
+### Changed
+
+- **Starting a group and leaving one say so**, through the same calm flash the composer
+  uses: "&lt;Group&gt; is ready." and "You left &lt;Group&gt;." A leave removes the row and
+  said nothing at all, which on a phone is indistinguishable from a tap that did nothing.
+- **The second-factor offer on the roster tells a side admin the truth, and is one line.**
+  It claimed "your sign-in opens every side of the family" to whoever opened the page; that
+  is true of the family admin and of nobody else. It was also a screen-tall card between an
+  admin and the list of people they came to read, and it now gets the same slim treatment
+  the feed's e-mail line got.
+- **The day-one guide names the route, not just the destination**: "tap Manage on their
+  row, then …", now that the roster's row actions live behind a Manage disclosure. Page and
+  repo copy both.
+- **The help line a logged-out reader gets** is "Stuck? Ask the person who invited you."
+  rather than "Ask whoever in the family set this up" — a role no family uses, and nobody a
+  relative could ring.
 
 ## [0.1.2] — 2026-09-19
 

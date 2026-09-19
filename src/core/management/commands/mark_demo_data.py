@@ -10,7 +10,13 @@ is the step that makes launch day run through the guarded path instead of a shel
     manage.py wipe_demo_data --yes
 
 `--undo` takes the marker back off, because an operator who marks the wrong yard needs a way
-back that is not another hand-written UPDATE — and needs it before the wipe, not after.
+back that is not another hand-written UPDATE — and needs it before the wipe, not after. It
+selects on the marker alone, so it clears a departed member like any other row.
+
+`--include-departed` exists because a member who was REMOVED from a fixture household keeps
+their Member row and loses every membership, so containment can never reach them while their
+posts stay inside a household being marked — and the wipe then refuses forever on "a post
+written by someone real". See `core.demo_marking` for the two conditions.
 """
 
 from __future__ import annotations
@@ -39,6 +45,16 @@ class Command(BaseCommand):
             "--marker",
             default=demo_data.SEED_MARKER,
             help=f"The marker to stamp. Default: {demo_data.SEED_MARKER!r}.",
+        )
+        parser.add_argument(
+            "--include-departed",
+            action="store_true",
+            dest="include_departed",
+            help="ALSO mark people who were removed from one of these households and are "
+            "now in no household or group at all, provided every post, reply and reaction "
+            "they ever made is inside the households being marked. One row anywhere else "
+            "and they are never selected. Without this they are listed, with the reason, "
+            "under 'Deliberately NOT marked'.",
         )
         parser.add_argument(
             "--dry-run",
@@ -71,7 +87,11 @@ class Command(BaseCommand):
                 )
                 return
 
-            selected, spared = demo_marking.plan(yard_slugs=options["yards"], marker=marker)
+            selected, spared, departed = demo_marking.plan(
+                yard_slugs=options["yards"],
+                marker=marker,
+                include_departed=options["include_departed"],
+            )
         except demo_marking.DemoMarkingError as exc:
             raise CommandError(str(exc)) from exc
 
@@ -79,6 +99,19 @@ class Command(BaseCommand):
         for model, names in selected.items():
             self.stdout.write(f"  {model} ({len(names)}):")
             for name in names:
+                self.stdout.write(f"    {name}")
+
+        if departed:
+            # Their own heading, although they are already inside the Member list above.
+            # They are the one group selected by a rule the household graph cannot show —
+            # an operator scanning "Member (9)" has no way to tell which of those nine are
+            # here because somebody removed them. This is the list they read for a name
+            # they recognise.
+            self.stdout.write(
+                f"\nAlready removed, and everything they ever wrote is inside these sides "
+                f"({len(departed)}):"
+            )
+            for name in departed:
                 self.stdout.write(f"    {name}")
 
         if spared:
@@ -102,7 +135,11 @@ class Command(BaseCommand):
             return
 
         try:
-            stamped = demo_marking.apply(yard_slugs=options["yards"], marker=marker)
+            stamped = demo_marking.apply(
+                yard_slugs=options["yards"],
+                marker=marker,
+                include_departed=options["include_departed"],
+            )
         except demo_marking.DemoMarkingError as exc:
             raise CommandError(str(exc)) from exc
 
