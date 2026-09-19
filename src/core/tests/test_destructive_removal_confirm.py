@@ -116,6 +116,19 @@ def test_the_confirm_page_states_what_it_will_destroy(world: World) -> None:
     assert "other people" in body.lower()
 
 
+def test_one_photo_reads_as_one_thing(world: World) -> None:
+    """Found by walking the page: two `pluralize` filters on one count rendered "1 photo and
+    video clip" for a member with a single photograph. One asset is a photo OR a clip."""
+    MediaAsset.objects.all().delete()
+    media.ingest_photo(post=world.post, raw=_jpeg())
+
+    body = world.client.post(world.remove_url(), {"content": removal.DELETE}).content.decode()
+
+    assert removal.preview_deletion(world.leaver).photos == 1
+    assert "photo or video clip" in body
+    assert "photo and video clip" not in body
+
+
 def test_the_typed_name_lets_it_through(
     world: World, django_capture_on_commit_callbacks: object
 ) -> None:
@@ -176,9 +189,8 @@ def test_the_confirm_step_is_not_an_authorization_hole(world: World) -> None:
     other_yard = Yard.objects.create(name="Paternal", slug="paternal")
     far_pod = Pod.objects.create(name="Their house")
     far_pod.yards.set([other_yard])
-    far = Member.objects.create(
-        display_name="Far Cousin", user=User.objects.create_user(username="far")
-    )
+    far_user = User.objects.create_user(username="far")
+    far = Member.objects.create(display_name="Far Cousin", user=far_user)
     PodMembership.objects.create(member=far, pod=far_pod)
 
     response = world.client.post(
@@ -186,8 +198,8 @@ def test_the_confirm_step_is_not_an_authorization_hole(world: World) -> None:
         {"content": removal.DELETE, "confirm_name": "Far Cousin"},
     )
     assert response.status_code == 404
-    far.user.refresh_from_db()
-    assert far.user.is_active
+    far_user.refresh_from_db()
+    assert far_user.is_active
 
 
 def test_the_roster_warns_before_the_step(world: World) -> None:

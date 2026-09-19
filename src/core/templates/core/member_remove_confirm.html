@@ -19,8 +19,13 @@
   <ul>
     <li><strong>{{ preview.posts }}</strong> post{{ preview.posts|pluralize }} of theirs</li>
     <li><strong>{{ preview.replies }}</strong> repl{{ preview.replies|pluralize:"y,ies" }} of theirs</li>
-    <li><strong>{{ preview.photos }}</strong> photo{{ preview.photos|pluralize }} and video
-      clip{{ preview.photos|pluralize }}, erased from the server</li>
+    {% comment %} Spelled out per number rather than with two `pluralize` filters: one item
+       is a photo OR a clip, never "1 photo and video clip". The zero line stays — it is the
+       most reassuring number on the page, because it says nothing is erased from disk.
+       {% endcomment %}
+    <li><strong>{{ preview.photos }}</strong>
+      {% if preview.photos == 1 %}photo or video clip{% else %}photos and video clips{% endif %},
+      erased from the server</li>
   </ul>
   {% if preview.others_photos %}
     <p>{{ preview.others_photos }} of those photo{{ preview.others_photos|pluralize }} were
