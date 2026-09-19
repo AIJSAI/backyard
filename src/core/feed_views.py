@@ -482,6 +482,14 @@ def edit_post(request: HttpRequest, post_id: int) -> HttpResponse:
     if post.author_id != member.id:
         raise PermissionDenied
 
+    if not posting.within_edit_window(post):
+        # The author HAS permission here; the window closed. Raising PermissionDenied put
+        # "You Do Not Have Access" in front of somebody editing their own post from a page
+        # left open, which is false. The edit is still refused, on GET and on POST; they
+        # are told why and sent back to the post.
+        messages.info(request, "Posts can be edited for fifteen minutes after posting.")
+        return redirect("post_detail", post_id=post.id)
+
     if request.method == "POST":
         body = request.POST.get("body", "").strip()
         errors: list[str] = []
@@ -494,8 +502,6 @@ def edit_post(request: HttpRequest, post_id: int) -> HttpResponse:
             return redirect("feed")
         return render(request, "core/edit_post.html", {"post": post, "errors": errors})
 
-    if not posting.within_edit_window(post):
-        raise PermissionDenied  # the feed hides the edit link by now; enforce it here too
     return render(request, "core/edit_post.html", {"post": post, "errors": []})
 
 

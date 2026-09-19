@@ -162,13 +162,27 @@ def test_edit_own_post_updates_it(world: dict[str, object]) -> None:
     assert post.edited_at is not None
 
 
-def test_edit_after_window_is_403(world: dict[str, object]) -> None:
+def test_edit_after_window_is_refused_and_says_why(world: dict[str, object]) -> None:
+    """The author has permission; the window closed. The refusal page told them "You Do Not
+    Have Access", which is false, so the view sends them back to their post with the rule.
+    The edit is refused either way: a POST from a page left open changes nothing."""
     author = world["author"]
     m_pod = world["m_pod"]
     assert isinstance(author, Member)
     assert isinstance(m_pod, Pod)
-    post = _post(author, m_pod, minutes_ago=16)
-    assert _client_for(author).get(reverse("edit_post", args=[post.id])).status_code == 403
+    post = _post(author, m_pod, body="before", minutes_ago=16)
+    client = _client_for(author)
+    for response in (
+        client.get(reverse("edit_post", args=[post.id])),
+        client.post(reverse("edit_post", args=[post.id]), {"body": "after"}),
+    ):
+        assert response.status_code == 302
+        assert response["Location"] == reverse("post_detail", args=[post.id])
+    page = client.get(reverse("post_detail", args=[post.id]))
+    assert "Posts can be edited for fifteen minutes after posting." in page.content.decode()
+    post.refresh_from_db()
+    assert post.body == "before"
+    assert post.edited_at is None
 
 
 def test_edit_someone_elses_visible_post_is_403(world: dict[str, object]) -> None:
