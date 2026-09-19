@@ -20,17 +20,17 @@ glance -- "that's not our address" -- by someone who knows nothing about the set
 <div class="handover">
   <p>
     <input type="text" readonly value="{{ handover_link }}" style="width:100%"
-           aria-label="{{ handover_label|default:'Link to hand over' }}" data-handover-link>
+           aria-label="{{ handover_label|default:'Link To Hand Over' }}" data-handover-link>
   </p>
   {% if handover_host %}<p class="muted">This link opens at {{ handover_host }}.</p>{% endif %}
   <p class="handover-actions">
-    <button type="button" data-handover-copy hidden>Copy link</button>
+    <button type="button" data-handover-copy hidden>Copy Link</button>
     <button type="button" data-handover-share hidden
-            data-share-title="{{ handover_share_title|default:'Backyard' }}">Share…</button>
-    <span class="muted" data-handover-copied role="status" hidden>Copied to clipboard</span>
+            data-share-title="{{ handover_share_title|default:'Backyard' }}">Share</button>
+    <span class="muted" data-handover-copied role="status" hidden>Copied.</span>
   </p>
   <div class="qr">{{ handover_qr }}</div>
-  <p class="muted">{{ handover_note|default:'Send the link by text or email, or print this page for the QR. It appears only once.' }}</p>
+  <p class="muted">{{ handover_note|default:'Send the link by text or email, or print this page for the QR code. It appears only once.' }}</p>
 </div>
 <script nonce="{{ request.csp_nonce }}">
   // Reveal Copy/Share only where the browser supports them (S-212): a no-JS or

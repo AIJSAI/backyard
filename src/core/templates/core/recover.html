@@ -1,11 +1,11 @@
 {% extends "core/base.html" %}
-{% block title %}Choose a new password{% endblock %}
+{% block title %}Choose A New Password{% endblock %}
 {% block body %}
-  <h1>Choose a new password</h1>
+  <h1>Choose A New Password</h1>
   {% comment %} The name is here so somebody handed a link by text can tell at a glance
      that it is theirs, and not a relative's sent to the wrong thread. {% endcomment %}
-  <p class="muted">This link was made for <strong>{{ display_name }}</strong>. Pick a new
-  password and you are back in. If this is not you, close this page.</p>
+  <p class="muted">This link was created for <strong>{{ display_name }}</strong>. If this is
+  not you, close this page.</p>
 
   {% if errors %}
     <div class="errors">
@@ -15,20 +15,19 @@
 
   <form method="post">
     {% csrf_token %}
-    <label for="password">New password</label>
+    <label for="password">New Password</label>
     <input type="password" id="password" name="password" autocomplete="new-password" required>
-    <p class="hint">Use something you will remember. Three or four unrelated words work
-      well and are easy to type on a phone.</p>
+    <p class="hint">Choose a memorable password.</p>
 
-    <label for="password_again">Type it again</label>
+    <label for="password_again">Confirm Password</label>
     <input type="password" id="password_again" name="password_again"
            autocomplete="new-password" required>
-    <p class="hint">This link works once. A password with a typo in it would lock you out
-      again and you would have to ask for a new link, so we ask for it twice.</p>
+    {% comment %} Why the second box is here, in one line: this link is single use, so a
+       typo costs another phone call to an admin rather than another attempt. {% endcomment %}
+    <p class="hint">This link works once, so a typo would lock you out again.</p>
 
-    <button type="submit">Save it and sign in</button>
+    <button type="submit">Save And Sign In</button>
   </form>
 
-  <p class="muted">You will be signed out anywhere you were already signed in, then you sign
-  back in with the new password.</p>
+  <p class="muted">You will be signed out everywhere else.</p>
 {% endblock %}

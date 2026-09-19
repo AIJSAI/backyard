@@ -143,11 +143,11 @@ def new_elder(request: HttpRequest) -> HttpResponse:
         kinship = request.POST.get("kinship_name", "").strip()
         household = request.POST.get("household_name", "").strip()
         if not elder_name or len(elder_name) > 100:
-            errors.append("Give the grandparent a name.")
+            errors.append("Enter their name.")
         if not household or len(household) > 100:
-            errors.append("Name their household.")
+            errors.append("Enter a household name.")
         if len(kinship) > 50:
-            errors.append("That nickname is too long (max 50 characters).")
+            errors.append("Nickname must be 50 characters or fewer.")
         if not errors:
             with transaction.atomic():
                 pod = Pod.objects.create(name=household, kind=Pod.HOUSEHOLD)

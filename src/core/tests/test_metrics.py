@@ -247,7 +247,7 @@ def test_metrics_panel_is_instance_admin_only(world: World) -> None:
     assert _client_for(world.poster).get(reverse("member_metrics")).status_code == 403
     assert _client_for(yard_admin).get(reverse("member_metrics")).status_code == 403
     body = _client_for(instance_admin).get(reverse("member_metrics")).content.decode()
-    assert "How the family is using it" in body and "Maternal" in body
+    assert "Usage" in body and "Maternal" in body
 
 
 def test_the_breadth_column_is_named_for_what_it_counts_in_both_places(world: World) -> None:
@@ -271,8 +271,8 @@ def test_the_breadth_column_is_named_for_what_it_counts_in_both_places(world: Wo
     instance_admin = _member_with_user(world.m_pod, "Iadmin", role=Member.INSTANCE_ADMIN)
     body = _client_for(instance_admin).get(reverse("member_metrics")).content.decode()
 
-    assert "<th>Households and groups that posted</th>" in body
-    assert 'data-label="Households and groups that posted"' in body
+    assert "<th>Households And Groups That Posted</th>" in body
+    assert 'data-label="Households And Groups That Posted"' in body
     assert "Posting breadth" not in body
 
 

@@ -1,22 +1,25 @@
 {% extends "core/base.html" %}
 {% load times %}
-{% block title %}Replies we couldn't post{% endblock %}
+{% block title %}Held Replies{% endblock %}
 {% block body %}
-  <h1>Replies we couldn&rsquo;t post</h1>
-  <p class="back-link"><a class="back" href="{% url 'members' %}">Back to Family members</a></p>
-  <p class="muted">Replies that could not be posted safely. Handle each with the family
-  member directly, then clear it; nothing here was posted or delivered.</p>
+  <h1>Held Replies</h1>
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Back To Members</a></p>
+  <p class="muted">Replies that could not be posted safely. Nothing here was posted or
+  delivered. Talk to the member directly, then clear the reply.</p>
   <ul class="quarantine">
     {% for row in rows %}
       <li>
+        {% comment %} "(capability of <name>)" named an internal object at a relative. The
+           fact an admin needs is whose link the message came in on, which is the name.
+           {% endcomment %}
         <strong>{{ row.get_reason_display }}</strong>
-        {% if row.member %}(capability of {{ row.member.display_name }}){% endif %}
+        {% if row.member %}· {{ row.member.display_name }}{% endif %}
         · from {{ row.from_header|default:"(no sender)" }} · {% when row.created_at %}
         {% if row.body_excerpt %}<blockquote>{{ row.body_excerpt }}</blockquote>{% endif %}
         <form method="post" action="{% url 'member_quarantine' %}">
           {% csrf_token %}
           <input type="hidden" name="row_id" value="{{ row.id }}">
-          <button type="submit">Handled, clear it</button>
+          <button type="submit">Clear Reply</button>
         </form>
       </li>
     {% empty %}

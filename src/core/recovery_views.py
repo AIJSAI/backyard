@@ -122,7 +122,7 @@ def recover(request: HttpRequest, token: str) -> HttpResponse:
             # link is single use and there is no "forgot your password" behind it -- a new
             # password with a typo in it that they cannot reproduce locks them out again
             # and costs another phone call to an admin.
-            errors.append("Those two are not the same. Type the same password in both boxes.")
+            errors.append("The passwords do not match.")
         else:
             try:
                 recovery.redeem(token, password)
@@ -153,7 +153,11 @@ def recover(request: HttpRequest, token: str) -> HttpResponse:
                 username = live.member.user.username if live.member.user else ""
                 if username:
                     recovery.remember_the_recovered_username(request.session, username)
-                    messages.success(request, f"Your new password is saved. Sign in as {username}.")
+                    # "Password changed." and not "Password saved.": the same act on the
+                    # emailed-reset path raises allauth's message from
+                    # account/messages/password_changed.txt, which this product overrode to
+                    # exactly that sentence. One act, one sentence, whichever way in.
+                    messages.success(request, f"Password changed. Sign in as {username}.")
                 return redirect("account_login")
     return render(
         request,

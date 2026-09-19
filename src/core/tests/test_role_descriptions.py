@@ -202,7 +202,7 @@ def test_the_roster_actually_renders_the_key() -> None:
             ],
         },
     )
-    assert "What the roles mean" in html
+    assert "What The Roles Mean" in html
     for role in (Member.POD_OWNER, Member.YARD_ADMIN, Member.INSTANCE_ADMIN):
         # escape(), because the descriptions contain apostrophes and the template
         # autoescapes them — comparing raw text would fail on correct output.
@@ -218,7 +218,7 @@ def test_the_roster_renders_no_empty_disclosure_without_meanings() -> None:
     from django.template.loader import render_to_string
 
     html = render_to_string("core/members.html", {"rows": [], "can_create_yard": False})
-    assert "What the roles mean" not in html, "an empty role key rendered"
+    assert "What The Roles Mean" not in html, "an empty role key rendered"
     # The ELEMENT, not the bare class name: base.html's stylesheet ships
     # `details.role-key { ... }` on every page, so a substring check for "role-key"
     # matches the CSS and fails against correct output.

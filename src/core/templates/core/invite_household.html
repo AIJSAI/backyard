@@ -1,9 +1,9 @@
 {% extends "core/base.html" %}
 {% load times %}
-{% block title %}Invite a household{% endblock %}
+{% block title %}Invite A Household{% endblock %}
 {% block body %}
-  <h1>Invite a household</h1>
-  <p class="back-link"><a class="back" href="{% url 'members' %}">Back to Family members</a></p>
+  <h1>Invite A Household</h1>
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Back To Members</a></p>
 
   {% if minted_link %}
     {% comment %} On success the page used to re-render the create form UNDERNEATH the
@@ -11,10 +11,9 @@
        whether it had worked or whether they were meant to fill it in again. The form is
        gone once there is a link to hand over, and inviting another household is a quiet
        link at the end. {% endcomment %}
-    <h2>Here is the link for {{ household_name }}</h2>
-    <p>It lets up to {{ max_uses }} people into <strong>{{ yard_name }}</strong>, and it
-    stops working on {% when_date expires_at %}. Send it however you normally reach
-    them.</p>
+    <h2>Invite Link For {{ household_name }}</h2>
+    <p>Up to {{ max_uses }} people can join <strong>{{ yard_name }}</strong> with this
+    link. It stops working on {% when_date expires_at %}.</p>
     {% comment %} R2-6. Said again on the page that shows the link, naming the actual
        sides this time: the person hands this link over and says out loud what it does, so
        the sentence they will repeat has to be on the screen in front of them. Both sides
@@ -22,30 +21,25 @@
        admin" is a bigger act there than the two ticked boxes may have suggested.
        {% endcomment %}
     {% if grants_side_admin %}
-      <p class="notice">The first person to join with this link becomes the side admin for
+      <p class="notice">The first person to join with this link becomes the Side Admin for
         <strong>{{ yard_name }}</strong>. Everyone after them joins as a member.</p>
     {% endif %}
-    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="Invite link" handover_share_title="Join our family on Backyard" %}
-    <p class="page-action"><a href="{% url 'invite_household' %}">Invite another household</a>
-      &middot; <a href="{% url 'member_invites' %}">Outstanding invites</a></p>
+    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="Invite Link" handover_share_title="Join Backyard" %}
+    <p class="page-action"><a href="{% url 'invite_household' %}">Invite Another Household</a>
+      &middot; <a href="{% url 'member_invites' %}">Invites</a></p>
   {% else %}
 
-  {% comment %} Two corrections from the 2026-09-19 walk, both in one sentence.
+  {% comment %} "pick which side of the family it joins" promised a choice that is not on
+     the screen when only one side exists (walk item 9, 2026-09-19) — the same defect as
+     the lone pre-ticked checkbox below, one sentence higher up. With one side the clause
+     is absent; the statement below names the side instead.
 
-     "pick which side of the family it joins" promised a choice that is not on the screen
-     when only one side exists — the same defect as the lone pre-ticked checkbox below, one
-     sentence higher up, and the first thing read on the page. With one side the clause is
-     simply absent; the statement below names the side instead.
-
-     "lands straight in the family feed, with no setup screens" was written when that was
-     true: join dropped the newcomer on the feed under a green orientation card. Three
-     welcome screens have existed since (core/welcome_views.py — what this is, the Family
-     email, say hello), so the admin was being told something the person they are inviting
-     will not experience. The admin repeats this sentence out loud when they hand the link
-     over, which is why a stale promise here costs more than it looks. {% endcomment %}
-  <p class="notice">Name the household{% if yards|length != 1 %} and pick which side of the family
-  it joins{% endif %}. This creates the household and a one-time link you hand over. Whoever opens
-  the link just picks a name and a password, then a short welcome, then the family feed.</p>
+     The third sentence used to walk the admin through what the newcomer sees ("picks a
+     name and a password, then a short welcome, then the family feed"). It went out in the
+     copy pass: it did no work for the person on this screen, and it had already been wrong
+     once, describing a join flow that three welcome screens had replaced. {% endcomment %}
+  <p class="notice">Name the household{% if yards|length != 1 %} and choose which side it
+  joins{% endif %}. This creates the household and a one-time link to hand over.</p>
 
   {% if errors %}<div class="errors">{% for e in errors %}<p>{{ e }}</p>{% endfor %}</div>{% endif %}
 
@@ -55,7 +49,7 @@
     {% comment %} What they typed, so a rejected form comes back filled in — the same rule
        the join form already follows. A validation error used to hand back an empty page.
        {% endcomment %}
-    <label for="household_name">Household name</label>
+    <label for="household_name">Household Name</label>
     <input id="household_name" type="text" name="household_name" maxlength="100"
            value="{{ typed_household_name|default:'' }}"
            placeholder="e.g. The Davis family" required>
@@ -91,9 +85,9 @@
       {% endfor %}
     {% else %}
       <fieldset>
-        <legend>Which side of the family</legend>
-        <p class="muted">Tick both if this household belongs to both sides — they will see
-          both, and the two sides still never see each other.</p>
+        <legend>Which Side</legend>
+        <p class="hint">Select both if this household belongs to both sides. The two sides
+          still never see each other.</p>
         {% for yard in yards %}
           <label class="inline-check">
             <input type="checkbox" name="yard_ids" value="{{ yard.id }}"
@@ -101,7 +95,7 @@
             {{ yard.name }}
           </label>
         {% empty %}
-          <p class="muted">No family sides you can invite into yet.</p>
+          <p class="muted">No sides you can invite into yet.</p>
         {% endfor %}
       </fieldset>
     {% endif %}
@@ -120,24 +114,28 @@
        link hands out authority. {% endcomment %}
     {% if can_grant_side_admin %}
       <fieldset>
-        <legend>Hand this side over</legend>
+        <legend>Hand This Side Over</legend>
         {% comment %} ECHOED BACK on the error path. A validation error re-rendered this
            box empty, so an admin who fixed the household name and submitted again handed
            over a link that appoints nobody — the exact defect this control exists to cure,
            reintroduced by a blank checkbox. {% endcomment %}
+        {% comment %} The checkbox label is a NAME now, not the whole sentence: a label is
+           Title Case, and Title Case applied to a full sentence is unreadable. The
+           sentence is the thing this control does, and it stays, in the hint under it.
+           {% endcomment %}
         <label class="inline-check">
           <input type="checkbox" name="grants_side_admin" value="1"
                  {% if grants_side_admin_ticked %}checked{% endif %}>
-          The first person to join with this link becomes the side admin
+          Make The First Joiner The Side Admin
         </label>
-        <p class="hint">They will be able to add and remove people on their side of the
-          family. Everyone after them joins as a member. If this household belongs to both
-          sides, they look after both.</p>
+        <p class="hint">The first person to join with this link becomes the Side Admin for
+          every side this household belongs to, and can add and remove members there.
+          Everyone after them joins as a member.</p>
       </fieldset>
     {% endif %}
-    <button type="submit">Create the household and get the link</button>
+    <button type="submit">Create Invite Link</button>
   </form>
-  <p class="page-action"><a href="{% url 'member_invites' %}">Outstanding invites</a></p>
+  <p class="page-action"><a href="{% url 'member_invites' %}">Invites</a></p>
   {% endif %}
 {% endblock %}
 {% block extra_body %}{% include "core/_localise_times.html" %}{% endblock %}

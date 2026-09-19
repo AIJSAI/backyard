@@ -3,70 +3,88 @@
    only as a file in a git repository, which is exactly nowhere for the people it is
    written for.
 
-   ONE SCREEN. It was 667 words and accurate, which is a different thing from useful on a
-   phone; the owner asked for concise and friendly, so every "why" came out and the button
-   names stayed. What survives is what somebody needs at the moment they are doing it.
-   Every control it names was clicked through at 390px before this shipped, and
-   test_admins_day_one.py holds each one against the rendered roster.
-   docs/guide/admins-day-one.md carries the same text.
+   ONE SCREEN, AND SCANNABLE. It was 667 words of narrative; the copy pass of 2026-09-19
+   turned each section into a heading plus numbered steps, because nobody reads a guide
+   front to back — they arrive mid-task, looking for the one step they are on. Every
+   control it names was clicked through at 390px, and test_admins_day_one.py holds each one
+   against the rendered roster. docs/guide/admins-day-one.md carries the same text.
 
    R2-3: it said "No-login link on the row", "Get back in link on their row", "Change
    household on their row". True until walk item 13 collapsed the roster — those controls
    now sit behind a Manage disclosure, so a delegate following this page looked at a row
    carrying a name, a role badge and the word Manage, and none of the words they had just
-   been told to tap. The route is named, not the destination renamed. {% endcomment %}
-{% block title %}A guide for the two of you{% endblock %}
+   been told to tap. The route is named, not the destination renamed.
+
+   Section 5 is new: every other section is about rescuing somebody else, and the person
+   this page is written for is the one nobody else in the family can rescue. {% endcomment %}
+{% block title %}Admin Guide{% endblock %}
 {% block body %}
-  <p class="back-link"><a class="back" href="{% url 'members' %}">Back to Family members</a></p>
-  <h1>A guide for the two of you</h1>
-  <p class="muted">Everything here starts from <strong>Family members</strong>, the
-    <strong>Members</strong> link at the top of every page.</p>
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Back To Members</a></p>
+  <h1>Admin Guide</h1>
+  <p class="muted">Everything here starts from <strong>Members</strong>, at the top of
+    every page.</p>
 
-  <h2>1. Invite a household</h2>
-  <p>A household is one home: a couple, a family, a sibling and their kids. One link
-    covers all of them.</p>
-  <p><strong>Family members &rarr; Invite a household.</strong> Name it, tick which side
-    of the family it belongs to, and send the link however you normally reach them.</p>
-  <p class="muted">It is shown once. Lost it? Make another from
-    <a href="{% url 'member_invites' %}">Outstanding invites</a>.</p>
-  {% comment %} R2-6, one sentence. It is here rather than in its own section because most
-     admins reading this will never mint one — only the family admin is offered the
-     control — but every admin reading this may have ARRIVED through one, and a link that
-     hands out authority should not be a thing the product never mentions. {% endcomment %}
-  <p class="muted">Only the family admin sees it, but if a link was made to hand over a
-    side of the family, the first person to join with it becomes that side&rsquo;s admin
-    and everyone after them joins as a member.</p>
+  <h2>1. Invite A Household</h2>
+  <p>A household is one home. One link covers everyone in it.</p>
+  <ol>
+    <li><strong>Members &rarr; Invite A Household</strong>.</li>
+    <li>Name the household and choose which side it joins.</li>
+    <li>Send the link however you normally reach them.</li>
+  </ol>
+  <p class="muted">The link is shown once. Make another from
+    <a href="{% url 'member_invites' %}">Invites</a>.</p>
+  {% comment %} R2-6, one sentence. Most admins reading this will never mint a side-admin
+     link — only the family admin is offered the control — but every admin reading this may
+     have ARRIVED through one, and a link that hands out authority should not be a thing the
+     product never mentions. {% endcomment %}
+  <p class="muted">Only the Family Admin can hand a side over. The first person to join
+    with that link becomes the Side Admin, and everyone after them joins as a member.</p>
 
-  <h2>2. Give a grandparent a no-login link</h2>
-  <p><strong>Post something to their side of the family first</strong>, or they will open
-    the link and find an empty page. You cannot preview it for them.</p>
-  <p>Then <strong>Family members &rarr; Add a grandparent</strong> for somebody new, or,
-    for somebody already here, tap <strong>Manage</strong> on their row and then
-    <strong>No-login link</strong>.</p>
-  <p>Hand it over in person or in a private message. Anyone holding it can read and send
-    love as them. Not in a group chat.</p>
+  <h2>2. Add A Grandparent</h2>
+  <p><strong>Post something to their side first</strong>, or they will open the link to an
+    empty page. You cannot preview it for them.</p>
+  <ol>
+    <li>For someone new: <strong>Members &rarr; Add A Grandparent</strong>.</li>
+    <li>For someone already here: tap <strong>Manage</strong> on their row and then
+      <strong>No-Login Link</strong>.</li>
+  </ol>
+  <p class="muted">Anyone holding the link can read and send love as them. Hand it over in
+    person or in a private message, never in a group chat.</p>
 
-  <h2>3. Help someone who is locked out</h2>
-  <p>If they gave an email address, <strong>Forgot your password?</strong> on the sign-in
-    page does it without you.</p>
-  <p>If not, tap <strong>Manage</strong> on their row, then <strong>Get back in
-    link</strong>. It works once and stops working after two days.</p>
-  <p><strong>Make sure you are really talking to them first</strong> &mdash; a call, or a
-    text to the number you already have.</p>
+  <h2>3. When Someone Is Locked Out</h2>
+  <ol>
+    <li>If they have an email address, <strong>Forgot Your Password?</strong> on the
+      sign-in page does it without you.</li>
+    <li>If not, tap <strong>Manage</strong> on their row, then <strong>Sign-In
+      Link</strong>. It works once and expires after two days.</li>
+  </ol>
+  <p class="muted"><strong>Make sure you are really talking to them first.</strong> Call or
+    text the number you already have.</p>
 
-  <h2>4. Move or remove someone</h2>
-  <p>Both of these live under <strong>Manage</strong> on their row too.</p>
-  <p><strong>Change household</strong> moves somebody who is already here into another
-    household, or out of one.</p>
-  <p><strong>Remove &hellip;</strong> asks what happens to what they wrote, and you have to
-    answer: keep their posts, keep them without their name, or delete them.</p>
-  <p>Deleting erases their photos from the server for good, and asks you to type their
-    name first. Photos other people added replying to their posts go too.</p>
+  <h2>4. Move Or Remove Someone</h2>
+  <p>Both live under <strong>Manage</strong> on their row.</p>
+  <ul>
+    <li><strong>Change Household</strong> moves someone into another household, or out of
+      one.</li>
+    <li><strong>Remove</strong> asks what happens to what they wrote: keep their posts,
+      keep them without their name, or delete them.</li>
+  </ul>
+  <p class="muted">Deleting erases their photos from the server for good, and asks you to
+    type their name first. Photos other people added replying to their posts go too.</p>
 
-  <h2>5. When you are stuck</h2>
-  <p>Ask {% if help_contact %}{{ help_contact }}{% else %}whoever in the family set this
-    up{% endif %}. Nothing here is a one-tap disaster &mdash; the two that cannot be undone
-    both ask you twice.</p>
-  <p class="page-action"><a href="{% url 'how_it_works' %}">How this works</a> &mdash; the
-    page the rest of the family reads.</p>
+  <h2>5. If You Are Locked Out</h2>
+  <ol>
+    <li>With an email address on file, use <strong>Forgot Your Password?</strong></li>
+    <li>Without one, ask {% if help_contact %}{{ help_contact }}{% else %}whoever set this
+      Backyard up{% endif %} for a <strong>Sign-In Link</strong>.</li>
+    <li>If no admin can sign in, the password has to be reset at the server by whoever runs
+      this Backyard.</li>
+  </ol>
+  <p class="muted">Adding a second sign-in step under Settings is worth the minute it
+    takes.</p>
+
+  <h2>6. If You Are Stuck</h2>
+  <p>Ask {% if help_contact %}{{ help_contact }}{% else %}whoever set this Backyard
+    up{% endif %}. <a href="{% url 'how_it_works' %}">How It Works</a> is the page everyone
+    else reads.</p>
 {% endblock %}

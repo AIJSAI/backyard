@@ -1,11 +1,13 @@
 {% extends "core/base.html" %}
-{% block title %}Family sides{% endblock %}
+{% block title %}Sides{% endblock %}
 {% block body %}
-  <h1>Family sides</h1>
-  <p><a href="{% url 'members' %}">Back to members</a></p>
-  <p class="notice">A family side is one branch of the family with its own private feed
-  (for example, your mom's side and your dad's side). Create the other side here, then
-  invite its first household and hand it to a per-side admin who onboards the rest.</p>
+  <h1>Sides</h1>
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Back To Members</a></p>
+  {% comment %} This is the one admin page where a side has to be DEFINED before anything
+     else makes sense, so it is the one that spends a clause on it. {% endcomment %}
+  <p class="notice">A side is one branch of the family with its own private feed, for
+  example your mom's side and your dad's side. Create a side here, then invite its first
+  household and hand that side over to a Side Admin.</p>
 
   {% if errors %}<div class="errors">{% for e in errors %}<p>{{ e }}</p>{% endfor %}</div>{% endif %}
 
@@ -13,16 +15,16 @@
     {% for yard in yards %}
       <li>{{ yard.name }}</li>
     {% empty %}
-      <li class="empty">No family sides yet.</li>
+      <li class="empty">No sides yet.</li>
     {% endfor %}
   </ul>
 
   <form method="post" action="{% url 'family_sides' %}">
     {% csrf_token %}
     <input type="hidden" name="intent" value="{{ intent }}">
-    <label for="yard_name">Name the new family side</label>
+    <label for="yard_name">Side Name</label>
     <input id="yard_name" type="text" name="yard_name" maxlength="100"
            placeholder="e.g. Dad's side" required>
-    <button type="submit">Create the family side</button>
+    <button type="submit">Create Side</button>
   </form>
 {% endblock %}

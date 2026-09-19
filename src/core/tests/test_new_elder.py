@@ -202,9 +202,9 @@ def test_names_are_required(world: World) -> None:
     before = Member.objects.count()
     resp = _create_elder(client, yard_id=world.maternal.id, elder_name="   ")
     assert resp.status_code == 200
-    assert "Give the grandparent a name." in resp.content.decode()
+    assert "Enter their name." in resp.content.decode()
     resp2 = _create_elder(client, yard_id=world.maternal.id, household="   ")
-    assert "Name their household." in resp2.content.decode()
+    assert "Enter a household name." in resp2.content.decode()
     assert Member.objects.count() == before  # nothing created either time
     assert not ElderToken.objects.exists()
 

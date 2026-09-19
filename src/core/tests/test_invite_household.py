@@ -188,7 +188,7 @@ def test_household_name_is_required(world: World) -> None:
     before = Pod.objects.count()
     response = _create_household(client, yard_id=world.maternal.id, name="   ")
     assert response.status_code == 200
-    assert "Give the household a name." in response.content.decode()
+    assert "Enter a household name." in response.content.decode()
     assert Pod.objects.count() == before  # nothing created
     assert Invite.objects.count() == 0
 
@@ -551,13 +551,13 @@ def test_one_side_attaches_the_household_to_that_side_with_no_field_in_the_post(
 
 def test_two_sides_are_untouched(world: World) -> None:
     """The bridging-household control is a real choice and stays exactly as it was: two
-    checkboxes, neither pre-ticked, under the "tick both" sentence."""
+    checkboxes, neither pre-ticked, under the "select both" sentence."""
     body = _client_for(world.instance_admin).get(reverse("invite_household")).content.decode()
     fieldset = body[body.index("<fieldset") : body.index("</fieldset>")]
 
     assert fieldset.count('type="checkbox"') == 2
     assert "checked" not in fieldset, "the product answered a real choice for them"
-    assert "Tick both" in body
+    assert "Select both" in body
     assert world.maternal.name in body and world.paternal.name in body
     assert "This household joins" not in body  # the single-side statement is not shown here
 
@@ -618,6 +618,6 @@ def test_no_side_at_all_still_asks_for_one(world: World) -> None:
         {"household_name": "The Ash family", "intent": _intent(client)},
     )
     assert response.status_code == 200
-    assert "Pick at least one side of the family." in response.content.decode()
+    assert "Choose at least one side." in response.content.decode()
     assert Pod.objects.count() == before
     assert Invite.objects.count() == 0

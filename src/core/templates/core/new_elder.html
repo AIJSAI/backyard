@@ -1,15 +1,18 @@
 {% extends "core/base.html" %}
-{% block title %}Add a grandparent{% endblock %}
+{% block title %}Add A Grandparent{% endblock %}
 {% block body %}
-  <h1>Add a grandparent</h1>
-  <p class="back-link"><a class="back" href="{% url 'members' %}">Back to Family members</a></p>
+  <h1>Add A Grandparent</h1>
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Back To Members</a></p>
 
-  <p class="notice">For a grandparent who does not use apps. This creates their household and a
-  <strong>no-login link</strong>: it opens a large-text view of the family feed, where they can read
-  and send love with one tap. Nothing to install, no password.</p>
-  <p class="muted">Whoever holds the link can read and send love as them, so hand it over in person
-  or by a private message. Post something to their side of the family first, or they will open it
-  and find an empty page.</p>
+  <p class="notice">For a grandparent who does not use apps. This creates their household
+  and a <strong>No-Login Link</strong>: a large-text view of Your Backyard where they can
+  read and send love with one tap. No password, nothing to install.</p>
+  {% comment %} Both halves of this are on the Keep list: who a no-login link lets in, and
+     the one rule that decides whether the first thing they see is their family or an empty
+     page. {% endcomment %}
+  <p class="muted">Anyone holding the link can read and send love as them, so hand it over
+  in person or in a private message. Post to their side first, or they will open it to an
+  empty page.</p>
 
   {% if errors %}<div class="errors">{% for e in errors %}<p>{{ e }}</p>{% endfor %}</div>{% endif %}
 
@@ -20,31 +23,31 @@
      grandparent and a second household by accident. The link is the answer to what the
      admin came here to do; the form comes back when they say they want another one. {% endcomment %}
   {% if minted_link %}
-    <h2>Link ready to hand over</h2>
+    <h2>Link Ready To Hand Over</h2>
     <p>For <strong>{{ elder_name }}</strong> in <strong>{{ yard_name }}</strong>.</p>
-    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="No-login link" handover_share_title="Your family on Backyard" handover_note="Hand it over in person or by a private message, or print this page for the QR. It appears only once." %}
-    <p class="settings-link"><a href="{% url 'new_elder' %}">Add another grandparent</a></p>
+    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="No-Login Link" handover_share_title="Your Backyard" handover_note="Hand it over in person or in a private message, or print this page for the QR code. It appears only once." %}
+    <p class="settings-link"><a href="{% url 'new_elder' %}">Add Another Grandparent</a></p>
   {% else %}
   <form method="post" action="{% url 'new_elder' %}">
     {% csrf_token %}
     <input type="hidden" name="intent" value="{{ intent }}">
-    <label for="elder_name">Their name</label>
+    <label for="elder_name">Their Name</label>
     <input id="elder_name" type="text" name="elder_name" maxlength="100"
            placeholder="e.g. Rose Davis" required>
-    <label for="kinship_name">What the family calls them (optional)</label>
+    <label for="kinship_name">Nickname (Optional)</label>
     <input id="kinship_name" type="text" name="kinship_name" maxlength="50" placeholder="e.g. Nana">
-    <label for="household_name">Their household</label>
+    <label for="household_name">Their Household</label>
     <input id="household_name" type="text" name="household_name" maxlength="100"
-           placeholder="e.g. Nana&rsquo;s" required>
-    <label for="yard_id">Which side of the family</label>
+           placeholder="e.g. Nana's" required>
+    <label for="yard_id">Which Side</label>
     <select id="yard_id" name="yard_id" required>
       {% for yard in yards %}
         <option value="{{ yard.id }}">{{ yard.name }}</option>
       {% empty %}
-        <option disabled>No family sides you can add to yet</option>
+        <option disabled>No sides you can add to yet</option>
       {% endfor %}
     </select>
-    <button type="submit">Create their household and get the link</button>
+    <button type="submit">Create No-Login Link</button>
   </form>
   {% endif %}
 {% endblock %}

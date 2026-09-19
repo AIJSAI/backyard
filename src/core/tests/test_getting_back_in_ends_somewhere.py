@@ -9,7 +9,7 @@ file — the ones "Forgot your password?" can never reach, which is why an admin
 them a link by hand — and a good share of them do not know what username somebody typed
 for them a year ago. The product knew it, had just used it, and did not say it.
 
-Now the sign-in page it lands on says "Your new password is saved. Sign in as <username>."
+Now the sign-in page it lands on says "Password changed. Sign in as <username>."
 once, and the username is already in the box.
 
 THE SECURITY PROPERTY, which is what most of this file is about: a username is printed
@@ -96,7 +96,7 @@ def test_saving_lands_on_sign_in_with_the_username_said_and_filled_in() -> None:
     assert page.redirect_chain[-1][0] == reverse("account_login"), page.redirect_chain
     body = page.content.decode()
 
-    assert "Your new password is saved. Sign in as nana." in body
+    assert "Password changed. Sign in as nana." in body
     # Through the flash component the rest of the product uses, not a bespoke banner.
     assert 'class="messages"' in body and 'role="status"' in body
     # ...and the box is not empty.
@@ -120,7 +120,7 @@ def test_it_is_said_once_and_then_never_again() -> None:
     )
 
     again = client.get(reverse("account_login")).content.decode()
-    assert "Your new password is saved" not in again
+    assert "Password changed" not in again
     assert 'value="nana"' not in again, "the username is still being filled in on later visits"
 
 
@@ -185,7 +185,7 @@ def test_a_password_the_validators_refuse_names_nobody_yet() -> None:
     )
     assert page.status_code == 200, page.status_code
     body = page.content.decode()
-    assert "Your new password is saved" not in body
+    assert "Password changed" not in body
     assert client.session.get(recovery.RECOVERED_USERNAME_KEY) is None
 
 
@@ -197,7 +197,7 @@ def test_a_mistyped_confirmation_names_nobody_yet() -> None:
         {"password": _NEW_PW, "password_again": _NEW_PW + " oops"},
     )
     assert page.status_code == 200
-    assert "Your new password is saved" not in page.content.decode()
+    assert "Password changed" not in page.content.decode()
     assert client.session.get(recovery.RECOVERED_USERNAME_KEY) is None
 
 
@@ -209,7 +209,7 @@ def test_merely_opening_the_link_names_nobody() -> None:
     page = client.get(reverse("recover", args=[raw]))
     assert page.status_code == 200
     body = page.content.decode()
-    assert "Your new password is saved" not in body
+    assert "Password changed" not in body
     assert "Sign in as" not in body
     assert client.session.get(recovery.RECOVERED_USERNAME_KEY) is None
 

@@ -96,7 +96,7 @@ def test_it_covers_the_five_things_and_nothing_else() -> None:
     ):
         assert subject.lower() in body.lower(), f"the guide never covers {subject!r}"
     # The grandparent rule the runbook calls "the one rule that matters".
-    assert "Post something to their side of the family first" in body
+    assert "Post something to their side first" in body
     # ONE SCREEN. It was 667 words, which is accurate and not useful on a phone; the owner
     # asked for concise. Counted on the repo copy, which is the same text without the
     # page's chrome, stylesheet and scripts. A ceiling rather than an exact count, so
@@ -118,11 +118,11 @@ def test_every_control_the_guide_names_is_one_the_admin_can_see() -> None:
     guide = _text(client.get(reverse("admins_day_one")).content.decode())
 
     named = [
-        "Invite a household",
-        "Add a grandparent",
-        "Outstanding invites",
-        "No-login link",
-        "Get back in link",
+        "Invite A Household",
+        "Add A Grandparent",
+        "Invites",
+        "No-Login Link",
+        "Sign-In Link",
     ]
     for control in named:
         assert control in guide, f"this test claims the guide names {control!r} and it does not"
@@ -154,7 +154,7 @@ def test_the_guide_sends_an_admin_through_manage_for_the_controls_that_live_ther
     # control names while explaining how they are laid out.
     rows = roster[roster.index('<ul class="members">') :]
     disclosure = rows.index('<details class="member-manage"')
-    for behind_it in ("No-login link", "Get back in link"):
+    for behind_it in ("No-Login Link", "Sign-In Link"):
         assert behind_it in rows[disclosure:], (
             f"{behind_it!r} is not inside Manage, so the guide should not send an admin through it"
         )
@@ -163,12 +163,12 @@ def test_the_guide_sends_an_admin_through_manage_for_the_controls_that_live_ther
         )
 
     # The three sentences, each naming the route before the destination.
-    assert "tap Manage on their row and then No-login link" in guide
-    assert "tap Manage on their row, then Get back in link" in guide
+    assert "tap Manage on their row and then No-Login Link" in guide
+    assert "tap Manage on their row, then Sign-In Link" in guide
     assert "under Manage on their row" in guide
     # And the wording it replaced is gone, in both copies, or the page contradicts itself.
     doc = _GUIDE_DOC.read_text(encoding="utf-8")
-    for stale in ("No-login link on the row", "Get back in link on their row"):
+    for stale in ("No-Login Link on the row", "Sign-In Link on their row"):
         assert stale not in guide and stale not in doc, f"{stale!r} survived"
 
 
@@ -199,22 +199,23 @@ def test_the_repo_copy_says_the_same_thing_as_the_page() -> None:
     doc = _GUIDE_DOC.read_text(encoding="utf-8")
 
     for heading in (
-        "1. Invite a household",
-        "2. Give a grandparent a no-login link",
-        "3. Help someone who is locked out",
-        "4. Move or remove someone",
-        "5. When you are stuck",
+        "1. Invite A Household",
+        "2. Add A Grandparent",
+        "3. When Someone Is Locked Out",
+        "4. Move Or Remove Someone",
+        "5. If You Are Locked Out",
+        "6. If You Are Stuck",
     ):
         assert heading in page, f"the page is missing the section {heading!r}"
         assert f"## {heading}" in doc, f"the repo copy is missing the section {heading!r}"
 
     for control in (
-        "Family members",
-        "Invite a household",
-        "Add a grandparent",
-        "Outstanding invites",
-        "No-login link",
-        "Get back in link",
+        "Members",
+        "Invite A Household",
+        "Add A Grandparent",
+        "Invites",
+        "No-Login Link",
+        "Sign-In Link",
     ):
         assert control in page and control in doc, f"{control!r} is in only one of the two"
 

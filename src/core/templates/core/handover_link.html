@@ -1,14 +1,14 @@
 {% extends "core/base.html" %}
 {% load times %}
-{% block title %}New link{% endblock %}
+{% block title %}New Invite Link{% endblock %}
 {% block body %}
-  <h1>New link ready</h1>
-  <p><a href="{% url 'member_invites' %}">Back to invites</a></p>
+  <h1>New Invite Link</h1>
+  <p class="back-link"><a class="back" href="{% url 'member_invites' %}">Back To Invites</a></p>
 
-  <p class="notice">A fresh one-time link for <strong>{{ pod_name }}</strong>. The earlier link still
-  works until it expires or you revoke it, so hand over whichever you like. It works for up to
-  {{ max_uses }} people and expires {% when_date expires_at %}.</p>
+  <p class="notice">A new one-time link for <strong>{{ pod_name }}</strong>. Up to
+  {{ max_uses }} people can join with it, and it expires {% when_date expires_at %}. The
+  earlier link still works until it expires or you revoke it.</p>
 
-  {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="Invite link" handover_share_title="Join our family on Backyard" %}
+  {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="Invite Link" handover_share_title="Join Backyard" %}
 {% endblock %}
 {% block extra_body %}{% include "core/_localise_times.html" %}{% endblock %}

@@ -7,7 +7,7 @@ have to do it.
 hand anyone a grandparent link. See "A grandparent" below for why.
 
 > The short version of this document is now a page inside the product:
-> **`Members`** → **`A guide for the two of you`**. Read that on your phone; read this
+> **`Members`** → **`Admin Guide`**. Read that on your phone; read this
 > when you want the detail.
 
 ---
@@ -50,10 +50,10 @@ nothing.
 
 ## A household (a couple, a family, a sibling and their kids)
 
-1. **`Members` → `Invite a household`.**
+1. **`Members` → `Invite A Household`.**
 2. Name it the way the family would say it — "The Reeds", "Aunt Jo's" — and pick which side
    of the family it belongs to.
-3. You get a link, a **Copy** button, a **Share** button, and a QR code. The page tells you
+3. You get a link, a **Copy Link** button, a **Share** button, and a QR code. The page tells you
    how many people it works for and the date it stops working.
 4. Send it however you normally reach them. Text is fine. **One link covers the whole
    household** — send it to one person and let them pass it around, or send it to each of
@@ -76,7 +76,7 @@ arrived. Nobody gets notified; it is just there.
 
 ## A grandparent
 
-1. **`Members` → `Add a grandparent`.**
+1. **`Members` → `Add A Grandparent`.**
 2. Their name, what the family calls them (Nana, Papa — optional), name their household,
    pick the side of the family.
 3. You get their link and a QR code.
@@ -85,7 +85,7 @@ arrived. Nobody gets notified; it is just there.
 and react as them — that is the trade that buys "no password, ever". Do not put it in a
 group chat.
 
-**What they see:** *"Hello, Nana"*, the family's recent posts with the photos, the replies
+**What they see:** *"Your Backyard"*, the family's recent posts with the photos, the replies
 underneath, one big **Send love** button, and a **Bigger text** button. Nothing to install.
 Nothing to log into. Nothing that can take them somewhere else — that is deliberate: there
 is no way for them to get lost, and no way for a stray link to lead them off the page.
@@ -114,19 +114,19 @@ them.
 
 **"Is it going to send me things?"** No. Nothing is pushed at anyone by default. The only
 thing anyone can turn on is a nudge when someone replies to their own post — under
-`Settings` → `Notifications`. There is also the Family email, off until somebody switches
-it on, under `Settings`; a week when nobody posted sends nothing at all.
+`Settings` → `Notifications`. There are also email updates, off until somebody turns them
+on, under `Settings` → `Email Updates`; a week when nobody posted sends nothing at all.
 
 ---
 
 ## If something goes wrong
 
 - **A link stopped working.** They expire after 7 days, and household links run out after 8
-  people. Mint a new one — **`Members` → `Outstanding invites`** shows what is still live
+  people. Mint a new one — **`Members` → `Invites`** shows what is still live
   and lets you revoke anything you would rather kill.
 - **Someone joined with the wrong name.** They can fix it themselves: **`Settings`** in the
   top nav, then change the name field and save. If they cannot do it themselves, you can do
-  it for them: **`Members` → `Edit profile`** on their row. That works for anyone on your
+  it for them: **`Members` → `Edit Profile`** on their row. That works for anyone on your
   own side of the family; for somebody who belongs to both sides, or for another admin, you
   will not see the control and it is the instance admin's job.
 
@@ -135,15 +135,15 @@ it on, under `Settings`; a week when nobody posted sends nothing at all.
   cannot change them — each of those has its own "who can see this" setting that belongs to
   the person it is about, and standing in to fix a name is not a reason to read them.
 - **You handed a grandparent link to the wrong person.** Mint a new one for that grandparent
-  immediately — find them on **`Members`** and use **`No-login link`** on their row. Minting a
+  immediately — find them on **`Members`** and use **`No-Login Link`** on their row. Minting a
   new one kills the old one straight away.
 
-  `No-login link` only appears for grandparents in **households you are in yourself**. That is
+  `No-Login Link` only appears for grandparents in **households you are in yourself**. That is
   deliberate: the link is a working no-login credential for everything that person can see,
   so minting one for a household you are not in would hand you its contents. If you cannot
   see the control for someone, ask whoever runs the server.
 - **Somebody forgot their password and gave no email address.** You can get them back in
-  yourself: **`Members` → `Get back in link`** on their row. That makes a one-time link you
+  yourself: **`Members` → `Sign-In Link`** on their row. That makes a one-time link you
   text to them or read out over the phone; they choose a new password with it and they are
   in.
 
@@ -157,7 +157,7 @@ it on, under `Settings`; a week when nobody posted sends nothing at all.
   own recovery needs the server, by design.
 
   **Worth doing before it happens:** ask everyone on your side to add an email address
-  (**`Settings` → `Your sign-in email`**) so they can reset their own password without
+  (**`Settings` → `Your Sign-In Email`**) so they can reset their own password without
   anybody's help.
 - **Anything else.** Ask whoever runs the server. That is a relative, not a support desk,
   and they can fix it.
