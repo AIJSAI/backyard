@@ -231,6 +231,23 @@ def test_settings_page_rejects_a_non_address(world: World) -> None:
     assert len(mail.outbox) == 0  # nothing sent for a rejected address
 
 
+@pytest.mark.parametrize(
+    "typed", ["nana@gmail", "a@", "@x", "nana@ex ample.com", "n" * 250 + "@example.com"]
+)
+def test_settings_page_refuses_what_only_the_browser_used_to_catch(
+    world: World, typed: str
+) -> None:
+    """The box is type="text" now, so the browser checks nothing and this view is the only
+    validator. It used to test for an "@" and slice at 254 characters, which stored
+    "nana@gmail", mailed it, and told the member to check a mailbox that does not exist."""
+    response = _client_for(world.nana).post(
+        reverse("digest_settings"), {"address": typed, "cadence": "weekly"}
+    )
+    assert response.status_code == 200
+    assert not DigestSubscription.objects.filter(member=world.nana).exists()
+    assert len(mail.outbox) == 0
+
+
 # --- folds from the #35 security review ---
 
 

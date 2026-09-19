@@ -21,6 +21,7 @@ from django.shortcuts import render
 from . import digesting
 from .context_processors import note_the_reader_holds_a_link
 from .feed_views import _acting_member
+from .join import email_errors
 from .models import DigestSubscription
 
 
@@ -58,8 +59,13 @@ def digest_settings(request: HttpRequest) -> HttpResponse:
     # keying on the member caps how fast any one account can make us send.
     if not ratelimit.consume(request, action="reset_password", key=str(member.pk)):
         return cast(HttpResponse, ratelimit.respond_429(request))  # allauth is untyped
-    address = request.POST.get("address", "").strip()[:254]
-    if not address or "@" not in address:
+    # THE ONE VALIDATOR, the same one the join form and the welcome step use. `"@" in
+    # address` let "nana@gmail" and "a@" through, and the [:254] slice stored a DIFFERENT
+    # address from the one typed. Both matter more now that the box is type="text": the
+    # browser's own check is deliberately gone, so this is the only one there is.
+    address = request.POST.get("address", "").strip()
+    problems = email_errors(address) if address else ["Enter your email address."]
+    if problems:
         return render(
             request,
             "core/digest_settings.html",
@@ -67,7 +73,7 @@ def digest_settings(request: HttpRequest) -> HttpResponse:
                 "member": member,
                 "subscription": subscription,
                 "sent": False,
-                "error": "Enter a valid email address.",
+                "error": problems[0],
             },
         )
     subscription = digesting.subscribe(
