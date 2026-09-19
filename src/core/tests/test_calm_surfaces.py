@@ -175,6 +175,12 @@ def test_the_composer_opens_small(world: dict[str, object]) -> None:
     )
     page = _page(world, reverse("feed"))
     assert 'class="composer-extras"' in page
+    # The selector above keys on :placeholder-shown, which matches nothing when the
+    # textarea has no placeholder attribute. Assert the DOM the rule needs, not the rule:
+    # a copy edit removed the placeholder once and this test stayed green.
+    assert re.search(r'<textarea[^>]*id="compose-body"[^>]*placeholder="[^"]', page), (
+        "the compose textarea has no placeholder, so the collapse selector never matches"
+    )
     # The textarea and the primary are NEVER inside the collapsing region: a member must
     # always be able to see, and tab to, the thing that posts.
     extras = page.split('class="composer-extras"')[1]

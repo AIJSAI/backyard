@@ -109,11 +109,14 @@
        the words were dropped, so the page reassured a member their pictures were safe while
        having just deleted the paragraph they wrote. {% endcomment %}
     <label class="visually-hidden" for="compose-body">Write A Post</label>
-    {% comment %} No placeholder: it repeated the label above it word for word, and the guide allows a
-       placeholder only as a format example. core/forms.py's own comment names this shape as
-       the one that "leaves somebody staring at a box whose hint vanishes the moment they
-       type", and fixed it on the reset form; this is the same box, more used. {% endcomment %}
-    <textarea id="compose-body" name="body" rows="3" required>{{ draft_body }}</textarea>
+    {% comment %} THE PLACEHOLDER IS MECHANISM AS WELL AS COPY. base.html collapses
+       `.composer-extras` with `:has(textarea:placeholder-shown)`, and that pseudo-class
+       cannot match a textarea with no placeholder attribute: the copy pass removed this one
+       as a repeat of its label and the composer opened full-height for everybody, which is
+       the defect the rule was written to cure. A composer's prompt is also one of the two
+       conventional exceptions the voice guide allows (the other is a search box), and the
+       reply box one screen away has always carried its own. {% endcomment %}
+    <textarea id="compose-body" name="body" rows="3" placeholder="Write a post" required>{{ draft_body }}</textarea>
 
     <div class="composer-extras">
       {% include "core/_media_picker.html" with picker_id="media" %}
