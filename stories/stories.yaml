@@ -971,16 +971,17 @@ epics:
     - "A failed scheduled backup is reported with its reason in the weekly health email, at the health surface, and in the worker log at error level"
     - "web, worker and caddy carry container healthchecks, and the compose live probe proves all four reach healthy"
     - "The health surface reports backup age, disk headroom and days until the TLS certificate expires; the unauthenticated endpoint says only ok or degraded, and the detail is visible to the instance admin"
-    - "A scheduled GitHub workflow outside the instance checks the health endpoint and the certificate lifetime, and fails so the owner is emailed"
+    - "A scheduled GitHub workflow outside the instance checks the health endpoint AND the certificate lifetime on every run, and records what it finds on one open issue that mentions the owner, so a persistent problem notifies once a day rather than every run"
     status: tested      # The code is proven: unit tests plus a live compose run on
                         # 2026-09-18 where the worker — holding NO migrator credentials —
                         # wrote an encrypted archive that the web container then restored,
                         # marker row intact. NOT `passing`, because the two things this
                         # story is really about have not been OBSERVED on the live box yet:
-                        # a 03:30 run happening by itself, and the monitor failing into the
-                        # owner's inbox. Those are a deploy and a repository variable away,
-                        # and calling this passing before either is exactly the "a gate that
-                        # proves the wrong thing" habit this repo keeps finding in itself.
+                        # a 03:30 run happening by itself, and the monitor opening an issue
+                        # that reaches the owner's inbox. Those are a deploy and a
+                        # repository variable away, and calling this passing before either
+                        # is exactly the "a gate that proves the wrong thing" habit this
+                        # repo keeps finding in itself.
     v1: false
     security:
       threat_refs:

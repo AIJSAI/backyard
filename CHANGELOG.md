@@ -28,20 +28,25 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   holding the worker's one job slot forever.
 - **A failing backup is now distinguishable from an old one.** The weekly health email and
   the health surface carry the reason the last scheduled run failed, instead of a
-  "last backup" date that reads the same whether the backup ran or refused to. It reads the
-  archives the scheduler wrote, so taking one backup by hand does not report a still-dead
-  nightly job as working.
+  "last backup" date that reads the same whether the backup ran or refused to. Each
+  recorded backup says whether the scheduler or a person took it, and only the
+  scheduler's own runs can report the nightly job as working — so taking one backup by
+  hand, which is the first thing the alarm makes you want to do, does not silence it.
 - **Days until the TLS certificate expires**, in the health email. Renewal is automatic and
   silent, and so is its failure; an expired certificate is a full-page browser warning for
   every relative at once. A check that has never succeeded reports why, which is the
   difference between a broken certificate and one this box cannot reach from the inside.
 - **Container healthchecks for web, worker and caddy.** Only the database had one.
 - **A monitor that does not live on the monitored box** (`.github/workflows/monitor.yml`):
-  every 30 minutes it checks the health endpoint and the certificate, and fails so GitHub
-  emails the owner. Every other watcher the instance has is a worker periodic, so a dead
-  worker silenced its own alarm. An unreachable instance fails every run; a `degraded` one
-  fails once a day, because a condition that persists would otherwise send 48 identical
-  e-mails a day until the owner muted the repository and lost the outage alarm with it.
+  every 30 minutes it checks the health endpoint AND the certificate — neither result
+  skips the other — and records what it found on a single GitHub issue labelled
+  `monitor-alarm`, which e-mails the owner once because it mentions them. Every other
+  watcher the instance has is a worker periodic, so a dead worker silenced its own alarm.
+  While a problem lasts the monitor comments on that one issue at most once a day rather
+  than opening another; when the instance recovers it comments and closes it, so no open
+  alarm issue is the all-clear. The run itself goes red only if the alarm mechanism
+  failed: a persistent outage should be one issue, not 48 failed runs a day until the
+  owner mutes the repository and loses the outage alarm with it.
 
 ### Changed
 
