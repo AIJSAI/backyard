@@ -374,7 +374,7 @@ def test_sending_love_returns_her_to_the_post_she_tapped(world: World) -> None:
 
     The anchor is the REACTION BLOCK, not the post (D52). `#post-N` lands at the top of
     the article, above its full-width uncropped photographs, so the confirmation she was
-    just promised — the filled "You love this" and her name among the hearts — sat about
+    just promised — the filled "You Love This" and her name among the hearts — sat about
     sixteen hundred pixels below where she arrived. She taps, the screen jumps, and as far
     as she can tell nothing happened."""
     client = Client()
@@ -404,7 +404,7 @@ def test_reactions_use_the_name_the_family_calls_them(world: World) -> None:
     Reaction.objects.create(member=world.nana, post=post, kind=Reaction.HEART)
 
     body = client.get(reverse("elder_feed")).content.decode()
-    reactions = body[body.index("Send love") if "Send love" in body else 0 :]
+    reactions = body[body.index("Send Love") if "Send Love" in body else 0 :]
     assert "Nana" in reactions
     assert world.nana.kinship_name == "Nana"
     # The legal name must not appear in the reaction attribution.

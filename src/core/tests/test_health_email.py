@@ -207,7 +207,7 @@ def test_the_subject_changes_when_something_needs_attention() -> None:
     _admin()
     # A bare instance has never been backed up, which is alarming by construction.
     subject, _text, alarming = health_email.build()
-    assert alarming and "needs attention" in subject
+    assert alarming and "Needs Attention" in subject
 
     BackupRun.objects.create(byte_count=1, encrypted=True)
     DomainStatus.objects.create(
@@ -217,7 +217,7 @@ def test_the_subject_changes_when_something_needs_attention() -> None:
     )
     subject2, _t2, alarming2 = health_email.build()
     assert not alarming2, "a healthy instance still reported as alarming"
-    assert "weekly health check" in subject2
+    assert "Weekly Health Check" in subject2
 
 
 def test_it_carries_no_per_person_activity() -> None:
@@ -458,7 +458,7 @@ def test_measured_is_false_for_a_field_that_carries_its_reason() -> None:
 
 def test_an_already_expired_domain_says_so_instead_of_counting_backwards() -> None:
     """ "expires in -3 days" at the single moment this line matters most. A lapsed domain
-    hands every printed QR and elder link to a squatter (T-OP-G4)."""
+    hands every printed QR code and no-login link to a squatter (T-OP-G4)."""
     now = timezone.now()
     DomainStatus.objects.create(
         domain=health.instance_domain(),
@@ -468,7 +468,9 @@ def test_an_already_expired_domain_says_so_instead_of_counting_backwards() -> No
     field = next(f for f in health.measure(now) if f.label == "Domain")
     assert "EXPIRED 3 days ago" in field.value
     assert "-3" not in field.value, "it still counts backwards"
-    assert "renew it NOW" in field.value
+    # The instruction, not the shouting: the copy pass dropped the capitals (the product
+    # carries no other word shouted for emphasis) and kept the sentence that says what to do.
+    assert "Renew it now" in field.value
     assert field.alarming
 
 

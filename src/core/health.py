@@ -147,7 +147,7 @@ def _last_backup_field(now: datetime.datetime) -> Field:
     if run is None:
         # Distinct from NOT MEASURED: the instrumentation exists, the backup does not.
         # Conflating "never backed up" with "cannot tell" would hide the worse case.
-        return Field("Last backup", "NEVER — no backup has completed on this instance", True)
+        return Field("Last backup", "NEVER. No backup has completed on this instance", True)
     # max(0, ...) because auto_now_add stamps the row from the DATABASE clock, which can
     # sit microseconds after the `now` a caller passed in — so a backup taken seconds ago
     # rendered as "-1 days ago" in the operator's email. Caught by a test, not by reading.
@@ -179,7 +179,7 @@ def _scheduled_backup_field(now: datetime.datetime) -> Field:
     )
     if newest is not None and newest.finished_at >= failure.occurred_at:
         return Field("Scheduled backup", f"working; last failure {when}")
-    return Field("Scheduled backup", f"FAILING since {when} — {failure.error}", alarming=True)
+    return Field("Scheduled backup", f"FAILING since {when}. {failure.error}", alarming=True)
 
 
 def _measurable_path() -> pathlib.Path:
@@ -216,9 +216,9 @@ def _domain_field(now: datetime.datetime) -> Field:
     domain = instance_domain()
     status = DomainStatus.objects.filter(domain=domain).first()
     if status is None or status.checked_at is None:
-        return Field("Domain", f"{NOT_MEASURED} — no successful lookup yet", True)
+        return Field("Domain", f"{NOT_MEASURED}. No successful lookup yet", True)
     if status.expires_at is None:
-        return Field("Domain", f"{NOT_MEASURED} — {status.error or 'lookup failed'}", True)
+        return Field("Domain", f"{NOT_MEASURED}. {status.error or 'Lookup failed'}", True)
     days = (status.expires_at - now).days
     stale_note = ""
     if (now - status.checked_at).days > 14:
@@ -231,8 +231,8 @@ def _domain_field(now: datetime.datetime) -> Field:
         gone = abs(days)
         return Field(
             "Domain",
-            f"{domain} EXPIRED {gone} day{'s' if gone != 1 else ''} ago — renew it NOW, "
-            f"or a squatter inherits every printed QR and elder link{stale_note}",
+            f"{domain} EXPIRED {gone} day{'s' if gone != 1 else ''} ago. Renew it now, "
+            f"or a squatter inherits every printed QR code and no-login link{stale_note}",
             alarming=True,
         )
     return Field(
@@ -260,7 +260,7 @@ def _certificate_field(now: datetime.datetime) -> Field:
         # gets learned as noise.
         return Field(
             "TLS certificate",
-            f"{NOT_MEASURED} — this instance is served over plain HTTP, so it has none",
+            f"{NOT_MEASURED}. This instance is served over plain HTTP, so it has none",
         )
     status = CertificateStatus.objects.filter(domain=instance_domain()).first()
     if status is None or status.checked_at is None:
@@ -269,9 +269,9 @@ def _certificate_field(now: datetime.datetime) -> Field:
         # that is broken from one this box simply cannot reach from the inside (a NAT
         # without hairpinning), which are different jobs for the operator.
         reason = status.error if status is not None and status.error else "no successful check yet"
-        return Field("TLS certificate", f"{NOT_MEASURED} — {reason}", True)
+        return Field("TLS certificate", f"{NOT_MEASURED}. {reason}", True)
     if status.expires_at is None:
-        return Field("TLS certificate", f"{NOT_MEASURED} — {status.error or 'check failed'}", True)
+        return Field("TLS certificate", f"{NOT_MEASURED}. {status.error or 'Check failed'}", True)
     days = (status.expires_at - now).days
     stale_days = (now - status.checked_at).days
     # The check runs daily, so three days without one is a worker that has stopped.
@@ -280,8 +280,8 @@ def _certificate_field(now: datetime.datetime) -> Field:
         gone = abs(days)
         return Field(
             "TLS certificate",
-            f"EXPIRED {gone} day{'s' if gone != 1 else ''} ago — every browser in the family "
-            f"now shows a full-page security warning{stale_note}",
+            f"EXPIRED {gone} day{'s' if gone != 1 else ''} ago. Every browser now shows a "
+            f"full-page security warning{stale_note}",
             alarming=True,
         )
     return Field(
@@ -397,7 +397,7 @@ def _offbox_unreadable(reason: str) -> Field:
     """
     return Field(
         _OFFBOX_LABEL,
-        f"UNREADABLE — {OFFBOX_STATUS_NAME} {_one_line(reason, OFFBOX_ERROR_CHARS)}, so the "
+        f"UNREADABLE. {OFFBOX_STATUS_NAME} {_one_line(reason, OFFBOX_ERROR_CHARS)}, so the "
         "instance cannot tell whether a copy left the box",
         alarming=True,
     )
@@ -424,9 +424,10 @@ def _offbox_field(now: datetime.datetime) -> Field:
         # an instance with no copy job nothing has changed: unmeasured, unalarming, `ok`.
         return Field(
             _OFFBOX_LABEL,
-            f"{NOT_MEASURED} — the instance cannot see where you copied a backup to "
-            f"(T-OP-G3) unless the host's copy job writes {OFFBOX_STATUS_NAME} beside the "
-            "archives (docs/runbooks/backup-restore.md); until it does, check it yourself",
+            f"{NOT_MEASURED}. The instance cannot see where you copied a backup to "
+            f"(T-OP-G3) unless the copy job on the host writes {OFFBOX_STATUS_NAME} beside "
+            "the archives (docs/runbooks/backup-restore.md). Until it does, check it "
+            "yourself",
         )
     except OSError as exc:
         # A symlink (ELOOP), a directory, a permission, a failing disk. Something is at that
@@ -450,13 +451,13 @@ def _offbox_field(now: datetime.datetime) -> Field:
     when = _offbox_when(now - at)
     if not ok:
         return Field(
-            _OFFBOX_LABEL, f"FAILED {when} — {_offbox_error(payload.get('error'))}", alarming=True
+            _OFFBOX_LABEL, f"FAILED {when}. {_offbox_error(payload.get('error'))}", alarming=True
         )
     if now - at > datetime.timedelta(hours=OFFBOX_STALE_HOURS):
         return Field(
             _OFFBOX_LABEL,
-            f"LAST COPIED {when} — no success reported in over {OFFBOX_STALE_HOURS} hours, so "
-            "the host's copy job has stopped or is failing silently",
+            f"LAST COPIED {when}. No success reported in over {OFFBOX_STALE_HOURS} hours, so "
+            "the copy job on the host has stopped or is failing silently",
             alarming=True,
         )
     remote = payload.get("remote_objects")
@@ -486,7 +487,7 @@ def measure(now: datetime.datetime | None = None) -> list[Field]:
         # are still true.
         Field(
             "Failed sign-ins",
-            f"{NOT_MEASURED_YET} — no auth audit log exists (T-MON-1)",
+            f"{NOT_MEASURED_YET}. No auth audit log exists (T-MON-1)",
         ),
         _offbox_field(now),
     ]

@@ -17,7 +17,7 @@
         <span style="display:inline-block;vertical-align:middle;font-family:Georgia,serif;font-weight:700;font-size:20px;color:#1e5c46;letter-spacing:-0.01em;">&nbsp;Backyard</span>
       </div>
 
-      <h1 style="font-size: 24px; color: #1e5c46; margin: 0 0 4px; font-family: Georgia, 'Iowan Old Style', Palatino, serif; line-height: 1.2;">{{ header.yard_name }}: what the family has been up to</h1>
+      <h1 style="font-size: 24px; color: #1e5c46; margin: 0 0 4px; font-family: Georgia, 'Iowan Old Style', Palatino, serif; line-height: 1.2;">New In {{ header.yard_name }}</h1>
       <p style="color: #4c5a52; margin: 0 0 8px;">{{ header.window_text }}</p>
 
       {% for block in post_blocks %}
@@ -27,43 +27,52 @@
           <p style="margin: 0;">
             {% if block.photo_count %}{{ block.photo_count }} photo{{ block.photo_count|pluralize }} ·{% endif %}
             {% if block.reply_count %}{{ block.reply_count }} repl{{ block.reply_count|pluralize:"y,ies" }} ·{% endif %}
-            <a href="{{ block.url }}" style="color: #1e5c46;">Open this post</a>
+            <a href="{{ block.url }}" style="color: #1e5c46;">Open This Post</a>
           </p>
           {% if block.reply_url %}
+            {% comment %} The link, and nothing after it. The sentence that used to follow
+               ("your reply goes to everyone who can see this post, and you can add photos")
+               explained the two things a reply already does everywhere else in the product.
+            {% endcomment %}
             <p style="font-size: 16px; margin: 8px 0 0;">
-              <a href="{{ block.reply_url }}" style="color: #1e5c46;">Reply in Backyard</a>
-              — your reply goes to everyone who can see this post, and you can add photos.</p>
+              <a href="{{ block.reply_url }}" style="color: #1e5c46;">Reply In Backyard</a></p>
           {% endif %}
         </div>
       {% endfor %}
 
       {% if dates_block %}
         <div style="margin: 24px 0; padding: 16px 0 0; border-top: 1px solid #dde4df;">
-          <p style="margin: 0;"><strong>Coming up in the next week</strong></p>
+          <p style="margin: 0;"><strong>Coming Up In The Next Week</strong></p>
           <ul style="margin: 8px 0 0; padding-left: 22px;">
+            {% comment %} A straight apostrophe, the same one the plain-text part writes.
+               `&rsquo;` here and `'` there was one string spelled two ways. {% endcomment %}
             {% for entry in dates_block.entries %}
-              <li style="margin: 2px 0;">{{ entry.name_line }}&rsquo;s {{ entry.kind }} ({{ entry.date_text }})</li>
+              <li style="margin: 2px 0;">{{ entry.name_line }}'s {{ entry.kind }} ({{ entry.date_text }})</li>
             {% endfor %}
           </ul>
         </div>
       {% endif %}
 
-      <p style="margin: 24px 0 0;"><a href="{{ footer.digest_url }}" style="color: #1e5c46;">See everything in your backyard</a></p>
+      {% comment %} THE HONEST NAME FOR THIS LINK. It read "See everything in your
+         backyard", which a reader takes for the feed; it is `/d/<token>/`, the web copy of
+         this one message. {% endcomment %}
+      <p style="margin: 24px 0 0;"><a href="{{ footer.digest_url }}" style="color: #1e5c46;">View In Your Browser</a></p>
       {% comment %} WHY THIS ARRIVED. Read as a first-time relative, 2026-09-19: the
          message never said who had signed them up for it or why it turned up, which is the
          first question anybody asks of an e-mail they did not expect, and the one that
-         decides whether it is reported as spam.
+         decides whether it is reported as spam. The way out sits with it, because "why you
+         got this" and "how to stop it" are one question.
 
          It says nothing about replying BY E-MAIL, and that absence is deliberate (walk
          item 33). That route was retired for relatives when #101 stopped putting a
          per-post reply address in the message — nothing hands anybody an address any
          more, so a plain reply cannot be routed to a post and lands in the admin-only
-         "Replies we couldn't post" instead. The way to answer is "Reply in Backyard" on
+         "Replies we couldn't post" instead. The way to answer is "Reply In Backyard" on
          each post above, which opens the thread. {% endcomment %}
-      <p style="font-size: 16px; color: #4c5a52; margin: 14px 0 0;">You are getting this
-        because you asked for the Family email.</p>
-      <p style="font-size: 16px; color: #4c5a52; margin: 10px 0 0;">Too many emails?
-        <a href="{{ footer.unsubscribe_url }}" style="color: #1e5c46;">Pause them here</a> - you stay in the family.</p>
+      <p style="font-size: 16px; color: #4c5a52; margin: 14px 0 0;">You are receiving this
+        because Email Updates is on.</p>
+      <p style="font-size: 16px; margin: 10px 0 0;">
+        <a href="{{ footer.unsubscribe_url }}" style="color: #1e5c46;">Turn Off Email Updates</a></p>
       <p style="font-size: 14px; color: #5d6a61; margin: 14px 0 0;">{{ footer.standing_text }}</p>
 
      </td>

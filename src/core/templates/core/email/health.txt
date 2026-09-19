@@ -1,12 +1,27 @@
-This is the weekly health check for {{ domain }}. Nothing here needs doing unless a
-line is marked [!].
+{% comment %} AUTOESCAPE STAYS ON HERE, unlike the other plain-text e-mails in this product
+   (core/email/digest.txt, account/email/base_message.txt). The difference is the `error`
+   on the off-box line: it is the only field value in this message that the INSTANCE did
+   not write. A host's copy job writes it into .offbox-status.json, and health.py's own
+   note beside the control-character strip records the split deliberately -- newlines are
+   stripped at the source so nothing can forge a "[!]" line, and escaping is left to the
+   renderer "because escaping twice is how &amp;amp; reaches a reader".
+   test_offbox_copy_status.py::test_the_error_text_is_escaped_where_it_renders arms it.
+
+   The copy pass turned this off on 2026-09-19 and it was turned back on: the one value in
+   the default render that carried an apostrophe ("the host's copy job") reached a mailbox
+   as "the host&#x27;s copy job", which is a real defect, but it is a defect in that
+   SENTENCE, and it is cured below by not needing the apostrophe. Turning the escaping off
+   to fix one word would have widened what an operator-written file can put in an
+   operator's inbox. If a future value has to carry an apostrophe, write it differently
+   rather than reaching for this switch. {% endcomment %}Weekly health check for {{ domain }}. Nothing needs doing unless a line is marked [!].
 
 {% for field in fields %}{% if field.alarming %}[!] {% else %}    {% endif %}{{ field.label }}: {{ field.value }}
 {% endfor %}
-{% if alarming %}The lines marked [!] want your attention.
-{% else %}Nothing above needs attention this week.
+{% if alarming %}The lines marked [!] need attention.
+{% else %}Nothing needs attention this week.
 {% endif %}
-This is about the server, not about people: it never reports who posted, read, or signed in.
+This report is about the server. It never reports who posted, read, or signed in.
 
 Backup and restore: docs/runbooks/backup-restore.md
 Handing this instance to someone else: docs/runbooks/handover.md
+

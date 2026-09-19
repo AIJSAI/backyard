@@ -3,9 +3,13 @@
 {% comment %} PROJECT OVERRIDE. Sent when a reset is asked for at an address nothing here
    knows (ACCOUNT_PREVENT_ENUMERATION, so the page cannot say so). The stock text says "we
    do not have any record of such an account in our database" and then offers a SIGNUP
-   link — and signup is closed here, so it pointed at a refusal. {% endcomment %}
-{% block content %}{% autoescape off %}{% blocktrans %}Somebody asked for a new password for a family Backyard, using this address.
+   link — and signup is closed here, so it pointed at a refusal.
 
-We have nothing here under it, so there is nothing to reset. If you meant to do this, you may have used a different address; ask whoever in the family set this up and they can get you back in.
+   Its subject is byte-identical to the real reset's, for the same enumeration reason.
+   Only somebody holding this mailbox reads this body, so it may say plainly that nothing
+   here uses the address. {% endcomment %}
+{% block content %}{% autoescape off %}{% blocktrans %}Somebody asked to reset a Backyard password using this address.
 
-If it was not you, ignore this email.{% endblocktrans %}{% endautoescape %}{% endblock content %}
+No account here uses this address, so there is nothing to reset. If this was you, try the address you sign in with, or ask the person who invited you.
+
+If you did not ask for this, ignore this email.{% endblocktrans %}{% endautoescape %}{% endblock content %}

@@ -1,44 +1,44 @@
 {% extends "core/base.html" %}
-{% comment %} The member's own Family email settings. Three names for one thing used to
+{% comment %} The member's own Email Updates settings. Three names for one thing used to
    share this screen — the heading said "Your weekly email", the button said "Turn on the
    digest", the browser tab said "Digest settings" — so a relative could not tell whether
-   they were looking at one feature or three. It is the Family email, here and everywhere
-   (owner direction 2), and the frequency choices are weekly and monthly only. A member
-   who already chose daily keeps it, and the page says so in words rather than offering a
-   control that would set it again. {% endcomment %}
-{% block title %}The Family email{% endblock %}
+   they were looking at one feature or three. The owner then struck out both "digest" and
+   "the Family email" on 2026-09-19 and named the feature Email Updates, which is what it
+   is called here and on every other surface. The frequency choices are weekly and monthly
+   only. A member who already chose daily keeps it, and the page says so in words rather
+   than offering a control that would set it again. {% endcomment %}
+{% block title %}Email Updates{% endblock %}
 {% block body %}
-  <h1>The Family email</h1>
-  <p class="back-link"><a class="back" href="{% url 'profile_edit' %}">Back to Settings</a></p>
+  <h1>Email Updates</h1>
+  <p class="back-link"><a class="back" href="{% url 'profile_edit' %}">Back To Settings</a></p>
 
-  <p class="muted">What the family has been up to, sent to you. It is off unless you turn
-    it on, and a quiet week sends nothing at all.</p>
+  <p class="muted">A summary of new posts, sent to your email address. Nothing is sent when
+    there is nothing new.</p>
 
   {% if error %}<div class="errors"><p>{{ error }}</p></div>{% endif %}
   {% comment %} THREE STATES, because there are three. "Sent" is read off the confirm
      TOKEN in the view, not off `confirmed_at`: no token means no mail was sent, and this
      page used to tell a member to go and look for one that did not exist. The middle
-     state is the same-address case (walk item 24) — the tap that starts the Family email
+     state is the same-address case (walk item 24) — the tap that starts email updates
      is the account confirmation already in their inbox, and if that mail failed or has
      expired the only way forward is a fresh one, so the notice says so and links to the
      page that sends it. {% endcomment %}
   {% if sent %}
-    <p class="notice">Check {{ subscription.address }} for one email asking if the address
-    is yours. Nothing from the family is sent until you tap the link in it.</p>
+    <p class="notice">A confirmation email has been sent to {{ subscription.address }}.
+    Email updates start when you open the link in it.</p>
   {% elif waiting_on_the_account_confirmation %}
-    <p class="notice">This is your sign-in address, and it is not confirmed yet. Tap the
-    link in the email Backyard sent when you joined. One tap answers both, and the Family
-    email starts with it. If that email has gone, ask for another one from
-    <a href="{% url 'account_email' %}">Your sign-in email</a>.</p>
+    <p class="notice">This is your sign-in address and it is not confirmed yet. Confirming
+    it starts email updates. Open the link in the email sent when you joined, or request a
+    new one from <a href="{% url 'account_email' %}">Your Sign-In Email</a>.</p>
   {% elif saved %}
     <p class="notice">Saved.</p>
   {% endif %}
 
   {% if subscription %}
     <p>
-      The Family email is <strong>{% if subscription.enabled %}on{% else %}off{% endif %}</strong>
+      Email updates are <strong>{% if subscription.enabled %}on{% else %}off{% endif %}</strong>
       for {{ subscription.address }},
-      {% if subscription.cadence == "daily" %}once a day{% elif subscription.cadence == "monthly" %}once a month{% else %}once a week{% endif %}{% if not subscription.confirmed_at %}, waiting for you to confirm the address{% endif %}.
+      {% if subscription.cadence == "daily" %}daily{% elif subscription.cadence == "monthly" %}monthly{% else %}weekly{% endif %}.{% if not subscription.confirmed_at %} The address is not confirmed yet.{% endif %}
     </p>
     {% comment %} The off switch. This page could turn it ON and never off, while stating
        that it was "on" as though that were a state the reader could change. The only way
@@ -49,33 +49,31 @@
       {% csrf_token %}
       {% if subscription.enabled %}
         <input type="hidden" name="action" value="turn_off">
-        <button type="submit">Stop the Family email</button>
+        <button type="submit">Turn Off Email Updates</button>
       {% else %}
         <input type="hidden" name="action" value="turn_on">
-        <button type="submit">Send me the Family email</button>
+        <button type="submit">Turn On Email Updates</button>
       {% endif %}
     </form>
     {% if subscription.enabled %}
-      <p class="muted">Stopping it stops the email. You stay in the family and keep
-        everything else.</p>
+      <p class="hint">Turning this off stops the email only. You stay a member.</p>
     {% endif %}
   {% endif %}
 
   <form method="post" action="{% url 'digest_settings' %}">
     {% csrf_token %}
-    <label for="address">Send it to</label>
+    <label for="address">Email Address</label>
     <input id="address" type="email" name="address" value="{{ subscription.address|default:'' }}" maxlength="254" required>
-    <label for="cadence">How often</label>
+    <label for="cadence">How Often</label>
     {% comment %} Daily is deliberately absent (owner direction 2). The model still accepts
        it so nobody who already chose it is broken by this, and their current setting is
        named in the sentence above; this control simply does not offer it again. {% endcomment %}
     <select id="cadence" name="cadence">
-      <option value="weekly"{% if subscription.cadence == "weekly" or not subscription %} selected{% endif %}>Once a week</option>
-      <option value="monthly"{% if subscription.cadence == "monthly" %} selected{% endif %}>Once a month</option>
+      <option value="weekly"{% if subscription.cadence == "weekly" or not subscription %} selected{% endif %}>Weekly</option>
+      <option value="monthly"{% if subscription.cadence == "monthly" %} selected{% endif %}>Monthly</option>
     </select>
-    <button type="submit">{% if subscription %}Save and confirm the address{% else %}Send me the Family email{% endif %}</button>
+    <button type="submit">{% if subscription %}Save Changes{% else %}Turn On Email Updates{% endif %}</button>
   </form>
 
-  <p class="page-action"><a href="{% url 'how_it_works' %}">How this works</a> &mdash; what
-    is in it, and every other way to stop it.</p>
+  <p class="page-action"><a href="{% url 'how_it_works' %}">How It Works</a></p>
 {% endblock %}

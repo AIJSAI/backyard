@@ -1,19 +1,17 @@
-{% autoescape off %}{{ header.yard_name }}: what the family has been up to
+{% autoescape off %}New In {{ header.yard_name }}
 {{ header.window_text }}
 
 {% for block in post_blocks %}{{ block.author_line }} on {{ block.date_text }}:
 {{ block.body }}
-{% if block.photo_count %}({{ block.photo_count }} photo{{ block.photo_count|pluralize }} - see them here) {% endif %}{% if block.reply_count %}({{ block.reply_count }} repl{{ block.reply_count|pluralize:"y,ies" }}) {% endif %}
+{% if block.photo_count %}({{ block.photo_count }} photo{{ block.photo_count|pluralize }}) {% endif %}{% if block.reply_count %}({{ block.reply_count }} repl{{ block.reply_count|pluralize:"y,ies" }}) {% endif %}
 Open this post: {{ block.url }}
-{% if block.reply_url %}Reply in Backyard (you can add photos there): {{ block.reply_url }}
+{% if block.reply_url %}Reply in Backyard: {{ block.reply_url }}
 {% endif %}
 
-{% endfor %}{% if dates_block %}Coming up in the next week:
+{% endfor %}{% if dates_block %}Coming Up In The Next Week:
 {% for entry in dates_block.entries %}  {{ entry.name_line }}'s {{ entry.kind }} ({{ entry.date_text }})
 {% endfor %}
-{% endif %}See everything in your backyard: {{ footer.digest_url }}
+{% endif %}See this in your browser: {{ footer.digest_url }}
 
-You are getting this because you asked for the Family email.
-
-Too many emails? Pause them here (you stay in the family): {{ footer.unsubscribe_url }}
+You are receiving this because Email Updates is on. Turn it off: {{ footer.unsubscribe_url }}
 {% endautoescape %}

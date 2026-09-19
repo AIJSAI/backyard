@@ -222,8 +222,11 @@ def build_digest(
         # Belt (#37 review LOW-4): DigestEmail is header-safe as a VALUE, not
         # only when the send seam happens to strip it.
         # The subject is what a relative sees in their inbox list, so it says what is
-        # inside rather than naming the machinery that sent it.
-        subject=emailing.strip_control(f"{yard.name}: what the family has been up to"),
+        # inside: which side, and the days it covers. Title Case like every other subject,
+        # except for the side's own name, which is a word a relative typed and is never
+        # re-cased. The window is written out again here rather than reusing `window_text`
+        # because that one sits inside a sentence in the body and this one is a heading.
+        subject=emailing.strip_control(f"New In {yard.name}: {window_start} To {window_end}"),
         text=render_to_string("core/email/digest.txt", context),
         html=render_to_string("core/email/digest.html", context),
         blocks=blocks,

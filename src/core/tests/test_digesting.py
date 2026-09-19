@@ -319,13 +319,13 @@ def test_a_member_can_turn_the_digest_off_from_their_own_settings_page(world: Wo
     assert DigestSubscription.objects.get(member=world.nana).enabled
 
     page = client.get(reverse("digest_settings")).content.decode()
-    assert "Stop the Family email" in page, "the settings page offers no way to turn it off"
+    assert "Turn Off Email Updates" in page, "the settings page offers no way to turn it off"
 
     response = client.post(reverse("digest_settings"), {"action": "turn_off"})
 
     assert response.status_code == 200
     assert not DigestSubscription.objects.get(member=world.nana).enabled
-    assert "Send me the Family email" in response.content.decode()
+    assert "Turn On Email Updates" in response.content.decode()
 
 
 def test_turning_it_off_and_on_sends_nothing_and_keeps_the_confirmation(world: World) -> None:
@@ -365,7 +365,7 @@ def test_the_off_switch_only_touches_the_email(world: World) -> None:
 
 
 def test_the_confirmed_page_offers_a_way_on_and_the_question_does_not(world: World) -> None:
-    """ "You are all set" was a dead end.
+    """ "Address Confirmed" was a dead end.
 
     Tapping the link in the address-confirmation mail landed on a page that said the
     address was confirmed and then offered nothing at all: no link, and no header nav
@@ -382,12 +382,12 @@ def test_the_confirmed_page_offers_a_way_on_and_the_question_does_not(world: Wor
     client = Client()  # no login: the link came out of an inbox, possibly on another device
 
     asking = client.get(url).content.decode()
-    assert "Is this your address?" in asking  # non-vacuity: this really is the question
-    assert "Go to the family" not in asking
+    assert "Is This Your Address?" in asking  # non-vacuity: this really is the question
+    assert "Go To Your Backyard" not in asking
 
     confirmed = client.post(url).content.decode()
-    assert "You are all set" in confirmed
-    assert "Go to the family" in confirmed
+    assert "Address Confirmed" in confirmed
+    assert "Go To Your Backyard" in confirmed
     assert f'href="{reverse("feed")}"' in confirmed
 
 
@@ -406,7 +406,7 @@ def test_the_way_on_does_not_dead_end_a_signed_out_reader(world: World) -> None:
 
     # Walk it as the reader does: take the href off the page rather than naming a route
     # here, so this follows whatever the page actually offers.
-    match = re.search(r'href="([^"]+)"[^>]*>Go to the family<', confirmed)
+    match = re.search(r'href="([^"]+)"[^>]*>Go To Your Backyard<', confirmed)
     assert match, "the confirmed page offers no way on"
 
     landing = client.get(match.group(1), follow=True)

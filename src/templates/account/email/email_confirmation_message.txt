@@ -7,20 +7,22 @@
    a relative reads on their phone. It says what the address is FOR and nothing else, and
    it never prints a member's username.
 
-   THE SECOND SENTENCE CHANGED ON 2026-09-19 (walk item 24 review). It used to promise
-   "Nothing else is sent to this address unless you ask for it", and one tap on this link
-   can now also start the Family email — for the member's PRIMARY sign-in address, where
-   they were asked. A mail that understates what its own link does is the kind of consent
-   defect nobody notices until content arrives somewhere it was not expected, so the mail
-   names both outcomes. A SECONDARY address is not collapsed at all and still gets the
-   digest's own content-free confirmation (core/digesting.py `_own_signin_address`), which
-   is where that question is asked. {% endcomment %}
-{% block content %}{% autoescape off %}{% blocktrans %}Someone added this address to their family's Backyard.
+   WHAT CONFIRMING DOES, both halves of it (walk item 24 review). This link can also start
+   email updates — for the member's PRIMARY sign-in address, where they were asked. A mail
+   that understates what its own link does is the kind of consent defect nobody notices
+   until content arrives somewhere it was not expected, so the reason sits on the line that
+   introduces the link. A SECONDARY address is not collapsed at all and still gets the
+   content-free confirmation in core/digesting.py (`_own_signin_address`), which is where
+   that question is asked.
 
-If that was you, confirm it here:{% endblocktrans %}
+   The sentence is the owner's own rewrite of 2026-09-19: "Confirming means we can send you
+   a way back in if you ever forget your password, and it starts the Family email if one
+   has been pointed at this address." became "Confirm this address to enable password reset
+   and email updates." {% endcomment %}
+{% block content %}{% autoescape off %}{% blocktrans %}Somebody added this address to a Backyard account.
+
+Confirm this address to enable password reset and email updates:{% endblocktrans %}
 
 {% if code %}{{ code }}{% else %}{{ activate_url }}{% endif %}
 
-{% blocktrans %}Confirming means we can send you a way back in if you ever forget your password, and it starts the Family email if one has been pointed at this address.
-
-If it was not you, ignore this email. Nothing else will be sent here.{% endblocktrans %}{% endautoescape %}{% endblock content %}
+{% blocktrans %}If you did not ask for this, ignore this email. Nothing else will be sent here.{% endblocktrans %}{% endautoescape %}{% endblock content %}

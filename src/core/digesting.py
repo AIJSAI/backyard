@@ -33,11 +33,16 @@ from .models import DigestSubscription, Member
 # The confirmation email is content-free by construction (T-EMAIL-6): composed
 # here from constants and the minted link only, so no family name, member name,
 # or post fragment can ever reach an unconfirmed (possibly typo'd) address.
-_CONFIRM_SUBJECT = "Is this your email address?"
+#
+# The subject names the feature, and deliberately differs from the ACCOUNT confirmation's
+# ("Confirm Your Email Address"): the two used to be the same line from the same sender,
+# which is how a relative's mail client threaded them into one message apparently sent
+# twice (walk item 24).
+_CONFIRM_SUBJECT = "Confirm This Address For Email Updates"
 _CONFIRM_BODY = (
-    "Someone asked for a family email to be sent to this address.\n\nIf that was you, "
-    "confirm it here:\n\n{link}\n\nNothing from the family is sent until you do.\n\n"
-    "If it was not you, ignore this email; nothing else will be sent to this address."
+    "Somebody asked for email updates from Backyard to be sent to this address.\n\n"
+    "Confirm this address:\n\n{link}\n\nNothing is sent until you confirm. If you did not "
+    "ask for this, ignore this email; nothing else will be sent here."
 )
 
 

@@ -1,4 +1,4 @@
 {% load i18n %}{% autoescape off %}{% block content %}{% endblock content %}
 
-{% blocktrans %}This is Backyard, your family's own page. Nobody here will ever ask you for a password or a link by email.{% endblocktrans %}
+{% blocktrans %}Backyard will never ask for your link or password by email.{% endblocktrans %}
 {% endautoescape %}

@@ -162,7 +162,7 @@ def test_expired_gets_the_friendly_page_but_revoked_and_expired_is_404(world: Wo
     expired = Client().get(reverse("digest_web", args=[world.raw]))
     assert expired.status_code == 410
     body = expired.content.decode()
-    assert "ask your family for a fresh link" in body
+    assert "Links in email updates stop working after a few weeks." in body
     assert "window content stays private" not in body  # capability-free
     # A token both revoked AND expired is a bare 404: the generation check runs first.
     Member.objects.filter(pk=world.bridge.pk).update(token_generation=99)

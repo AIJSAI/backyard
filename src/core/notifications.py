@@ -96,11 +96,14 @@ def notify_reply(comment: Comment) -> bool:
     try:
         emailing.send_family_email(
             to=subscription.address,
-            subject=f"{who} replied to your post",
+            # The why-you-got-this line is the same one the email update carries, and it
+            # names the same switch: `stop` is the unsubscribe capability, and turning that
+            # off is what silences this message too (the `enabled` gate above).
+            subject=f"{who} Replied To Your Post",
             text=(
                 f"{who} replied to your post on Backyard.\n\n"
-                f"Read it here: {url}\n\n"
-                f"Don't want these? Stop them here: {stop}"
+                f"Read the reply: {url}\n\n"
+                f"You are receiving this because Email Updates is on. Turn it off: {stop}"
             ),
         )
     except Exception:  # noqa: BLE001 - a courtesy must never fail the member's reply

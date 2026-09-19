@@ -67,7 +67,7 @@ def digest_settings(request: HttpRequest) -> HttpResponse:
                 "member": member,
                 "subscription": subscription,
                 "sent": False,
-                "error": "That does not look like an email address.",
+                "error": "Enter a valid email address.",
             },
         )
     subscription = digesting.subscribe(

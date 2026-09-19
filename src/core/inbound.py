@@ -65,10 +65,9 @@ _ATTRIBUTION_LINE = re.compile(r"^(On .{0,200}wrote:|-{3,}\s*Original Message\s*
 # One constant, one construction path: byte-identical for every refusal shape
 # that must not leak thread existence (S-502 hardening verbatim).
 BOUNCE_TEXT = (
-    "This reply could not be delivered to your family's Backyard.\n\n"
-    "The reply address in this email is not active. Digest reply addresses "
-    "only work for a few weeks; please reply to a newer digest email, or "
-    "visit your backyard directly.\n"
+    "This reply could not be delivered to Backyard.\n\n"
+    "The reply address in this email is no longer active. Reply addresses stop "
+    "working after a few weeks. To reply, open the post in Backyard.\n"
 )
 
 

@@ -72,7 +72,13 @@ def send_health_email_task(timestamp: int) -> None:
         )
 
 
-@app.periodic(cron="30 3 * * *")  # daily 03:30 UTC (TIME_ZONE is UTC; ~22:30 US-Central)
+# Procrastinate evaluates every `cron` here against the epoch in UTC, whatever the operator
+# set BACKYARD_TIME_ZONE to; that setting decides the zone Django RENDERS in (dates in a
+# page, a window in an e-mail), not the hour a periodic task fires. So 03:30 below is 03:30
+# UTC on an instance in Omaha exactly as on one in London, and only the local wall-clock
+# hour it lands on moves. The old note claimed "TIME_ZONE is UTC", which stopped being a
+# fact the day the zone became an operator setting (config/time_zone_guard.py).
+@app.periodic(cron="30 3 * * *")  # 03:30 UTC daily, chosen as a quiet hour in the Americas
 @app.task(name="scheduled_backup")
 def scheduled_backup_task(timestamp: int) -> None:
     """The nightly encrypted backup (S-802, S-806, T-MON-1).
