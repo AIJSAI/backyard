@@ -4,11 +4,12 @@
 
 | Version | Supported |
 |---|---|
-| `v0.1.3` | ✅ current |
-| `v0.1.2` | ⚠️ superseded — installable and safe; `v0.1.3` adds the side-admin hand-over link and a narrower demo-wipe selector |
+| `v0.1.4` | ✅ current |
+| `v0.1.3` | ⚠️ superseded — installable and safe; `v0.1.4` lets the demo wipe finish after a real person deleted their own rehearsal posts |
+| `v0.1.2` | ⚠️ superseded — installable and safe; `v0.1.3` added the side-admin hand-over link and a narrower demo-wipe selector |
 | `main` | ⚠️ moving target — fixes land here first, but it may be mid-refactor when you arrive |
-| `v0.1.1` | ⚠️ superseded — installable, but its README's own install command fails; use `v0.1.3` |
-| `v0.1.0` | ❌ withdrawn — superseded by `v0.1.3`; do not install |
+| `v0.1.1` | ⚠️ superseded — installable, but its README's own install command fails; use `v0.1.4` |
+| `v0.1.0` | ❌ withdrawn — superseded by `v0.1.4`; do not install |
 
 `0.x` carries no stability promise. Security fixes go to `main` and into the next tag; there
 is no backporting, because there is nothing to backport to.

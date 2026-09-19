@@ -13,6 +13,12 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
+Nothing yet.
+
+## [0.1.4] — 2026-09-19
+
+One fix, found by running the demo wipe's dry run on a live instance.
+
 ### Fixed
 
 - **The demo wipe's own advice could never satisfy it.** It refused on a post a real person
@@ -766,6 +772,7 @@ Everything here is a correction, not a feature. `v0.1.0` is **withdrawn**: insta
 - The demo family is fully invented; no real relative's name appears.
 - Fonts ship with their licence text (SIL OFL 1.1).
 
+[0.1.4]: https://github.com/AIJSAI/backyard/tree/v0.1.4
 [0.1.3]: https://github.com/AIJSAI/backyard/tree/v0.1.3
 [0.1.2]: https://github.com/AIJSAI/backyard/tree/v0.1.2
 [0.1.1]: https://github.com/AIJSAI/backyard/tree/v0.1.1
