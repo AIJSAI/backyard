@@ -19,6 +19,7 @@ from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils.text import slugify
 
+from . import health, permissions
 from .models import Member, Pod, PodMembership, SetupToken, Yard
 
 if TYPE_CHECKING:
@@ -169,11 +170,42 @@ def setup(request: HttpRequest) -> HttpResponse:
 
 
 def healthz(request: HttpRequest) -> JsonResponse:
-    """Liveness probe: confirms the process is up and the database answers."""
+    """Liveness probe, and the one health surface something outside the box can read.
+
+    Three readers, and the answer is sized for the narrowest of them (S-806, TM-5):
+
+    * a container healthcheck and the external monitor, which are anonymous and get two
+      words — `ok` or `degraded`. Disk headroom, backup age and certificate dates at a
+      guessable URL on a private family instance are an operations map for a stranger;
+    * a signed-in INSTANCE ADMIN, who gets the same fields the weekly email carries, so the
+      person responsible does not have to wait until Monday 07:20 to see why;
+    * everyone else signed in, who is not responsible for the instance and gets the two
+      words, like a stranger.
+
+    Always HTTP 200 when the process and the database answer, `degraded` included. Degraded
+    is a statement about the instance, not about this process: a full disk is not a reason
+    for Docker to cycle the container, and a fresh instance that has not taken its first
+    backup yet would otherwise never report healthy at all.
+    """
     with connection.cursor() as cursor:
         cursor.execute("SELECT 1")
         cursor.fetchone()
-    return JsonResponse({"status": "ok"})
+    fields = health.measure()
+    payload: dict[str, object] = {"status": health.public_status(fields)}
+    if _is_instance_admin(request):
+        payload["detail"] = [
+            {"label": f.label, "value": f.value, "alarming": f.alarming} for f in fields
+        ]
+    return JsonResponse(payload)
+
+
+def _is_instance_admin(request: HttpRequest) -> bool:
+    """Whether this request is a signed-in instance admin. Never raises: healthz must
+    answer a probe even when the member lookup finds nothing to answer about."""
+    if not request.user.is_authenticated or request.user.pk is None:
+        return False
+    member = Member.objects.filter(user_id=request.user.pk).first()
+    return member is not None and permissions.is_instance_admin(member)
 
 
 def robots(request: HttpRequest) -> HttpResponse:

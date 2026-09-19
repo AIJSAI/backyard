@@ -661,6 +661,62 @@ class BackupRun(models.Model):
         return f"{kind} backup of {self.byte_count} bytes at {self.finished_at:%Y-%m-%d %H:%M}"
 
 
+class BackupFailure(models.Model):
+    """One scheduled backup that did NOT produce an archive (S-806, T-MON-1).
+
+    BackupRun records the successes, and on its own it cannot distinguish a backup that
+    ran six days ago from one that has been REFUSING to run for six days — both read as
+    "6 days ago" until the staleness threshold trips on day eight. A failing backup is the
+    more urgent of the two and was the invisible one, so it gets a row of its own and the
+    health email compares the newest failure against the newest success.
+
+    Written by the scheduled backup (core/scheduled_backup.py) before it re-raises, so the
+    operator's weekly email carries the reason and not just a date.
+    """
+
+    occurred_at = models.DateTimeField(auto_now_add=True)
+    # Truncated on write: this is a message for a human reading an email on a phone, and an
+    # unbounded pg_dump stderr in a weekly digest helps nobody.
+    error = models.CharField(max_length=500)
+
+    class Meta:
+        ordering = ["-occurred_at"]
+
+    def __str__(self) -> str:
+        return f"backup failed at {self.occurred_at:%Y-%m-%d %H:%M}: {self.error[:60]}"
+
+
+class CertificateStatus(models.Model):
+    """The TLS certificate's expiry, refreshed on the worker (S-806, T-MON-1, GAP-3).
+
+    The same shape and the same reasons as DomainStatus below, for the other clock that
+    ends the instance for everybody at once: an expired certificate is a full-page browser
+    warning on every device in the family, and the people this instance is being handed to
+    cannot route around one. Nothing measured it — Caddy renews silently and fails silently.
+
+    CACHED, and that is load-bearing here in a way it is not for the domain: the
+    unauthenticated /healthz endpoint reads these fields, and the web process is the
+    edge-facing one, which makes NO outbound connections (S-725, TS-CO-4). A live handshake
+    inside that view would put an outbound TLS connection behind a public URL anyone can
+    poll. The worker refreshes the row; the view only reads it.
+    """
+
+    domain = models.CharField(max_length=253, unique=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    checked_at = models.DateTimeField(null=True, blank=True)
+    error = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        verbose_name_plural = "certificate statuses"
+
+    def __str__(self) -> str:
+        return (
+            f"{self.domain} certificate expires {self.expires_at:%Y-%m-%d}"
+            if self.expires_at
+            else self.domain
+        )
+
+
 class DomainStatus(models.Model):
     """The instance domain's expiry, refreshed on the worker (S-806, T-OP-G4).
 

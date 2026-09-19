@@ -37,6 +37,55 @@ def test_the_tasks_are_registered_with_cron_schedules() -> None:
     assert {"send_due_digests", "rollup_metrics", "clear_sessions"} <= scheduled
 
 
+def test_the_backup_and_certificate_checks_are_on_the_clock() -> None:
+    """Registration is the whole feature here (S-806, T-MON-1).
+
+    `backup_instance` shipped with nothing scheduling it, so the instance had a documented
+    backup and no backups. A task that exists but is not on the periodic registry is the
+    same defect with more code, and it is invisible: nothing else in the suite would fail.
+    """
+    scheduled = {pt.task.name for pt in app.periodic_registry.periodic_tasks.values()}
+    assert {"scheduled_backup", "refresh_certificate_status"} <= scheduled
+
+
+def test_the_scheduled_backup_task_carries_nothing_but_the_tick() -> None:
+    """TS-DJ-11's shape, and here it also means the task cannot be told WHERE to write."""
+    import inspect
+
+    assert list(inspect.signature(tasks.scheduled_backup_task.func).parameters) == ["timestamp"]
+
+
+def test_the_scheduled_backup_task_reraises_so_the_job_is_marked_failed(
+    monkeypatch: object,
+) -> None:
+    """A swallowed failure is the T-MON-1 condition wearing a feature's costume: the queue
+    would record a clean run for a night that produced no archive."""
+    from core import scheduled_backup
+
+    def boom() -> None:
+        raise scheduled_backup.ScheduledBackupFailed("no passphrase")
+
+    monkeypatch.setattr(scheduled_backup, "run", boom)  # type: ignore[attr-defined]
+    with pytest.raises(scheduled_backup.ScheduledBackupFailed):
+        tasks.scheduled_backup_task.func(int(timezone.now().timestamp()))
+
+
+def test_the_certificate_refresh_does_nothing_on_a_plain_http_instance(
+    monkeypatch: object, settings: object
+) -> None:
+    """No handshake against a localhost that has no TLS listener: the local repro is plain
+    HTTP, and a nightly connection error is how a real alarm gets learned as noise."""
+    from core import cert_expiry
+
+    settings.BASE_URL = "http://localhost:8000"  # type: ignore[attr-defined]
+    calls: list[str] = []
+    monkeypatch.setattr(cert_expiry, "refresh", lambda: calls.append("refreshed"))  # type: ignore[attr-defined]
+
+    tasks.refresh_certificate_status_task.func(int(timezone.now().timestamp()))
+
+    assert calls == []
+
+
 def test_transcode_task_is_registered_but_not_periodic() -> None:
     # The first enqueued (non-periodic) task: registered so a video upload can defer it,
     # but not on the periodic registry — it fires per upload, not on a cron (S-402).

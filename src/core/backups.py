@@ -1,9 +1,13 @@
 """Whole-instance backup and restore (S-704 instance half, S-802).
 
 One archive captures the two stateful things: the database (a `pg_dump -Fc`
-custom-format dump) and the media tree (MEDIA_ROOT). The backup is taken as the
-migrator role, the only one that can read every table, with the version-matched
-client the image already ships for the pre-flight backup (TS-PG-6). Restore is
+custom-format dump) and the media tree (MEDIA_ROOT). The dump runs with the
+version-matched client the image already ships for the pre-flight backup
+(TS-PG-6), as the migrator where that role's password is present (the operator's
+documented command, in the web container) and otherwise as the runtime app role,
+which ADR-004 already grants SELECT on every table — see `_dump_credentials`,
+which exists so the worker can take the scheduled daily backup without being
+handed DDL credentials it must never hold (TS-CO-3). Restore is
 the inverse and is deliberately destructive, so it refuses to run against a
 database that still has family data unless forced: a restore is for a fresh box
 or a drill, never a casual overwrite.
@@ -67,15 +71,59 @@ def _dsn() -> dict[str, str]:
 
 
 def _migrator_env() -> dict[str, str]:
-    """pg_dump/pg_restore run as the migrator (reads every table). The password
-    comes from the environment the operator runs the command in; it is never
-    stored or logged."""
+    """pg_restore runs as the migrator: a restore is DDL, and only that role has it.
+    The password comes from the environment the operator runs the command in; it is
+    never stored or logged."""
     password = os.environ.get("POSTGRES_MIGRATOR_PASSWORD")
     if not password:
         raise BackupError(
             "POSTGRES_MIGRATOR_PASSWORD is not set; run backup/restore in the "
             "migrator's environment (the documented runbook does)."
         )
+    return _with_password(password)
+
+
+def _dump_credentials() -> tuple[str, dict[str, str]]:
+    """The role `pg_dump` connects as, and its environment. One function, two callers.
+
+    The operator's documented backup runs in the WEB container, whose compose environment
+    carries the migrator password, and it keeps using the migrator: it owns every table, so
+    "can it read all of this" is not a question anyone has to re-answer.
+
+    The scheduled daily backup (S-806, NB-1) runs on the WORKER, which deliberately holds no
+    DDL credentials at all — compose never passes them and the entrypoint unsets them for
+    every non-web role (TS-CO-3), because the worker is where ffmpeg runs on member-uploaded
+    video and is therefore the last container that should hold a key to the schema. Handing
+    it the migrator password to make a backup possible would trade the container-hardening
+    story for a cron job.
+
+    It does not need to. ADR-004's default privileges grant backyard_app SELECT on every
+    table and sequence the migrator creates, which is the whole database, so the credential
+    the worker ALREADY has can read everything pg_dump must read. The only thing in the way
+    is the app role's 15s statement_timeout (TS-PG-5) — a guard for request-path queries that
+    would kill a dump of any real archive — so the dump session lifts it explicitly rather
+    than relying on pg_dump happening to set it for us.
+
+    A role that cannot read something does not produce a quiet partial dump: pg_dump fails on
+    "permission denied", the command raises, and the failure is recorded and mailed.
+    """
+    migrator = os.environ.get("POSTGRES_MIGRATOR_PASSWORD")
+    if migrator:
+        return "backyard_migrator", _with_password(migrator)
+    app_user = os.environ.get("POSTGRES_USER")
+    app_password = os.environ.get("POSTGRES_PASSWORD")
+    if not app_user or not app_password:
+        raise BackupError(
+            "no database credentials in the environment: set POSTGRES_MIGRATOR_PASSWORD "
+            "(the operator path, in the web container) or POSTGRES_USER/POSTGRES_PASSWORD "
+            "(the runtime role, which is what the worker's scheduled backup uses)."
+        )
+    env = _with_password(app_password)
+    env["PGOPTIONS"] = f"{env.get('PGOPTIONS', '')} -c statement_timeout=0".strip()
+    return app_user, env
+
+
+def _with_password(password: str) -> dict[str, str]:
     env = dict(os.environ)
     # The backup passphrase is not the database's business. Inheriting it widened its blast
     # radius to any child core dump or /proc/<pid>/environ read for no benefit at all.
@@ -87,6 +135,7 @@ def _migrator_env() -> dict[str, str]:
 def write_backup(destination: IO[bytes]) -> None:
     """Write a whole-instance backup archive into `destination`."""
     dsn = _dsn()
+    dump_user, dump_env = _dump_credentials()
     with tempfile.TemporaryDirectory() as workdir:
         dump_path = Path(workdir) / DB_DUMP_NAME
         result = subprocess.run(  # noqa: S603  # fixed argv, never a shell
@@ -97,13 +146,13 @@ def write_backup(destination: IO[bytes]) -> None:
                 "-p",
                 dsn["port"],
                 "-U",
-                "backyard_migrator",
+                dump_user,
                 "-Fc",
                 "-f",
                 str(dump_path),
                 dsn["name"],
             ],
-            env=_migrator_env(),
+            env=dump_env,
             capture_output=True,
             text=True,
         )

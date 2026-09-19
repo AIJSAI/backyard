@@ -254,6 +254,12 @@ STORAGES = {
 # is served only through the access-checked media view, which re-checks the audience of
 # the owning post (S-403, TM-9, T-MEDIA-1). Tests point this at a temp dir (conftest).
 MEDIA_ROOT = os.environ.get("MEDIA_ROOT", "/data/media")
+# Where the scheduled daily backup writes its archives (S-802, S-806). The same persistent
+# volume as the media it archives, beside the pre-flight dumps the entrypoint already keeps
+# there — so one volume snapshot carries the data and its backups. Env-overridable in the
+# same shape as MEDIA_ROOT above, for an operator who mounts a second volume; tests point it
+# at a temp dir (conftest) so a test run can never write an archive into /data.
+BACKUP_ROOT = os.environ.get("BACKUP_ROOT", "/data/backups")
 # Belt for TS-CA-4 at the application layer (the Caddy body cap is the edge control):
 # bound the number of files in one upload. Per-file size is checked in the upload view.
 #
