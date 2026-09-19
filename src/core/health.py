@@ -23,7 +23,10 @@ whoever asks first.
 from __future__ import annotations
 
 import datetime
+import json
+import os
 import pathlib
+import re
 import shutil
 from dataclasses import dataclass
 from urllib.parse import urlparse
@@ -55,6 +58,34 @@ STALE_BACKUP_DAYS = 8
 # weeks of failed renewals — and the external monitor (.github/workflows/monitor.yml) uses
 # the same threshold, so the two alarms agree rather than arguing.
 CERTIFICATE_WARN_DAYS = 14
+
+# The one health field an OPERATOR writes. The copy step lives on the HOST on purpose (the
+# destination credential must not sit beside the ciphertext on the data volume, which is
+# T-BACKUP-1), so the instance cannot watch the copy happen — it can only be TOLD. This is
+# the file the host's job writes to say how it went; the contract is in
+# docs/runbooks/backup-restore.md, "Getting a copy off the box".
+OFFBOX_STATUS_NAME = ".offbox-status.json"
+_OFFBOX_LABEL = "Off-box copy"
+# A nightly copy job that has not reported success in two nights has missed one. One night
+# would alarm on every host whose cron runs a little later than the instance's clock.
+OFFBOX_STALE_HOURS = 48
+# Enough for the contract plus a generous error sentence, and nowhere near enough to matter
+# on a box whose problem may BE memory or disk. The file is operator-written, on the volume
+# the app also writes to, and read by a worker job and by an endpoint a robot polls.
+OFFBOX_MAX_BYTES = 4096
+# The error is the host's words, quoted into an operator's email. Long enough to carry a
+# real rclone or rsync line, short enough that it cannot become the email.
+OFFBOX_ERROR_CHARS = 160
+# Two machines, two clocks. A host a few seconds or a minute ahead of the instance has taken
+# a copy; a stamp hours ahead is a broken clock or a forged file, and it matters because a
+# future date is the one value that can never age into an alarm.
+OFFBOX_CLOCK_SKEW = datetime.timedelta(minutes=5)
+# Control characters, including the newline. The weekly email is one line per field and an
+# alarming line starts with "[!]", so an error carrying newlines could write lines of its
+# own into an operator's health report. Stripped at the source; HTML escaping stays the
+# renderer's job (Django autoescapes every template, `.txt` included, and /healthz is
+# JSON-encoded), because escaping twice is how "&amp;amp;" reaches a reader.
+_CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 
 
 @dataclass(frozen=True)
@@ -230,6 +261,169 @@ def _certificate_field(now: datetime.datetime) -> Field:
     )
 
 
+def offbox_status_path() -> pathlib.Path:
+    """Where the host's copy job reports, beside the archives it copies."""
+    return pathlib.Path(settings.BACKUP_ROOT) / OFFBOX_STATUS_NAME
+
+
+def _one_line(text: str, limit: int) -> str:
+    """One line, capped. Whatever the host wrote, this is what an operator reads."""
+    cleaned = " ".join(_CONTROL_CHARACTERS.sub(" ", text).split())
+    if len(cleaned) > limit:
+        return cleaned[:limit].rstrip() + "…"
+    return cleaned
+
+
+def _offbox_error(value: object) -> str:
+    """The host's reason, quoted safely, or a stand-in when it gave none."""
+    reason = _one_line(value, OFFBOX_ERROR_CHARS) if isinstance(value, str) else ""
+    return reason or "the copy job gave no reason"
+
+
+def _offbox_when(age: datetime.timedelta) -> str:
+    """How long ago, in the units this field turns on: hours inside the window, days past
+    it. "2 days ago" is the sentence that makes a stale copy obvious at a glance."""
+    hours = max(0, int(age.total_seconds() // 3600))
+    if hours < 1:
+        return "less than an hour ago"
+    if hours < OFFBOX_STALE_HOURS:
+        return f"{hours} hour{'s' if hours != 1 else ''} ago"
+    days = hours // 24
+    return f"{days} day{'s' if days != 1 else ''} ago"
+
+
+def _offbox_at(value: object) -> datetime.datetime | None:
+    """The `at` stamp, or None if the file does not carry one this can read."""
+    if not isinstance(value, str):
+        return None
+    try:
+        stamp = datetime.datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if stamp.tzinfo is None:
+        # The contract says UTC, and `date -u +%Y-%m-%dT%H:%M:%S` without the trailing Z is
+        # the near-miss a host job actually writes. Reading it as UTC is the contract, not
+        # a guess; treating it as local time would be the guess.
+        return stamp.replace(tzinfo=datetime.UTC)
+    return stamp
+
+
+def _read_offbox_status() -> dict[str, object]:
+    """The status file as a JSON object, or raise OSError/ValueError saying what is wrong.
+
+    Hostile input by construction: operator-written, on the volume the app itself writes to,
+    read by a weekly worker job and by an endpoint an outside monitor polls every half hour.
+    Every way this can go wrong has to become a FIELD, so each one is raised with a reason
+    that finishes the sentence "the status file ...".
+    """
+    # O_NOFOLLOW rather than `is_symlink()` and then open: the check and the open must be
+    # the same syscall, or a link swapped in between them is followed anyway. A followed
+    # link would turn this reader into a way to make the instance open a path of somebody
+    # else's choosing — a mounted keyfile, `/proc/self/environ` — and quote what it found
+    # into the operator's weekly email.
+    descriptor = os.open(offbox_status_path(), os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        # One byte past the cap: a file at the cap is read whole, and an oversized one is
+        # refused without ever being held. The box whose copy job is failing may be the box
+        # that is out of memory or disk.
+        blob = os.read(descriptor, OFFBOX_MAX_BYTES + 1)
+    finally:
+        os.close(descriptor)
+    if len(blob) > OFFBOX_MAX_BYTES:
+        raise ValueError(f"is larger than {OFFBOX_MAX_BYTES} bytes")
+    try:
+        payload = json.loads(blob.decode("utf-8"))
+    except ValueError as exc:  # both a bad decode and bad JSON land here
+        raise ValueError(f"is not valid JSON ({_one_line(str(exc), 60)})") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("does not hold a JSON object")
+    return payload
+
+
+def _offbox_unreadable(reason: str) -> Field:
+    """A status file that is present and wrong.
+
+    Unlike a missing one this DEGRADES, and it is reported as MEASURED so that it reaches
+    /healthz: somebody wired a copy job up and it is now writing rubbish, or something else
+    is writing this path. Either way the instance was asked a question it can no longer
+    answer, which is a fact about the instance and not a gap in what it knows.
+    """
+    return Field(
+        _OFFBOX_LABEL,
+        f"UNREADABLE — {OFFBOX_STATUS_NAME} {_one_line(reason, OFFBOX_ERROR_CHARS)}, so the "
+        "instance cannot tell whether a copy left the box",
+        alarming=True,
+    )
+
+
+def _offbox_field(now: datetime.datetime) -> Field:
+    """Whether a copy of the archives got off this box, as reported by the HOST (T-OP-G3).
+
+    The instance cannot watch this happen. The copy step is deliberately outside the
+    containers, because a copy step inside one needs the destination's credential and that
+    credential would then sit beside the ciphertext on the data volume (T-BACKUP-1) — so
+    the only honest way to answer is to be TOLD, by a file the host's job writes.
+
+    Four states, and the difference between the first two is the one that matters: NO FILE
+    means nobody set a copy job up, which is where every instance starts and is not a
+    failure, while a file that is there and wrong is. An instance that went `degraded` the
+    day this shipped would teach its one operator that the word means nothing — and the
+    backup alarm, the disk alarm and the certificate alarm all ride that same word.
+    """
+    try:
+        payload = _read_offbox_status()
+    except FileNotFoundError:
+        # NOT SET UP. Same wording as before this field could measure anything, because for
+        # an instance with no copy job nothing has changed: unmeasured, unalarming, `ok`.
+        return Field(
+            _OFFBOX_LABEL,
+            f"{NOT_MEASURED} — the instance cannot see where you copied a backup to "
+            f"(T-OP-G3) unless the host's copy job writes {OFFBOX_STATUS_NAME} beside the "
+            "archives (docs/runbooks/backup-restore.md); until it does, check it yourself",
+        )
+    except OSError as exc:
+        # A symlink (ELOOP), a directory, a permission, a failing disk. Something is at that
+        # path and the instance cannot read it, which is not the same as nobody setting one up.
+        return _offbox_unreadable(f"could not be read ({exc.strerror or type(exc).__name__})")
+    except ValueError as exc:
+        return _offbox_unreadable(str(exc))
+
+    ok = payload.get("ok")
+    if not isinstance(ok, bool):
+        return _offbox_unreadable("does not say whether the copy succeeded")
+    at = _offbox_at(payload.get("at"))
+    if at is None:
+        # Strict, unlike `remote_objects` below: `ok` and `at` are what the four states are
+        # computed from, and a success with no readable time is a success that can never
+        # age into an alarm.
+        return _offbox_unreadable("carries no `at` time the instance can read")
+    if at > now + OFFBOX_CLOCK_SKEW:
+        return _offbox_unreadable("is dated in the future")
+
+    when = _offbox_when(now - at)
+    if not ok:
+        return Field(
+            _OFFBOX_LABEL, f"FAILED {when} — {_offbox_error(payload.get('error'))}", alarming=True
+        )
+    if now - at > datetime.timedelta(hours=OFFBOX_STALE_HOURS):
+        return Field(
+            _OFFBOX_LABEL,
+            f"LAST COPIED {when} — no success reported in over {OFFBOX_STALE_HOURS} hours, so "
+            "the host's copy job has stopped or is failing silently",
+            alarming=True,
+        )
+    remote = payload.get("remote_objects")
+    # Decoration, and lenient on purpose: `isinstance(True, int)` is True in Python, and a
+    # host job that reports its count as a string has a cosmetic bug. Turning a family's
+    # instance red over a number nobody acts on is how a real alarm gets learned as noise.
+    count = (
+        f" ({remote} objects at the destination)"
+        if isinstance(remote, int) and not isinstance(remote, bool) and remote >= 0
+        else ""
+    )
+    return Field(_OFFBOX_LABEL, f"copied {when}{count}")
+
+
 def measure(now: datetime.datetime | None = None) -> list[Field]:
     """Every field the health email reports, measured or explicitly not."""
     now = now or timezone.now()
@@ -239,19 +433,15 @@ def measure(now: datetime.datetime | None = None) -> list[Field]:
         _disk_field(),
         _domain_field(now),
         _certificate_field(now),
-        # The two T-MON-1 asks for that the app genuinely cannot answer today. Listed on
-        # purpose: an operator who sees five expected lines and four printed ones learns
-        # nothing, and a reader of this email should be able to tell which parts of
-        # "nothing is watching" are still true.
+        # The T-MON-1 ask the app genuinely cannot answer today. Listed on purpose: an
+        # operator who sees five expected lines and four printed ones learns nothing, and a
+        # reader of this email should be able to tell which parts of "nothing is watching"
+        # are still true.
         Field(
             "Failed sign-ins",
             f"{NOT_MEASURED} — no auth audit log exists yet (T-MON-1)",
         ),
-        Field(
-            "Off-box backup age",
-            f"{NOT_MEASURED} — the instance cannot see where you copied a backup to "
-            f"(T-OP-G3); check it yourself",
-        ),
+        _offbox_field(now),
     ]
 
 
