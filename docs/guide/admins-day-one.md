@@ -27,8 +27,8 @@ It is shown once. Lost it? Make another from **Outstanding invites**.
 **Post something to their side of the family first**, or they will open the link and find
 an empty page. You cannot preview it for them.
 
-Then **Family members → Add a grandparent** for somebody new, or **No-login link** on the
-row of somebody already here.
+Then **Family members → Add a grandparent** for somebody new, or, for somebody already
+here, tap **Manage** on their row and then **No-login link**.
 
 Hand it over in person or in a private message. Anyone holding it can read and send love as
 them. Not in a group chat.
@@ -38,16 +38,18 @@ them. Not in a group chat.
 If they gave an email address, **Forgot your password?** on the sign-in page does it without
 you.
 
-If not, use **Get back in link** on their row. It works once and stops working after two
-days.
+If not, tap **Manage** on their row, then **Get back in link**. It works once and stops
+working after two days.
 
 **Make sure you are really talking to them first** — a call, or a text to the number you
 already have.
 
 ## 4. Move or remove someone
 
-**Change household** on their row moves somebody who is already here into another
-household, or out of one.
+Both of these live under **Manage** on their row too.
+
+**Change household** moves somebody who is already here into another household, or out of
+one.
 
 **Remove …** asks what happens to what they wrote, and you have to answer: keep their
 posts, keep them without their name, or delete them.
