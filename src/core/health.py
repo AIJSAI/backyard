@@ -31,7 +31,6 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.utils import timezone
 
-from . import scheduled_backup
 from .models import BackupFailure, BackupRun, CertificateStatus, DomainStatus
 
 # What a field looks like when the app cannot answer it. Deliberately loud: an operator
@@ -102,18 +101,22 @@ def _scheduled_backup_field(now: datetime.datetime) -> Field:
 
     A backup that ran two days ago and a backup that has been refusing to run for two days
     produce the same "Last backup" line, and the second one is the emergency. The newest
-    failure is compared against the newest SCHEDULED ARCHIVE on the volume, never against
-    BackupRun: any hand-run `backup_instance` writes one of those, so an operator who
-    answered this very alarm by taking one manual backup would otherwise flip the line to
-    "working" and /healthz back to `ok` with the scheduler still dead.
+    failure is compared against the newest SCHEDULED run only: a hand-run `backup_instance`
+    writes a BackupRun row too, and taking one by hand is the operator's first response to
+    this very alarm, so counting it would flip the line to "working" and /healthz back to
+    `ok` with the scheduler still dead. The row carries its own provenance
+    (BackupRun.Source), so this asks the database rather than inferring ownership from a
+    filename anybody can write.
     """
     failure = BackupFailure.objects.order_by("-occurred_at").first()
     if failure is None:
         return Field("Scheduled backup", "no failures recorded")
     days = max(0, (now - failure.occurred_at).days)
     when = "today" if days == 0 else f"{days} day{'s' if days != 1 else ''} ago"
-    newest = scheduled_backup.newest_archive_day()
-    if newest is not None and newest >= timezone.localtime(failure.occurred_at).date():
+    newest = (
+        BackupRun.objects.filter(source=BackupRun.Source.SCHEDULED).order_by("-finished_at").first()
+    )
+    if newest is not None and newest.finished_at >= failure.occurred_at:
         return Field("Scheduled backup", f"working; last failure {when}")
     return Field("Scheduled backup", f"FAILING since {when} — {failure.error}", alarming=True)
 

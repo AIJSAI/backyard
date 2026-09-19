@@ -260,13 +260,12 @@ MEDIA_ROOT = os.environ.get("MEDIA_ROOT", "/data/media")
 # same shape as MEDIA_ROOT above, for an operator who mounts a second volume; tests point it
 # at a temp dir (conftest) so a test run can never write an archive into /data.
 BACKUP_ROOT = os.environ.get("BACKUP_ROOT", "/data/backups")
-# The keyfile the nightly backup reads its passphrase from (S-802, S-806). The self-host
-# guide recommends a keyfile OVER the env var -- the env value is visible to `docker
-# inspect` -- and without this the RECOMMENDED configuration makes the nightly run fail
-# every night: `backup_instance` takes a keyfile only as a command-line flag, and a
-# periodic task is nobody's command line. Mount it read-only and NEVER onto /data: a key
-# beside the ciphertext buys nothing (T-BACKUP-1).
-BACKUP_PASSPHRASE_FILE = os.environ.get("BACKYARD_BACKUP_PASSPHRASE_FILE", "")
+# There is deliberately NO backup-passphrase setting here. Both routes to it
+# (BACKYARD_BACKUP_PASSPHRASE and the keyfile BACKYARD_BACKUP_PASSPHRASE_FILE names) are
+# read in one place, core/backup_passphrase.py, which is stdlib-only because the
+# entrypoint's pre-flight dump resolves the passphrase before Django is configured. A
+# second copy of that rule in settings is how the entrypoint and the nightly run came to
+# disagree about whether a keyfile counts (S-802, T-BACKUP-1).
 # Belt for TS-CA-4 at the application layer (the Caddy body cap is the edge control):
 # bound the number of files in one upload. Per-file size is checked in the upload view.
 #

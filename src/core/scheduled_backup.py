@@ -34,11 +34,11 @@ from .models import BackupFailure, BackupRun
 
 logger = logging.getLogger(__name__)
 
-# Our archives, and ONLY ours. Retention deletes files, and it shares a directory with the
-# operator's own `backup-YYYY-MM-DD.bak` (the runbook's manual name) and the entrypoint's
-# `preflight-*.dump`. A prefix plus a strict name pattern means a file this module did not
-# write is never a deletion candidate, which is a property worth having by construction
-# rather than by being careful.
+# The name this module gives its own archives. It shares a directory with the operator's
+# own `backup-YYYY-MM-DD.bak` (the runbook's manual name) and the entrypoint's
+# `preflight-*.dump`, so the shape is the first filter — but only the first: a name is
+# something anyone can produce, and retention DELETES, so what it actually deletes is the
+# intersection of this pattern with the archives a scheduled BackupRun row records writing.
 ARCHIVE_PREFIX = "scheduled-"
 ARCHIVE_SUFFIX = ".bak"
 _ARCHIVE_NAME = re.compile(rf"^{ARCHIVE_PREFIX}(\d{{4}})-(\d{{2}})-(\d{{2}})\{ARCHIVE_SUFFIX}$")
@@ -60,7 +60,14 @@ KEEP_FAILURES = 20
 # uploads, and by default pgdata shares the same host filesystem, so it stops Postgres too.
 # A refusal is recorded, mailed and visible at /healthz like any other failure, which makes
 # it a loud "grow the disk", not a silent stop.
-HEADROOM_MULTIPLE = 2  # room for tonight's archive and the staged copy the command makes
+#
+# 2, because two full copies of the instance are on this volume at the peak and never three:
+# the command builds the pg_dump and the media tar in a staging directory, tars them into a
+# second file (peak one), drops the staging directory, then encrypts that file into the
+# `.partial` beside it (peak two). All of them stage beside the archive now
+# (backup_instance's `staging`), which is what makes measuring this one volume honest --
+# they used to land in the container's TMPDIR, on a filesystem this check never looked at.
+HEADROOM_MULTIPLE = 2
 
 
 class ScheduledBackupFailed(Exception):
@@ -90,16 +97,13 @@ def run(now: datetime.datetime | None = None) -> ScheduledBackupResult:
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)
         _require_headroom(destination.parent)
-        options: dict[str, str] = {}
-        if settings.BACKUP_PASSPHRASE_FILE:
-            # The operator who followed the guide's tighter recommendation has no
-            # BACKYARD_BACKUP_PASSPHRASE set at all; without this the nightly run refuses
-            # every night on a correctly-configured instance.
-            options["passphrase_file"] = settings.BACKUP_PASSPHRASE_FILE
         # No --no-encrypt, ever: the command refuses to write plaintext without it, and
         # that refusal is the control. It also verifies the archive decrypts before it
         # renames it into place, so what lands here is an archive that has been opened.
-        call_command("backup_instance", str(destination), **options)
+        # The passphrase resolves inside the command (core.backup_passphrase), which reads
+        # the keyfile the self-host guide recommends as well as the env var — the operator
+        # who took the tighter advice needs no flag a periodic task has nowhere to pass.
+        call_command("backup_instance", str(destination), source=BackupRun.Source.SCHEDULED)
     except ScheduledBackupFailed as exc:
         # Our own refusal (the headroom guard). Its message is already the sentence the
         # operator should read, so it is recorded verbatim rather than wrapped in its own
@@ -143,25 +147,14 @@ def _require_headroom(directory: Path) -> None:
         )
 
 
-def newest_archive_day(directory: Path | None = None) -> datetime.date | None:
-    """The date of the newest archive the SCHEDULER wrote, or None.
-
-    The health surface asks this rather than BackupRun, because a hand-run
-    `backup_instance` writes a BackupRun row too -- so BackupRun cannot answer "is the
-    NIGHTLY job working", which is the question the field exists for.
-    """
-    root = directory or Path(settings.BACKUP_ROOT)
-    return max((day for day, _path in _archives(root)), default=None)
-
-
 def prune(
     directory: Path, *, keep_daily: int = KEEP_DAILY, keep_weekly: int = KEEP_WEEKLY
 ) -> list[Path]:
     """Delete aged-out scheduled archives; return what was removed.
 
     Kept: the `keep_daily` most recent days, plus the newest archive of each of the
-    `keep_weekly` most recent ISO weeks. Anything in the directory that this module did not
-    name is invisible here — see ARCHIVE_PREFIX.
+    `keep_weekly` most recent ISO weeks. Anything in the directory that a scheduled run did
+    not RECORD writing is invisible here — see `_archives`.
     """
     dated = sorted(_archives(directory), reverse=True)
     keep = {path for _, path in dated[:keep_daily]}
@@ -188,15 +181,28 @@ def prune(
 
 
 def _archives(directory: Path) -> list[tuple[datetime.date, Path]]:
-    """(day, path) for every archive this module wrote, by the date in its NAME.
+    """(day, path) for every archive a SCHEDULED run recorded writing, dated by its NAME.
 
-    The name, not the mtime: a `docker compose cp` or a volume restore rewrites mtimes and
-    would silently re-date the whole retention window.
+    The date comes from the name, not the mtime: a `docker compose cp` or a volume restore
+    rewrites mtimes and would silently re-date the whole retention window.
+
+    OWNERSHIP, though, comes from the database and not from the name (#166 review). A name
+    is something anyone can produce: an operator restoring an archive from another box, or
+    copying one in to look at it, lands a `scheduled-YYYY-MM-DD.bak` this scheduler never
+    wrote, and the retention guarantee is that only its OWN archives are ever deleted. The
+    price, stated: an archive whose row is gone — a restored database, a wiped table — is
+    never pruned again. That is the direction to fail in; the disk fills loudly and the
+    headroom guard says so, while the other direction deletes a family's only copy.
     """
+    ours = set(
+        BackupRun.objects.filter(source=BackupRun.Source.SCHEDULED)
+        .exclude(archive_name="")
+        .values_list("archive_name", flat=True)
+    )
     found: list[tuple[datetime.date, Path]] = []
     for path in sorted(directory.glob(f"{ARCHIVE_PREFIX}*{ARCHIVE_SUFFIX}")):
         match = _ARCHIVE_NAME.match(path.name)
-        if match is None:
+        if match is None or path.name not in ours:
             continue
         try:
             day = datetime.date(int(match[1]), int(match[2]), int(match[3]))

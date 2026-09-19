@@ -647,18 +647,36 @@ class BackupRun(models.Model):
     Written by the backup command AFTER the archive is complete, never before: a row
     written on entry would make a crashed backup look like a successful one, which is
     worse than no row at all.
+
+    It records WHO asked and WHAT FILE was written, and both are load-bearing rather than
+    decorative. Without the source, the operator's own first response to a backup alarm —
+    take one by hand — reads on the health surface as the nightly job recovering, and the
+    scheduler stays dead behind a green line. Without the name, retention has nothing but a
+    filename pattern to decide what it owns, so a `scheduled-2026-01-01.bak` somebody copied
+    into the directory becomes a deletion candidate on the day it ages out.
     """
+
+    class Source(models.TextChoices):
+        SCHEDULED = "scheduled", "Scheduled"
+        MANUAL = "manual", "Manual"
 
     finished_at = models.DateTimeField(auto_now_add=True)
     byte_count = models.BigIntegerField()
     encrypted = models.BooleanField()
+    # Defaults to MANUAL, which is the safe direction for both readers: an unlabelled row
+    # never silences the nightly-backup alarm and never authorises a deletion.
+    source = models.CharField(max_length=16, choices=Source.choices, default=Source.MANUAL)
+    archive_name = models.CharField(max_length=255, blank=True, default="")
 
     class Meta:
         ordering = ["-finished_at"]
 
     def __str__(self) -> str:
         kind = "encrypted" if self.encrypted else "PLAINTEXT"
-        return f"{kind} backup of {self.byte_count} bytes at {self.finished_at:%Y-%m-%d %H:%M}"
+        return (
+            f"{self.source} {kind} backup of {self.byte_count} bytes "
+            f"at {self.finished_at:%Y-%m-%d %H:%M}"
+        )
 
 
 class BackupFailure(models.Model):

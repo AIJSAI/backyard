@@ -49,6 +49,7 @@ from django.contrib.sessions.models import Session
 from django.db import connection, models, transaction
 from django.utils import timezone
 
+from . import backup_passphrase
 from .models import DigestSubscription, Invite, Member
 
 MANIFEST_NAME = "backup-manifest.json"
@@ -134,17 +135,27 @@ def _dump_credentials() -> tuple[str, dict[str, str]]:
 def _with_password(password: str) -> dict[str, str]:
     env = dict(os.environ)
     # The backup passphrase is not the database's business. Inheriting it widened its blast
-    # radius to any child core dump or /proc/<pid>/environ read for no benefit at all.
-    env.pop("BACKYARD_BACKUP_PASSPHRASE", None)
+    # radius to any child core dump or /proc/<pid>/environ read for no benefit at all. The
+    # keyfile PATH goes too: it is not the secret, but it is a signpost to it, and pg_dump
+    # has no more use for one than for the other.
+    env.pop(backup_passphrase.ENV_VAR, None)
+    env.pop(backup_passphrase.FILE_ENV_VAR, None)
     env["PGPASSWORD"] = password
     return env
 
 
-def write_backup(destination: IO[bytes]) -> None:
-    """Write a whole-instance backup archive into `destination`."""
+def write_backup(destination: IO[bytes], *, staging_dir: Path | None = None) -> None:
+    """Write a whole-instance backup archive into `destination`.
+
+    `staging_dir` is where the pg_dump and the media tar are built — a full copy of the
+    instance, twice over, before either reaches `destination`. The caller passes the
+    directory the archive itself lands in, because that is the volume whose free space was
+    measured; the default (TMPDIR) is the container's writable layer, which the nightly
+    run's headroom guard does not look at and which is not where the operator grew the disk.
+    """
     dsn = _dsn()
     dump_user, dump_env = _dump_credentials()
-    with tempfile.TemporaryDirectory() as workdir:
+    with tempfile.TemporaryDirectory(dir=staging_dir) as workdir:
         dump_path = Path(workdir) / DB_DUMP_NAME
         try:
             result = subprocess.run(  # noqa: S603  # fixed argv, never a shell

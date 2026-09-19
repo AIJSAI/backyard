@@ -96,6 +96,14 @@ services:
       # (this value is visible to `docker inspect`), which is what the guide recommends;
       # this exists so the documented .env path is actually true.
       BACKYARD_BACKUP_PASSPHRASE: ${BACKYARD_BACKUP_PASSPHRASE:-}
+      # The keyfile path INSIDE the container, and web needs it as much as the worker does:
+      # web's entrypoint takes the pre-flight dump of the ENTIRE database before every
+      # migration, on every boot. Without this, an operator who took the self-host guide's
+      # tighter advice (keyfile mounted, passphrase deliberately unset) got that dump in
+      # PLAINTEXT on /data every time the container started -- the exact files the off-box
+      # rsync recipe in the backup runbook warns you not to copy. Mount the key read-only
+      # into BOTH services, and never onto /data: a key beside the ciphertext buys nothing.
+      BACKYARD_BACKUP_PASSPHRASE_FILE: ${BACKYARD_BACKUP_PASSPHRASE_FILE:-}
       POSTGRES_DB: ${POSTGRES_DB:-backyard}
       # Runtime connects as the unprivileged app role (ADR-004, TS-PG-1). The migrator
       # credentials are used for the migrate step only; the entrypoint drops them from
@@ -192,7 +200,8 @@ services:
       # The keyfile path INSIDE the container, for an operator who followed the self-host
       # guide's tighter recommendation and mounted a 0600 key instead of putting the
       # passphrase in the environment. Without it the nightly backup has no passphrase and
-      # refuses every night. Mount the key read-only, and never onto /data.
+      # refuses every night. Mount the key read-only, and never onto /data. web carries the
+      # same variable (see above) for the pre-flight dump it takes on every boot.
       BACKYARD_BACKUP_PASSPHRASE_FILE: ${BACKYARD_BACKUP_PASSPHRASE_FILE:-}
       POSTGRES_DB: ${POSTGRES_DB:-backyard}
       POSTGRES_USER: backyard_app
