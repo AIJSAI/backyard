@@ -39,7 +39,7 @@ def create_adhoc_pod(*, owner: Member, yard: Yard, name: str, house_rule: str = 
     """Create an ad-hoc pod in a yard the owner belongs to, with the owner as its
     first member. Raises if the owner is not in the yard."""
     if yard.id not in scoping.member_yard_ids(owner):
-        raise PodActionNotAllowed("You can only create a pod in a yard you belong to.")
+        raise PodActionNotAllowed("You can only create a group on a side of the family you are on.")
     with transaction.atomic():
         pod = Pod.objects.create(
             name=name.strip()[:100],
@@ -55,12 +55,14 @@ def create_adhoc_pod(*, owner: Member, yard: Yard, name: str, house_rule: str = 
 def add_member_to_pod(*, actor: Member, pod: Pod, new_member: Member) -> None:
     """Owner-only: add an existing member who shares the pod's yard (S-204)."""
     if pod.kind != Pod.ADHOC:
-        raise PodActionNotAllowed("Members join a household pod by invite, not here.")
+        raise PodActionNotAllowed("Members join a household by invite, not here.")
     if pod.owner_id != actor.id:
-        raise PodActionNotAllowed("Only the pod owner can add members.")
+        raise PodActionNotAllowed("Only the group's owner can add members.")
     pod_yard_ids = set(pod.yards.values_list("id", flat=True))
     if not (pod_yard_ids & scoping.member_yard_ids(new_member)):
-        raise PodActionNotAllowed("You can only add someone who shares this pod's yard.")
+        raise PodActionNotAllowed(
+            "You can only add someone on the same side of the family as this group."
+        )
     PodMembership.objects.get_or_create(member=new_member, pod=pod)
 
 
@@ -71,9 +73,9 @@ def set_house_rule(*, actor: Member, pod: Pod, house_rule: str) -> None:
     # closed, but guard the kind explicitly so a future household owner cannot inherit
     # this by accident.
     if pod.kind != Pod.ADHOC:
-        raise PodActionNotAllowed("A household pod has no house rule.")
+        raise PodActionNotAllowed("A household has no description.")
     if pod.owner_id != actor.id:
-        raise PodActionNotAllowed("Only the pod owner can set the house rule.")
+        raise PodActionNotAllowed("Only the group's owner can set the description.")
     pod.house_rule = house_rule.strip()[:200]
     pod.save(update_fields=["house_rule"])
 
@@ -115,9 +117,7 @@ def leave_pod(*, member: Member, pod: Pod) -> None:
     flow (S-706). Neither has any implementation anywhere in this repo.
     """
     if pod.kind != Pod.ADHOC:
-        raise PodActionNotAllowed(
-            "You can leave an ad-hoc pod; a household is managed by an admin."
-        )
+        raise PodActionNotAllowed("You can leave a group. A household is changed by an admin.")
     # Imported here rather than at module scope: `households` imports `permissions`, which
     # is a heavier graph than this module needs at import time, and `reply_addresses` below
     # already established the local-import idiom in this function.
@@ -138,15 +138,13 @@ def leave_pod(*, member: Member, pod: Pod) -> None:
             # which is also the only thing that answers it, so the sentence says that.
             # `help_contact_name` is the footer's helper: it reads the admin's first name
             # out of the database at render time, never out of this repository, which is
-            # public. Empty falls back to the impersonal form the footer also uses.
+            # public. Empty falls back to the role, which names nobody.
             from .context_processors import help_contact_name
 
-            who = help_contact_name() or "whoever looks after your family's Backyard"
+            who = help_contact_name() or "an admin"
             raise PodLeaveRefused(
-                "You are not in a household yet, and this group is the only thing "
-                "connecting you to your family. Leaving it would mean you could not see "
-                f"anyone, and nobody could see you. Ask {who} to put you in a household "
-                "first, and then you can leave this group whenever you like."
+                "You are not in a household yet, so leaving this group would leave you "
+                f"unable to see anyone. Ask {who} to put you in a household first."
             )
         losing = {yard.id for yard in households.sides_lost(member, pod)}
         if losing:

@@ -1,27 +1,24 @@
 {% extends "core/base.html" %}
-{% block title %}Check this before it happens{% endblock %}
+{% block title %}{% if proposal.act == "add" %}Add {{ target.display_name }} To {{ proposal.household_name }}?{% elif proposal.act == "create" %}Create {{ proposal.name }} And Add {{ target.display_name }}?{% else %}Take {{ target.display_name }} Out Of {{ proposal.household_name }}?{% endif %}{% endblock %}
 {% block body %}
-  <h1>Check this before it happens</h1>
-
   {% comment %} The whole reason this step exists: a household carries a side of the family
      with it, so adding somebody to one hands them everything that side has ever posted.
      Nothing on the previous page says that out loud, and no undo exists — they have seen
-     what they have seen. So the act is said back in full, naming the sides. {% endcomment %}
-  {% if proposal.act == "add" %}
-    <p class="notice">{{ target.display_name }} will be added to
-    <strong>{{ proposal.household_name }}</strong>.</p>
-  {% elif proposal.act == "create" %}
-    <p class="notice">A new household called <strong>{{ proposal.name }}</strong> will be
-    made, and {{ target.display_name }} will be in it.</p>
-  {% else %}
-    <p class="notice">{{ target.display_name }} will be taken out of
-    <strong>{{ proposal.household_name }}</strong>.</p>
-  {% endif %}
+     what they have seen. So the act is said back in full, naming the sides.
+
+     The act is now the HEADING, as a question, rather than a heading that says nothing
+     ("Check this before it happens") followed by a paragraph saying it. One string, at
+     the top, in the shape every other confirmation page in the product uses. {% endcomment %}
+  <h1>
+    {% if proposal.act == "add" %}Add {{ target.display_name }} To {{ proposal.household_name }}?
+    {% elif proposal.act == "create" %}Create {{ proposal.name }} And Add {{ target.display_name }}?
+    {% else %}Take {{ target.display_name }} Out Of {{ proposal.household_name }}?{% endif %}
+  </h1>
 
   {% if proposal.gained %}
-    <h2>What {{ target.display_name }} will start seeing</h2>
-    <p>Everything on these sides of the family — the posts, the photographs and who is in
-    them, including everything posted before today:</p>
+    <h2>What {{ target.display_name }} Will Start Seeing</h2>
+    <p>Every post and photograph on these sides of the family, including everything
+    posted before today:</p>
     <ul class="sides-gained">
       {% for side in proposal.gained %}<li>{{ side.name }}</li>{% endfor %}
     </ul>
@@ -29,14 +26,14 @@
   {% if proposal.act != "remove" %}
     {% comment %} A household is a read surface of its own, not only a door into a side:
        its pod-only posts never reach the wider yard feed (S-204), and the profile fields
-       anybody in it set to "just our household" open to every member of it — which is
+       anybody in it set to "My Household" open to every member of it — which is
        where a supervised child's birthday sits BY DEFAULT (S-903, T-MINOR-6). So an add
        that gains no SIDE still widens what this person can read, and this page used to say
        the opposite in as many words. {% endcomment %}
-    <h2>What else {{ target.display_name }} will start seeing</h2>
-    <p>Everything this household has kept to itself — the posts it has not shared with the
-    wider family, the photographs on them, and the birthdays and contact details anybody in
-    it has set to "just our household", the children's included.</p>
+    <h2>What Else {{ target.display_name }} Will Start Seeing</h2>
+    <p>Everything this household has kept to itself: posts it has not shared more widely,
+    the photographs on them, and every birthday and contact detail anybody in it has set
+    to My Household, the children's included.</p>
     {% if not proposal.gained %}
       <p>This does not add a new side of the family: they are already on the side this
       household belongs to.</p>
@@ -44,8 +41,8 @@
   {% endif %}
 
   {% if proposal.lost %}
-    <h2>What {{ target.display_name }} will stop seeing</h2>
-    <p>These sides of the family go away for them, from the moment you do this:</p>
+    <h2>What {{ target.display_name }} Will Stop Seeing</h2>
+    <p>These sides of the family go away for them as soon as you do this:</p>
     <ul class="sides-lost">
       {% for side in proposal.lost %}<li>{{ side.name }}</li>{% endfor %}
     </ul>
@@ -58,16 +55,17 @@
     {% comment %} None of this is guessable from "take them out of a household", and all of
        it is what taking somebody out of a household has to do to be true: a membership that
        shrinks takes its credentials with it (TM-1). {% endcomment %}
-    <h2>What else happens</h2>
+    <h2>What Else Happens</h2>
     <ul>
-      <li>{{ target.display_name }} is signed out everywhere and signs in again next time.</li>
-      <li>The links in their old weekly emails stop working. The weekly email itself keeps
-        coming, and from now on it only carries what they can still see.</li>
-      <li>Any unused invitation into the side of the family they are leaving stops working.
-        You can send those again from <em>Outstanding invites</em>.</li>
+      <li>{{ target.display_name }} is signed out on every device and signs in again next
+        time.</li>
+      <li>Links in the email updates they have already been sent stop working. Future
+        updates carry only what they can still see.</li>
+      <li>Any unused invite into the side of the family they are leaving stops working.
+        You can send a new one from <em>Invites</em>.</li>
       {% if elder %}
-        <li>The no-login link they use to read the family stops working. Make a new one on
-          the members page and hand it over again.</li>
+        <li>Their No-Login Link stops working. Make a new one on the Members page and hand
+          it over again.</li>
       {% endif %}
     </ul>
   {% endif %}
@@ -84,8 +82,8 @@
       {% endfor %}
     {% endif %}
     <button type="submit">
-      {% if proposal.act == "remove" %}Yes, take them out{% else %}Yes, add them{% endif %}
+      {% if proposal.act == "remove" %}Take Them Out{% else %}Add Them{% endif %}
     </button>
   </form>
-  <p><a class="back" href="{% url 'change_household' target.id %}">No, go back</a></p>
+  <p class="back-link"><a class="back" href="{% url 'change_household' target.id %}">Cancel</a></p>
 {% endblock %}

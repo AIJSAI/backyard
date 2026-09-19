@@ -283,7 +283,7 @@ def test_starting_a_group_says_it_is_ready(world: dict[str, object]) -> None:
         reverse("pod_create"), {"name": "Birthday planning", "yard_id": maternal.id}, follow=True
     )
     body = response.content.decode()
-    assert "Birthday planning is ready." in body
+    assert "Group created: Birthday planning." in body
     assert 'class="messages"' in body and 'role="status"' in body
 
 
@@ -300,7 +300,7 @@ def test_starting_nothing_says_nothing(world: dict[str, object]) -> None:
         .post(reverse("pod_create"), {"name": "   ", "yard_id": maternal.id}, follow=True)
         .content.decode()
     )
-    assert "is ready." not in body, body[body.find("messages") : body.find("messages") + 200]
+    assert "Group created" not in body, body[body.find("messages") : body.find("messages") + 200]
 
 
 def test_leaving_a_group_says_so(world: dict[str, object]) -> None:

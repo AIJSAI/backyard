@@ -1,11 +1,17 @@
 {% extends "core/base.html" %}
-{% block title %}{% if editing_other %}Edit {{ member.display_name }}’s profile{% else %}Edit my profile{% endif %}{% endblock %}
+{% block title %}{% if editing_other %}Edit Profile For {{ member.display_name }}{% else %}Settings{% endif %}{% endblock %}
 {% block body %}
-  {% if editing_other %}
-    <p class="notice">You are editing <strong>{{ member.display_name }}</strong>'s profile
-      on their behalf. They will see these details as their own.</p>
-  {% endif %}
-  <h1>{% if editing_other %}Edit {{ member.display_name }}’s profile{% else %}Edit my profile{% endif %}</h1>
+  {% comment %} The heading is "Settings" on your own page because that is what the nav
+     item and every "Back To Settings" link call it; a page a relative reaches by tapping
+     Settings should not greet them with a different name.
+
+     Editing somebody else, it is "Edit Profile For <name>" and there is no notice under
+     it any more. The notice ("You are editing X's profile on their behalf. They will see
+     these details as their own.") said what the heading says, in a box, twice. The
+     heading is the loudest place on the page, so the name goes there and the box goes.
+     "For <name>" rather than "<name>'s" because a heading is Title Case and "'s" is a
+     word the rule would have to capitalise. {% endcomment %}
+  <h1>{% if editing_other %}Edit Profile For {{ member.display_name }}{% else %}Settings{% endif %}</h1>
   {% if errors %}
     <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
   {% endif %}
@@ -17,12 +23,17 @@
         action="{% if editing_other %}{% url 'managed_profile_edit' member.id %}{% else %}{% url 'profile_edit' %}{% endif %}">
     {% csrf_token %}
 
-    <label for="display_name">{% if editing_other %}Their name{% else %}Your name{% endif %}</label>
+    <label for="display_name">{% if editing_other %}Their Name{% else %}Your Name{% endif %}</label>
     <input id="display_name" type="text" name="display_name" value="{{ member.display_name }}"
            maxlength="100" required>
 
-    <label for="kinship_name">What the family calls you (Nana, Uncle Jim)</label>
-    <input id="kinship_name" type="text" name="kinship_name" value="{{ member.kinship_name }}" maxlength="50">
+    {% comment %} "Nickname" rather than "What the family calls you": it is the word every
+       other product uses for this box, and it is what the page already renders beside a
+       name, as "Rose Whitfield (Nana)". The two worked examples move into the
+       placeholder, which is where a format example belongs. {% endcomment %}
+    <label for="kinship_name">Nickname</label>
+    <input id="kinship_name" type="text" name="kinship_name" value="{{ member.kinship_name }}"
+           maxlength="50" placeholder="Nana">
 
     {% comment %} Month, day and year each had their own full-width 48px row, twice on
        this page, for a value ten characters long — about 350px of page spent on two
@@ -37,16 +48,24 @@
        name on one page — a regression on the aria-labels it replaced, and one axe does
        not flag. Keeping the noun in the VISIBLE text (rather than reaching for aria-label)
        also keeps SC 2.5.3 Label in Name satisfied for free: there is only one name, and
-       it is the one on screen. {% endcomment %}
+       it is the one on screen.
+
+       The labels are "<Field> Visibility" rather than "Who can see my <field>" because a
+       label is a noun, not a question, and the choice beside it already answers the
+       question in the owner's words: No One, My Household, Everyone. {% endcomment %}
     <fieldset>
-      <legend>Birthday (year optional; your age is never shown)</legend>
+      <legend>Birthday</legend>
+      {% comment %} The legend used to carry the year rule in brackets, which is a hint
+         wearing a heading's clothes. It is a hint: it stops somebody leaving the box
+         empty because they did not want their age on the page. {% endcomment %}
+      <p class="hint">Year is optional and never shown.</p>
       <div class="field-row">
-        <input type="number" name="birthday_month" value="{{ member.birthday_month|default_if_none:'' }}" min="1" max="12" placeholder="Month" aria-label="Birthday month">
-        <input type="number" name="birthday_day" value="{{ member.birthday_day|default_if_none:'' }}" min="1" max="31" placeholder="Day" aria-label="Birthday day">
-        <input type="number" name="birthday_year" value="{{ member.birthday_year|default_if_none:'' }}" placeholder="Year" aria-label="Birthday year, optional">
+        <input type="number" name="birthday_month" value="{{ member.birthday_month|default_if_none:'' }}" min="1" max="12" placeholder="Month" aria-label="Birthday Month">
+        <input type="number" name="birthday_day" value="{{ member.birthday_day|default_if_none:'' }}" min="1" max="31" placeholder="Day" aria-label="Birthday Day">
+        <input type="number" name="birthday_year" value="{{ member.birthday_year|default_if_none:'' }}" placeholder="Year" aria-label="Birthday Year (Optional)">
       </div>
       <div class="visibility">
-        <label for="birthday_visibility">Who can see my birthday</label>
+        <label for="birthday_visibility">Birthday Visibility</label>
         <select id="birthday_visibility" name="birthday_visibility">
           {% for value, label in visibility_choices %}
             <option value="{{ value }}"{% if value == member.birthday_visibility %} selected{% endif %}>{{ label }}</option>
@@ -56,14 +75,15 @@
     </fieldset>
 
     <fieldset>
-      <legend>Anniversary (year optional; never shown)</legend>
+      <legend>Anniversary</legend>
+      <p class="hint">Year is optional and never shown.</p>
       <div class="field-row">
-        <input type="number" name="anniversary_month" value="{{ member.anniversary_month|default_if_none:'' }}" min="1" max="12" placeholder="Month" aria-label="Anniversary month">
-        <input type="number" name="anniversary_day" value="{{ member.anniversary_day|default_if_none:'' }}" min="1" max="31" placeholder="Day" aria-label="Anniversary day">
-        <input type="number" name="anniversary_year" value="{{ member.anniversary_year|default_if_none:'' }}" placeholder="Year" aria-label="Anniversary year, optional">
+        <input type="number" name="anniversary_month" value="{{ member.anniversary_month|default_if_none:'' }}" min="1" max="12" placeholder="Month" aria-label="Anniversary Month">
+        <input type="number" name="anniversary_day" value="{{ member.anniversary_day|default_if_none:'' }}" min="1" max="31" placeholder="Day" aria-label="Anniversary Day">
+        <input type="number" name="anniversary_year" value="{{ member.anniversary_year|default_if_none:'' }}" placeholder="Year" aria-label="Anniversary Year (Optional)">
       </div>
       <div class="visibility">
-        <label for="anniversary_visibility">Who can see my anniversary</label>
+        <label for="anniversary_visibility">Anniversary Visibility</label>
         <select id="anniversary_visibility" name="anniversary_visibility">
           {% for value, label in visibility_choices %}
             <option value="{{ value }}"{% if value == member.anniversary_visibility %} selected{% endif %}>{{ label }}</option>
@@ -82,7 +102,7 @@
       <label for="phone">Phone</label>
       <input id="phone" type="text" name="phone" value="{{ member.phone }}" maxlength="40">
       <div class="visibility">
-        <label for="phone_visibility">Who can see my phone</label>
+        <label for="phone_visibility">Phone Visibility</label>
         <select id="phone_visibility" name="phone_visibility">
           {% for value, label in visibility_choices %}
             <option value="{{ value }}"{% if value == member.phone_visibility %} selected{% endif %}>{{ label }}</option>
@@ -93,7 +113,7 @@
       <label for="contact_email">Email</label>
       <input id="contact_email" type="email" name="contact_email" value="{{ member.contact_email }}" maxlength="254">
       <div class="visibility">
-        <label for="contact_email_visibility">Who can see my email</label>
+        <label for="contact_email_visibility">Email Visibility</label>
         <select id="contact_email_visibility" name="contact_email_visibility">
           {% for value, label in visibility_choices %}
             <option value="{{ value }}"{% if value == member.contact_email_visibility %} selected{% endif %}>{{ label }}</option>
@@ -104,7 +124,7 @@
       <label for="address">Address</label>
       <input id="address" type="text" name="address" value="{{ member.address }}" maxlength="255">
       <div class="visibility">
-        <label for="address_visibility">Who can see my address</label>
+        <label for="address_visibility">Address Visibility</label>
         <select id="address_visibility" name="address_visibility">
           {% for value, label in visibility_choices %}
             <option value="{{ value }}"{% if value == member.address_visibility %} selected{% endif %}>{{ label }}</option>
@@ -113,7 +133,7 @@
       </div>
     {% endif %}
 
-    <button type="submit">Save</button>
+    <button type="submit">Save Changes</button>
   </form>
 
   {% comment %} The digest was routed at /settings/digest/ and linked from NOWHERE: the only
@@ -123,11 +143,13 @@
      CONFIRMED subscription -- so an instance with an unreachable digest page reports its
      own disk and backup status to nobody. Not shown when an admin is editing someone
      else's profile: a digest address is that person's to set. {% endcomment %}
+  {% comment %} EVERY ROW IS NOW THE LINK AND NOTHING ELSE. Each one carried a dash and a
+     sentence explaining it ("Notifications — the one thing you can turn on, and it is off
+     until you do"), which is the shape the owner struck out: the link name already says
+     where it goes, and the page it opens says the rest. A settings list is a list of
+     places, not a page of prose. {% endcomment %}
   {% if not editing_other %}
-    <p class="settings-link">
-      <a href="{% url 'digest_settings' %}">The Family email</a> &mdash;
-      whether you want one, where it goes and how often.
-    </p>
+    <p class="settings-link"><a href="{% url 'digest_settings' %}">Email Updates</a></p>
     {% comment %} The SAME defect, one route over, and it survived the fix above by a
        month: /settings/notifications/ was routed and the only `{% url %}` reference to it
        in the whole tree was its own form action. Meanwhile the feed's orientation card
@@ -135,18 +157,9 @@
        Settings" — pointing at a control none of them could reach. The reachability guard
        did not catch it because its list of pages-that-must-be-reachable was three names
        long and hand-maintained; it now walks the link graph instead. {% endcomment %}
-    <p class="settings-link">
-      <a href="{% url 'notification_settings' %}">Notifications</a> &mdash;
-      the one thing you can turn on, and it is off until you do.
-    </p>
-    <p class="settings-link">
-      <a href="{% url 'how_it_works' %}">How this works</a> &mdash;
-      who sees what you post, and how to stop anything you do not want.
-    </p>
-    <p class="settings-link">
-      <a href="{% url 'export_data' %}">Download my things</a> &mdash;
-      a copy of everything you have written and every photo you have added.
-    </p>
+    <p class="settings-link"><a href="{% url 'notification_settings' %}">Notifications</a></p>
+    <p class="settings-link"><a href="{% url 'how_it_works' %}">How It Works</a></p>
+    <p class="settings-link"><a href="{% url 'export_data' %}">Download Your Data</a></p>
 
     {% comment %} BY-02. Every allauth account page — sign-in email, password change,
        passkeys and codes — was routed, styled and linked from NOWHERE: a grep for
@@ -160,34 +173,22 @@
 
        Hidden while an admin edits someone else's profile, exactly like the two links
        above: these change THAT person's credentials, and they are not the admin's to
-       change. The admin's control for a locked-out member is the roster's "Get back in
-       link" (BY-01), which hands the decision back to its owner. {% endcomment %}
-    <h2>Your account</h2>
-    <p class="settings-link">
-      <a href="{% url 'account_email' %}">Your sign-in email</a> &mdash;
-      add one if you want to be able to reset your own password.
-    </p>
-    <p class="settings-link">
-      <a href="{% url 'account_change_password' %}">Change your password</a>.
-    </p>
-    <p class="settings-link">
-      <a href="{% url 'mfa_index' %}">Passkeys and sign-in codes</a> &mdash;
-      sign in with your face or fingerprint instead of typing a password.
-    </p>
-    <p class="settings-link">
-      <a href="{% url 'about' %}">About this Backyard</a> &mdash;
-      who looks after it, and the licence the software is under.
-    </p>
+       change. The admin's control for a locked-out member is the roster's "Sign-In Link"
+       (BY-01), which hands the decision back to its owner. {% endcomment %}
+    <h2>Your Account</h2>
+    {% comment %} "Sign-In Email" and not "Email Address": this page also carries a contact
+       Email box, and the two are different addresses. The name has to say which one. {% endcomment %}
+    <p class="settings-link"><a href="{% url 'account_email' %}">Your Sign-In Email</a></p>
+    <p class="settings-link"><a href="{% url 'account_change_password' %}">Change Your Password</a></p>
+    <p class="settings-link"><a href="{% url 'mfa_index' %}">Passkeys And Sign-In Codes</a></p>
+    <p class="settings-link"><a href="{% url 'about' %}">About</a></p>
     {% comment %} Sign out came off the header nav on 2026-09-19: six items wrapped to two
        lines at 390px for an admin, which cost the family a whole row of chrome on every
        screen they opened. It is the right one to move — the rarest thing anybody does in
        their own family's photo album, and the only nav item that was an action rather
        than a place. Last in this list because it is the end of what you came here to do,
        and repeated in the footer so it is still one tap from anywhere. {% endcomment %}
-    <p class="settings-link">
-      <a href="{% url 'account_logout' %}">Sign out</a> &mdash;
-      you will need your password to get back in.
-    </p>
+    <p class="settings-link"><a href="{% url 'account_logout' %}">Sign Out</a></p>
   {% endif %}
 
   {% comment %} A parent making their own child's account. `can_create_supervised` has
@@ -198,26 +199,26 @@
      in. {% endcomment %}
   {% if can_add_own_child and own_pods %}
     <details class="supervised-disclosure">
-      <summary>Add a child account you look after&hellip;</summary>
+      <summary>Add A Child Account</summary>
       <p class="hint">
-        A child account has no password of its own — you sign in and it belongs to you.
-        They appear in the family with a badge saying they are supervised.
+        A child account has no sign-in of its own. You manage it, and other members see
+        that it is supervised.
       </p>
       <form method="post" action="{% url 'create_supervised' %}">
         {% csrf_token %}
         <input type="hidden" name="parent_id" value="{{ member.id }}">
-        <label for="own-child-name">Their name</label>
+        <label for="own-child-name">Their Name</label>
         <input id="own-child-name" type="text" name="display_name" maxlength="100" required>
-        <label for="own-child-pod">Which of your households they belong to</label>
+        <label for="own-child-pod">Household</label>
         <select id="own-child-pod" name="pod_id">
           {% for pod in own_pods %}
             <option value="{{ pod.id }}">{{ pod.name }}</option>
           {% endfor %}
         </select>
-        <button type="submit">Create their account</button>
+        <button type="submit">Create Account</button>
       </form>
     </details>
   {% endif %}
 
-  <p class="back-link"><a class="back" href="{% url 'directory' %}">Back to the directory</a></p>
+  <p class="back-link"><a class="back" href="{% url 'directory' %}">Back To The Directory</a></p>
 {% endblock %}

@@ -52,7 +52,10 @@ _LINE_BREAK = "\r\n"
 
 # The label every card carries, so twenty contacts that arrived together can be found —
 # or removed — as a group later, instead of being untraceable once they are in a phone.
-_CATEGORY = "Backyard family"
+# It is the product's name and nothing else: the string lands in the reader's own phone,
+# beside categories they chose themselves, and naming their people for them is not a
+# label's job.
+_CATEGORY = "Backyard"
 
 
 def _escape(value: str) -> str:

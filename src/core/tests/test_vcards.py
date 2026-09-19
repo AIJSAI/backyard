@@ -494,4 +494,4 @@ def test_an_empty_profile_does_not_offer_an_empty_contact_card(world: World) -> 
     bare = _client_for(world.author).get(reverse("member_profile", args=[world.yard_mate.id]))
     page = bare.content.decode()
     assert reverse("member_vcard", args=[world.yard_mate.id]) not in page
-    assert "hasn" in page and "shared any contact details" in page
+    assert "has not shared any contact details" in page

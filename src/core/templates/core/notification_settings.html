@@ -2,17 +2,21 @@
 {% block title %}Notifications{% endblock %}
 {% block body %}
   <h1>Notifications</h1>
-  <p class="muted">
-    Backyard never sends you anything unless you ask. The one thing you can turn on
-    is a nudge when someone replies to your own post.
-  </p>
-  <p class="back-link"><a class="back" href="{% url 'profile_edit' %}">Back to Settings</a></p>
+  <p class="back-link"><a class="back" href="{% url 'profile_edit' %}">Back To Settings</a></p>
+  {% comment %} The paragraph that stood here ("Backyard never sends you anything unless
+     you ask. The one thing you can turn on is a nudge when someone replies to your own
+     post") said nothing the one unticked box does not already say. What a person DOES
+     need is the dependency: `notifications.notify_reply` sends over the Email Updates
+     subscription and returns early unless it is confirmed and enabled, so ticking this
+     box with Email Updates off is a control that does nothing. That is the hint. {% endcomment %}
   <form method="post" action="{% url 'notification_settings' %}">
     {% csrf_token %}
     <label class="inline-check">
       <input type="checkbox" name="notify_on_reply"{% if pref.notify_on_reply %} checked{% endif %}>
-      Tell me when someone replies to my post
+      Email Me When Someone Replies To My Post
     </label>
-    <button type="submit">Save</button>
+    <p class="hint">These emails go to your Email Updates address, so Email Updates has to
+      be on.</p>
+    <button type="submit">Save Changes</button>
   </form>
 {% endblock %}

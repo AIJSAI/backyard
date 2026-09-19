@@ -3,7 +3,7 @@
 {% load times %}
 {% block title %}{{ profile.display_name }}{% endblock %}
 {% block body %}
-  <p class="back-link"><a class="back" href="{% url 'directory' %}">Back to the directory</a></p>
+  <p class="back-link"><a class="back" href="{% url 'directory' %}">Back To The Directory</a></p>
   {% comment %} Three lines on a blank page was the whole profile: a name, "No contact
      details shared with you", and a link that would have downloaded an empty card. A
      relative tapping a family member's name hit a dead end. The disc, the placing line
@@ -30,13 +30,12 @@
     {% comment %} Offered only when there is something to save. It used to render
        unconditionally, so the commonest profile in the product — somebody who has shared
        no contact details — ended on an action that downloads an empty card. {% endcomment %}
-    <p class="page-action"><a href="{% url 'member_vcard' profile.member_id %}">Save to my contacts</a></p>
+    <p class="page-action"><a href="{% url 'member_vcard' profile.member_id %}">Save To Your Contacts</a></p>
   {% else %}
-    <p class="muted">{{ profile.display_name }} hasn&rsquo;t shared any contact details. You can still
-      see what they post.</p>
+    <p class="muted">{{ profile.display_name }} has not shared any contact details.</p>
   {% endif %}
 
-  <h2>Recent posts from {{ profile.display_name }}</h2>
+  <h2>Recent Posts</h2>
   <ul class="feed">
     {% for post in recent_posts %}
       <li>
@@ -45,10 +44,12 @@
           <span class="who"><span class="when">{% when post.created_at %}</span></span>
         </div>
         <p class="post-body">{{ post.body|urlize }}</p>
-        <span class="actions"><a href="{% url 'post_detail' post.id %}">Open thread</a></span>
+        {% comment %} "Open Post", the word the feed uses for the same link. One object,
+           one word. {% endcomment %}
+        <span class="actions"><a href="{% url 'post_detail' post.id %}">Open Post</a></span>
       </li>
     {% empty %}
-      <li class="empty">Nothing you can see yet.</li>
+      <li class="empty">No posts to show.</li>
     {% endfor %}
   </ul>
 {% endblock %}

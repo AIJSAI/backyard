@@ -231,21 +231,26 @@ def profile_edit(request: HttpRequest, member_id: int | None = None) -> HttpResp
         month = _int_or_none(request.POST.get(f"{kind}_month"))
         day = _int_or_none(request.POST.get(f"{kind}_day"))
         year = _int_or_none(request.POST.get(f"{kind}_year"))
+        # "the {kind}" rather than "A {kind}": the old wording built "A anniversary needs
+        # both a month and a day." from an f-string, and every error here now names the
+        # fix rather than the fault.
         if bool(month) != bool(day):
-            errors.append(f"A {kind} needs both a month and a day.")
+            errors.append(f"Enter both a month and a day for the {kind}.")
         if month is not None and not 1 <= month <= 12:
-            errors.append("That is not a real month.")
+            errors.append("Enter a month between 1 and 12.")
         if day is not None and not 1 <= day <= 31:
-            errors.append("That is not a real day.")
+            errors.append("Enter a day between 1 and 31.")
         # Range-check the year too (security review of #33 LOW-1): an out-of-range
         # value would blow past the smallint column as a 500 instead of a message.
         if year is not None and not 1 <= year <= 9999:
-            errors.append("That is not a real year.")
+            errors.append("Enter a year between 1 and 9999.")
         dates[f"{kind}_month"], dates[f"{kind}_day"], dates[f"{kind}_year"] = month, day, year
-    # A name is how a family recognises someone; an empty one is never what was meant.
+    # A name is how a family recognises someone; an empty one is never what was meant. The
+    # message matches the label on the box that is empty, which says "Your Name" on your own
+    # profile and "Their Name" when an admin or a parent is editing somebody else.
     display_name = request.POST.get("display_name", "").strip()[:100]
     if not display_name:
-        errors.append("A name cannot be empty.")
+        errors.append("Enter your name." if member.pk == actor.pk else "Enter their name.")
 
     if errors:
         return render(request, "core/profile_edit.html", _edit_context(member, errors, actor))

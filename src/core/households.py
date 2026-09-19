@@ -148,17 +148,22 @@ def check_remove(member: Member, pod: Pod) -> None:
     if is_their_last_household(member, pod):
         raise HouseholdChangeRefused(
             f"{pod.name} is {member.display_name}'s only household, and somebody in no "
-            "household cannot see anyone or be seen by anyone. Put them in another "
-            "household first, or remove them from the family altogether."
+            "household cannot see anyone or be seen. Put them in another household "
+            "first, or remove them from Backyard."
         )
 
 
 def check_create(name: str, yards: list[Yard]) -> None:
-    """Refuse a new household with no name or no side of the family."""
+    """Refuse a new household with no name or no side of the family.
+
+    Word for word with the two refusals `admin_views.invite_household` raises on the other
+    form that creates a household. One error class must not speak in two voices, and these
+    two were byte-identical until the copy pass rewrote that side only.
+    """
     if not name:
-        raise HouseholdChangeRefused("Give the household a name.")
+        raise HouseholdChangeRefused("Enter a household name.")
     if not yards:
-        raise HouseholdChangeRefused("Pick at least one side of the family.")
+        raise HouseholdChangeRefused("Choose at least one side.")
 
 
 def add_to_household(*, actor: Member, member: Member, pod: Pod) -> HouseholdChange:
