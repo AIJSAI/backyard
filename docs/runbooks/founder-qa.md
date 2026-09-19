@@ -17,16 +17,33 @@ NEGATIVES: every elder token belonged to a member whose pods held no photographs
 both logins sat on the same side of the family, so the isolation boundary could not be
 crossed to test it.
 
+**Two things about every command in this file.** First, on the live box every compose
+command carries the production overlay — `-f docker-compose.yml -f docker-compose.prod.yml`
+— because that overlay is what defines the real `web`, `worker` and `caddy` services
+(`docker-compose.prod.yml`). Without it you are talking to a differently-configured stack.
+Second, the secret is exported before `manage.py` runs: the entrypoint generates
+`DJANGO_SECRET_KEY` at boot and exports it for gunicorn only, so a fresh `exec` gets the
+container's *configured* environment, which has never held it, and a bare
+`exec web python manage.py …` dies with `DJANGO_SECRET_KEY is empty` before argparse is
+reached. Both are folded into every command below; they are long, and they are the form
+that works.
+
     # seed
-    docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
-      python manage.py shell' < scripts/demo_seed.py
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web sh -c \
+      'export DJANGO_SECRET_KEY=$(cat /data/secret_key); python manage.py shell' \
+      < scripts/demo_seed.py
 
     # wipe, before the instance goes to anyone real. READ THE COUNTS FIRST.
-    docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
-      python manage.py wipe_demo_data --dry-run'
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web sh -c \
+      'export DJANGO_SECRET_KEY=$(cat /data/secret_key); python manage.py wipe_demo_data --dry-run'
 
-    docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
-      python manage.py wipe_demo_data --yes'
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web sh -c \
+      'export DJANGO_SECRET_KEY=$(cat /data/secret_key); python manage.py wipe_demo_data --yes'
+
+The wipe also refuses while a real person's post or reply sits inside a fixture household —
+by design, and it is the refusal that saved a relative's content once already. If that is
+what stops you, move the real content or the real person out of the demo pod first rather
+than reaching for a shell.
 
 ### If the wipe says nothing is marked
 
@@ -49,8 +66,8 @@ they use different slugs — `moms-side` / `dads-side` from `scripts/demo_seed.p
 `whitfield-side` / `ferreira-nakamura-side` from `docs/design/tools/seed_demo.py`. Read what
 is actually on YOUR box rather than trusting either list:
 
-    docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
-      python manage.py shell -c "
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web sh -c \
+      'export DJANGO_SECRET_KEY=$(cat /data/secret_key); python manage.py shell -c "
     from core.models import Yard
     for y in Yard.objects.all():
         print(y.slug, y.name, y.pods.count(), \"pod(s)\")"'
@@ -59,21 +76,34 @@ The founder's own yard (`home`) is created without a marker on purpose and must 
 named here — it is the household you keep.
 
     # what would be marked, and what is deliberately spared. Changes nothing.
-    docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
-      python manage.py mark_demo_data --yard <slug> --dry-run'
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web sh -c \
+      'export DJANGO_SECRET_KEY=$(cat /data/secret_key); python manage.py mark_demo_data --yard <slug> --dry-run'
 
-    docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
-      python manage.py mark_demo_data --yard <slug> --yes'
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web sh -c \
+      'export DJANGO_SECRET_KEY=$(cat /data/secret_key); python manage.py mark_demo_data --yard <slug> --yes'
 
 **Read the "Deliberately NOT marked" list.** It is printed on every run, and it is where you
 find out that the household you meant to remove reaches somebody real. A count would hide
 that; the names do not.
 
+> **The trap: an EMPTY spared list is the alarm, not the all-clear.** Selection is by
+> containment — a member is marked only if every pod they are in was marked
+> (`core/demo_marking._select`). On an instance seeded before the real family existed, the
+> founder sits in a demo household and *nothing else*, so marking the demo sides marks the
+> founder too and prints no "Deliberately NOT marked" section at all. That is the shape of
+> the `BACKYARD_DEMO_WIPE` disaster again, one layer up.
+>
+> The order that avoids it, and the one actually walked: create the real sides and the real
+> households in the product **first**, use **Members → Change household** to move the founder
+> onto a real household on each real side, and only then mark. The dry run must name the
+> founder under "Deliberately NOT marked" before you type `--yes`. If it does not, stop:
+> marking is reversible (`--undo --yes`), and the wipe that follows is not.
+
 Then run `wipe_demo_data --dry-run` and read the counts, exactly as above. Marking is
 reversible until you do:
 
-    docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
-      python manage.py mark_demo_data --undo --yes'
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web sh -c \
+      'export DJANGO_SECRET_KEY=$(cat /data/secret_key); python manage.py mark_demo_data --undo --yes'
 
 The wipe is not reversible. Take a backup first — `docs/runbooks/backup-restore.md` — and
 read what a restore does to elder links and to members removed since the backup before you
@@ -112,14 +142,27 @@ accounts on a real instance.
 
 ## Before you start: the one thing that will lie to you
 
-**Register the Resend `email.received` webhook first**, pointing at
-`https://backyard.family/anymail/resend/inbound/` with the production
-`RESEND_INBOUND_SECRET`.
+**The Resend `email.received` webhook must exist before any inbound mail is worth
+believing.** Without it, inbound mail fails *silently*: the mail server accepts the message
+with a 250, the sender gets no bounce, and nothing reaches the app. Test it before it is
+registered and you will conclude the feature works when it did nothing. There is no way to
+tell from the outside — that is the whole problem. (Read section F's note first: the family
+email publishes no reply address today, so there is no emailed-reply step to walk. This
+still matters, because the route is live and quarantines what it refuses.)
 
-Without it, reply-by-email fails *silently*: SES accepts the message with a 250, the sender
-gets no bounce, and nothing reaches the app. If you test replies before registering it, you
-will conclude the feature works when it did nothing. There is no way to tell from the
-outside — that is the whole problem.
+**On this instance it is already registered** (endpoint `/anymail/resend/inbound/`, event
+`email.received`, enabled; the sending domain is verified, and a real message measured in a
+real inbox passed SPF, DKIM and DMARC). Nothing in this repository can tell you that — the
+route exists and is mounted whenever `RESEND_INBOUND_SECRET` is set
+(`src/config/urls.py::_inbound_urlpatterns`), and whether the provider is pointing at it is
+provider-side state. So before F1, confirm it in the Resend dashboard rather than trusting
+this paragraph, which is a record of one measurement on one day.
+
+Two more facts about that route, because they change what "wrong" looks like in section F:
+a reply is attributed from the capability Resend reports in `data.received_for` and never
+from the sender-written `To:` header, so a multi-recipient delivery is refused rather than
+resolved to its first address; and a refused message is not lost — it lands on
+**Members → "Replies we couldn't post"** with the reason.
 
 ---
 
@@ -211,12 +254,30 @@ This is the product's central bet and the part that was most broken.
 
 | # | Do | Wrong looks like |
 |---|----|------------------|
-| F1 | Subscribe a real address to the digest. Confirm via the email. | No mail, or the link fails |
-| F2 | Send yourself a digest. Does it arrive, and is it readable on a phone? | Spam folder, broken layout |
+| F1 | Subscribe a real address to the Family email. Confirm via the email. | No mail, or the link fails |
+| F2 | Wait for a due send. Does it arrive, and is it readable on a phone? | Spam folder, broken layout |
 | F3 | Click through to the web version **while logged out.** Can you see photographs? | Captions with no pictures |
-| F4 | **Reply to the digest by email.** Does it land as a comment? | Nothing arrives — and no bounce |
+| F4 | Tap **"Reply in Backyard"** on a post block. Does it land on that thread's reply box? | A mail composer, or the feed top |
 | F5 | Turn on reply notifications, have someone reply, check the mail. | No mail |
 | F6 | Click the unsubscribe link. Does *all* mail stop, including reply nudges? | Nudges keep coming |
+
+> **F2 has no "send one now" button, and F4 is not an emailed reply.**
+>
+> `send_digests` sends only what is **due** — the cadence has to have elapsed since
+> confirmation or since the last window (`core/digest_send.send_due_digests`), and the worker
+> runs it hourly. There is no command that forces one out, so budget the wait or move the
+> subscription's anchor deliberately.
+>
+> And the family email **publishes no reply address**. It did once, and #101 removed it:
+> a per-post reply address is a bearer credential, so printing it in every body forwarded the
+> ability to comment as you along with the email (T-EMAIL-2). There is no `Reply-To` header
+> either, so hitting Reply in a mail client answers the sending address and the message is
+> refused. What each post block carries instead is a **"Reply in Backyard"** link to
+> `/posts/<id>/#reply`, which carries no capability, lands on the login wall, and opens a
+> reply box that takes photographs. The inbound pipeline itself is untouched and still
+> live — that is what the registered webhook and "Replies we couldn't post" are for — but
+> nothing hands anybody an address to use it with, so **there is no emailed-reply path to
+> walk in this section today.**
 
 ## G. Removal and safety
 
@@ -236,6 +297,14 @@ This is the product's central bet and the part that was most broken.
 | H3 | Restore that backup onto a throwaway machine. | It fails, or the media does not come back |
 | H4 | Confirm the restore tells you it killed all the old links and sessions. | Silence |
 | H5 | Install the PWA on your phone. Is the icon green, matching the app? | Navy — the rejected identity |
+| H6 | Sign in and open **Settings → Account security**. A second factor is offered, never demanded. | Being forced to enrol, or no way to enrol at all |
+
+> **H3, the two things that bite.** Get the archive *into* the container by streaming it in
+> as the app user — `docker compose cp` lands it owned by the host uid with mode 600 and the
+> hardened container cannot read it. And **restart `web` and `worker` after the restore**: a
+> restore of an archive taken on an older schema leaves migrations pending, because the
+> entrypoint is what runs `migrate`. Both commands, and the `migrate --check` that proves it,
+> are in [backup-restore.md](backup-restore.md).
 
 ---
 

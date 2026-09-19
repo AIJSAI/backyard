@@ -1,26 +1,29 @@
-# Outstanding — the security-pass backlog, plus what a readiness audit added
+# Outstanding — the security-pass record, plus what a readiness audit added
 
-> **Read this first.** This file was written 2026-07-30 and titled "the single list". It was
-> not one. It is an accurate **security-pass** backlog, and reading it as a *complete* one is
-> what left backups, monitoring, audit logging and the product's only notification channel
-> invisible. A six-axis readiness audit on 2026-08-01 found roughly thirty items it did not
-> contain, seven of them critical — see [§6](#6-what-the-2026-08-01-readiness-audit-added).
+> **This is a RECORD, not a queue.** It was written 2026-07-30 and titled "the single list",
+> and it was not one: reading it as a *complete* backlog is what left backups, monitoring,
+> audit logging and the product's only notification channel invisible until a six-axis
+> readiness audit on 2026-08-01 found roughly thirty items it did not contain, seven of them
+> critical ([§6](#6-what-the-2026-08-01-readiness-audit-added)).
 >
-> Three of those criticals are fixed (PR #118), and **both live production exposures are
-> closed** (§0). The rest are open.
+> **Open work lives in GitHub issues** — `gh issue list --state open` — and nothing here is a
+> second copy of that list. What this file is for is the reasoning: findings kept with their
+> verdicts and their evidence, so a closed item can be re-opened by somebody who can see why
+> it was closed. Anything below that is still open carries its issue number, or says plainly
+> that it has none.
 
-Everything not done, ranked, with who owns it.
+Items are marked with the audit finding they came from so you can go back to the source.
+Verify with a primary check (`git log`, `gh issue list`, run the probe the item names) rather
+than trusting the state below; that instruction has earned its keep in this file repeatedly.
 
-**Read this, then verify with a primary check** (`git log`, `gh pr list`, run the probe named
-in the item) rather than trusting the state below. Items are marked with the audit finding
-they came from so you can go back to the source.
-
-State on 2026-08-01: `main` = `162c620` (#118 merged) · **811 passing / 2 skipped** ·
-46 stories passing, 2 superseded, **1 spec** · PATH-TO-100 30 checked / 15 open.
+There is deliberately **no state line here any more.** It used to read "State on 2026-08-01:
+`main` = `162c620` · 811 passing / 2 skipped · 46 stories passing…" — four numbers that were
+each false within the week, at the top of the document people read first. The commands that
+derive them are in [`RESUME-HERE.md`](RESUME-HERE.md).
 
 ---
 
-## 0. Operator actions — 1–3 DONE 2026-08-01 (CDT) / 2026-08-02 (UTC), one left
+## 0. Operator actions — ALL FOUR DONE (1–3 on 2026-08-01 CDT / 2026-08-02 UTC; 4 confirmed 2026-09-19)
 
 Done over SSH with founder authorisation, each verified rather than assumed. Secrets live in
 the **1Password `Backyard` vault**; no secret value is in this repo, on a command line, or in
@@ -38,7 +41,7 @@ a shell history.
 | 1 | **Rotate the demo accounts** | **DONE.** Checked empirically first: the burned password authenticated `priya`, `sam`, `dave` and **not** `james` — the instance admin predates the seed, so it was never the leaked value and was left untouched. The three were rotated to a generated password (1P: *Backyard demo family logins*). Verified over HTTPS against the live site: the burned credential now returns **200 (rejected)**, where it previously returned 302 (success). |
 | 2 | **Set `BACKYARD_BACKUP_PASSPHRASE`** | **DONE.** Generated in 1Password *first* (there is no key escrow), then piped to the box over stdin — never through a command line. Boot log now reads `Pre-flight backup written ENCRYPTED: preflight-….dump.enc`, and that file was proven to decrypt to a real `PGDMP` archive. The 1P value was hash-compared against the container's env to prove they match. |
 | 3 | **Take a backup** | **DONE** — the first in the project's history. `backup-2026-08-02.bak`, 512,071 bytes, encrypted; copied off the box to `~/backyard-backups/`, SHA-256 matched, and **decrypted locally** to `backup-manifest.json` + `database.dump` (PGDMP) + `media.tar.gz`. Only after that were the remaining plaintext pre-flight dumps deleted — they were, until then, the only copies of the database in existence. |
-| 4 | **Register the Resend inbound webhook** | **STILL OPEN**, and see the ordering note below: it buys nothing until **C6** is fixed, because a reply-by-email is a reply *to a digest* and no member can enable the digest yet. |
+| 4 | **Register the Resend inbound webhook** | **DONE.** Read from the provider on 2026-09-19: the endpoint `/anymail/resend/inbound/` is registered for `email.received` and enabled, and the sending domain is verified. Real mail was measured in a real inbox the same day — SPF, DKIM and DMARC all pass, and both the Family-email confirmation and the account verification arrived in the inbox with working links. Nothing in this repository can assert any of that, so it is recorded as a measurement on a date. The ordering objection below is also spent: C6 is closed. |
 
 **No plaintext copy of the family database now exists anywhere** — on the volume, in `/tmp`,
 or off-box. That was the single worst standing exposure.
@@ -70,11 +73,13 @@ needs a threat-model entry *before* code (new always-on bearer credential on a d
 room); a five-row `T-DISPLAY-*` draft is at
 [`security/s603-display-threat-draft.md`](security/s603-display-threat-draft.md).
 
-**S-603 carries its own contradiction.** `metrics.md:9` defines active as *"any **deliberate**
-touch"*; `metrics.md:21` counts a **frame heartbeat** toward the elder touch rate. A heartbeat
-is a powered-on tablet. Wire it in and the one signal that would show an elder has gone quiet
-reads "active" as long as her frame has electricity. **Recommendation: keep the heartbeat,
-name it separately, keep it out of `touched`** — that is the reversible direction.
+~~**S-603 carries its own contradiction.** `metrics.md:9` defines active as *"any **deliberate**
+touch"*; `metrics.md:21` counts a **frame heartbeat** toward the elder touch rate.~~ —
+**RESOLVED 2026-09-19 in the docs-truth pass.** The recommendation was taken: `metrics.md` no
+longer counts a heartbeat toward the elder touch rate, and says in the same file why — keep
+the heartbeat when S-603 is built, record it under its own name, keep it out of `touched`.
+That is the reversible direction, and un-corrupting a KPI's history later is not a one-line
+change. The decision the founder still owns is whether S-603 gets built at all.
 
 **Founder QA walk** ([`runbooks/founder-qa.md`](runbooks/founder-qa.md)) — ~90 minutes, and
 always the gate before anything is shared. Wipe the demo family first
@@ -98,11 +103,17 @@ written here.
 | ~~S4~~ | **DONE 2026-09-19 (security-hardening PR).** `config.urls._inbound_urlpatterns` mounts it only when `RESEND_INBOUND_SECRET` is configured, and the view's `dispatch` refuses it anyway. ~~The webhook route is mounted unconditionally~~, and the secret is only required when the Resend *send* backend is active. On the documented SMTP config, every unauthenticated POST is an unhandled 500. Fail-closed today only by an upstream library rejecting an empty secret. | `config/urls.py`, `config/email_guard.py` |
 | ~~S5~~ | **DONE 2026-09-19 (security-hardening PR).** `received_for` only, a multi-recipient delivery is refused rather than resolved to its first element, and no trustworthy address means no post — with a quarantine row so the refusal is visible. ~~`_trusted_recipient` falls back to a sender-controlled `To:` header~~ when the transport supplies no envelope recipient, and takes `[0]` of a multi-recipient list. Converts TM-4's "the address IS the credential" into "a header is the credential". Should fail closed. | `inbound_webhook.py:40-54` |
 | S6 | **Supply chain** — mostly CLOSED 2026-09-19. Every third-party action is pinned to a full commit SHA with its release tag in a trailing comment (`checkout` v7.0.1, `setup-python` v7.0.0, `setup-uv` v10.1.0, moved to their current majors), and `.github/dependabot.yml` now runs weekly grouped version updates for `uv`, `docker`, `docker-compose` and `github-actions`, which is what keeps a SHA pin from rotting. **"Dependabot disabled" was never true and is the part of this row to read twice**: security updates have been enabled the whole time — PR #164 and #129 are its output — and what was missing was the *version*-update config, so nothing was ever going to open a pull request for a stale action pin or a stale base-image digest. The Dockerfile base still floats, now on purpose and recorded (see the `FROM` comment and threat model TS-CO-8): it is the only cache key above the apt layer, so a digest pin would freeze the pg client and ffmpeg behind somebody remembering to bump it. **Still open**: `pip-audit` is invoked unpinned (`uv run --with pip-audit`) beside a checksum-verified gitleaks and a pinned `bandit==1.9.2`, and there is still no container/OS image scan. | `.github/workflows/`, `.github/dependabot.yml`, `Dockerfile` — re-measured |
-| S7 | **`cryptography` is undeclared.** The primitive the entire backup guarantee rests on arrives only via `django-allauth[mfa]` → `fido2`. The day that extra changes, encrypted backup breaks at import. | `pyproject.toml` — confirmed absent |
+| ~~S7~~ | **DONE (#118).** `pyproject.toml` declares `cryptography>=50,<51` with the reason on the line. ~~The primitive the entire backup guarantee rests on arrives only via `django-allauth[mfa]` → `fido2`.~~ The day that extra changed, encrypted backup and restore would have broken at import — on the one code path with no fallback and no key escrow. | `pyproject.toml` — re-measured 2026-09-19 |
 
 ### Smaller, still real
 
-- **S8** — `profiles._can_see_field` returns `True` for YARD unconditionally; every current caller pre-scopes, so no live route, but one future caller reintroduces T-YARD-6.
+**S8–S24 are carried as ONE tracked item, issue 195**, together with the gate entries still
+open after this pass (G3, G4, G5). They are recorded here with their evidence rather than
+filed one-per-issue, because seventeen issues nobody has scheduled turns the tracker into a
+second version of this file. Where a line names a different issue or a pull request, that is
+the one that carries it.
+
+- **S8** — `profiles._can_see_field` returns `True` for YARD unconditionally; every current caller pre-scopes, so no live route, but one future caller reintroduces T-YARD-6. Adjacent, and filed: `can_edit_profile_of` carries the same supervised-parent bypass the household surface now re-checks (issue 181, item 4).
 - **S9** — **DONE 2026-09-19 (security-hardening PR), with issue 174's first half.** `pods.leave_pod` now locks the member row, refuses a leave that would strand somebody, and runs `revocation.revoke_for_membership_shrink` scoped to the sides actually being lost, before the membership row goes. Pod-leaves-yard and the deceased flow are still unbuilt and are named as unbuilt in TM-1 rather than described as shipped.
 - **S10** — Break-glass keys on `is_superuser`, so a *promoted* instance admin (the S-707 succession path) has no recovery path.
 - **S11** — `notify_reply` rotates the unsubscribe token on every nudge, invalidating the link in the digest already in her mailbox.
@@ -113,8 +124,8 @@ written here.
 - **S16** — **DONE 2026-09-19 (security-hardening PR).** `viewers._reader_from_elder_session` applies the same live-token check, so a deleted `ElderToken` row stops the photographs as well as the feed.
 - **S17** — **DONE 2026-09-19 (security-hardening PR).** `settings.LOGGING` declares `core` on the redacting handler, so no module under it can be a fourth unfiltered sink.
 - **S18** — **DONE 2026-09-19 (security-hardening PR).** The validator moved to `core/outbound_addresses.py` and both fetchers share it; `domain_expiry` resolves, range-checks and pins on every hop through `_ValidatedHTTPSHandler`, before the connect.
-- **S19** — Staging disk budget is per-session with no instance-wide cap, on the volume holding `/data/secret_key`.
-- **S20** — **Extraction cap DONE 2026-09-19 (security-hardening PR):** `backups._refuse_an_oversized_extraction` refuses against the destination volume's free space, a per-member ceiling and an absolute total, loudly and before a byte is written. STILL OPEN: restore trusts an unauthenticated plaintext archive when no passphrase is configured — the module docstring's trust boundary is the only control there.
+- **S19** — Staging disk budget is per-session with no instance-wide cap, on the volume holding `/data/secret_key`. Related and filed: media lives on the box's own disk and the small VM class tops out well short of a family's photo history (issue 176).
+- **S20** — **Extraction cap DONE 2026-09-19 (security-hardening PR):** `backups._refuse_an_oversized_extraction` refuses against the destination volume's free space, a per-member ceiling and an absolute total, loudly and before a byte is written. STILL OPEN: restore trusts an unauthenticated plaintext archive when no passphrase is configured — the module docstring's trust boundary is the only control there. The three ceilings being module constants rather than settings is filed as issue 187, item 3.
 - **S21** — `export.py` reads a whole video into memory; `/settings/export/` has no rate limit.
 - **S22** — Icons re-render with Pillow on every request, unauthenticated.
 - **S23** — `link_preview` raises an unhandled `ValueError` on a scope-qualified IPv6 from `getaddrinfo`.
@@ -122,25 +133,46 @@ written here.
 
 ### Hygiene / disclosure
 
-- **S25** — **26KB, 40% of every page, is developer CSS commentary** served to unauthenticated visitors, disclosing internal story IDs, founder feedback, and `django-allauth`. Strip comments at render time; do not delete them.
-- **S26** — Ubicloud project id and Cloudflare zone id in `runbooks/live-repro.md`; the prod IP was parameterised there but these were not.
-- **S27** — Maintainer's real email in `receipts/2026-07-22-wave-4-close.md`. Already public via git author metadata, but the receipt is a distinct disclosure naming it as the live inbox.
+- **S25 — STILL OPEN, and it is product code, not a document.** 26,041 bytes of developer CSS
+  commentary — re-measured 2026-09-19 against `src/core/templates/core/base.html`, 36.4% of
+  that file, plus 1,557 bytes more in `elder_feed.html` — is served to every unauthenticated
+  visitor, disclosing internal story IDs and `django-allauth`. Nothing strips comments at
+  render time (`core/middleware.py`, `config/settings.py`). Caddy's `encode zstd gzip` now
+  masks the wire cost; the **disclosure** is unchanged, and compression is not the fix. The
+  fix is to strip at render time and keep them in source — they are load-bearing for whoever
+  reads the templates next. **Tracked as issue 191**; it is deliberately not fixed in a
+  documentation pull request, because a render-time change to every page in the product is
+  not a docs change however small the diff looks.
+- ~~**S26**~~ — **DONE.** The Ubicloud project id and Cloudflare zone id are parameterised in
+  `runbooks/live-repro.md` and the 2026-07-26 audit, and the return of that class is guarded
+  by shape rather than by a denylist (`src/core/tests/test_no_infrastructure_identifiers.py`,
+  which also names the three documents it must be scanning so it cannot go vacuous).
+- **S27 — STILL OPEN.** The maintainer's real email is in
+  `receipts/2026-07-22-wave-4-close.md`, named as the live inbox. Already public through git
+  author metadata on every commit, which is why it is hygiene rather than a finding — but a
+  receipt is a dated record and editing one to clean a grep is the thing this project has
+  repeatedly decided not to do, so closing it is a judgement call rather than an edit.
+  Tracked as issue 192.
 - **S28** — **DONE 2026-08-01.** The demo relative carrying the author's real surname is now `Priya Whitfield`, matching the fictional family the design tooling already used. It had also reached a shipping `posting.py` comment and two receipts, and the README carried a blanket "no real family content" claim that was false a few files away — both corrected. Guarded by `src/core/tests/test_privacy_line_holds.py`.
-- **S29** — No `/.well-known/security.txt` despite a SECURITY.md and an invitation to self-host. No `Permissions-Policy`, `CORP`, `COEP`.
+- **S29** — ~~No `/.well-known/security.txt`~~ **half DONE:** `caddy/Caddyfile.prod` serves one, with a `Canonical:` line. Still absent: `Permissions-Policy`, `CORP`, `COEP` — tracked as issue 193.
 
 ---
 
 ## 3. Gates that still overstate
 
 From the gate audit. These do not break anything today; they mean a future regression goes
-unnoticed.
+unnoticed. Most are closed; the three still open after the 2026-09-19 pass — G3, G4 and G5 —
+are carried with S8–S24 as issue 195.
 
-- **G1** — `test_self_host_docs.py` **suppresses itself**: `pytest.skip` when a command is not
-  named in the guide, so 2 of 3 cases are vacuous right now (they are the "2 skipped" in every
-  gate line this repo quotes). The enumeration is inverted — it should walk commands *named in
-  the guide* and assert each resolves. 4 of 9 management commands are outside it entirely.
-- **G2** — **Required contexts are job-level.** Deleting a *step* — bandit, a selftest, the
-  compose live probe — leaves its context green. No test reads `ci.yml`.
+- **G1** — ~~`test_self_host_docs.py` **suppresses itself**: `pytest.skip` when a command is not
+  named in the guide, so 2 of 3 cases are vacuous~~ **CLOSED (#144).** The enumeration was
+  inverted and is now the right way round: it walks the commands the guide *names* and asserts
+  each resolves, with a denominator test so an extractor returning nothing cannot pass it
+  trivially. The skips are gone; only the prose describing them remains. See §7.8.
+- **G2** — ~~**Required contexts are job-level.** Deleting a *step* — bandit, a selftest, the
+  compose live probe — leaves its context green. No test reads `ci.yml`.~~ **CLOSED (#144)** —
+  `src/core/tests/test_ci_still_runs_what_it_claims.py` reads the workflow. Proven by probe:
+  deleting the bandit scan left 11 mentions of "bandit" and the old rule green.
 - **G3** — The isolation registry is satisfiable by **classification, not coverage**: adding a
   model to `_ISOLATION_EXEMPT` with any non-empty reason passes. ADR-004 claims "a new model
   **without an isolation fixture** fails the build"; what ships fails on a missing *name*.
@@ -165,11 +197,15 @@ unnoticed.
   `nosniff`, the aborted `:443` fallback and the internal-only `:8000` health block — plus
   that the production overlay publishes 80 and 443 and nothing else. Seven mutation tests
   break each invariant in the real file's text and require the matching check to go red.
-- **G8** — `backups.py`'s module docstring says *"the archive is a plain tar … nothing here
-  holds a key"*. Encryption is real and default; the docstring is stale, and it is the exact
-  sentence a prior audit caught shipping plaintext under.
-- **G9** — The backup runbook puts the migrator password on the host command line, in the same
-  document that (correctly) says never to do that with the passphrase.
+- **G8** — ~~`backups.py`'s module docstring says *"the archive is a plain tar … nothing here
+  holds a key"*.~~ **CLOSED (#118).** Re-read 2026-09-19: the docstring says "ENCRYPTED AT
+  REST BY DEFAULT (S-802)" and points at `backup_crypto.py` for the construction.
+- **G9** — ~~The backup runbook puts the migrator password on the host command line, in the same
+  document that (correctly) says never to do that with the passphrase.~~ **CLOSED (#118).**
+  The runbook now says compose already places `POSTGRES_MIGRATOR_PASSWORD` in the web
+  service's environment and that passing it with `-e` is the same mistake; the one remaining
+  use is `PGPASSWORD="$POSTGRES_MIGRATOR_PASSWORD"` *inside* the container's own `sh -c`
+  during the drill, which never reaches a host shell's history.
 - **G10** — **DONE 2026-09-19 (security-hardening PR).** The secret goes to a 0600 file on the data volume (`SETUP_HANDOVER_FILE`, default `/data/first-run-secret`); only the path is printed, the file is deleted when setup completes and again on the next boot, `make setup-secret` reads it, and the CI compose probe asserts live that it is 0600 and that its value appears nowhere in the container log.
 
 ---
@@ -182,10 +218,19 @@ Not findings — gaps in evidence. Each needs a person or a real device.
   for the yearless birthday.
 - **No real device has installed the PWA**, and **no elder has held the elder path**. Everything
   about that experience is verified by me driving a browser.
-- **The health email has never been seen landing in a real inbox** — only its sender output.
-- **Restore has never run against production data** (there is no backup to restore).
+- ~~**The health email has never been seen landing in a real inbox** — only its sender output.~~
+  **CLOSED 2026-09-19 for two of the three transactional paths**: the Family-email confirmation
+  and the account verification were both measured arriving in a real inbox, with SPF, DKIM and
+  DMARC passing and their links working. The weekly health email itself still has not been
+  watched land; it rides the same sending path, which is evidence and not proof.
+- ~~**Restore has never run against production data** (there is no backup to restore).~~
+  **CLOSED 2026-09-19.** An archive of the real instance was restored onto a different
+  machine, and the instance it produced was walked. That is also where the two restore traps
+  now in [`runbooks/backup-restore.md`](runbooks/backup-restore.md) came from — the file has
+  to be streamed in as the app user, and `migrate --check` stays at 1 until web and worker
+  restart.
 - **No independent security review.** The threat model is thorough and entirely self-authored;
-  the 2026-07-30 pass was still me, with agents.
+  the 2026-07-30 pass was still me, with agents. Unchanged, and the largest gap in this list.
 
 ---
 
@@ -241,7 +286,12 @@ this file is a record, not a status board — but read them with these verdicts:
 | **C6** `/settings/digest/` linked from nowhere | **CLOSED** (#120). Its twin `notification_settings` had the identical defect one route over and survived another month — see §7.3 |
 | **C7** invite-joined members locked out | **CLOSED** (#121) |
 
-### Still open — criticals
+### The criticals, as first written — ALL FOUR NOW CLOSED
+
+**Read the table directly above before this list.** C2, C5, C6 and C7 are closed; the
+entries stay verbatim because this file is a record and a backlog that quietly loses its
+entries stops being checkable. This heading used to read "Still open — criticals", which put
+four closed criticals under a live heading in the document somebody reads first.
 
 - **C2 — `v0.1.0` still publishes the burned credential** in 3 tracked files. The tag
   predates the removal by ten hours and `README.md` tells strangers to clone it, so the
@@ -256,39 +306,65 @@ this file is a record, not a status board — but read them with these verdicts:
 - **C7 — invite-joined members can be locked out permanently.** `join.html` collects no
   email, so password reset reports success and sends nothing.
 
-### Still open — newly measured
+### Newly measured by that audit — where each one stands now
 
-- **No scheduled backup exists** (`tasks.py` has six periodics; none backs up).
-- **The monitor lives inside the monitored thing**: only `postgres` has a healthcheck;
-  `web`/`worker`/`caddy` have none, and the health email is a *worker* periodic.
-- **65KB uncompressed on every anonymous page** — 26,041 bytes (40.1%) is developer CSS
-  commentary, and Caddy has no `encode` directive at all. The elder path is standalone and
-  unaffected.
-- **No audit log exists** (27 models, none records actions), and
-  `remove_member(content="delete")` hard-purges photos behind one session POST with no
-  reauth, no confirmation and no undo.
-- **The privacy note never reaches the family**: `family-privacy-note.md` is referenced by
-  zero files under `src/`, while S-705 sits at `passing`.
-- **AGPL §13 source-offer unsatisfied** — no repo URL or licence reference in `src/` or on
-  the live page.
+Written 2026-08-01 as a flat "still open" list. Re-measured against the tree on 2026-09-19,
+one by one, because a list under that heading is read as current:
 
-### Ordering error in §0 above
+- ~~**No scheduled backup exists** (`tasks.py` has six periodics; none backs up).~~ **CLOSED.**
+  `scheduled_backup_task` is `@app.periodic(cron="30 3 * * *")` and writes
+  `/data/backups/scheduled-YYYY-MM-DD.bak`, encrypted or not at all. It fails loudly in three
+  places at once: the weekly health email, `/healthz` answering `degraded`, and the worker log.
+- ~~**The monitor lives inside the monitored thing**: only `postgres` has a healthcheck.~~
+  **CLOSED.** All four services carry one (`grep -c 'healthcheck:' docker-compose.yml` → 4),
+  and the monitor that matters is outside the box entirely:
+  `.github/workflows/monitor.yml` asks `/healthz` and the certificate's days-remaining every
+  30 minutes from GitHub's infrastructure, and opens one issue rather than e-mailing per run.
+- **65KB uncompressed on every anonymous page** — the compression half is **CLOSED**
+  (`caddy/Caddyfile.prod` now has `encode zstd gzip`); the 26,041 bytes of CSS commentary are
+  **still served** and are S25 above, tracked as issue 191.
+- **No audit log exists**, and `remove_member(content="delete")` hard-purges photos behind one
+  session POST with no reauth, no confirmation and no undo. **Partly addressed:** the removal
+  form now asks what happens to their posts and makes you type the name, and `HouseholdChange`
+  is the first durable record of an admin act on a member — with the caveat that its `pod` and
+  `member` foreign keys are `CASCADE`, so the record dies with its subject (issue 181, item 1).
+  There is still no general audit log.
+- ~~**The privacy note never reaches the family**: `family-privacy-note.md` is referenced by
+  zero files under `src/`.~~ **CLOSED.** The promises are in the product: the "How this works"
+  page carries them in words, reachable from Settings, from the sign-in page and from the
+  welcome, and `src/core/tests/test_plain_pages.py` fails if the page and the note stop
+  agreeing.
+- ~~**AGPL §13 source-offer unsatisfied**~~ **CLOSED** — the "About this Backyard" page carries
+  the licence and the source offer, guarded by `src/core/tests/test_agpl_source_offer.py`.
 
-§0 ranks **operator action #4 (register the Resend webhook)** as a launch prerequisite. A
-reply-by-email is a reply *to a digest*, and nobody can subscribe to a digest — so #4 buys
-nothing until **C6** is fixed and belongs after it.
+### Ordering error in §0 above — spent
+
+§0 ranked **operator action #4 (register the Resend webhook)** as a launch prerequisite, and
+this section correctly objected that a reply-by-email is a reply *to a digest* while nobody
+could subscribe to one. **C6 is closed**, so the objection is spent — and #4 itself is done.
+The deeper answer arrived later and from the other direction: since #101 the digest publishes
+no reply address at all, so the inbound route is a live capability nothing currently hands
+anybody the key to.
 
 ---
 
-## Suggested order
+## Suggested order — as of 2026-09-19
 
-1. **Operator actions 1–4.** Two are live exposures; nothing else matters more.
-2. **S1–S7**, the security findings with real reach.
-3. **G1–G2**, the two gates that would hide a regression in the checks themselves.
-4. **S25**, the 26KB of commentary on every page — one change, every visitor, and it also cuts
-   page weight for elders on slow connections.
+The first three steps of the original order are done. What it now reads as:
+
+1. ~~Operator actions 1–4~~ · ~~S1–S7~~ · ~~G1–G2~~ — all closed; see §0, §2 and §3.
+2. **S25** (issue 191), the 26KB of developer commentary on every anonymous page. One
+   change, every visitor, and the only item in this file that is both open and touches what
+   a stranger receives.
+3. **The founder's QA walk** ([`runbooks/founder-qa.md`](runbooks/founder-qa.md)), which is
+   and has always been the gate, and the S-721 delegate rehearsal beside it (issue 194) — a
+   second person walking [`runbooks/setting-up-your-side.md`](runbooks/setting-up-your-side.md)
+   cold, because the founder must not role-play the delegate.
+4. The filed follow-ups, in the tracker rather than here: 176, 180, 181, 182, 187, 188,
+   and the hygiene pair 192 (S27) and 193 (the rest of S29).
 5. Founder decisions, then S-603 or not.
-6. The long tail: S8–S24, G3–G10.
+6. The long tail — S8–S24 and the gate entries still open after this pass, G3, G4 and G5 —
+   recorded above and carried as one unscheduled item, issue 195.
 
 Phase 5 and 6 stay where they are: gated on the founder's QA walk and the decision to go public.
 
@@ -376,9 +452,13 @@ And the product had **no sign-out link at all**.
 - **The delegate runbook described a nav that did not exist** — no URL anywhere, no sign-in
   step, no statement that the reader must be promoted first (they get a bare 403). Its own
   promise, *"if a step is not here, you do not have to do it"*, was false for every step.
-- **An elder cannot reply by email**, though `README.md:66` and `docs/README.md:70` say she
+- **An elder cannot reply by email**, though `README.md:66` and `docs/README.md:70` said she
   can: she has `user=None` by design and digest enrolment is `@login_required` and self-only.
-  **Still open.**
+  ~~**Still open.**~~ **CLOSED 2026-09-19 in the docs-truth pass** — `README.md` was corrected
+  at the time and `docs/README.md`'s elder diagram was the half that was missed for six weeks.
+  It now says replying to the family email opens the app at the thread, with the reason under
+  the diagram. Nobody replies by email today, elder or not: #101 removed the reply address
+  from the digest body because it is a bearer credential.
 
 ### 7.5 The elder path (#137)
 

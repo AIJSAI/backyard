@@ -1,7 +1,8 @@
 # Backyard docs
 
-Ninety-odd files live under `docs/`, and most of them are a **working record** rather than
-documentation. This page exists so you do not have to guess which is which.
+A hundred-odd files live under `docs/` (`find docs -type f | wc -l` for the real number), and
+most of them are a **working record** rather than documentation. This page exists so you do
+not have to guess which is which.
 
 Three doors:
 
@@ -67,8 +68,8 @@ sequenceDiagram
     A-->>N: sets an httpOnly cookie,<br/>redirects to a CLEAN url
     Note over N,A: the token is now out of the address bar,<br/>out of history, out of screenshots
 
-    N->>A: reads the feed, taps ❤️, replies by email
-    Note over N,A: no password, ever
+    N->>A: reads the feed, taps ❤️
+    Note over N,A: no password, ever<br/>replying to the family email opens the app AT the thread
 
     Admin->>A: Regenerate (lost phone, forwarded link)
     A->>A: bump Nana's generation
@@ -78,6 +79,14 @@ sequenceDiagram
 The honest trade-off: **a link that just works is a link that can be forwarded.** That is
 argued out and accepted in [ADR-003](adr/ADR-003-token-links.md), and the counterweight is
 that one click kills everything derived from it.
+
+**This diagram used to end "replies by email", and that was never true of an elder.** An
+elder has no user account by design (TM-10), and the digest opt-in page is `@login_required`
+and self-only (`src/core/digesting_views.py`, `@login_required` on `digest_settings`) — so
+she is never enrolled in the family email and never receives one to reply to. What the
+digest offers a *member* is a "Reply in Backyard" link straight to the thread
+(`src/core/templates/core/email/digest.txt`), which is the founder's S-503 ruling. `README.md`
+was corrected months ago; this diagram was missed, which is why both are named here.
 
 ### 3. What happens to a photograph
 
@@ -142,7 +151,8 @@ field the viewer is not scoped for.
 
 **Runbooks — operating a real instance**
 [self-host](runbooks/self-host.md) · [backup-restore](runbooks/backup-restore.md) ·
-[the succession sheet](runbooks/backup-recovery-sheet.md) · [handover](runbooks/handover.md) ·
+[the succession sheet](runbooks/backup-recovery-sheet.md) ·
+[moving to a new server](runbooks/move-to-a-new-server.md) · [handover](runbooks/handover.md) ·
 [shutdown](runbooks/shutdown.md) · [setting up your side](runbooks/setting-up-your-side.md) ·
 [founder QA script](runbooks/founder-qa.md) · [live repro](runbooks/live-repro.md) ·
 [transcode measurement](runbooks/measure-transcode.md)

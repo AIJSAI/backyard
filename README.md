@@ -2,7 +2,7 @@
 
 **A private, self-hosted social network for your extended family.** Each household gets a pod. Each side of the family shares a backyard.
 
-> Status: **pre-release, July 2026.** It runs, and it is not shared with anyone yet. The
+> Status: **pre-release.** It runs, it is deployed, and it is not shared with anyone yet. The
 > author's own family gets it first, after he has manually QA'd it end to end. Built in
 > public, decisions first, code second — the honest ledger of what is and is not done
 > lives in [PATH-TO-100.md](docs/PATH-TO-100.md) and the
@@ -49,9 +49,11 @@ screen makes you the instance admin. The full guide —
 DNS, TLS, email, backups, upgrades, and what genuinely does not work yet — is
 **[docs/runbooks/self-host.md](docs/runbooks/self-host.md)**.
 
-> **Before you put your own family on it:** reply-by-email needs one manual step with your
-> mail provider or replies are accepted and silently dropped, and nobody outside this
-> project has security-reviewed it. Both are stated plainly in the changelog.
+> **Before you put your own family on it:** the family email goes out but nobody can answer
+> it — replying by email is not wired up to a recipient in this release, and the mail links
+> back into the app instead. And nobody outside this project has security-reviewed it. Both
+> are stated plainly in the changelog and in
+> [the install guide](docs/runbooks/self-host.md#what-does-not-work-yet).
 
 ## Why this exists
 
@@ -66,9 +68,9 @@ Backyard is for both problems: an async feed for your household, and ambient awa
 - A calm feed of links, photos, video and short updates. Chronological. It ends.
 - **Pods and yards**: every household is a pod; each branch of the family is a yard with its own shared **backyard**. A household can belong to more than one yard, and nothing forces the sides together. Cross-yard access answers a 404 that is byte-identical to "no such thing", so it leaks not even existence.
 - An elder path that requires no account and no app store: tap a link and you're in, in large single-column type, and photos and video work there too. Replying to the email digest opens the app at the thread. (Yes, a link that just works is a link that can be forwarded — that trade-off is argued out in [ADR-003](docs/adr/ADR-003-token-links.md).)
-- Installable PWA (iPhone and Android, no gatekeepers), with an email digest in and out.
+- Installable PWA (iPhone and Android, no gatekeepers), with a weekly family email that links straight back to the thread it is about. (It is deliberately one-way: a per-post reply address is a bearer credential, so printing one in every email forwarded the ability to post as you. The inbound pipeline is still there for whoever wants it — see [the install guide](docs/runbooks/self-host.md#email).)
 - Profiles that double as the family directory: the names the kids actually use, birthdays as month-and-day with no year and no age, contact fields whose visibility you set one by one, and a vCard download so the numbers in your phone stop being stale.
-- Admin a non-technical person can hold: five documented roles with the permissions written beside the control, household invites, removal that asks what happens to their posts, and break-glass recovery.
+- Admin a non-technical person can hold: five documented roles with the permissions written beside the control, household invites, removal that asks what happens to their posts, and break-glass recovery. A second factor — passkey, authenticator app or recovery codes — is offered to everyone and required of nobody, because on a family box the locked-out admin is the person without a server shell.
 - Export everything you authored, whenever, ungated. Encrypted backups, a restore that cannot resurrect a removed member's credentials, and a weekly health email that tells you when the backup stopped running.
 - A self-host deploy on your own server, one `docker compose` command. Bring your own mail provider; email in and out is the hard part, and [the docs say so plainly](docs/runbooks/self-host.md).
 
@@ -93,8 +95,8 @@ This project runs on evidence, in public:
 - [OSS landscape](docs/research/2026-07-19-github-oss-landscape.md): what exists, what died, and why.
 - [Decision records](docs/adr/): the six load-bearing calls — [license](docs/adr/ADR-000-license.md), [name](docs/adr/ADR-001-name.md), [stack](docs/adr/ADR-002-stack.md), [forwardable token links](docs/adr/ADR-003-token-links.md), [deferring Postgres RLS](docs/adr/ADR-004-rls.md), [the batched policy defaults](docs/adr/ADR-005-batched-defaults.md).
 - [Threat model](docs/security/threat-model.md): the adversaries, and every row's honest residual risk. Self-authored, un-reviewed by anyone else — which is itself a stated limitation.
-- [Path to 100%](docs/PATH-TO-100.md): the definition of done. A box only gets checked with an evidence link, and CI enforces it. Two boxes carry corrections where their own evidence had rotted.
-- [Build receipts](docs/receipts/): the running record — forty of them, including the bugs found while verifying the fix for the previous bug.
+- [Path to 100%](docs/PATH-TO-100.md): the definition of done. A box only gets checked with an evidence link, and CI enforces it. Several boxes carry corrections where their own evidence had rotted — struck through rather than deleted, so you can see what was believed and when.
+- [Build receipts](docs/receipts/): the running record — `ls docs/receipts/` for how many — including the bugs found while verifying the fix for the previous bug.
 
 New here? **[docs/README.md](docs/README.md)** is the map.
 
