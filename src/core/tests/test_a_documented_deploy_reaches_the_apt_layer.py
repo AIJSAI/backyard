@@ -40,11 +40,16 @@ _RECORD_DIRECTORIES = ("docs/audits", "docs/receipts", "docs/retro", "docs/resea
 
 _SUFFIXES = {".md", ".yml", ".yaml", ".py", ".sh", ""}
 
-# A compose invocation that BUILDS the app image: either an `up` that builds, or an explicit
-# `build`. Anything matching this is a place the frozen-apt-layer defect can live.
-_BUILDING_COMPOSE = re.compile(
-    r"docker compose\b[^\n]*?(?:\bup\b[^\n]*?--build|--build[^\n]*?\bup\b|\bbuild\s+--pull\b)"
-)
+# A compose invocation that BUILDS the app image, in ANY form. Anything matching this is a
+# place the frozen-apt-layer defect can live.
+#
+# It used to spell out three shapes -- `up --build`, `--build … up`, and `build --pull` -- and
+# so could not see a bare `docker compose build` (issue 169). That is the one shape a future
+# document reaches by DROPPING the flag this file exists to require, which made the blind spot
+# point exactly at the defect: a redeploy doc that lost `--pull` stopped being classified, so
+# the denominator below never forced a decision about it and the two rules never ran on it.
+# `build` covers all four, since `--build` contains it.
+_BUILDING_COMPOSE = re.compile(r"docker compose\b[^\n]*?\bbuild\b")
 
 _UP_THAT_BUILDS = re.compile(r"\bup\b[^\n]*?--build|--build[^\n]*?\bup\b")
 
@@ -260,6 +265,35 @@ def test_the_chaining_check_can_actually_fail() -> None:
     )
     assert _UP_THAT_BUILDS.search(f"docker compose {flags} up -d --build")
     assert not _UP_THAT_BUILDS.search(f"docker compose {flags} up -d")
+
+
+def test_every_shape_that_builds_the_image_enters_the_denominator() -> None:
+    """The classification rule is only as wide as the regex that feeds it (issue 169).
+
+    All four shapes must be seen, and the bare `build` is the one that was missed: it is what
+    a document reaches by dropping the `--pull` these tests demand, so a doc could lose the
+    flag and leave the set at the same time -- disarming the guard with the edit it exists to
+    catch. And a compose command that builds NOTHING must stay out, or the denominator names
+    every file that mentions compose and somebody prunes the list instead of the tree.
+    """
+    flags = "-f docker-compose.yml -f docker-compose.prod.yml"
+    for command in (
+        f"docker compose {flags} build",
+        f"docker compose {flags} build --pull",
+        f"docker compose {flags} up --build -d",
+        f"docker compose {flags} up -d --build",
+    ):
+        assert _BUILDING_COMPOSE.search(command), f"{command!r} builds the image and was missed"
+
+    for command in (
+        f"docker compose {flags} up -d",
+        f"docker compose {flags} down -v",
+        "docker compose exec -T web sh -c 'python manage.py migrate'",
+    ):
+        assert not _BUILDING_COMPOSE.search(command), (
+            f"{command!r} builds nothing, so reading it as a deploy would put files in the "
+            "denominator that have no build decision to make"
+        )
 
 
 def test_the_prose_that_warns_about_up_build_is_not_read_as_a_command() -> None:
