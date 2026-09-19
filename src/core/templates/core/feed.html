@@ -1,7 +1,14 @@
 {% extends "core/base.html" %}
-{% block title %}Your backyard{% endblock %}
+{% load avatars %}
+{% block title %}{% if is_archive_page %}Older posts{% else %}Your backyard{% endif %}{% endblock %}
 {% block body %}
-  <h1>Your backyard</h1>
+  {% comment %} Paging back is a different page and it has to say so. It used to keep the
+     title "Your backyard", the orientation card, the whole composer and the
+     "You are all caught up" end-cap — a history page claiming to be the current feed and
+     then claiming the reader had seen everything (F9). {% endcomment %}
+  <h1>{% if is_archive_page %}Older posts{% else %}Your backyard{% endif %}</h1>
+
+  {% if not is_archive_page %}
   {% comment %} Wayfinding moves into the margin rail at >=64rem so the reading well
      keeps a prose measure while the wide viewport carries the secondary links. Below
      that breakpoint the rail is just markup in flow and reads exactly as before.
@@ -41,57 +48,56 @@
     <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
   {% endif %}
 
-  <form method="post" action="{% url 'compose' %}" class="composer" enctype="multipart/form-data">
+  {% comment %} `is-open` overrides the composer's default collapsed state (base.html): a
+     compose that bounced back, or an unfinished draft picked back up, must open with its
+     words and its photos already showing rather than behind a tap. {% endcomment %}
+  <form method="post" action="{% url 'compose' %}"
+        class="composer{% if staged_handle or draft_body %} is-open{% endif %}"
+        enctype="multipart/form-data">
     {% if staged_handle %}
-      {% comment %} A compose that bounced back for correction: the uploaded bytes are held
-         server-side and this handle re-claims them, so fixing a typo does not cost the
-         member their photos. {% endcomment %}
+      {% comment %} A compose that bounced back for correction, or a confirmation the member
+         walked away from: the uploaded bytes are held server-side and this handle re-claims
+         them, so neither fixing a typo nor changing their mind costs them their photos. {% endcomment %}
       <input type="hidden" name="staged_uploads" value="{{ staged_handle }}">
-      <p class="notice">Your uploaded photos are still attached — fix the note above and post again.</p>
     {% endif %}
+    {% if staged_notice %}<p class="notice">{{ staged_notice }}</p>{% endif %}
     {% csrf_token %}
     {% comment %} `draft_body` is why a rejected compose is survivable. The staged-upload
        handle above already carried the PHOTOS back, and the notice beside it says so — but
        the words were dropped, so the page reassured a member their pictures were safe while
        having just deleted the paragraph they wrote. {% endcomment %}
-    <textarea name="body" rows="3" placeholder="Share something with your family" required>{{ draft_body }}</textarea>
+    <label class="visually-hidden" for="compose-body">Share something with your family</label>
+    <textarea id="compose-body" name="body" rows="3" placeholder="Share something with your family" required>{{ draft_body }}</textarea>
 
-    {% comment %} Same fields, same names, same action as before the v3.2 visual pass —
-       grouped onto rows. Stacked full-width they made the composer ~560px of form
-       standing between a member and the first photograph in their family's feed. The
-       word "(optional)" came off both pickers: everything here except the text is. {% endcomment %}
-    <div class="composer-media">
-      <div>
-        <label for="photos">Photos</label>
-        <input id="photos" type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
-      </div>
-      <div>
-        <label for="videos">Short video clips</label>
-        <input id="videos" type="file" name="videos" accept="video/mp4,video/quicktime" multiple>
-      </div>
-    </div>
+    <div class="composer-extras">
+      {% include "core/_media_picker.html" with picker_id="media" %}
 
-    <div class="composer-audience">
-      <div>
-        <label for="pod_id">Post to</label>
-        <select id="pod_id" name="pod_id" required>
-          {% for pod in pods %}<option value="{{ pod.id }}">{{ pod.name }}</option>{% endfor %}
-        </select>
-      </div>
-      <fieldset>
-        <legend>Also a whole side of the family</legend>
-        {% comment %} .sides is the fieldset's CONTROL box — it wears the same border and
-           48px height as the select beside it, so the two columns line up. {% endcomment %}
-        <div class="sides">
-          {% for yard in yards %}
-            <label class="inline-check"><input type="checkbox" name="audience_yards" value="{{ yard.id }}"> {{ yard.name }}</label>
-          {% endfor %}
+      <fieldset class="composer-audience">
+        <legend>Who can see this</legend>
+        <div class="audience-row">
+          <div>
+            <label for="pod_id">Post to</label>
+            <select id="pod_id" name="pod_id" required>
+              {% for pod in pods %}<option value="{{ pod.id }}">{{ pod.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <fieldset>
+            <legend>Also a whole side of the family</legend>
+            {% comment %} .sides is the fieldset's CONTROL box — it wears the same border and
+               height as the select beside it, so the two columns line up. {% endcomment %}
+            <div class="sides">
+              {% for yard in yards %}
+                <label class="inline-check"><input type="checkbox" name="audience_yards" value="{{ yard.id }}"> {{ yard.name }}</label>
+              {% endfor %}
+            </div>
+          </fieldset>
         </div>
       </fieldset>
     </div>
 
     <div class="composer-submit"><button type="submit">Post</button></div>
   </form>
+  {% endif %}
 
   <ul class="feed">
     {% for item in items %}
@@ -99,10 +105,21 @@
         <li class="boundary"><span>New since your last visit is above</span></li>
       {% endif %}
       <li>
-        <span class="author">{{ item.post.author.display_name }}{% if item.post.author.kinship_name %} ({{ item.post.author.kinship_name }}){% endif %}</span>
-        <span class="when">{{ item.post.created_at|date:"M j, g:i a" }}</span>
-        {% if item.post.edited_at %}<span class="edited">(edited)</span>{% endif %}
-        <p>{{ item.post.body }}</p>
+        {% comment %} The name leads the post, so the person does: one calm initials disc
+           beside it (core/templatetags/avatars.py). There was not a face, avatar or
+           monogram anywhere in this product's chrome. {% endcomment %}
+        <div class="who-row">
+          {% avatar item.post.author.display_name item.post.author_id %}
+          <span class="who">
+            <span class="author">{{ item.post.author.display_name }}{% if item.post.author.kinship_name %} ({{ item.post.author.kinship_name }}){% endif %}</span>
+            <span class="when">{{ item.post.created_at|date:"M j, g:i a" }}</span>
+            {% if item.post.edited_at %}<span class="edited">(edited)</span>{% endif %}
+          </span>
+        </div>
+        {% comment %} `post-body` + `urlize`: their line breaks survive and a link they
+           typed is tappable. `urlize` autoescapes, so this opens no injection path —
+           pinned by test_post_shape.py with a script tag and a quote-breaking URL. {% endcomment %}
+        <p class="post-body">{{ item.post.body|urlize }}</p>
         {% if item.post.live_media %}
           <div class="photos">
             {% for m in item.post.live_media %}
@@ -130,14 +147,17 @@
             <span class="preview-url">{{ item.post.link_preview.url }}</span>
           </a>
         {% endif %}
+        {% comment %} `destructive` moves Delete and Take down to the far end of the row
+           (base.html): all three read as identical bold green links 36px apart, so a thumb
+           aiming at the thread could land on the one that erases a photograph. {% endcomment %}
         <span class="actions">
           <a href="{% url 'post_detail' item.post.id %}">Open thread</a>
           {% if item.is_own %}
             {% if item.is_editable %}<a href="{% url 'edit_post' item.post.id %}">Edit</a>{% endif %}
-            <a href="{% url 'delete_post' item.post.id %}">Delete</a>
+            <a class="destructive" href="{% url 'delete_post' item.post.id %}">Delete</a>
           {% endif %}
           {% if is_moderator %}
-            <form method="post" action="{% url 'take_down_post' item.post.id %}" class="inline">
+            <form method="post" action="{% url 'take_down_post' item.post.id %}" class="inline takedown">
               {% csrf_token %}
               <button type="submit" class="danger">Take down</button>
             </form>
@@ -154,12 +174,17 @@
        Before this the page cut off silently and still claimed "all caught up", so the
        family archive was unreachable from every surface. {% endcomment %}
     <p class="older"><a href="{% url 'feed' %}?before={{ older_cursor|urlencode }}">Show older posts</a></p>
-  {% else %}
+  {% elif not is_archive_page %}
+    {% comment %} F9: "You are all caught up." is a fact about the TOP of the feed. At the
+       end of an archive page it said the opposite of what was true — the reader had just
+       walked backwards through the family's history to reach it. {% endcomment %}
     <p class="caught-up">You are all caught up.</p>
+  {% else %}
+    <p class="caught-up">That is the beginning.</p>
   {% endif %}
   {% if is_archive_page %}
     <p class="older"><a href="{% url 'feed' %}">Back to the newest posts</a></p>
   {% endif %}
 
-  {% include "core/_photo_resize.html" %}
+  {% if not is_archive_page %}{% include "core/_composer_media.html" %}{% endif %}
 {% endblock %}
