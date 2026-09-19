@@ -1,6 +1,13 @@
 # Production overlay for a real deployment (a persistent VM + domain + TLS).
 #
+# First install:
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+#
+# Every deploy after that — `build --pull`, because `up --build` reuses the cached base
+# image and the pg client and ffmpeg installed above it never get refreshed (see the
+# Dockerfile's FROM, and self-host.md's Upgrades section):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml build --pull \
+#     && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 #
 # It replaces the local loopback-plain-HTTP Caddy with a public HTTPS edge:
 # Caddy publishes 0.0.0.0:80 + :443 and serves $BACKYARD_DOMAIN with an

@@ -323,8 +323,16 @@ Traps that each wasted a cycle:
 ```bash
 tar czf - src | ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST 'cd ~/backyard && tar xzf -'
 ssh -i ~/.ssh/backyard_vm ubuntu@$BACKYARD_HOST \
-  'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d web worker'
+  'cd ~/backyard && docker compose -f docker-compose.yml -f docker-compose.prod.yml build --pull web worker && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d web worker'
 ```
+
+**`build --pull`, and not `up --build`.** This is the deploy that actually happens here, so
+it is the one that has to reach the apt layer: `up --build` reuses the cached base and the
+`pg_dump` client and `ffmpeg` installed on top of it stay at the versions of the first
+build, for the life of the box. The two runbooks say the same thing (self-host.md, Upgrades;
+handover.md §2), but a stranger reads those and nobody reads them before redeploying this
+instance. Chained, because a failed build must not be followed by an `up` that silently
+restarts the image you already had.
 
 **This ships `src/` and nothing else.** Most of what lives outside it — `docs/`,
 `stories/`, `.github/`, `README.md`, `Makefile`, `.gitleaks.toml` — has no effect on the

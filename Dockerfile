@@ -1,4 +1,17 @@
 # Backyard web image. Single Python image; the same image runs web and (later) the worker.
+#
+# The base tag is deliberately FLOATING — no digest, unlike the two images in
+# docker-compose.yml, and that difference is load-bearing rather than an oversight. This
+# FROM is the only cache key above the apt layer below, so re-resolving the tag is the one
+# thing that can invalidate it and reinstall the pg client and ffmpeg at current versions.
+# A deploy gets that by building with `--pull` (docs/runbooks/self-host.md, Upgrades); an
+# ordinary `docker compose up --build` does not pull, keeps the cached layer, and stays
+# fast. Pinning a digest here would not freeze the binaries forever — it would move their
+# refresh to a pin bump in a release commit, which is what the two compose pins get. It
+# would, though, put that refresh behind somebody remembering, and nobody remembered those
+# two for the two months they existed. So this one floats, and the trade is named rather
+# than implied: a deploy builds on whatever the tag resolves to that day, unreviewed — the
+# app-image half of T-UPGRADE-1, accepted here and not mitigated.
 FROM python:3.13-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -18,7 +31,9 @@ WORKDIR /app
 #   - ffmpeg: the video transcode surface on the worker (ADR-002, S-402). It runs only
 #     on hostile bytes behind the core/transcoding hardening (TS-PP-1/2); on the target
 #     Intel box QSV hardware encode is enabled via BACKYARD_FFMPEG_VCODEC + /dev/dri.
-# Kept in one layer; only curl/gnupg are purged, ffmpeg and the pg client persist.
+# Kept in one layer; only curl/gnupg are purged, ffmpeg and the pg client persist. Neither
+# is version-pinned on purpose: they are whatever Debian and PGDG serve when this layer is
+# built, which is why the layer has to be reachable by a rebuild at all (see the FROM above).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
     && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
