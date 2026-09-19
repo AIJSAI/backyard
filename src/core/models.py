@@ -235,6 +235,7 @@ class Member(models.Model):
     # they had read it. Existing members are backfilled at migration time, so this
     # only ever appears for people who arrive after it ships.
     orientation_dismissed_at = models.DateTimeField(null=True, blank=True)
+
     # BY-02. Null means "has never dismissed the add-an-email prompt". A member with no
     # address on file has no password reset, so the feed says so once, quietly, and stops
     # the moment they dismiss it or add one. Its own field rather than a reuse of
@@ -261,6 +262,15 @@ class Member(models.Model):
 
     def __str__(self) -> str:
         return self.display_name
+
+    @property
+    def short_name(self) -> str:
+        """What the family would call out across a room: the first word of the name they
+        chose. "Ask Jim" and "Welcome back, Priya" are how people talk; "Ask Jim
+        Whitfield" is how a directory does. A single-word display name is already its own
+        short name, and an empty one stays empty so a caller can fall back rather than
+        render a sentence with a hole in it."""
+        return self.display_name.strip().split()[0] if self.display_name.strip() else ""
 
 
 class PodMembership(models.Model):

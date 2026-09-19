@@ -26,7 +26,6 @@ from django.views.decorators.http import require_POST
 
 from . import (
     commenting,
-    invites,
     media,
     moderation,
     notifications,
@@ -214,13 +213,6 @@ def _render_feed(
             # posts rendered here are already the ones they can see, so the affordance is
             # exactly scoped to what they may act on.
             "is_moderator": permissions.is_admin(member),
-            # BY-13: who does the inviting, for the people it applies to.
-            # Only admins issue invites in v1, and nothing a plain member could reach said
-            # so — the obvious next thing to do in a family network, add somebody, looked
-            # broken rather than delegated. An admin is the somebody else, so they are not
-            # told to go and ask one.
-            "show_invite_help": not permissions.is_admin(member),
-            "inviter": None if permissions.is_admin(member) else invites.inviter_of(member),
             # BY-02: this member has no way to reset their own password. Shown once,
             # quietly, until they dismiss it or add an address.
             "show_email_prompt": _needs_an_email(member),

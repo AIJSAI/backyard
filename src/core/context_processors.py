@@ -78,14 +78,10 @@ def help_contact_name() -> str:
         Member.objects.filter(role=Member.INSTANCE_ADMIN)
         .exclude(display_name="")
         .order_by("pk")
-        .values_list("display_name", flat=True)
+        .only("display_name")
         .first()
     )
-    if not admin:
-        return ""
-    # First name only: "Ask Jim" is how a family talks. A single-word display name is
-    # already its own first name, and a name with no spaces at all still works.
-    return admin.strip().split()[0] if admin.strip() else ""
+    return admin.short_name if admin is not None else ""
 
 
 def viewer(request: HttpRequest) -> dict[str, object]:

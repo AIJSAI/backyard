@@ -131,6 +131,12 @@ itself up and telling somebody when it cannot.
   email because user james has given your email address to register an account".
 - **The Family email is weekly or monthly.** Daily is no longer offered; anyone who already
   chose it keeps it.
+- **A returning member opens the feed and sees the family.** Signing in used to stack four
+  things above the composer: "Successfully signed in as priya.", the orientation card, a
+  loose paragraph about whose job inviting is, and the add-an-email card. The flash greets
+  the person by the name the family gave them, the card is now the welcome, and the
+  inviting sentence moved to the directory and to How this works — the two places somebody
+  goes looking for it.
 
 - **Deleting a member's posts and photos takes a second step.** It erases photographs from
   the server with no undo, and it sat behind one radio button and one button on a page listing

@@ -4,15 +4,27 @@
   <h1>Family directory</h1>
   {% comment %} The page's own actions. "Back to the feed" came out: the header nav has
      carried Feed on every page since v3.1, so the rail was repeating it. {% endcomment %}
+  {% comment %} Three bold green links in a row, all the same weight, one of which was
+     "Export my data" — a thing a relative does approximately never, sitting level with
+     the two they might. Plain words, and the rarest one last. {% endcomment %}
   <nav class="rail" aria-label="Your profile and data">
     <p>
-      <a href="{% url 'profile_edit' %}">Edit my profile</a> ·
-      <a href="{% url 'export_data' %}">Export my data</a> ·
+      <a href="{% url 'profile_edit' %}">My profile</a> &middot;
       {% comment %} Says "contacts" and not "vCard": the filename is the format, the
          link is what it does to your phone. {% endcomment %}
-      <a href="{% url 'directory_vcards' %}">Save everyone to my contacts</a>
+      <a href="{% url 'directory_vcards' %}">Save everyone to my contacts</a> &middot;
+      <a href="{% url 'export_data' %}">Download my things</a>
     </p>
   </nav>
+
+  {% comment %} BY-13, moved here from the feed. One standing fact about who does what,
+     on the page you open when you are thinking about who is here. {% endcomment %}
+  {% if show_invite_help %}
+    <p class="muted">Adding people is an admin&rsquo;s job. {% if inviter %}To add
+      someone, ask <strong>{{ inviter.short_name }}</strong> &mdash; they can make you a
+      link.{% else %}To add someone, ask {% if help_contact %}{{ help_contact }}{% else %}whoever
+      in the family set this up{% endif %}.{% endif %}</p>
+  {% endif %}
 
   {% comment %} A search box and the button that runs it are one control. Stacked, the
      button read as an unrelated action sitting under an unrelated field. {% endcomment %}

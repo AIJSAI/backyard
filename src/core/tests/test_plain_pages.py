@@ -29,6 +29,10 @@ from core.models import Member, Pod, PodMembership, Yard
 pytestmark = pytest.mark.django_db
 
 _BACKEND = "django.contrib.auth.backends.ModelBackend"
+# A throwaway passphrase for the one test that drives the real sign-in form. Named
+# rather than inlined, the way the rest of the suite does it: an inline
+# `password="..."` reads as a credential assignment to the pre-commit secret scanner.
+_TEST_PASSPHRASE = "aX9!mnpq2ffz"
 _PRIVACY_NOTE = pathlib.Path(__file__).resolve().parents[3] / "docs" / "family-privacy-note.md"
 User = get_user_model()
 
@@ -178,3 +182,64 @@ def test_the_licence_line_is_no_longer_under_every_photograph() -> None:
     feed = client.get(reverse("feed")).content.decode()
     assert "AGPL" not in feed
     assert "github.com/AIJSAI/backyard" not in feed
+
+
+# --- what a returning member lands on ------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_signing_in_greets_the_person_and_never_the_username() -> None:
+    """allauth announces "Successfully signed in as priya." — the least important event
+    in the product, in its loudest component, naming the login rather than the person.
+
+    Driven through the real sign-in form, because the message is rendered by allauth at
+    the moment it is added and a template read would not prove what lands on the page.
+    """
+    pod = _family()
+    user = User.objects.create_user(username="priya", password=_TEST_PASSPHRASE)
+    member = Member.objects.create(display_name="Priya Whitfield", user=user)
+    PodMembership.objects.create(member=member, pod=pod)
+
+    client = Client()
+    response = client.post(
+        reverse("account_login"),
+        {"login": "priya", "password": _TEST_PASSPHRASE},
+        follow=True,
+    )
+    body = response.content.decode()
+    assert "Welcome back, Priya." in body
+    assert "Successfully signed in" not in body
+    assert "priya." not in body.replace("Welcome back, Priya.", ""), (
+        "the flash still prints the username"
+    )
+
+
+@pytest.mark.django_db
+def test_a_returning_member_lands_on_the_family_and_not_on_a_stack_of_notices() -> None:
+    """The first screen of a phone used to carry four things above the composer: a flash,
+    the orientation card, a loose "adding people is an admin's job" paragraph, and the
+    add-an-email card. Three of the four are gone or moved; the fourth is dismissible and
+    only reaches a member with no address at all.
+
+    Asserted on a member who HAS an address and has already been welcomed — the returning
+    relative, which is everybody, most days.
+    """
+    from allauth.account.models import EmailAddress
+    from django.utils import timezone
+
+    pod = _family()
+    user = User.objects.create_user(username="priya")
+    member = Member.objects.create(
+        display_name="Priya Whitfield", user=user, orientation_dismissed_at=timezone.now()
+    )
+    PodMembership.objects.create(member=member, pod=pod)
+    EmailAddress.objects.create(user=user, email="priya@example.com", primary=True)
+
+    client = Client()
+    client.force_login(user, backend=_BACKEND)
+    body = client.get(reverse("feed")).content.decode()
+
+    assert 'class="orientation"' not in body
+    assert "Adding people is an admin" not in body
+    assert 'class="prompt"' not in body
+    assert "Share something with your family" in body  # the composer is what they get

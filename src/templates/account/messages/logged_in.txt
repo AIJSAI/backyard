@@ -1,6 +1,8 @@
 {% load i18n %}
 {% comment %} PROJECT OVERRIDE. allauth announces "Successfully signed in as priya." — the
    least important event in the product, in the product's loudest component, naming the
-   username rather than the person. Signing in is self-evident from the page you land on.
+   USERNAME rather than the person — "priya", not "Priya". It greets them by the name the
+   family gave them, and falls back to a plain sentence for an account with no Member
+   behind it (which is not supposed to happen, and must not render "Welcome back, .").
 {% endcomment %}
-{% blocktrans %}You're signed in.{% endblocktrans %}
+{% if user.member.short_name %}{% blocktrans with name=user.member.short_name %}Welcome back, {{ name }}.{% endblocktrans %}{% else %}{% blocktrans %}You're signed in.{% endblocktrans %}{% endif %}

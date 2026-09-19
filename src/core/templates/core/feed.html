@@ -25,17 +25,11 @@
      reading. `Member.orientation_dismissed_at` still means "has seen the welcome", so
      the family already here is unaffected. {% endcomment %}
 
-  {% comment %} BY-13. One standing fact about who does what, not a prompt, so it needs no
-     dismissal and no column: the same shape as the footer's help line. It was always
-     outside the orientation card, because nested inside it the sentence reached only the
-     members who had not dismissed that card — which, after migration 0022's backfill, was
-     nobody who was already here. {% endcomment %}
-  {% if show_invite_help %}
-    <p class="muted">Adding people is an admin&rsquo;s job. {% if inviter %}To add someone,
-      ask <strong>{{ inviter.display_name }}</strong> &mdash; they can make you a link.{% else %}To
-      add someone, ask {% if help_contact %}{{ help_contact }}{% else %}whoever in the family
-      set this up{% endif %}.{% endif %}</p>
-  {% endif %}
+  {% comment %} BY-13's sentence — whose job inviting is — used to sit HERE, a loose
+     paragraph above the composer, on every visit forever. It is a standing fact, not
+     news, and a returning member should open this page and see the family. It moved to
+     the two places somebody actually goes looking for it: the directory, which is where
+     you go when you are thinking about who is here, and the How this works page. {% endcomment %}
 
   {% comment %} BY-02/BY-03. This member has no email address anywhere — not on their
      account and not as an allauth address — so "Forgot your password?" cannot reach them,

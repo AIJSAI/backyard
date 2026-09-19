@@ -208,9 +208,13 @@ def test_a_newcomer_is_told_who_can_add_people_and_named_their_inviter() -> None
 
     client = Client()
     client.force_login(joined.user, backend=_BACKEND)
-    body = client.get(reverse("feed")).content.decode()
+    # The DIRECTORY, not the feed. The sentence used to sit above the composer on every
+    # visit forever; it is a standing fact, and this is the page somebody opens when they
+    # are thinking about who is here.
+    body = client.get(reverse("directory")).content.decode()
     assert "Adding people is an admin" in body
     assert "Aunt Ada" in body
+    assert "Adding people is an admin" not in client.get(reverse("feed")).content.decode()
 
 
 def test_without_a_recorded_inviter_the_sentence_names_nobody_rather_than_blank() -> None:
@@ -219,7 +223,7 @@ def test_without_a_recorded_inviter_the_sentence_names_nobody_rather_than_blank(
     _, pod = _world()
     _, client = _signed_in(pod)
 
-    body = client.get(reverse("feed")).content.decode()
+    body = client.get(reverse("directory")).content.decode()
     assert "Adding people is an admin" in body
     assert "whoever in the family set this up" in body
 
@@ -241,7 +245,7 @@ def test_the_sentence_reaches_a_member_who_has_already_seen_the_welcome() -> Non
     member.refresh_from_db()
     assert member.orientation_dismissed_at is not None
 
-    body = client.get(reverse("feed")).content.decode()
+    body = client.get(reverse("directory")).content.decode()
     assert "Adding people is an admin" in body
 
 
@@ -254,7 +258,7 @@ def test_an_admin_is_not_told_to_ask_somebody_else() -> None:
 
     client = Client()
     client.force_login(admin_user, backend=_BACKEND)
-    assert "Adding people is an admin" not in client.get(reverse("feed")).content.decode()
+    assert "Adding people is an admin" not in client.get(reverse("directory")).content.decode()
 
 
 def test_inviter_of_survives_the_issuer_being_removed() -> None:
