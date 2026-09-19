@@ -66,9 +66,13 @@
    run-on sentence. Two named groups, one target per line, each the height of a thumb. */
 .admin-links { display: grid; gap: 1.4rem 2rem; grid-template-columns: 1fr; }
 @media (min-width: 30rem) { .admin-links { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* NO text-transform, the third and last site of it in the product. The source says "Add
+   People" and "Check On Things" and the screen said ADD PEOPLE and CHECK ON THINGS; the
+   guide writes capitals in the source and never in CSS. Same cure as the table headers in
+   base.html: a little larger, a lot less tracking. */
 .admin-links h2 {
-  margin: 0; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.08em;
-  text-transform: uppercase; color: var(--ink-soft);
+  margin: 0; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.02em;
+  color: var(--ink-soft);
 }
 .admin-links ul { list-style: none; margin: 0.1rem 0 0; padding: 0; }
 .admin-links a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; }
@@ -115,8 +119,20 @@
     <aside class="second-factor-prompt">
       <span>{% if is_instance_admin %}Your sign-in manages everyone, on both sides.{% else %}Your
         sign-in adds and removes members on your side.{% endif %}
-        <a href="{% url 'mfa_index' %}">Add a second sign-in step</a>: the fingerprint or
-        face you already unlock your phone with, about a minute.</span>
+        {% comment %} One fact, one command, stop. This carried ": the fingerprint or face
+           you already unlock your phone with, about a minute" — an explanation of a phone
+           unlock to somebody holding a phone, and then a time estimate, which is
+           persuasion. It was also a THIRD wording for one object: the page this link opens
+           says "your face, fingerprint or screen lock", and so does the two-step overview,
+           so this is now the same phrase as both.
+
+           The descriptor stays rather than going altogether, and the reason is armed:
+           test_the_prompt_speaks_the_familys_language asserts this prompt names the thing
+           in plain words ("fingerprint" or "face") as well as using no jargon. That guard
+           is a decision somebody made on purpose — a bare "Add a second sign-in step" is
+           jargon on its own — and it outranks a wish to cut further. {% endcomment %}
+        <a href="{% url 'mfa_index' %}">Add a second sign-in step</a>: your face,
+        fingerprint or screen lock.</span>
       <form method="post" action="{% url 'dismiss_second_factor_prompt' %}">
         {% csrf_token %}
         <button type="submit" class="btn-quiet">Not Now</button>

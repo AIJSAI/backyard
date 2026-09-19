@@ -109,7 +109,11 @@
        the words were dropped, so the page reassured a member their pictures were safe while
        having just deleted the paragraph they wrote. {% endcomment %}
     <label class="visually-hidden" for="compose-body">Write A Post</label>
-    <textarea id="compose-body" name="body" rows="3" placeholder="Write a post" required>{{ draft_body }}</textarea>
+    {% comment %} No placeholder: it repeated the label above it word for word, and the guide allows a
+       placeholder only as a format example. core/forms.py's own comment names this shape as
+       the one that "leaves somebody staring at a box whose hint vanishes the moment they
+       type", and fixed it on the reset form; this is the same box, more used. {% endcomment %}
+    <textarea id="compose-body" name="body" rows="3" required>{{ draft_body }}</textarea>
 
     <div class="composer-extras">
       {% include "core/_media_picker.html" with picker_id="media" %}
@@ -230,8 +234,13 @@
         <span class="actions">
           <a href="{% url 'post_detail' item.post.id %}">Open Post</a>
           {% if item.is_own %}
-            {% if item.is_editable %}<a href="{% url 'edit_post' item.post.id %}">Edit</a>{% endif %}
-            <a class="destructive" href="{% url 'delete_post' item.post.id %}">Delete</a>
+            {% comment %} Verb plus object on all four, which is the guide's rule and the
+               other half of the cure the comment above describes: "Open Post", "Edit",
+               "Delete", "Take Down Post" put two bare verbs in a row of four controls, and
+               the shortest one was the one that erases a photograph. The page it opens is
+               already headed "Delete This Post?" with a "Delete Post" button. {% endcomment %}
+            {% if item.is_editable %}<a href="{% url 'edit_post' item.post.id %}">Edit Post</a>{% endif %}
+            <a class="destructive" href="{% url 'delete_post' item.post.id %}">Delete Post</a>
           {% endif %}
           {% comment %} `not item.is_own`: an admin looking at their OWN post was offered
              Delete AND Take down, side by side, in the same red. Taking down your own post

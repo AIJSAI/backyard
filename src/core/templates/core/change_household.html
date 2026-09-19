@@ -37,10 +37,14 @@
           <option value="{{ pod.id }}">{{ pod.name }} ({% for side in sides %}{{ side.name }}{% if not forloop.last %} and {% endif %}{% endfor %})</option>
         {% endfor %}
       </select>
-      {% comment %} Both forms on this page submit a step called "Continue"; the hidden
-         half of the label is what tells somebody using a screen reader which one this is.
-      {% endcomment %}
-      <button type="submit">Continue<span class="visually-hidden"> To Add Them To This Household</span></button>
+      {% comment %} Verb plus object, which is what the guide says a button is — and it is
+         what the page's own third button already does ("Take Them Out Of ..."). Both forms
+         here said "Continue" with the distinguishing words in a visually-hidden span, so a
+         sighted admin at 390px saw the same control twice and had to work out which form
+         it belonged to from a heading they had scrolled past. Naming the object serves the
+         screen reader too, so the hidden half is no longer needed. Both still lead to the
+         same confirmation step. {% endcomment %}
+      <button type="submit">Add To This Household</button>
     </form>
   {% else %}
     <p class="muted">There is no other household to add them to. Make one below.</p>
@@ -64,7 +68,8 @@
         </label>
       {% endfor %}
     </fieldset>
-    <button type="submit">Continue<span class="visually-hidden"> To Make This New Household</span></button>
+    {# The second of the two, under New Household. Same reason as the first. #}
+    <button type="submit">Create Household And Add</button>
   </form>
 
   <h2>Remove From A Household</h2>

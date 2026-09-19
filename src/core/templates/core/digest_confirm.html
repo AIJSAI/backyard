@@ -1,5 +1,8 @@
 {% extends "core/base.html" %}
-{% block title %}Confirm Your Address{% endblock %}
+{% comment %} One act, one name. account/email_confirm.html titles the same act "Confirm Your Email
+   Address" and its button reads "Confirm Email Address"; this page said "Confirm Your
+   Address" and "Confirm Address", which is a second name for one thing. {% endcomment %}
+{% block title %}Confirm Your Email Address{% endblock %}
 {% block body %}
   {% if done %}
     <h1>Address Confirmed</h1>
@@ -39,7 +42,7 @@
     <p>Somebody asked for email updates to be sent to this address.</p>
     <form method="post">
       {% csrf_token %}
-      <button type="submit">Confirm Address</button>
+      <button type="submit">Confirm Email Address</button>
     </form>
   {% endif %}
 {% endblock %}

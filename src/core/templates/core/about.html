@@ -11,8 +11,11 @@
 {% block title %}About{% endblock %}
 {% block body %}
   <h1>About</h1>
-  <p class="muted">Backyard is the software this private network runs on. A relative runs
-    it. No company is behind it, and there is no advertising.</p>
+  {% comment %} "A relative runs it." is cut: the section heading directly below already promises it
+     ("Who Runs This") and its first line says it again in full ("A relative set this up and
+     runs it"). The same fact twice in seven lines, on a page three paragraphs long. {% endcomment %}
+  <p class="muted">Backyard is the software this private network runs on. No company is
+    behind it, and there is no advertising.</p>
 
   <h2>Who Runs This</h2>
   {% comment %} `help_contact` is empty for anybody who has not been let in — this page is

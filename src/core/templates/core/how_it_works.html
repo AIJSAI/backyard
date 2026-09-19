@@ -52,8 +52,23 @@
     person who invited you{% endif %} for a link to pass on.</p>
   <p>Somebody who would rather not use a password can be given a <strong>No-Login
     Link</strong> instead. It opens a large-text page of recent posts with one button to
-    react. Anyone holding that link can read and react as that person, so hand it over in
-    person or in a private message.</p>
+    send love. Anyone holding that link can read and send love as that person, so hand it
+    over in person or in a private message.</p>
+  {% comment %} "send love", not "react": that is what the button on the page says, and it
+     is what both admin pages that hand out the link say. The verb was a third word for one
+     object on the one place this link is described to the FAMILY rather than to an admin.
+
+     DECISION 9, MEASURED ON 2026-09-19, and the answer is that NO SENTENCE about held
+     replies belongs on this page. The question was whether an email reply that failed to
+     post can still be read by the Family Admin in the shipped configuration. It cannot:
+     no surface hands anybody an address to reply to — `block.reply_address` is minted in
+     digest_send.py but printed by no template (digest.txt and digest.html carry only
+     "Reply In Backyard" web links) and emailing.send_family_email sets no Reply-To header
+     — and mail sent to any other address dies in inbound.process_inbound at
+     `reply_addresses.resolve`, which raises ReplyAddressInvalid and bounces BEFORE any
+     quarantine row is written. So there is no path by which a relative's words reach the
+     Held Replies page, and a privacy page that discloses a disclosure that cannot happen
+     is a false record, which is worse here than silence. {% endcomment %}
 
   <h2>Admins</h2>
   <p>Two roles manage people. A Side Admin adds and removes members on one side. A Family
@@ -87,7 +102,9 @@
   <h2>What Backyard Stores About You</h2>
   <p>Your posts, replies, photos and profile details, the name you sign in with, and an
     email address if you gave one.</p>
-  <p>One more thing, once a week: whether you visited. A yes or a no, and nothing else.</p>
+  {% comment %} "One more thing" is a presenter's tic, on the page whose whole value is sounding like
+     it is not performing. The fact stays. {% endcomment %}
+  <p>Once a week, whether you visited. A yes or a no, and nothing else.</p>
   <p>Backyard does not record what you read, how long you stayed, or what you tapped.
     There is no per-person activity list. The only numbers anyone can see are totals for a
     whole side, never one person.</p>
@@ -116,5 +133,12 @@
     stay without your name, or are deleted along with their photos. Download your data
     first if you want a copy.</p>
 
-  <p class="page-action"><a href="{% url 'about' %}">About</a></p>
+  {% comment %} SIGNED IN ONLY. The signed-out footer already carries How It Works and
+     About, so this paragraph put a second About link inside one screenful, immediately
+     above a footer holding the first — the orphaned-fragment shape the footer rewrite was
+     called for. A signed-in member's footer carries How It Works and Sign Out and not
+     About, so for them this is the route rather than a repeat. {% endcomment %}
+  {% if user.is_authenticated %}
+    <p class="page-action"><a href="{% url 'about' %}">About</a></p>
+  {% endif %}
 {% endblock %}

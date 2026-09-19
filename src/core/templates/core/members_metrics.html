@@ -18,9 +18,15 @@
      pipeline is still armed and still tested, and a row from before the change carries a
      real number; but an admin reading a permanent zero deserves to know it is a retired
      route and not a family that stopped replying. {% endcomment %}
-  <p class="muted">"Replied By Email" is a retired route. Replying by email was
-    turned off, so this column falls to zero as the last email updates sent before the
-    change expire. Replies made on the web count under "Posts With A Reply".</p>
+  {% comment %} Two sentences, both true on every instance. This was three, and it opened
+     with "a retired route" — engineer's vocabulary on a page written for a new Side Admin
+     — then made a claim about the product ("replying by email was turned off") that the
+     code does not quite support: the inbound pipeline is still armed. What IS measurably
+     true, and is the whole reason the column goes to zero, is that no email update carries
+     a reply address any more: digest.txt and digest.html print "Reply In Backyard" links
+     and nothing else, and emailing.send_family_email sets no Reply-To header. {% endcomment %}
+  <p class="muted">"Replied By Email" counts replies that arrived as email. Email updates
+    no longer carry a reply address, so new replies count under "Posts With A Reply".</p>
   {% comment %} A real thead/tbody, and data-label on every cell. Both are load-bearing,
      not tidiness: without <thead> the stylesheet's `thead th` rule never matched, so the
      header rendered as an ordinary cell AND the zebra counted it and striped the wrong

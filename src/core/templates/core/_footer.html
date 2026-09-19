@@ -47,10 +47,24 @@
       <span class="help">Need help? Contact {% if help_contact %}{{ help_contact }}{% else %}the person who invited you{% endif %}.</span>
       <span class="footer-links">
         {% if user.is_authenticated %}
-          {% comment %} Sign out is an action, not a place, so it is not in the header nav
-             — six nav items wrap to two rows at 390px and push the family's own content
-             down a band of chrome on every screen. It sits here and at the foot of
-             Settings. {% endcomment %}
+          {% comment %} How It Works is here for a signed-in member too. It is the privacy
+             page — who can see what you post, what is stored, how to leave — and it was
+             reachable only from inside Settings, which is one tap too many for the
+             question a member asks mid-scroll. A privacy page reachable from every page is
+             what a well-made product does.
+
+             ABOUT STAYS SIGNED-OUT ONLY. A member reaches it from How It Works and from
+             Settings, and two links beside the help sentence is what fits the phone footer
+             cleanly. Judged at 390px against the shipped CSS: `footer.site .wrap` stacks
+             at phone width and `.footer-links` is a flex row with a 1.25rem gap, so these
+             two sit on one line under the help sentence with room to spare — the signed-out
+             footer has carried two links in this slot all along.
+
+             Sign out is an action, not a place, so it is not in the header nav — six nav
+             items wrap to two rows at 390px and push the family's own content down a band
+             of chrome on every screen. It sits here and at the foot of Settings.
+             {% endcomment %}
+          <a href="{% url 'how_it_works' %}">How It Works</a>
           <a class="sign-out" href="{% url 'account_logout' %}">Sign Out</a>
         {% else %}
           {% comment %} The two quiet public pages, offered where somebody who cannot get

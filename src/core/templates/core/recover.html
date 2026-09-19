@@ -19,15 +19,21 @@
     <input type="password" id="password" name="password" autocomplete="new-password" required>
     <p class="hint">Choose a memorable password.</p>
 
+    {% comment %} No hint under this box. It read "This link works once, so a typo would
+       lock you out again." — an explanation of a two-box password form to an adult
+       ("people know how to set passwords"), a second hint under a second box on a two-box
+       form, and a consequence rather than a prevention. The label already says what the
+       box is for. {% endcomment %}
     <label for="password_again">Confirm Password</label>
     <input type="password" id="password_again" name="password_again"
            autocomplete="new-password" required>
-    {% comment %} Why the second box is here, in one line: this link is single use, so a
-       typo costs another phone call to an admin rather than another attempt. {% endcomment %}
-    <p class="hint">This link works once, so a typo would lock you out again.</p>
+
+    {% comment %} ABOVE the button, with the other hint. It was a lone sentence floating
+       under the submitted form, which is the shape the guide bans; it is a fact about what
+       this form does, so it belongs where the reader is still deciding to press it.
+       {% endcomment %}
+    <p class="hint">You will be signed out everywhere else.</p>
 
     <button type="submit">Save And Sign In</button>
   </form>
-
-  <p class="muted">You will be signed out everywhere else.</p>
 {% endblock %}

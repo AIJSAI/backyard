@@ -6,6 +6,15 @@
   <p class="back-link"><a class="back" href="{% url 'members' %}">Back To Members</a></p>
   <p class="muted">Replies that could not be posted safely. Nothing here was posted or
   delivered. Talk to the member directly, then clear the reply.</p>
+  {% comment %} The second sentence is the measured fact from decision 9, said HERE and not
+     on How It Works, because this is the only page where it changes what anybody does. It
+     is phrased as what is true of the mail rather than as "replying by email was turned
+     off", which would be a false record: digest_send.py still mints a per-post reply
+     capability on every send. What no longer happens is that any of them is PRINTED — no
+     template renders `block.reply_address` and send_family_email sets no Reply-To — so
+     nothing a relative can send reaches this queue. {% endcomment %}
+  <p class="muted">Email updates no longer carry a reply address, so nothing new arrives
+  here.</p>
   <ul class="quarantine">
     {% for row in rows %}
       <li>

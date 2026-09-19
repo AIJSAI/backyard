@@ -503,7 +503,10 @@ def create_supervised(request: HttpRequest) -> HttpResponse:
         # somewhere below the fold. Say it worked, say what it means, and offer the one
         # thing they will want next — the profile, which is the only screen where the
         # child's name, birthday and photo can be filled in.
-        messages.success(request, f"{child.display_name} is added. You manage their account.")
+        # Past tense, like every other confirmation in the product ("Posted.", "Saved.",
+        # "Post deleted.", "Passkey added.", "{name} was removed."). "is added" was the one
+        # present passive among sixteen.
+        messages.success(request, f"{child.display_name} added. You manage their account.")
     # Back to wherever the control lives: the roster for an admin, your own settings for a
     # parent making their own child's account, who cannot open the roster at all.
     return redirect("members" if permissions.is_admin(actor) else "profile_edit")

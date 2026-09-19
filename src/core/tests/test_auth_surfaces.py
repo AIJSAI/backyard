@@ -262,8 +262,14 @@ def test_the_emailed_reset_form_asks_the_way_the_get_back_in_page_asks() -> None
         "the field still gives a relative no idea what to type"
     )
     assert "Confirm Password" in text and "New Password (again)" not in text
-    assert "This link works once, so a typo would lock you out again." in text, (
-        "the second box is still asked for without a reason"
+    # ABSENT, and the reason is the reader: "This link works once, so a typo would lock you
+    # out again." explained a two-box password form to an adult who has set passwords for
+    # fifteen years, on the page somebody reaches while already locked out. The owner's
+    # ruling in the judge walk of 2026-09-19 was that people know how to set passwords. Cut
+    # from core/recover.html in the same commit, so the two recovery paths still read
+    # identically — which is what the rest of this test is for.
+    assert "This link works once" not in text, (
+        "the hint explaining a two-box password form is back; the label says what the box is for"
     )
     # Django's password_validators_help_text_html(), four bullets of policy read before
     # anybody has typed anything. The rules still RUN — the test below proves it.

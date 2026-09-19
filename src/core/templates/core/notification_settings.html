@@ -13,10 +13,16 @@
     {% csrf_token %}
     <label class="inline-check">
       <input type="checkbox" name="notify_on_reply"{% if pref.notify_on_reply %} checked{% endif %}>
-      Email Me When Someone Replies To My Post
+      {% comment %} A NOUN, which is what the guide says a label is. "Email Me When Someone
+         Replies To My Post" was a seven-word sentence in Title Case — the owner's own
+         example of the shape that reads badly — and at 390px it wrapped and left "Post"
+         orphaned on a second line beside a checkbox aligned to the first. The sentence
+         moves into the hint, which keeps the dependency that actually prevents a mistake.
+         {% endcomment %}
+      Reply Notifications
     </label>
-    <p class="hint">These emails go to your Email Updates address, so Email Updates has to
-      be on.</p>
+    <p class="hint">An email when someone replies to your post. These go to your Email
+      Updates address, so Email Updates has to be on.</p>
     <button type="submit">Save Changes</button>
   </form>
 {% endblock %}

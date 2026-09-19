@@ -119,14 +119,17 @@
            box empty, so an admin who fixed the household name and submitted again handed
            over a link that appoints nobody — the exact defect this control exists to cure,
            reintroduced by a blank checkbox. {% endcomment %}
-        {% comment %} The checkbox label is a NAME now, not the whole sentence: a label is
-           Title Case, and Title Case applied to a full sentence is unreadable. The
-           sentence is the thing this control does, and it stays, in the hint under it.
-           {% endcomment %}
+        {% comment %} The checkbox label is a NAME, not the whole sentence: a label is
+           Title Case, and Title Case applied to a full sentence is unreadable. This
+           comment claimed that was already so while the label still read "Make The First
+           Joiner The Side Admin", a six-word instruction sitting under a legend that
+           already says the act ("Hand This Side Over") and above a hint that already
+           carries the whole rule. The label names the object the tick creates, which is
+           what the admin pages downstream call it ("Link Ready To Hand Over"). {% endcomment %}
         <label class="inline-check">
           <input type="checkbox" name="grants_side_admin" value="1"
                  {% if grants_side_admin_ticked %}checked{% endif %}>
-          Make The First Joiner The Side Admin
+          Hand-Over Link
         </label>
         <p class="hint">The first person to join with this link becomes the Side Admin for
           every side this household belongs to, and can add and remove members there.

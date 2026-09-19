@@ -26,9 +26,17 @@
        its own footer. Two lines that contradict each other is the defect the copy pass
        was called for, and the lede cannot be dropped from a child template because it
        sits outside `content`. {% endcomment %}
-    {% if not user.is_authenticated %}
-      <p class="lede">Backyard is invite-only. Open your invite link to join.</p>
-    {% endif %}
+    {% comment %} IN A BLOCK, so the one page whose reader must not be told to go and find
+       an invite link can drop it. A relative who has just been removed reads "Backyard is
+       invite-only. Open your invite link to join." and then, three lines lower, "Your
+       access to this Backyard has been removed." The page sends them off to look for a
+       link, which is precisely the wrong action. See account/account_inactive.html.
+       {% endcomment %}
+    {% block entrance_lede %}
+      {% if not user.is_authenticated %}
+        <p class="lede">Backyard is invite-only. Open your invite link to join.</p>
+      {% endif %}
+    {% endblock %}
     {% comment %} The card is new in the v3.2 visual pass. Without it the entrance was a
        27rem column centred inside the shell while the footer sat at the shell's left
        edge, so the one screen carrying two elements had two different left margins.

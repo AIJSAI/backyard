@@ -7,6 +7,14 @@
   {% endif %}
   <form method="post" action="{% url 'edit_post' post.id %}">
     {% csrf_token %}
+    {% comment %} THE RULE, SAID ONCE, WHERE IT CAN STILL BE ACTED ON. Nothing in the
+       product says a post can be edited only for fifteen minutes (posting.EDIT_WINDOW):
+       the Edit Post link simply stops being rendered, and an author who taps it from a
+       page they left open gets "You Do Not Have Access / Your account does not have
+       permission to do that", which is false — they have permission, the window closed.
+       This is the cheap half of the cure and the honest one for this screen; the refusal
+       message itself belongs to the view. {% endcomment %}
+    <p class="hint">A post can be edited for fifteen minutes after posting.</p>
     <textarea name="body" rows="4" required>{{ post.body }}</textarea>
     <button type="submit">Save Changes</button>
   </form>

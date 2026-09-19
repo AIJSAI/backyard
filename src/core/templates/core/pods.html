@@ -9,8 +9,11 @@
 {% block body %}
   {% comment %} No "Back to the feed" here: the header nav carries Feed on every page. {% endcomment %}
   <h1>Households And Groups</h1>
-  <p class="muted">Your household is the home you were invited into. A group is a smaller
-    circle any member can create.</p>
+  {% comment %} "A smaller circle" is a social-network metaphor, and it was a second definition of an
+     object How It Works already defines literally: "A group is a set of people somebody
+     picked." One object, one definition, in the plain words. {% endcomment %}
+  <p class="muted">Your household is the home you were invited into. A group is a set of
+    people any member can pick.</p>
 
   {% comment %} A refused "Leave" lands back here with the reason, rather than on an
      error page: the only thing that refuses is the leave that would leave somebody in

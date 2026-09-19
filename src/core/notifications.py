@@ -96,14 +96,22 @@ def notify_reply(comment: Comment) -> bool:
     try:
         emailing.send_family_email(
             to=subscription.address,
-            # The why-you-got-this line is the same one the email update carries, and it
-            # names the same switch: `stop` is the unsubscribe capability, and turning that
-            # off is what silences this message too (the `enabled` gate above).
+            # THE WHY-LINE NAMES BOTH SWITCHES, which it did not. It said "You are
+            # receiving this because Email Updates is on" — but the switch the reader
+            # turned on for THIS email is Reply Notifications, and `stop` is the
+            # unsubscribe capability, so following it silences the weekly summary as well
+            # (the `enabled` gate above is why). A member who only wanted the reply emails
+            # to stop lost their email updates without being told. Two facts, one sentence
+            # each. The digest's own why-line is the glossary's wording and is untouched.
+            #
+            # The body opens with the action rather than with the subject line repeated
+            # back ("<name> replied to your post on Backyard."), which is what the guide
+            # asks of an e-mail body and the one thing this message adds to its subject.
             subject=f"{who} Replied To Your Post",
             text=(
-                f"{who} replied to your post on Backyard.\n\n"
-                f"Read the reply: {url}\n\n"
-                f"You are receiving this because Email Updates is on. Turn it off: {stop}"
+                f"Read the reply from {who}: {url}\n\n"
+                f"You are receiving this because Reply Notifications is on. "
+                f"Turning off Email Updates stops this email too: {stop}"
             ),
         )
     except Exception:  # noqa: BLE001 - a courtesy must never fail the member's reply

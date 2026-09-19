@@ -16,7 +16,8 @@
 {% load i18n static %}
 {% block content %}
     <h1>{% trans "Add A Passkey" %}</h1>
-    <p>{% trans "A passkey lives on this phone or computer and unlocks with your face, fingerprint or screen lock." %}</p>
+    {# "is stored on", not "lives on": the guide bans metaphors, and this one costs nothing. #}
+    <p>{% trans "A passkey is stored on this phone or computer and unlocks with your face, fingerprint or screen lock." %}</p>
     {% if form.errors %}
         <div class="errors">
             {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
@@ -31,7 +32,10 @@
                value="{{ form.name.value|default:'' }}"
                aria-describedby="passkey-name-help">
         <p class="hint" id="passkey-name-help">
-            {% trans "Which device this is, so you can tell your passkeys apart later." %}
+            {% comment %} The clause that followed ("so you can tell your passkeys apart later")
+               explained what naming a thing is for, to an adult who has named things
+               before. The same string is in edit_form.html and changed with it. {% endcomment %}
+            {% trans "Which device this is." %}
         </p>
         {% comment %} The field exists only while passkey sign-in is switched on, and the
            lookup is on `fields` rather than on the bound field so an absent one is plainly
@@ -39,7 +43,16 @@
         {% if form.fields.passwordless %}
             <label class="inline-check" for="{{ form.passwordless.auto_id }}">
                 {{ form.passwordless }}
-                {% trans "Sign In With This Passkey On Its Own" %}
+                {% comment %} A noun, not a seven-word sentence in Title Case: "Sign In
+                   With This Passkey On Its Own" was one of the sentence-shaped labels the
+                   owner objected to, and the hint below already carries the meaning.
+
+                   NOT "Passwordless Sign-In", which is what a mainstream product would
+                   call it: "Passwordless" is django-allauth's own word for this checkbox
+                   and test_the_framework_pages_are_the_products_own.py refuses it by name
+                   on these pages. Reaching for the library's vocabulary to shorten a label
+                   is the defect that file exists to catch. {% endcomment %}
+                {% trans "Sign-In On Its Own" %}
             </label>
             <p class="hint">
                 {% trans "Without this, the passkey is a second step after your password." %}

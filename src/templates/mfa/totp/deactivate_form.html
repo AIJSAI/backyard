@@ -21,7 +21,11 @@
     <form method="post" action="{% url 'mfa_deactivate_totp' %}">
         {% csrf_token %}
         {{ form.as_p }}
-        <button class="danger" type="submit">{% trans "Turn It Off" %}</button>
+        {% comment %} Verb plus object, like every other confirmation button in the product (Delete
+           Post, Take Down Post, Remove Passkey, Create New Codes, Turn Off Email Updates).
+           A pronoun was the one break in the pattern, on the page whose heading already
+           spells the full phrase. {% endcomment %}
+        <button class="danger" type="submit">{% trans "Turn Off The Authenticator App" %}</button>
     </form>
     <p><a class="btn-quiet" href="{% url 'mfa_index' %}">{% trans "Cancel" %}</a></p>
 {% endblock content %}

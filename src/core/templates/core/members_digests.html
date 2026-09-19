@@ -19,7 +19,13 @@
         <tr>
           <td data-label="Member">{{ row.subscription.member.display_name }}</td>
           <td data-label="Address">{{ row.address }}</td>
-          <td data-label="How Often">{{ row.subscription.get_cadence_display }}</td>
+          {% comment %} Weekly / Monthly / Off, the same three words the member's own page
+             shows. This printed the stored cadence whatever the state, so a row read
+             "Weekly" under How Often and "Off" under Status: an admin answering "am I
+             still getting these?" got two different answers on one line. A disabled
+             subscription keeps its cadence for when it is turned back on; what it does NOW
+             is nothing. {% endcomment %}
+          <td data-label="How Often">{% if row.subscription.enabled %}{{ row.subscription.get_cadence_display }}{% else %}Off{% endif %}</td>
           <td data-label="Status">
             {% if not row.subscription.enabled %}Off{% elif not row.subscription.confirmed_at %}Awaiting Confirmation{% else %}On{% endif %}
           </td>

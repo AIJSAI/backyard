@@ -107,7 +107,9 @@ def test_it_carries_the_privacy_disclosure_the_threat_model_promises() -> None:
     things about the same promise.
     """
     body = " ".join(Client().get(reverse("how_it_works")).content.decode().split())
-    assert "once a week: whether you visited" in body
+    # The DISCLOSURE, not its punctuation: the sentence opened "One more thing, once a
+    # week:" until the judge walk of 2026-09-19 cut the presenter's tic in front of it.
+    assert "whether you visited" in body
     assert "A yes or a no" in body
     assert "does not record what you read" in body
     assert "no per-person activity list" in body
@@ -332,7 +334,7 @@ def test_a_returning_member_lands_on_the_family_and_not_on_a_stack_of_notices() 
     assert 'class="orientation"' not in body
     assert "Adding people is an admin" not in body
     assert 'class="prompt"' not in body
-    assert 'placeholder="Write a post"' in body  # the composer is what they get
+    assert 'id="compose-body"' in body  # the composer is what they get
 
 
 @pytest.mark.django_db

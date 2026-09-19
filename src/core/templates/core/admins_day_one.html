@@ -54,7 +54,7 @@
   <h2>3. When Someone Is Locked Out</h2>
   <ol>
     <li>If they have an email address, <strong>Forgot Your Password?</strong> on the
-      sign-in page does it without you.</li>
+      sign-in page resets it without you.</li>
     <li>If not, tap <strong>Manage</strong> on their row, then <strong>Sign-In
       Link</strong>. It works once and expires after two days.</li>
   </ol>
@@ -80,11 +80,10 @@
     <li>If no admin can sign in, the password has to be reset at the server by whoever runs
       this Backyard.</li>
   </ol>
-  <p class="muted">Adding a second sign-in step under Settings is worth the minute it
-    takes.</p>
+  <p class="muted">Add a second sign-in step under Settings.</p>
 
   <h2>6. If You Are Stuck</h2>
-  <p>Ask {% if help_contact %}{{ help_contact }}{% else %}whoever set this Backyard
-    up{% endif %}. <a href="{% url 'how_it_works' %}">How It Works</a> is the page everyone
-    else reads.</p>
+  <p>Read <a href="{% url 'how_it_works' %}">How It Works</a>. If it does not answer
+    the question, ask {% if help_contact %}{{ help_contact }}{% else %}whoever set this
+    Backyard up{% endif %}.</p>
 {% endblock %}

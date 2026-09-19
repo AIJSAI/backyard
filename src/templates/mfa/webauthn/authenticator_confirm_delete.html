@@ -13,7 +13,10 @@
 {% load i18n %}
 {% block content %}
     <h1>{% trans "Remove This Passkey?" %}</h1>
-    <p>{% blocktranslate with name=authenticator.wrap.name %}"{{ name }}" stops signing you in straight away. You can add it again from that device later.{% endblocktranslate %}</p>
+    {% comment %} "stops signing you in straight away" is a colloquialism and the ban list already
+       carries its sibling "straight to". A confirmation page states the consequence
+       plainly. {% endcomment %}
+    <p>{% blocktranslate with name=authenticator.wrap.name %}{{ name }} can no longer sign you in. You can add it again from that device.{% endblocktranslate %}</p>
     <form method="post" action="{% url 'mfa_remove_webauthn' pk=authenticator.pk %}">
         {% csrf_token %}
         <button class="danger" type="submit">{% trans "Remove Passkey" %}</button>

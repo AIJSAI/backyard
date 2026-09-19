@@ -24,7 +24,7 @@
 
   {% if minted %}
     <h2>Link Ready To Hand Over</h2>
-    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_label="Sign-In Link" handover_share_title="Backyard Sign-In Link" handover_note="Text it to them or read it out over the phone. It appears only once, works once, and expires after two days." %}
+    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_label="Sign-In Link" handover_share_title="Backyard Sign-In Link" handover_note="Text or email it to them. It appears only once, works once, and expires after two days." %}
   {% endif %}
 
   <form method="post" action="{% url 'issue_recovery' target.id %}">

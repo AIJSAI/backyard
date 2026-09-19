@@ -161,7 +161,10 @@ def build_digest(
                 if post.author.kinship_name
                 else post.author.display_name
             ),
-            date_text=timezone.localtime(post.created_at).strftime("%B %-d"),
+            # "Sep 18", the product's one date shape: core/templatetags/times.py pins
+            # DATE_FORMAT as "M j, Y" and every screen writes the month abbreviated. This
+            # was the only surface spelling it out in full.
+            date_text=timezone.localtime(post.created_at).strftime("%b %-d"),
             body=post.body,
             url=emailing.absolute_url(f"/d/{digest_token}/posts/{post.id}/"),
             # Count the member's OWN photos only (through the scoping layer, TM-2): a
@@ -196,8 +199,12 @@ def build_digest(
         )
     )
 
-    window_start = timezone.localtime(issue.window_start).strftime("%B %-d")
-    window_end = timezone.localtime(issue.window_end).strftime("%B %-d")
+    # The same abbreviation, and this pair also sets the SUBJECT LINE, which the glossary
+    # pins as "New In <Side>: <Mon D> To <Mon D>". It read "New In Whitfield side:
+    # September 12 To September 19" — the most-seen string the product sends, and the only
+    # place in it using a fourth date format.
+    window_start = timezone.localtime(issue.window_start).strftime("%b %-d")
+    window_end = timezone.localtime(issue.window_end).strftime("%b %-d")
     window_text = f"{window_start} to {window_end}"
     blocks: tuple[DigestBlock, ...] = (
         HeaderBlock(yard_name=yard.name, window_text=window_text),

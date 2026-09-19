@@ -24,7 +24,8 @@
                value="{{ form.name.value|default:'' }}"
                aria-describedby="passkey-name-help" required>
         <p class="hint" id="passkey-name-help">
-            {% trans "Which device this is, so you can tell your passkeys apart later." %}
+            {# The twin of the hint in add_form.html; the two passkey forms say one thing. #}
+            {% trans "Which device this is." %}
         </p>
         <button type="submit">{% trans "Save Name" %}</button>
     </form>

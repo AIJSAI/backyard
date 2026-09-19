@@ -12,7 +12,11 @@
    family is what has to be named. {% endcomment %}
 {% block title %}Welcome{% endblock %}
 {% block body %}
-  <h1>Welcome{% if member.display_name %}, {{ member.display_name }}{% endif %}</h1>
+  {% comment %} The first name, like everywhere else the product speaks TO somebody: the sign-in flash
+     is "Signed in as Priya." and the footer is "Need help? Contact James." `short_name`
+     exists for exactly this (models.py: "Welcome back, Priya" is how people talk; "Ask Jim
+     Whitfield" is how a directory does). This greeted a new relative with their full name. {% endcomment %}
+  <h1>Welcome{% if member.short_name %}, {{ member.short_name }}{% endif %}</h1>
   <p>A private, ad-free network to stay connected with everyone.</p>
   <p>Posts are shared with your household. To reach more people, choose a side of the
     family or a group when posting.</p>

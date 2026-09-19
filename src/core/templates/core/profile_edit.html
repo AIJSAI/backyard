@@ -110,7 +110,9 @@
         </select>
       </div>
 
-      <label for="contact_email">Email</label>
+      {% comment %} "Email Address", the guide's own noun label, and what the very next screen a member
+         reaches (Your Sign-In Email) calls the same box. {% endcomment %}
+      <label for="contact_email">Email Address</label>
       <input id="contact_email" type="email" name="contact_email" value="{{ member.contact_email }}" maxlength="254">
       <div class="visibility">
         <label for="contact_email_visibility">Email Visibility</label>

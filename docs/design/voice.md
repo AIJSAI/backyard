@@ -173,9 +173,10 @@ template comment and a test docstring.
 
 **The footer** is one component, `core/templates/core/_footer.html`, used by every layout.
 The help line is first and is always TEXT — there is no help route in this app, and a link
-to a page that does not exist is worse than no link (WCAG 2.2 SC 3.2.6). The account
-action (Sign Out) or the two public pages (How It Works, About) sit at the other end of the
-row, and the row stacks at phone width. A layout that extends `core/base.html` gets it
+to a page that does not exist is worse than no link (WCAG 2.2 SC 3.2.6). Two links sit at
+the other end of the row and it stacks at phone width: How It Works and Sign Out for a
+signed-in member, How It Works and About for everybody else. How It Works is on both
+because it is the privacy page, and a privacy page is reachable from every page. A layout that extends `core/base.html` gets it
 automatically; a standalone page includes it as
 `{% include "core/_footer.html" with standalone=True %}`, which renders the sentence alone,
 with no links.

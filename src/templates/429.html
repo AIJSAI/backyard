@@ -17,6 +17,9 @@
     <h1>Too Many Attempts</h1>
     <p class="muted">This link has been opened too many times from your internet
       connection. Wait a minute, then open it again.</p>
-    <p><a class="btn" href="/">Go To Your Backyard</a></p>
+    {% comment %} "Go To Your Backyard" is offered to a reader who may have no Backyard: a relative
+       whose invite link expired lands here, and the button goes to the landing page. Say
+       where it goes. The same conditional is on all four signed-out-reachable error pages. {% endcomment %}
+    <p><a class="btn" href="/">{% if user.is_authenticated %}Go To Your Backyard{% else %}Go To Backyard{% endif %}</a></p>
   </div>
 {% endblock %}

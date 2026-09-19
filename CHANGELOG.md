@@ -31,8 +31,10 @@ a point somebody deliberately stopped at, with a full green gate behind it.
     settings page, in the mail itself and in its subject line. Route names, model names and
     URLs are untouched, so links already sitting in inboxes still work.
   - **One footer, on every layout**, including the sign-in pages and the grandparent page:
-    the help line at one end, the account action or the two public pages at the other,
-    stacked cleanly on a phone. The help sentence is "Need help? Contact <name>."
+    the help line at one end and two links at the other, stacked cleanly on a phone. The
+    links are How It Works and Sign Out for a signed-in member, How It Works and About for
+    everybody else, so the page that answers "who can see what I post" is one tap from
+    every screen. The help sentence is "Need help? Contact <name>."
   - **A real 403 page.** A member who tapped something they may not do used to get Django's
     unstyled built-in "403 Forbidden" with no header, no footer and no way back. There is a
     page now, in the product's own chrome. It deliberately does not print the internal

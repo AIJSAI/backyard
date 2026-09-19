@@ -20,7 +20,10 @@
 {% endblock head_title %}
 {% block content %}
     <h1>{% trans "Set Up An Authenticator App" %}</h1>
-    <p>{% trans "Scan this square with your authenticator app, then type the six-digit code it shows." %}</p>
+    {% comment %} "QR code", not "this square": the admin invite page two clicks away calls the same
+       object the QR code, and talking down to somebody who has scanned them for a decade
+       is the register the owner objected to. Both sentences on this page change together. {% endcomment %}
+    <p>{% trans "Scan this QR code with your authenticator app, then type the six-digit code it shows." %}</p>
     {% if form.errors %}
         <div class="errors">
             {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
@@ -34,7 +37,7 @@
         <input type="text" id="setup_key" value="{{ form.secret }}"
                aria-describedby="setup-key-help" disabled>
         <p class="hint" id="setup-key-help">
-            {% trans "Type this into the app instead, if you cannot scan the square." %}
+            {% trans "Type this into the app if you cannot scan the QR code." %}
         </p>
         <label for="id_code">{% trans "Code From The App" %}</label>
         <input type="text" id="id_code" name="code" inputmode="numeric"

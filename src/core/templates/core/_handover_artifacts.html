@@ -30,7 +30,10 @@ glance -- "that's not our address" -- by someone who knows nothing about the set
     <span class="muted" data-handover-copied role="status" hidden>Copied.</span>
   </p>
   <div class="qr">{{ handover_qr }}</div>
-  <p class="muted">{{ handover_note|default:'Send the link by text or email, or print this page for the QR code. It appears only once.' }}</p>
+  {% comment %} "It appears only once." — "It" could only be read as the QR code, the thing named
+     immediately before it, when the fact is about the link. The sentence is on the Keep
+     list (a credential shown once), so it stays; it just has to say which thing. {% endcomment %}
+  <p class="muted">{{ handover_note|default:'Send the link by text or email, or print this page for the QR code. The link is shown once.' }}</p>
 </div>
 <script nonce="{{ request.csp_nonce }}">
   // Reveal Copy/Share only where the browser supports them (S-212): a no-JS or

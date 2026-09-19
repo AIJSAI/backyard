@@ -27,6 +27,13 @@
    test_auth_surfaces.py. {% endcomment %}
 {% load i18n %}
 {% load allauth %}
+{% comment %} The entrance lede, dropped. The comment above argues that a link back to the
+   thing that just refused them is an invitation to keep trying; "Backyard is invite-only.
+   Open your invite link to join." is that invitation in sentence form, and it sat three
+   lines above "Your access has been removed." on the one page whose reader must not go
+   looking for an invite link. It lives outside `content`, so the layout puts it in a block
+   this page can empty (allauth/layouts/entrance.html). {% endcomment %}
+{% block entrance_lede %}{% endblock entrance_lede %}
 {% block head_title %}
     {% trans "No Longer A Member" %}
 {% endblock head_title %}
@@ -35,6 +42,6 @@
         {% trans "No Longer A Member" %}
     {% endelement %}
     {% element p %}
-        {% trans "Your access to this Backyard has been removed. If that is unexpected, contact the person who invited you." %}
+        {% trans "Your access has been removed. If that is unexpected, contact the person who invited you." %}
     {% endelement %}
 {% endblock content %}
