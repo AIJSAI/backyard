@@ -43,7 +43,9 @@ def serve_media(request: HttpRequest, token: str) -> FileResponse:
     if is_thumbnail:
         handle, content_type, filename = asset.thumbnail, "image/jpeg", "poster.jpg"
     elif asset.media_kind == MediaAsset.VIDEO:
-        handle, content_type, filename = asset.video, asset.content_type, "clip.mp4"
+        # The name a save dialog shows, so it carries the product's word for the thing:
+        # the picker, the hint and every message say "video", never "clip".
+        handle, content_type, filename = asset.video, asset.content_type, "video.mp4"
     else:
         handle, content_type, filename = asset.image, asset.content_type, "photo.jpg"
     try:

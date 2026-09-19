@@ -1,15 +1,15 @@
 {% extends "core/base.html" %}
-{% block title %}Delete this post?{% endblock %}
+{% block title %}Delete This Post?{% endblock %}
 {% block body %}
-  <h1>Delete this post?</h1>
+  <h1>Delete This Post?</h1>
   <blockquote class="quoted-post">{{ post.body }}</blockquote>
   <p class="muted">
-    This removes it from the feed for everyone and permanently deletes any photos on
-    it. A copy that already went out in the Family email cannot be recalled.
+    This removes the post for everyone and permanently deletes its photos. A copy
+    already sent in an email update cannot be recalled.
   </p>
   <form method="post" action="{% url 'delete_post' post.id %}">
     {% csrf_token %}
-    <button type="submit" class="danger">Delete</button>
+    <button type="submit" class="danger">Delete Post</button>
   </form>
-  <p><a href="{% url 'feed' %}">Keep it</a></p>
+  <p><a href="{% url 'feed' %}">Cancel</a></p>
 {% endblock %}

@@ -156,8 +156,8 @@
       // meets the ceiling here and a member who meets it on the way in read one sentence
       // and not two. Calm, plain, and it names the number.
       function couldNotAdd(count, word, max) {
-        return count + " " + word + (count === 1 ? "" : "s") + " could not be added — " +
-          max + " is the limit for one post.";
+        return count + " " + word + (count === 1 ? "" : "s") + " could not be added. " +
+          "A post can carry " + max + " " + word + "s.";
       }
 
       // A pick can run past both ceilings at once (photos and a clip in one sheet), so

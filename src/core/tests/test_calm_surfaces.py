@@ -6,7 +6,7 @@ suite knows it was a decision:
 
   C2   the error component that actually ships (`ul.errorlist`) is styled at all.
   C6   a destructive action leaves the primary row — three identical bold green links 36px
-       apart meant a thumb aiming at "Open thread" could land on "Delete".
+       apart meant a thumb aiming at "Open Post" could land on "Delete".
   C7   the 44px floor reaches the controls that were missing it, including the audience
        checkbox, which is the smallest target on the most consequential control in a
        privacy-first product.
@@ -93,14 +93,14 @@ def test_a_real_sign_in_failure_renders_inside_it() -> None:
 # --- C6: destructive actions leave the primary row --------------------------------
 
 
-def test_delete_is_not_a_peer_of_open_thread(world: dict[str, object]) -> None:
+def test_delete_is_not_a_peer_of_open_post(world: dict[str, object]) -> None:
     pod, member = world["pod"], world["member"]
     assert isinstance(pod, Pod) and isinstance(member, Member)
     post = posting.create_post(author=member, pod=pod, audience_yards=[], body="mine")
     page = _page(world, reverse("feed"))
 
     assert f'<a class="destructive" href="{reverse("delete_post", args=[post.id])}"' in page
-    assert f'<a href="{reverse("post_detail", args=[post.id])}">Open thread</a>' in page
+    assert f'<a href="{reverse("post_detail", args=[post.id])}">Open Post</a>' in page
     css = _style()
     assert ".actions .destructive, .actions form.takedown { margin-left: auto; }" in css
     assert ".actions a.destructive { color: var(--danger); font-weight: 400; }" in css
@@ -183,7 +183,7 @@ def test_the_composer_opens_small(world: dict[str, object]) -> None:
 
 
 def test_an_archive_page_is_its_own_page(world: dict[str, object]) -> None:
-    """Paging back kept the title "Your backyard", the orientation card, the whole
+    """Paging back kept the title "Your Backyard", the orientation card, the whole
     composer, and ended on "You are all caught up" — a history page claiming to be the
     current feed and then claiming the reader had seen everything."""
     pod, member = world["pod"], world["member"]
@@ -198,8 +198,8 @@ def test_an_archive_page_is_its_own_page(world: dict[str, object]) -> None:
 
     page = _page(world, f"{reverse('feed')}?before={cursor}")
     assert "post 0" in page, "the cursor did not page: this is still the current feed"
-    assert "<h1>Older posts</h1>" in page
+    assert "<h1>Older Posts</h1>" in page
     assert "You are all caught up." not in page
-    assert "That is the beginning." in page
+    assert "Nothing older than this." in page
     assert 'class="composer"' not in page, "a history page is for reading"
-    assert "Back to the newest posts" in page
+    assert "Back To The Newest Posts" in page

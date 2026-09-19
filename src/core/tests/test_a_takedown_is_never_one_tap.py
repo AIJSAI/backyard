@@ -94,12 +94,12 @@ def test_opening_take_down_on_a_post_asks_rather_than_acting(world: dict[str, ob
 
     assert page.status_code == 200, page.status_code
     body = page.content.decode()
-    assert "Take this post down?" in body
+    assert "Take This Post Down?" in body
     assert "Cousin Reed wrote this." in body, "the page does not say whose post it is"
     assert "Camp dump, finally." in body, "the admin cannot see what they are about to erase"
-    assert "permanently deletes any photos" in body
+    assert "permanently deletes its photos" in body
     assert "is not told" in body, "it does not say the author is never told"
-    assert "Keep it" in body, "there is no quiet way out"
+    assert "Cancel" in body, "there is no quiet way out"
 
     post.refresh_from_db()
     assert post.deleted_at is None, "LOADING the confirm page took the post down"
@@ -127,7 +127,7 @@ def test_a_reply_gets_the_same_two_taps(world: dict[str, object]) -> None:
     page = client.get(reverse("take_down_comment", args=[comment.id]))
     assert page.status_code == 200
     body = page.content.decode()
-    assert "Take this reply down?" in body
+    assert "Take This Reply Down?" in body
     assert "And one more." in body
     comment.refresh_from_db()
     assert comment.deleted_at is None, "LOADING the confirm page took the reply down"
@@ -227,7 +227,7 @@ def test_the_thread_page_follows_the_same_two_rules(world: dict[str, object]) ->
     assert f'href="{reverse("take_down_post", args=[post.id])}"' in body, (
         "the thread's takedown is not a link, so it cannot reach the confirm page"
     )
-    assert "Take down post</button>" not in body, "it is still a button that fires on a tap"
+    assert "Take Down Post</button>" not in body, "it is still a button that fires on a tap"
 
 
 # --- item 10: a delete says so --------------------------------------------------------

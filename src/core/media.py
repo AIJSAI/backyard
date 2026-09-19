@@ -233,19 +233,19 @@ def validate_video(raw: bytes) -> float:
     """
     if len(raw) > transcoding.MAX_VIDEO_BYTES:
         cap_mb = transcoding.MAX_VIDEO_BYTES // (1024 * 1024)
-        raise MediaRejected(f"That clip is too large. Keep it under {cap_mb} MB.")
+        raise MediaRejected(f"Video must be {cap_mb} MB or smaller.")
     if not transcoding.looks_like_isobmff(raw):
-        raise MediaRejected("That file is not a video we can play. Try an MP4 or a phone clip.")
+        raise MediaRejected("That file is not a video Backyard can play. Use an MP4.")
     with tempfile.TemporaryDirectory() as workdir:
         raw_path = Path(workdir) / "upload"
         raw_path.write_bytes(raw)
         try:
             duration = transcoding.probe_duration_seconds(str(raw_path))
         except transcoding.FfmpegError as exc:
-            raise MediaRejected("That file is not a video we can play.") from exc
+            raise MediaRejected("That file is not a video Backyard can play. Use an MP4.") from exc
     if duration > transcoding.MAX_VIDEO_DURATION_S:
         cap_s = transcoding.MAX_VIDEO_DURATION_S
-        raise MediaRejected(f"That clip is too long. Keep it under {cap_s} seconds.")
+        raise MediaRejected(f"Video must be {cap_s} seconds or shorter.")
     return duration
 
 

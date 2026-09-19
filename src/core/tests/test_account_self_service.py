@@ -124,10 +124,10 @@ def test_a_member_with_no_address_anywhere_is_prompted() -> None:
     # written and not something a test should pin.
     body = " ".join(client.get(reverse("feed")).content.decode().split())
     # The sentence changed on 2026-09-19 (walk item 5): this was a screen-tall card ABOVE
-    # the composer that said the same thing in two paragraphs, with "Not now" as its
+    # the composer that said the same thing in two paragraphs, with "Not Now" as its
     # loudest button. It is one line under the composer now. What is asserted is the same
     # property — the member is told, and the way to act on it is a tap away.
-    assert "so you can reset your own password" in body
+    assert "to reset your own password" in body
     assert reverse("account_email") in _hrefs(body)
     assert reverse("dismiss_email_prompt") in body, "no quiet way to decline"
 
@@ -194,7 +194,7 @@ def test_the_prompt_is_independent_of_the_welcome_having_been_seen() -> None:
     Member.objects.filter(pk=member.pk).update(orientation_dismissed_at=timezone.now())
 
     body = " ".join(client.get(reverse("feed")).content.decode().split())
-    assert "so you can reset your own password" in body  # reworded, walk item 5
+    assert "to reset your own password" in body  # reworded, walk item 5
 
 
 # --- BY-13: whose job inviting is ---------------------------------------------------
@@ -219,9 +219,9 @@ def test_a_newcomer_is_told_who_can_add_people_and_named_their_inviter() -> None
     # visit forever; it is a standing fact, and this is the page somebody opens when they
     # are thinking about who is here.
     body = client.get(reverse("directory")).content.decode()
-    assert "Adding people is an admin" in body
+    assert "Only an admin can add people" in body
     assert "Aunt Ada" in body
-    assert "Adding people is an admin" not in client.get(reverse("feed")).content.decode()
+    assert "Only an admin can add people" not in client.get(reverse("feed")).content.decode()
 
 
 def test_without_a_recorded_inviter_the_sentence_names_nobody_rather_than_blank() -> None:
@@ -236,8 +236,8 @@ def test_without_a_recorded_inviter_the_sentence_names_nobody_rather_than_blank(
     _, client = _signed_in(pod)
 
     body = " ".join(client.get(reverse("directory")).content.decode().split())
-    assert "Adding people is an admin" in body
-    assert "To add someone, ask whoever in the family set this up." in body
+    assert "Only an admin can add people" in body
+    assert "Ask the person who invited you for an invite link." in body
 
 
 def test_the_sentence_reaches_a_member_who_has_already_seen_the_welcome() -> None:
@@ -258,7 +258,7 @@ def test_the_sentence_reaches_a_member_who_has_already_seen_the_welcome() -> Non
     assert member.orientation_dismissed_at is not None
 
     body = client.get(reverse("directory")).content.decode()
-    assert "Adding people is an admin" in body
+    assert "Only an admin can add people" in body
 
 
 def test_an_admin_is_not_told_to_ask_somebody_else() -> None:
@@ -270,7 +270,7 @@ def test_an_admin_is_not_told_to_ask_somebody_else() -> None:
 
     client = Client()
     client.force_login(admin_user, backend=_BACKEND)
-    assert "Adding people is an admin" not in client.get(reverse("directory")).content.decode()
+    assert "Only an admin can add people" not in client.get(reverse("directory")).content.decode()
 
 
 def test_inviter_of_survives_the_issuer_being_removed() -> None:

@@ -79,7 +79,7 @@ def test_a_photo_survives_the_yard_audience_confirmation(world: dict[str, object
     first = _compose(client, pod, yard, photos=_upload())
     assert first.status_code == 200
     page = first.content.decode()
-    assert "Yes, share with" in page  # we are on the confirmation page
+    assert "Share With" in page  # we are on the confirmation page
     assert "will be posted too" in page  # and it says the photo is held
     assert Post.objects.count() == 0  # nothing created yet
 
@@ -161,8 +161,8 @@ def test_photos_over_the_per_post_cap_are_reported_not_silently_dropped(
     )
     assert Post.objects.get().media.count() == 20
     said = " ".join(str(m) for m in response.context["messages"])
-    assert "1 of your 21 photos could not be added" in said
-    assert "20 is the limit" in said
+    assert "1 photo could not be added" in said
+    assert "A post can carry 20 photos" in said
 
 
 def test_an_undecodable_photo_is_reported_not_silently_dropped(

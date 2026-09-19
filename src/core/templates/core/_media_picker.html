@@ -37,9 +37,9 @@
      appeared twice — ours, and the browser's, in the browser's chrome. Without the script
      nothing is hidden and the native control keeps its own button and its own "2 files"
      count, which is the whole fallback. {% endcomment %}
-  <label class="picker-button" for="{{ picker_id }}">Add photos or a video</label>
+  <label class="picker-button" for="{{ picker_id }}">Add Photos Or A Video</label>
   <input id="{{ picker_id }}" type="file" name="media" accept="image/*,video/*" multiple>
-  <p class="media-hint">Up to {{ max_photos }} photos and {{ max_videos }} short videos at a time.</p>
+  <p class="media-hint">Up to {{ max_photos }} photos and {{ max_videos }} videos per post.</p>
   {% comment %} Where the script says what a pick could not take. Picking again ADDS to
      what is already chosen, so a pick can now run past a ceiling with files still in the
      sheet — and the one thing worse than dropping them is dropping them in silence, which

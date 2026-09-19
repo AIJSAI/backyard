@@ -1,9 +1,9 @@
 {% extends "core/base.html" %}
 {% load avatars %}
 {% load times %}
-{% block title %}A post and its replies{% endblock %}
+{% block title %}Post And Replies{% endblock %}
 {% block body %}
-  <p class="back-link"><a class="back" href="{% url 'feed' %}">Back to the feed</a></p>
+  <p class="back-link"><a class="back" href="{% url 'feed' %}">Back To The Feed</a></p>
   {% comment %} The thread page had no h1 at all: it opened on a bare link and then a
      card, so nothing named the page for a reader or a screen reader. The heading is
      the post's author, which is what a person opening a thread is looking for. {% endcomment %}
@@ -30,9 +30,9 @@
                 <source src="{% url 'serve_media' m.token %}" type="video/mp4">
               </video>
             {% elif m.transcode_status == 'failed' %}
-              <p class="clip-status">This clip couldn't be processed.</p>
+              <p class="clip-status">This video could not be processed.</p>
             {% else %}
-              <p class="clip-status">Processing this clip… it'll appear here shortly.</p>
+              <p class="clip-status">This video is still processing.</p>
             {% endif %}
           {% else %}
             {% comment %} `lazy` + `async`, and the reserved box is in base.html: this gallery
@@ -61,12 +61,12 @@
   {% comment %} A QUIET TEXT ACTION, with the others. It was a large outlined button
      sitting on its own between the post and the reactions — the loudest control on a page
      whose subject is somebody's photograph, and the one that erases it. It now reads like
-     "Open thread" and "Delete" do on the feed, in the destructive treatment, and it leads
+     "Open Post" and "Delete" do on the feed, in the destructive treatment, and it leads
      to a confirm page rather than firing on the tap. An admin reading their OWN post gets
      Delete on the feed instead; offering both was two names for one outcome. {% endcomment %}
   {% if is_moderator and post.author_id != member.id %}
     <p class="actions">
-      <a class="destructive" href="{% url 'take_down_post' post.id %}">Take down post</a>
+      <a class="destructive" href="{% url 'take_down_post' post.id %}">Take Down Post</a>
     </p>
   {% endif %}
 
@@ -89,7 +89,7 @@
         <div class="who-row">
           {% avatar comment.author.display_name comment.author_id "sm" %}
           <span class="who">
-            <span class="author">{{ comment.author.display_name }}{% if comment.author.kinship_name %} ({{ comment.author.kinship_name }}){% endif %}</span>{% if comment.via_email %} <span class="via-email">via email</span>{% endif %}
+            <span class="author">{{ comment.author.display_name }}{% if comment.author.kinship_name %} ({{ comment.author.kinship_name }}){% endif %}</span>{% if comment.via_email %} <span class="via-email">Via Email</span>{% endif %}
             <span class="when">{% when comment.created_at %}</span>
           </span>
         </div>
@@ -107,9 +107,9 @@
                     <source src="{% url 'serve_media' m.token %}" type="video/mp4">
                   </video>
                 {% elif m.transcode_status == 'failed' %}
-                  <p class="clip-status">This clip couldn't be processed.</p>
+                  <p class="clip-status">This video could not be processed.</p>
                 {% else %}
-                  <p class="clip-status">Processing this clip… it'll appear here shortly.</p>
+                  <p class="clip-status">This video is still processing.</p>
                 {% endif %}
               {% else %}
                 <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.thumbnail_token %}" loading="lazy" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ comment.author.display_name }}{% endif %}"></a>
@@ -120,13 +120,13 @@
         {% if comment.author_id == member.id %}
           <form method="post" action="{% url 'delete_comment' comment.id %}" class="inline">
             {% csrf_token %}
-            <button type="submit" class="danger">Delete</button>
+            <button type="submit" class="danger">Delete Reply</button>
           </form>
         {% endif %}
         {% comment %} Same two changes as the post above: a confirm page rather than a
            one-tap erase, and never offered on your own reply, where Delete already is. {% endcomment %}
         {% if is_moderator and comment.author_id != member.id %}
-          <a class="destructive" href="{% url 'take_down_comment' comment.id %}">Take down</a>
+          <a class="destructive" href="{% url 'take_down_comment' comment.id %}">Take Down Reply</a>
         {% endif %}
       </li>
     {% empty %}
@@ -147,8 +147,8 @@
   <form id="reply" method="post" action="{% url 'add_comment' post.id %}" class="composer"
         enctype="multipart/form-data">
     {% csrf_token %}
-    <label class="visually-hidden" for="reply-body">Write a reply, or just add photos</label>
-    <textarea id="reply-body" name="body" rows="2" placeholder="Write a reply, or just add photos"></textarea>
+    <label class="visually-hidden" for="reply-body">Write A Reply</label>
+    <textarea id="reply-body" name="body" rows="2" placeholder="Write a reply or add a photo"></textarea>
     <div class="composer-extras">
       {% include "core/_media_picker.html" with picker_id="reply-media" %}
     </div>
