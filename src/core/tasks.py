@@ -72,7 +72,7 @@ def send_health_email_task(timestamp: int) -> None:
         )
 
 
-@app.periodic(cron="30 3 * * *")  # daily 03:30, when the family is asleep and nothing uploads
+@app.periodic(cron="30 3 * * *")  # daily 03:30 UTC (TIME_ZONE is UTC; ~22:30 US-Central)
 @app.task(name="scheduled_backup")
 def scheduled_backup_task(timestamp: int) -> None:
     """The nightly encrypted backup (S-802, S-806, T-MON-1).

@@ -56,6 +56,14 @@ DB_DUMP_NAME = "database.dump"
 MEDIA_TAR_NAME = "media.tar.gz"
 BACKUP_FORMAT = "backyard-instance-backup/1"
 
+# A nightly, unattended dump on a single-slot worker needs a wall-clock bound. Without one
+# a hung pg_dump (a stalled connection, a partition mid-stream) holds the worker's ONE
+# concurrency slot forever, which silently stops the digest, the health email, every
+# transcode and every later backup -- the T-MON-1 silence the scheduler exists to break,
+# caused by the scheduler. Generous enough for a real family archive on slow disks; the
+# timeout is recorded and mailed like any other failure.
+DUMP_TIMEOUT_SECONDS = 6 * 60 * 60
+
 
 class BackupError(Exception):
     """A backup or restore step failed; the caller should surface it loudly."""
@@ -138,24 +146,32 @@ def write_backup(destination: IO[bytes]) -> None:
     dump_user, dump_env = _dump_credentials()
     with tempfile.TemporaryDirectory() as workdir:
         dump_path = Path(workdir) / DB_DUMP_NAME
-        result = subprocess.run(  # noqa: S603  # fixed argv, never a shell
-            [
-                "pg_dump",
-                "-h",
-                dsn["host"],
-                "-p",
-                dsn["port"],
-                "-U",
-                dump_user,
-                "-Fc",
-                "-f",
-                str(dump_path),
-                dsn["name"],
-            ],
-            env=dump_env,
-            capture_output=True,
-            text=True,
-        )
+        try:
+            result = subprocess.run(  # noqa: S603  # fixed argv, never a shell
+                [
+                    "pg_dump",
+                    "-h",
+                    dsn["host"],
+                    "-p",
+                    dsn["port"],
+                    "-U",
+                    dump_user,
+                    "-Fc",
+                    "-f",
+                    str(dump_path),
+                    dsn["name"],
+                ],
+                env=dump_env,
+                capture_output=True,
+                text=True,
+                timeout=DUMP_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise BackupError(
+                f"pg_dump did not finish within {DUMP_TIMEOUT_SECONDS // 3600} hours and was "
+                "killed. The worker runs one job at a time, so a dump that hangs takes the "
+                "digest, the health email and every transcode down with it."
+            ) from exc
         if result.returncode != 0:
             raise BackupError(f"pg_dump failed: {result.stderr.strip()[:300]}")
 

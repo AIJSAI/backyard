@@ -164,7 +164,21 @@ services:
       # POSTGRES_MIGRATOR_PASSWORD. The worker runs ffmpeg over member-uploaded video and
       # must never hold DDL credentials (TS-CO-3, TS-CO-7); the dump runs as the app role,
       # which ADR-004 already lets read every table (core/backups._dump_credentials).
+      #
+      # And the COST of putting the passphrase here, stated rather than implied: this is the
+      # container that runs ffmpeg on hostile bytes, and it also mounts the volume the
+      # ciphertext lives on. A decode RCE now yields the passphrase (PID 1's environ, same
+      # uid) AND every archive, including the copies taken off the box — the whole of
+      # T-BACKUP-1's confidentiality. Parser children already get an allowlisted env
+      # (TS-CO-5), so this is a /proc read after an RCE, not an inherited variable.
+      # BACKYARD_BACKUP_PASSPHRASE_FILE (a 0600 key mounted read-only) keeps it out of
+      # `docker inspect` and out of the process environment; prefer it on a real instance.
       BACKYARD_BACKUP_PASSPHRASE: ${BACKYARD_BACKUP_PASSPHRASE:-}
+      # The keyfile path INSIDE the container, for an operator who followed the self-host
+      # guide's tighter recommendation and mounted a 0600 key instead of putting the
+      # passphrase in the environment. Without it the nightly backup has no passphrase and
+      # refuses every night. Mount the key read-only, and never onto /data.
+      BACKYARD_BACKUP_PASSPHRASE_FILE: ${BACKYARD_BACKUP_PASSPHRASE_FILE:-}
       POSTGRES_DB: ${POSTGRES_DB:-backyard}
       POSTGRES_USER: backyard_app
       POSTGRES_PASSWORD: ${POSTGRES_APP_PASSWORD:?set POSTGRES_APP_PASSWORD in .env, see .env.example}
@@ -172,14 +186,23 @@ services:
     volumes:
       - appdata:/data
     healthcheck:
-      # The worker serves nothing, so there is no port to probe: ask Procrastinate's own CLI
-      # whether it can reach its queue. That is the worker's actual job, and a worker that
-      # cannot see the queue is the failure this whole change exists for — it silently stops
-      # the backup, the digest and the health email that would have reported either.
-      # DJANGO_SECRET_KEY lives in PID 1's environment only (the entrypoint reads it from the
-      # volume), and a healthcheck is a fresh process, so it reads the same file.
+      # What this proves, exactly: that a process in THIS container can reach the database
+      # and sees the Procrastinate schema. That catches the common worker failures -- a
+      # wrong DSN, a network split, an unmigrated schema -- and the container dying is
+      # already covered by `restart: unless-stopped`.
+      #
+      # What it does NOT prove: that the worker LOOP is consuming jobs. This check runs in a
+      # fresh process, so a wedged worker (a deadlocked job, a hung dump holding the single
+      # slot) still reports healthy. The alarm for that case is outside the box: the backup
+      # ages past STALE_BACKUP_DAYS, /healthz goes degraded and monitor.yml mails the owner.
+      # A real liveness signal would be a worker heartbeat row compared against now().
+      #
+      # DJANGO_SECRET_KEY lives in PID 1's environment only (the entrypoint reads it from
+      # the volume), and a healthcheck is a fresh process, so it reads the same file.
       test: ["CMD-SHELL", "DJANGO_SECRET_KEY=\"$$(cat /data/secret_key)\" python manage.py procrastinate healthchecks"]
-      interval: 60s
+      # 120s, not 60s: each run is a full Django boot plus a migration-graph load inside the
+      # container that also runs ffmpeg under a 1500m ceiling.
+      interval: 120s
       timeout: 20s
       retries: 3
       # web must have migrated the Procrastinate schema before this can pass.

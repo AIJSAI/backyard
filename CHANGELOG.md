@@ -13,20 +13,31 @@ a point somebody deliberately stopped at, with a full green gate behind it.
 
 - **The instance backs itself up.** `backup_instance` shipped with nothing running it, so
   an instance holding a family's photographs had a documented backup command and no
-  backups. The worker now takes an encrypted archive nightly at 03:30, keeps 14 daily and
-  8 weekly, and deletes only archives it wrote itself. With no passphrase configured it
-  writes nothing at all rather than falling back to plaintext.
+  backups. The worker now takes an encrypted archive nightly at 03:30 UTC, keeps the last
+  14 days plus the newest archive of each of the last 8 ISO weeks (the two windows overlap,
+  so about eight weeks of history in total), and deletes only archives it wrote itself.
+  With no passphrase configured it writes nothing at all rather than falling back to
+  plaintext. The passphrase can come from `BACKYARD_BACKUP_PASSPHRASE_FILE`, a keyfile
+  mounted read-only, which is what the self-host guide recommends over the environment
+  variable. The run refuses a night that would fill the data volume rather than writing
+  until the disk is full, and a `pg_dump` that hangs is killed after six hours instead of
+  holding the worker's one job slot forever.
 - **A failing backup is now distinguishable from an old one.** The weekly health email and
   the health surface carry the reason the last scheduled run failed, instead of a
-  "last backup" date that reads the same whether the backup ran or refused to.
+  "last backup" date that reads the same whether the backup ran or refused to. It reads the
+  archives the scheduler wrote, so taking one backup by hand does not report a still-dead
+  nightly job as working.
 - **Days until the TLS certificate expires**, in the health email. Renewal is automatic and
   silent, and so is its failure; an expired certificate is a full-page browser warning for
-  every relative at once.
+  every relative at once. A check that has never succeeded reports why, which is the
+  difference between a broken certificate and one this box cannot reach from the inside.
 - **Container healthchecks for web, worker and caddy.** Only the database had one.
 - **A monitor that does not live on the monitored box** (`.github/workflows/monitor.yml`):
   every 30 minutes it checks the health endpoint and the certificate, and fails so GitHub
   emails the owner. Every other watcher the instance has is a worker periodic, so a dead
-  worker silenced its own alarm.
+  worker silenced its own alarm. An unreachable instance fails every run; a `degraded` one
+  fails once a day, because a condition that persists would otherwise send 48 identical
+  e-mails a day until the owner muted the repository and lost the outage alarm with it.
 
 ### Changed
 

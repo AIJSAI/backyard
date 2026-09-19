@@ -260,6 +260,13 @@ MEDIA_ROOT = os.environ.get("MEDIA_ROOT", "/data/media")
 # same shape as MEDIA_ROOT above, for an operator who mounts a second volume; tests point it
 # at a temp dir (conftest) so a test run can never write an archive into /data.
 BACKUP_ROOT = os.environ.get("BACKUP_ROOT", "/data/backups")
+# The keyfile the nightly backup reads its passphrase from (S-802, S-806). The self-host
+# guide recommends a keyfile OVER the env var -- the env value is visible to `docker
+# inspect` -- and without this the RECOMMENDED configuration makes the nightly run fail
+# every night: `backup_instance` takes a keyfile only as a command-line flag, and a
+# periodic task is nobody's command line. Mount it read-only and NEVER onto /data: a key
+# beside the ciphertext buys nothing (T-BACKUP-1).
+BACKUP_PASSPHRASE_FILE = os.environ.get("BACKYARD_BACKUP_PASSPHRASE_FILE", "")
 # Belt for TS-CA-4 at the application layer (the Caddy body cap is the edge control):
 # bound the number of files in one upload. Per-file size is checked in the upload view.
 #
@@ -397,6 +404,21 @@ SECURE_REFERRER_POLICY = "same-origin"
 WHITENOISE_ALLOW_ALL_ORIGINS = False
 
 CSRF_TRUSTED_ORIGINS = [BASE_URL]
+# The one path the https redirect below must never touch. The container healthchecks (web's
+# urlopen, caddy's wget through the prod :8000 block) reach gunicorn over plain HTTP inside
+# the compose network, where there is no TLS to redirect TO: the 301 points at
+# https://127.0.0.1:8000, which is a plain-HTTP listener, the probe errors, and web and caddy
+# report `unhealthy` forever on every https deployment while passing in the local http repro
+# -- the one stack CI boots. Measured: with an https BACKYARD_BASE_URL, GET /healthz answers
+# 301 -> https://127.0.0.1/healthz. Exempting it costs nothing: the endpoint tells a stranger
+# only `ok` or `degraded`, and it is unreachable over plain HTTP from outside the compose
+# network (web publishes no port, Caddy's :80 redirects, and the prod :8000 block is never
+# published).
+#
+# Set OUTSIDE the `if _HTTPS:` block on purpose, even though it only bites when
+# SECURE_SSL_REDIRECT is on: the http repro is where this defect hid, so a test there has to
+# be able to prove the pairing by flipping SECURE_SSL_REDIRECT alone.
+SECURE_REDIRECT_EXEMPT = [r"^healthz$"]
 if _HTTPS:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
@@ -410,4 +432,6 @@ if _HTTPS:
     # web container publishes no host port, so a client cannot reach Django directly to
     # spoof it. A future compose that exposes web's port must revisit this (TM-8).
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    # ...but never for /healthz, which SECURE_REDIRECT_EXEMPT above holds out of this
+    # redirect. Read that comment before changing either line: the two are one control.
     SECURE_SSL_REDIRECT = True

@@ -21,16 +21,16 @@ from __future__ import annotations
 import datetime
 import logging
 import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
 from django.conf import settings
 from django.core.management import call_command
-from django.core.management.base import CommandError
 from django.db import DatabaseError
 from django.utils import timezone
 
-from .models import BackupFailure
+from .models import BackupFailure, BackupRun
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,15 @@ KEEP_WEEKLY = 8
 # Enough failures to see a pattern ("every night since Tuesday"), not so many that a broken
 # instance grows an unbounded table. The health email reads only the newest one.
 KEEP_FAILURES = 20
+
+# Refuse a run that would fill the volume the family's photographs live on. Each archive is
+# a FULL copy of the media tree plus the database, and up to KEEP_DAILY + KEEP_WEEKLY of
+# them accumulate beside the originals: 10 GB of photos becomes ~200 GB of archives here.
+# Writing until ENOSPC is the one failure this module must never cause -- a full /data stops
+# uploads, and by default pgdata shares the same host filesystem, so it stops Postgres too.
+# A refusal is recorded, mailed and visible at /healthz like any other failure, which makes
+# it a loud "grow the disk", not a silent stop.
+HEADROOM_MULTIPLE = 2  # room for tonight's archive and the staged copy the command makes
 
 
 class ScheduledBackupFailed(Exception):
@@ -80,12 +89,32 @@ def run(now: datetime.datetime | None = None) -> ScheduledBackupResult:
     destination = archive_path(timezone.localtime(now).date())
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)
+        _require_headroom(destination.parent)
+        options: dict[str, str] = {}
+        if settings.BACKUP_PASSPHRASE_FILE:
+            # The operator who followed the guide's tighter recommendation has no
+            # BACKYARD_BACKUP_PASSPHRASE set at all; without this the nightly run refuses
+            # every night on a correctly-configured instance.
+            options["passphrase_file"] = settings.BACKUP_PASSPHRASE_FILE
         # No --no-encrypt, ever: the command refuses to write plaintext without it, and
         # that refusal is the control. It also verifies the archive decrypts before it
         # renames it into place, so what lands here is an archive that has been opened.
-        call_command("backup_instance", str(destination))
-    except (CommandError, OSError) as exc:
+        call_command("backup_instance", str(destination), **options)
+    except ScheduledBackupFailed as exc:
+        # Our own refusal (the headroom guard). Its message is already the sentence the
+        # operator should read, so it is recorded verbatim rather than wrapped in its own
+        # class name by the broad handler below.
         _record_failure(str(exc))
+        raise
+    except Exception as exc:  # noqa: BLE001  # every failure must reach the email and /healthz
+        # Deliberately broad, and this is the one place it is right. The point of this
+        # module is that a night without an archive is LOUD and carries its REASON to the
+        # weekly email and /healthz. An exception class nobody predicted -- a tarfile error
+        # mid-archive, a bug in the command -- would otherwise leave "Scheduled backup: no
+        # failures recorded" on the surface whose whole job is to contradict that, for the
+        # eight days it takes "Last backup" to age out. The type name is kept so the email
+        # says what happened rather than only that something did.
+        _record_failure(f"{type(exc).__name__}: {exc}")
         raise ScheduledBackupFailed(str(exc)) from exc
     # Pruning is deliberately AFTER a successful write: a failing backup must never be the
     # thing that deletes the last good one.
@@ -94,6 +123,35 @@ def run(now: datetime.datetime | None = None) -> ScheduledBackupResult:
         byte_count=destination.stat().st_size,
         pruned=prune(destination.parent),
     )
+
+
+def _require_headroom(directory: Path) -> None:
+    """Raise unless tonight's archive fits without filling the volume.
+
+    Sized from the LAST archive, which is the only honest estimate the instance has. On an
+    instance that has never taken one there is nothing to measure and the run proceeds.
+    """
+    last = BackupRun.objects.order_by("-finished_at").first()
+    expected = last.byte_count if last is not None else 0
+    free = shutil.disk_usage(directory).free
+    if expected and free < expected * HEADROOM_MULTIPLE:
+        raise ScheduledBackupFailed(
+            f"refusing tonight's backup: {free // 1024**3} GB free on the data volume and "
+            f"the last archive was {expected // 1024**3} GB. Copy older archives off the box "
+            "or grow the volume (docs/runbooks/backup-restore.md). Filling this volume would "
+            "stop uploads and the database, which is worse than one missed night."
+        )
+
+
+def newest_archive_day(directory: Path | None = None) -> datetime.date | None:
+    """The date of the newest archive the SCHEDULER wrote, or None.
+
+    The health surface asks this rather than BackupRun, because a hand-run
+    `backup_instance` writes a BackupRun row too -- so BackupRun cannot answer "is the
+    NIGHTLY job working", which is the question the field exists for.
+    """
+    root = directory or Path(settings.BACKUP_ROOT)
+    return max((day for day, _path in _archives(root)), default=None)
 
 
 def prune(

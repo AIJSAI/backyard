@@ -31,6 +31,7 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.utils import timezone
 
+from . import scheduled_backup
 from .models import BackupFailure, BackupRun, CertificateStatus, DomainStatus
 
 # What a field looks like when the app cannot answer it. Deliberately loud: an operator
@@ -97,23 +98,24 @@ def _last_backup_field(now: datetime.datetime) -> Field:
 
 
 def _scheduled_backup_field(now: datetime.datetime) -> Field:
-    """Whether the nightly backup is WORKING, which "last backup" alone cannot say.
+    """Whether the NIGHTLY backup is WORKING, which "last backup" alone cannot say.
 
     A backup that ran two days ago and a backup that has been refusing to run for two days
-    produce the same "Last backup" line, and the second one is the emergency. This reads the
-    failure the scheduled run recorded and compares it against the newest success.
+    produce the same "Last backup" line, and the second one is the emergency. The newest
+    failure is compared against the newest SCHEDULED ARCHIVE on the volume, never against
+    BackupRun: any hand-run `backup_instance` writes one of those, so an operator who
+    answered this very alarm by taking one manual backup would otherwise flip the line to
+    "working" and /healthz back to `ok` with the scheduler still dead.
     """
     failure = BackupFailure.objects.order_by("-occurred_at").first()
     if failure is None:
         return Field("Scheduled backup", "no failures recorded")
-    last_success = BackupRun.objects.order_by("-finished_at").first()
-    if last_success is not None and last_success.finished_at >= failure.occurred_at:
-        days = max(0, (now - failure.occurred_at).days)
-        when = "today" if days == 0 else f"{days} day{'s' if days != 1 else ''} ago"
-        return Field("Scheduled backup", f"working; last failure {when}")
     days = max(0, (now - failure.occurred_at).days)
-    since = "today" if days == 0 else f"{days} day{'s' if days != 1 else ''} ago"
-    return Field("Scheduled backup", f"FAILING since {since} — {failure.error}", alarming=True)
+    when = "today" if days == 0 else f"{days} day{'s' if days != 1 else ''} ago"
+    newest = scheduled_backup.newest_archive_day()
+    if newest is not None and newest >= timezone.localtime(failure.occurred_at).date():
+        return Field("Scheduled backup", f"working; last failure {when}")
+    return Field("Scheduled backup", f"FAILING since {when} — {failure.error}", alarming=True)
 
 
 def _measurable_path() -> pathlib.Path:
@@ -198,7 +200,12 @@ def _certificate_field(now: datetime.datetime) -> Field:
         )
     status = CertificateStatus.objects.filter(domain=instance_domain()).first()
     if status is None or status.checked_at is None:
-        return Field("TLS certificate", f"{NOT_MEASURED} — no successful check yet", True)
+        # The REASON, when there is one. A check that has never succeeded still recorded why
+        # it failed, and "no successful check yet" alone cannot distinguish a certificate
+        # that is broken from one this box simply cannot reach from the inside (a NAT
+        # without hairpinning), which are different jobs for the operator.
+        reason = status.error if status is not None and status.error else "no successful check yet"
+        return Field("TLS certificate", f"{NOT_MEASURED} — {reason}", True)
     if status.expires_at is None:
         return Field("TLS certificate", f"{NOT_MEASURED} — {status.error or 'check failed'}", True)
     days = (status.expires_at - now).days

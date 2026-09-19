@@ -77,7 +77,18 @@ jobs:
               echo "no backup has ever completed, the nightly backup is failing, the disk is"
               echo "nearly full, or the TLS certificate is nearly expired. Sign in as the"
               echo "instance admin and open /healthz, or read the weekly health email."
-              exit 1
+              # Degraded PERSISTS -- an instance with no backup passphrase is degraded every
+              # half hour forever -- so failing on all 48 runs a day would put 48 identical
+              # e-mails in the owner's inbox, and the reliable outcome of that is a muted
+              # repository, which silences the UNREACHABLE alarm too. A degraded instance
+              # therefore fails ONCE a day, on the first run after 07:00 UTC, and is logged
+              # the rest of the time. Unreachable still fails every run: that one is an
+              # outage, not a condition.
+              if [ "$(date -u +%H)" = "07" ] && [ "$(date -u +%M)" -lt 30 ]; then
+                exit 1
+              fi
+              echo "(logged only -- the 07:0x UTC run is the one that e-mails.)"
+              exit 0
               ;;
             *)
               echo "UNEXPECTED: the health endpoint answered something this check does not"

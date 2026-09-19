@@ -57,7 +57,9 @@ every boot.** That warning is the fix working, not a cosmetic nag. Read access t
 
 ## The nightly backup
 
-The worker takes one at **03:30 every day** (`core/tasks.scheduled_backup_task`),
+The worker takes one at **03:30 UTC every day** (`core/tasks.scheduled_backup_task`) —
+the schedule is UTC because the instance is (`TIME_ZONE = "UTC"`), so work out what that
+is where you live before you go looking for last night's archive. It runs
 through the same `backup_instance` command this runbook documents — there is no
 second backup implementation to drift.
 
@@ -67,6 +69,13 @@ second backup implementation to drift.
 - **Encrypted, or nothing.** The nightly run never passes `--no-encrypt`, so with
   no passphrase set it writes **no archive at all** and records the reason. It
   does not fall back to plaintext.
+- **If you use a keyfile instead of `.env`,** set `BACKYARD_BACKUP_PASSPHRASE_FILE` to
+  the in-container path of the mounted key (and mount it on the **worker** as well as
+  web). The nightly run has no command line to pass `--passphrase-file` on, so without
+  that variable it refuses every night.
+- **It refuses rather than fills the disk.** If the volume does not hold roughly twice
+  the last archive, the run records that and stops. An archive is a full copy of the
+  media tree, and filling `/data` stops uploads and the database too.
 - **Retention:** the last 14 days, plus the newest archive of each of the last 8
   ISO weeks. Only files named `scheduled-*.bak` are ever deleted — your own
   archives and the entrypoint's `preflight-*` dumps are not candidates.
@@ -115,8 +124,17 @@ lives, outside the containers. The archives are in the `appdata` volume under
 # Where the archives actually are on this host:
 docker volume inspect backyard_appdata --format '{{ .Mountpoint }}'
 
-# Then, in the host's crontab (04:30, an hour after the instance writes one):
-# 30 4 * * * rsync -a --delete <that path>/backups/ <your-backup-host>:/srv/backyard/
+# Then, in the host's crontab. Mind the clocks: the instance writes at 03:30 UTC and cron
+# runs in the HOST's timezone, so pick an hour comfortably after 03:30 UTC where you are.
+#
+# Copy ONLY the scheduled archives, which are always encrypted. `preflight-*.dump` sits in
+# the same directory and is PLAINTEXT whenever no passphrase is set (the entrypoint says so
+# on every boot) -- a wildcard here would ship the entire family database in the clear.
+#
+# And no `--delete`: an off-box copy that mirrors deletions is not a backup against the
+# things it exists for. A mistaken `rm`, a retention bug or ransomware on the box would be
+# replicated to the copy within the hour. Prune the far side by hand, deliberately.
+# 30 9 * * * rsync -a --include='scheduled-*.bak' --exclude='*' <that path>/backups/ <your-backup-host>:/srv/backyard/
 ```
 
 The health email's "Off-box backup age" line still reads NOT MEASURED, and it
