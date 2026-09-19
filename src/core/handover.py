@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import io
 import secrets
+from urllib.parse import urlsplit
 
 import qrcode  # type: ignore[import-untyped]  # qrcode ships no stubs
 import qrcode.image.svg  # type: ignore[import-untyped]
@@ -63,12 +64,24 @@ def qr_svg(url: str) -> str:
 
 
 def link_artifacts(link: str) -> dict[str, object]:
-    """The two hand-over values every mint surface shows once — the one-time link and
-    its inline printable QR — so a caller merges them into its template context. The
-    ``mark_safe`` on the QR lives ONLY here: its sole input is our CSPRNG token inside the
-    configured BASE_URL, rendered as qrcode's own path geometry, never reflected user text,
-    so the S308 justification is centralised in one auditable place."""
-    return {"minted_link": link, "qr_svg": mark_safe(qr_svg(link))}  # noqa: S308  # nosec
+    """The hand-over values every mint surface shows once — the one-time link, its inline
+    printable QR, and the host that link actually opens at — so a caller merges them into
+    its template context. The ``mark_safe`` on the QR lives ONLY here: its sole input is our
+    CSPRNG token inside the configured BASE_URL, rendered as qrcode's own path geometry,
+    never reflected user text, so the S308 justification is centralised in one auditable
+    place.
+
+    ``link_host`` is read back off the minted link rather than off settings, so what the
+    page states is what was actually put in the QR. It is the only feedback an admin gets
+    that BACKYARD_BASE_URL is right: every link here is built from it, a wrong value mints
+    a link that looks perfectly normal, and the failure lands on whoever was texted it.
+    The netloc, not the bare hostname — the port is what was wrong on the design walk.
+    """
+    return {
+        "minted_link": link,
+        "link_host": urlsplit(link).netloc,
+        "qr_svg": mark_safe(qr_svg(link)),  # noqa: S308  # nosec
+    }
 
 
 def fresh_intent(request: HttpRequest, key: str) -> str:

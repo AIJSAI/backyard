@@ -13,6 +13,30 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
+### Fixed
+
+- **Regenerating a grandparent's link revoked every outstanding household invite on their
+  side of the family.** Inviting a household and handing out a no-login elder link are the
+  two things a new admin does in the same sitting, and doing them in that order silently
+  killed the first: the invite showed as revoked, its Revoke button disappeared, and the
+  family who had already been texted the link got "There's nothing at this address." Nobody
+  was told. Revoking those invites is right when a member is being REMOVED — it is how a
+  removed ex is kept from walking back in through somebody else's invite — and wrong when
+  the person is still here and only their own link is being replaced. Removal is unchanged;
+  regeneration now leaves the invites alone, and still kills everything the member actually
+  holds: the old link, their sessions, their digest links and their reply-by-email
+  addresses.
+- **Every link the app hands out is built from one setting, and a wrong value was
+  invisible.** `BACKYARD_BASE_URL` is what every invite, elder link and digest link is built
+  from. Left unset or stale, all of them still look perfectly normal on the screen that
+  mints them — and every single one is dead for whoever receives it, with nothing in the app
+  saying so. Two changes: an instance configured to serve a real domain now refuses to start
+  until the variable is set, naming it in the error (a purely local instance and the
+  production overlay, which derives the value from `BACKYARD_DOMAIN`, are unaffected); and
+  every page that mints a link now says, under it, "This link opens at &lt;host&gt;." — so a
+  wrong address is caught by the person handing the link over, not by the grandmother who
+  was texted it.
+
 ### Security
 
 - **Django 5.2.17 and sqlparse 0.6.0.** Ten advisories across the two, and the `deps` gate —

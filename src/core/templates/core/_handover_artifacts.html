@@ -5,16 +5,24 @@ link (S-104), the new-elder flow (S-213), and invite resend. The link is a CSPRN
 bearer credential shown exactly once, so every page that includes this carries the
 TM-5 no-store/no-referrer/noindex headers.
 
-Caller passes: handover_link (the URL), handover_qr (the mark_safe'd inline SVG), and
-optionally handover_label / handover_share_title / handover_note. Copy and Share are a
-progressive enhancement: without JS (or on a browser lacking the APIs) the readonly
-field is still selectable and the QR still scannable, so the flow never depends on them.
+Caller passes: handover_link (the URL), handover_qr (the mark_safe'd inline SVG),
+handover_host (the host that link opens at), and optionally handover_label /
+handover_share_title / handover_note. Copy and Share are a progressive enhancement:
+without JS (or on a browser lacking the APIs) the readonly field is still selectable and
+the QR still scannable, so the flow never depends on them.
+
+The host line under the field is the one check an admin can make before handing the link
+over. Every link on this page is built from BACKYARD_BASE_URL; if that is unset or stale
+the link still looks entirely normal here, and the first person to find out is whoever
+was texted it. Naming the host in plain words turns that into something readable at a
+glance -- "that's not our address" -- by someone who knows nothing about the setup.
 {% endcomment %}
 <div class="handover">
   <p>
     <input type="text" readonly value="{{ handover_link }}" style="width:100%"
            aria-label="{{ handover_label|default:'Link to hand over' }}" data-handover-link>
   </p>
+  {% if handover_host %}<p class="muted">This link opens at {{ handover_host }}.</p>{% endif %}
   <p class="handover-actions">
     <button type="button" data-handover-copy hidden>Copy link</button>
     <button type="button" data-handover-share hidden

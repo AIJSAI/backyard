@@ -15,7 +15,7 @@
   {% if minted_link %}
     <h2>Elder link ready to hand over</h2>
     <p>For <strong>{{ elder_name }}</strong> in <strong>{{ yard_name }}</strong>.</p>
-    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_label="Elder link" handover_share_title="Your family on Backyard" handover_note="Hand it over in person or by a private message, or print this page for the QR. It appears only once." %}
+    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="Elder link" handover_share_title="Your family on Backyard" handover_note="Hand it over in person or by a private message, or print this page for the QR. It appears only once." %}
   {% endif %}
 
   <form method="post" action="{% url 'new_elder' %}">

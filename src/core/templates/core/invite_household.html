@@ -14,7 +14,7 @@
     <h2>Link ready to hand over</h2>
     <p>For the <strong>{{ household_name }}</strong> household in <strong>{{ yard_name }}</strong>.
     It works for up to {{ max_uses }} people and expires {{ expires_at|date:"M j, Y" }}.</p>
-    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_label="Invite link" handover_share_title="Join our family on Backyard" %}
+    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="Invite link" handover_share_title="Join our family on Backyard" %}
   {% endif %}
 
   <form method="post" action="{% url 'invite_household' %}">

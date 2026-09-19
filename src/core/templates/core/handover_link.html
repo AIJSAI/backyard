@@ -8,5 +8,5 @@
   works until it expires or you revoke it, so hand over whichever you like. It works for up to
   {{ max_uses }} people and expires {{ expires_at|date:"M j, Y" }}.</p>
 
-  {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_label="Invite link" handover_share_title="Join our family on Backyard" %}
+  {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="Invite link" handover_share_title="Join our family on Backyard" %}
 {% endblock %}
