@@ -233,7 +233,11 @@ cleanly and watches nothing.
 persists — a nightly backup that has been refusing for a week — would send 48 identical
 e-mails a day, and the reliable end of that is a muted repository and no alarm at all. It
 opens **one issue** instead, labelled `monitor-alarm` and titled "Backyard needs
-attention", which mentions the repository owner and therefore e-mails you once. While the
+attention", and sends you one e-mail of its own — the mention in that issue is a GitHub
+notification, which measurably does not reach a mailbox on its own, so the monitor mails
+the alarm itself from outside the box (three repository secrets arm that half; see
+[the outside monitor in self-host.md](self-host.md#the-monitor-that-runs-outside-the-box)).
+While the
 problem lasts, later runs add a comment to that same issue **at most once a day**. When the
 instance is well again the monitor comments "Recovered" and closes it, so *no open
 `monitor-alarm` issue* is the all-clear. The check run itself goes red only when the alarm

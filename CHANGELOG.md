@@ -13,7 +13,22 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
-Nothing yet.
+### Fixed
+
+- **The outside monitor's alarm reached nobody's inbox.** It raised the alarm by opening an
+  issue that mentions the repository owner, on the assumption that the mention e-mails them.
+  Rehearsed on the live setup: the issue opened, the monitor closed it on recovery, GitHub
+  recorded a `mention` notification, and no mail arrived — whether a notification becomes
+  e-mail is a setting on the account, and the instance's own weekly health email cannot
+  cover the case, because a box that is down sends nothing. The monitor now sends the mail
+  itself, through Resend, from GitHub's runner rather than from the instance, on the two
+  state changes only: once when a new alarm issue is opened, and once when it closes on
+  recovery. The daily reminder comment still mails nothing, and the issue remains the
+  durable record and the throttle. Three repository secrets arm it
+  (`MONITOR_RESEND_API_KEY`, `MONITOR_ALERT_TO`, `MONITOR_ALERT_FROM`); with any of them
+  unset the workflow behaves exactly as before and says so in one line. See
+  [the outside monitor](docs/runbooks/self-host.md#the-monitor-that-runs-outside-the-box)
+  for how to set and rehearse them.
 
 ## [0.1.4] — 2026-09-19
 
