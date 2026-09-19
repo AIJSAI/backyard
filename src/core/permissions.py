@@ -2,9 +2,9 @@
 
 The scoping guard (core/scoping.py) answers "what may this member READ". This
 module answers "what may this member DO to another member": remove them, create a
-supervised account, change a role. It is the mandatory path for those grants, the
-same way the guard is mandatory for reads (S-701 hardening), and the isolation
-suite enumerates it.
+supervised account, change a role, move them between households. It is the mandatory
+path for those grants, the same way the guard is mandatory for reads (S-701 hardening),
+and the isolation suite enumerates it.
 
 The role ladder, least to most: supervised, member, pod_owner, yard_admin,
 instance_admin. The load-bearing rules from S-701 and TM-10:
@@ -174,6 +174,69 @@ def can_assign_role(actor: Member, target: Member, new_role: str) -> bool:
     if new_role in _GRANTABLE_ONLY_BY_INSTANCE_ADMIN:
         return is_instance_admin(actor)
     return True
+
+
+def can_change_household(actor: Member, target: Member) -> bool:
+    """May `actor` move `target` between households at all — the PERSON half of the act?
+
+    SELF IS THE FIRST BRANCH, and only for the instance admin. The lone owner of a
+    self-hosted instance standing up the second side of the family and putting himself in
+    it is the ORDINARY case, not the attack: he already holds every side through
+    `can_issue_invite`, already administers every member through `administrable_members`,
+    and could already mint a household there and redeem his own invite into it — so the
+    refusal bought a shell session, not a boundary. Yard isolation is a MEMBER-level
+    promise, and T-OP-G1 already discloses that the instance admin sits above it rather
+    than pretending otherwise. The act stays deliberate and accountable either way: the
+    confirm step names the sides he is about to start seeing, and the `HouseholdChange` row
+    records that he did it to himself.
+
+    A yard admin is a different person in this threat model and still may not act on
+    themselves. Their authority is BOUNDED BY their own sides, so a self-seat is exactly
+    the widening T-AUTH-G2 forbids — and the branch tests `is_instance_admin`, not
+    `is_admin`, so that distinction cannot erode.
+
+    The branch is local to this predicate on purpose. `can_manage_member` keeps denying
+    self for everybody, because removal and re-roling are a different authority and must
+    keep coming from above.
+
+    Everything else is `can_manage_member` plus `is_admin`, and neither half is redundant:
+    `can_manage_member` alone is True for a managing parent of ANY role (TM-10), which is
+    right for editing their child's profile and wrong here, because placing somebody in a
+    household grants a side of the family's whole feed, directory and photographs.
+
+    The yard-subset rule is RE-ASKED here rather than inherited, because that same custody
+    branch returns True for a managing parent before the subset test runs. A yard-A admin
+    whose own supervised child also belongs to a household in yard B could otherwise take
+    that child out of a yard-A household, and the shrink's revocation resolves its scope
+    from the child's LIVE memberships — reaching into yard B. Below the instance admin,
+    every target of this act is inside the actor's own yards.
+    """
+    if actor.pk == target.pk:
+        return is_instance_admin(actor)
+    if not (is_admin(actor) and can_manage_member(actor, target)):
+        return False
+    return is_instance_admin(actor) or _target_within_actor_scope(actor, target)
+
+
+def can_change_household_membership(actor: Member, target: Member, pod: Pod) -> bool:
+    """The whole act: may `actor` add `target` to `pod`, or take them out of it?
+
+    The POD half is `can_issue_invite`, which is the same authority asked in the same
+    direction — "may this admin put a person into this household" — and already carries the
+    non-vacuous subset rule a yard admin needs (every one of the pod's sides must be inside
+    their own, and a pod in no side is nobody's to fill). Reusing it rather than writing a
+    third yard-subset comparison is the point: the two surfaces that place people into a
+    household now answer to one predicate and cannot drift apart.
+
+    Households only. An ad-hoc group is a member's own to make, join and leave (S-204,
+    S-205); `permissions.py` reads no role for any ad-hoc capability, and giving admins one
+    here would be a new power over a private group rather than a household fix.
+    """
+    return (
+        pod.kind == Pod.HOUSEHOLD
+        and can_change_household(actor, target)
+        and can_issue_invite(actor, pod)
+    )
 
 
 def can_issue_invite(actor: Member, pod: Pod) -> bool:
