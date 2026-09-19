@@ -15,8 +15,8 @@ name: monitor
 #
 # So the alarm is an ISSUE, and it is idempotent. Every run checks BOTH halves (the health
 # endpoint and the certificate) and collects what it finds. Problems open ONE issue labelled
-# `monitor-alarm` -- the durable record, and the throttle -- and later
-# runs add a comment to that same issue at most once a day rather than opening another. When
+# `monitor-alarm` -- the durable record, and the throttle -- and later runs add a comment to
+# that same issue at most once a day rather than opening another. When
 # everything is well again the issue is commented and closed, so the absence of an open
 # `monitor-alarm` issue is itself the "all clear". The job then EXITS 0: a red check run is
 # reserved for the alarm mechanism failing, because an alarm that cannot alarm is the one

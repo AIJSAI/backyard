@@ -495,6 +495,71 @@ into content access. Caddy is configured to log nothing at all for the same reas
 The one thing worth a cron job is **disk**. Photos and videos accumulate, and a full disk
 stops uploads, backups and transcoding at once.
 
+### The monitor that runs outside the box
+
+Everything above runs *on* the instance, which means none of it speaks when the instance is
+the thing that is wrong. `.github/workflows/monitor.yml` runs on GitHub's infrastructure
+every 30 minutes and asks two questions from the outside: does `/healthz` answer, and how
+many days are left on the TLS certificate. Point the repository variable
+`BACKYARD_MONITOR_URL` (Settings → Secrets and variables → Actions → Variables) at your
+instance's health URL to arm it; unset, it exits cleanly and watches nothing. What it finds
+goes into **one** issue labelled `monitor-alarm` — the durable record, and the throttle that
+keeps a week-long problem from becoming 48 messages a day — and the monitor closes that
+issue itself when the instance is well again.
+
+**It sends the e-mail itself, and it has to.** The issue mentions the repository owner, but
+a mention is a GitHub *notification*, and whether a notification becomes mail is a setting
+on that account. Rehearsed here: the issue opened, the monitor closed it on recovery,
+GitHub recorded the mention — and no mail arrived, so "the instance is down" reached nobody.
+The weekly health email cannot cover that case either, because a box that is down sends
+nothing. So the monitor posts the alarm to Resend from the runner, outside the box, on the
+two state **changes** only: once when a new alarm issue is opened (subject "Backyard needs
+attention") and once when it closes on recovery ("Backyard is well again"). The daily
+reminder comment mails nothing — that is what the issue is for.
+
+Three repository **secrets** arm that half. Secrets rather than variables: two of them are
+mailbox addresses, and a variable is readable by anyone who can see a public repository.
+
+| Secret | What to put in it |
+| --- | --- |
+| `MONITOR_RESEND_API_KEY` | A Resend API key with **sending permission only**, restricted to the mail domain you verified for this instance. Not your account-wide key — this one lives on GitHub, and all it ever does is send one message to one address. |
+| `MONITOR_ALERT_TO` | Where the alarm goes: your own mailbox, not the family's. |
+| `MONITOR_ALERT_FROM` | The sender, on that same verified mail domain (for example `monitor@example.com`). |
+
+Set them with the GitHub CLI, from a checkout of your own fork. Each command prompts for the
+value, so nothing lands in your shell history:
+
+```bash
+gh secret set MONITOR_RESEND_API_KEY
+gh secret set MONITOR_ALERT_TO
+gh secret set MONITOR_ALERT_FROM
+```
+
+With any of the three unset, the workflow behaves exactly as it did before the e-mail leg
+existed and prints one line naming what to set. Nothing it prints names the key, either
+address, the monitored host, or Resend's reply — only `alert e-mail sent (HTTP 200)` or
+`alert e-mail FAILED (HTTP <code>)`. That matters because the Actions log of a public
+repository is world-readable, and an alarm that could not be delivered is the one case that
+turns the run red.
+
+**Rehearse it before you need it**, which takes about five minutes and is the only way to
+know it works:
+
+1. Point `BACKYARD_MONITOR_URL` at a path on your instance that does not exist — the same
+   host with `/healthz-rehearsal` on the end will 404, which the monitor reads as an
+   unexpected answer.
+2. Open the repository's **Actions → monitor** page and press **Run workflow** (or
+   `gh workflow run monitor.yml`). Within a minute or two an issue titled "Backyard needs
+   attention" appears, and the same words arrive in the mailbox you set.
+3. Put the variable back to the real health URL.
+4. Press **Run workflow** again. The issue is commented and closed, and "Backyard is well
+   again" arrives.
+
+Four things observed, and nothing about the instance touched. If step 2 opens the issue but
+no mail arrives, the run's log says which of it worked: no `alert e-mail` line at all means
+the secrets are not set, and `alert e-mail FAILED` with a code means Resend refused — a key
+without send permission, or a `MONITOR_ALERT_FROM` on a domain it has not verified.
+
 ---
 
 ## What does not work yet
