@@ -41,6 +41,27 @@ ul.invites .invite-actions form { margin: 0; }
             Works until {% when_date invite.expires_at %}, for up to {{ invite.max_uses }} people.
           {% endif %}
         </span>
+        {% comment %} R2-6. A link that hands out the side-admin role is a different
+           object from an ordinary invite, and the ledger is the only place an admin can
+           see which of the links they have handed out is which. It says both halves: that
+           the link carries the role, and whether anybody has taken it — because once
+           somebody has, the link is an ordinary invite for everybody after them and
+           revoking it takes nothing back from the person who already joined.
+           {% endcomment %}
+        {% if invite.grants_role %}
+          <span class="invite-state">
+            {% with holder=invite.role_grant_holder %}
+              {% if holder %}
+                <span class="flag">side admin</span> {{ holder.display_name }} joined
+                first, so they are the side admin. Anyone else using this link joins as a
+                member.
+              {% else %}
+                <span class="flag">side admin</span> The first person to join with this
+                link becomes the side admin. Everyone after them joins as a member.
+              {% endif %}
+            {% endwith %}
+          </span>
+        {% endif %}
         {% with redemptions=invite.redemptions.all %}
           {% if redemptions %}
             <ul class="redeemers">

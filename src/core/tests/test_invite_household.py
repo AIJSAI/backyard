@@ -518,7 +518,11 @@ def test_one_side_states_the_side_instead_of_offering_a_choice(one_side: OneSide
 
     assert "This household joins" in body
     assert one_side.side.name in body  # it says WHICH side, by name
-    assert 'type="checkbox"' not in body, "a lone checkbox is still on the page"
+    # Scoped to the SIDES control by its field name, not to "any checkbox on the page".
+    # The page grew a second, unrelated one in R2-6 — whether this link makes its first
+    # joiner the side admin — which is a real choice with two real answers, so a blanket
+    # "no checkboxes" assertion would be holding the wrong property.
+    assert 'name="yard_ids"' not in body, "a lone side checkbox is still on the page"
     assert "Tick both" not in body, "the copy still names a second side that does not exist"
     # ...and the intro no longer promises a choice either.
     assert "pick which side of the family" not in body

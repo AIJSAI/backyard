@@ -29,6 +29,13 @@
     of the family it belongs to, and send the link however you normally reach them.</p>
   <p class="muted">It is shown once. Lost it? Make another from
     <a href="{% url 'member_invites' %}">Outstanding invites</a>.</p>
+  {% comment %} R2-6, one sentence. It is here rather than in its own section because most
+     admins reading this will never mint one — only the family admin is offered the
+     control — but every admin reading this may have ARRIVED through one, and a link that
+     hands out authority should not be a thing the product never mentions. {% endcomment %}
+  <p class="muted">Only the family admin sees it, but if a link was made to hand over a
+    side of the family, the first person to join with it becomes that side&rsquo;s admin
+    and everyone after them joins as a member.</p>
 
   <h2>2. Give a grandparent a no-login link</h2>
   <p><strong>Post something to their side of the family first</strong>, or they will open

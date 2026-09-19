@@ -41,7 +41,7 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from . import digesting, feed_views, scoping
+from . import digesting, feed_views, permissions, scoping
 from .feed_views import _acting_member
 from .join import email_errors
 from .models import DigestSubscription, Member, Pod
@@ -200,5 +200,14 @@ def welcome_hello(request: HttpRequest) -> HttpResponse:
             # account confirmation already in their inbox from joining a minute earlier.
             # Naming the wrong e-mail sends a relative looking for one that never arrives.
             "family_email_mail_sent": bool(subscription and subscription.confirm_token_digest),
+            # R2-6. Somebody who joined through a role-granting link IS an admin by the
+            # time they reach this screen, and nothing anywhere would have told them. The
+            # three welcome screens are written for a relative arriving at a family's
+            # page; the one person they are wrong for is the one who has just been handed
+            # a side of it. One line, on the last screen, pointing at the two places that
+            # answer "what now" — and asked of `permissions.is_admin` rather than of the
+            # invite, so a member promoted on the roster an hour later sees it too if they
+            # ever open the welcome again.
+            "is_admin": permissions.is_admin(member),
         },
     )

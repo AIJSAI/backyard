@@ -22,6 +22,10 @@ to, and send the link however you normally reach them.
 
 It is shown once. Lost it? Make another from **Outstanding invites**.
 
+Only the family admin sees it, but if a link was made to hand over a side of the family,
+the first person to join with it becomes that side&rsquo;s admin and everyone after them
+joins as a member.
+
 ## 2. Give a grandparent a no-login link
 
 **Post something to their side of the family first**, or they will open the link and find
