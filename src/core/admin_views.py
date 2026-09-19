@@ -77,9 +77,11 @@ class RosterRow:
     member: Member
     manageable: bool
     assignable_roles: list[tuple[str, str]]
-    # Separate from `manageable` on purpose: `can_edit_profile_of` is a narrower question
-    # than `can_manage_member` and answers it differently — a yard admin may manage a
-    # member's role without being allowed to rewrite their birthday and phone number.
+    # Kept as its own field although BY-11 made it `can_manage_member` for an admin: the
+    # question is still narrower in the two branches that come first (yourself, a managing
+    # parent), and the form it opens is narrower again — a yard admin may correct a
+    # member's birthday there and may NOT see or rewrite their phone number, which
+    # profile_views._may_edit_contact_fields, not this flag, decides.
     can_edit_profile: bool = False
     # The HOUSEHOLDS this member is in — not every pod the admin can see, and not their
     # ad-hoc groups either.
@@ -100,9 +102,11 @@ class RosterRow:
     # `setting-up-your-side.md` tells them to click exactly that when a grandparent's link
     # goes to the wrong person.
     can_provision_elder: bool = False
-    # BY-01. `manageable` AND has a password to reset: an elder holds a token link instead
-    # of a login, and a supervised child's account is their parent's (TM-10), so offering
-    # either a "get back in" link would render a control that 404s on click — the class
+    # BY-01. `manageable` AND has a LIVE password to reset: an elder holds a token link
+    # instead of a login, a supervised child's account is their parent's (TM-10), and a
+    # REMOVED member keeps their `user` row with `is_active` False (removal.py step 3) — so
+    # a link minted for any of the three is a control that lies, either at the click or, in
+    # the removed case, at the sign-in it hands them on to. That is the class
     # `test_no_link_the_product_offers_is_refused_when_you_click_it` exists to catch.
     can_issue_recovery: bool = False
 
@@ -123,6 +127,9 @@ def members(request: HttpRequest) -> HttpResponse:
     roster = (
         permissions.administrable_members(actor)
         .order_by("display_name")
+        # `user` is joined, not fetched per row: `can_issue_recovery` reads `user.is_active`
+        # for every line, which is a query each without it.
+        .select_related("user")
         .prefetch_related(
             Prefetch(
                 "pods",
@@ -133,6 +140,8 @@ def members(request: HttpRequest) -> HttpResponse:
     )
     for member in roster:
         manageable = permissions.can_manage_member(actor, member)
+        # Joined by the `select_related` above, so reading it per row costs no query.
+        account = member.user
         # Only offer roles the actor is authorized to grant this target, excluding the
         # current role (a no-op) and supervised members (re-roled only via their parent).
         assignable = (
@@ -153,15 +162,22 @@ def members(request: HttpRequest) -> HttpResponse:
                 # invite time, or filling in an elder's details for her, since she has no
                 # login by design (TM-10). The route existed and the only `{% url %}`
                 # reference to it in the tree was its own form action, so nobody could open
-                # it. `can_edit_profile_of` is deliberately NOT `can_manage_member`: it is
-                # a narrower question and has its own answer.
+                # it. Since BY-11, `can_edit_profile_of` IS `can_manage_member` for an admin
+                # (plus self and a managing parent, which are first and separate), so this
+                # gate now moves whenever that one does — deliberately, because a yard
+                # admin who may remove a member of their own side should be able to correct
+                # that member's birthday. The contact fields are NOT part of that widening;
+                # profile_views._may_edit_contact_fields draws that line.
                 can_edit_profile=permissions.can_edit_profile_of(actor, member),
                 own_pods=list(member.households),
                 can_provision_elder=(
                     not member.is_supervised and permissions.can_provision_token(actor, member)
                 ),
                 can_issue_recovery=(
-                    manageable and not member.is_supervised and member.user_id is not None
+                    manageable
+                    and not member.is_supervised
+                    and account is not None
+                    and account.is_active
                 ),
             )
         )

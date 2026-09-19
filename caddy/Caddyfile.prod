@@ -9,7 +9,8 @@
 # them, silently breaking every form in a real browser.
 #
 # Do NOT add a `log` directive here: request lines carry bearer tokens in their paths
-# (/d/, /join/, /media/, /digest/*, /break-glass/ — threat model TS-EDGE-LOG).
+# (/d/, /t/, /join/, /media/, /digest/*, /break-glass/, /get-back-in/ — threat model
+# TS-EDGE-LOG), and /get-back-in/ additionally sends its own URL as a same-origin Referer.
 {
 	admin off
 	email {$ACME_EMAIL}

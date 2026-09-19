@@ -30,22 +30,24 @@
       <p>What you post goes to <strong>your household only</strong>, unless you tick a whole
         side of the family when you write it.</p>
       <p>Nothing is ever sent to you unless you turn it on in Settings.</p>
-      {% comment %} BY-13. Only admins issue invites in v1, and no page a plain member
-         could reach said so — so the obvious next thing to do here, add somebody, has no
-         control and no explanation, and reads as broken rather than as somebody else's
-         job. The name comes from the invite they joined on; when there is none to give
-         (the founder, or an issuer since removed) the sentence names the role instead of
-         rendering a blank. {% endcomment %}
-      {% if show_invite_help %}
-        <p>Adding people is an admin's job. {% if inviter %}To add someone, ask
-          <strong>{{ inviter.display_name }}</strong> — they can make you a link.{% else %}To
-          add someone, ask whoever in the family set this up.{% endif %}</p>
-      {% endif %}
       <form method="post" action="{% url 'dismiss_orientation' %}">
         {% csrf_token %}
         <button type="submit">Got it</button>
       </form>
     </aside>
+  {% endif %}
+
+  {% comment %} BY-13, OUTSIDE the orientation card on purpose. Nested inside it, the
+     sentence reached only members who have not dismissed that card -- and migration 0022
+     backfilled `orientation_dismissed_at` for every member who already existed, which is
+     the whole current family, plus every newcomer the moment they click "Got it". It is
+     one standing fact about who does what, not a prompt, so it needs no dismissal and no
+     column: the same shape as base.html's "Stuck? Ask whoever in the family set this up."
+     {% endcomment %}
+  {% if show_invite_help %}
+    <p class="muted">Adding people is an admin&rsquo;s job. {% if inviter %}To add someone,
+      ask <strong>{{ inviter.display_name }}</strong> &mdash; they can make you a link.{% else %}To
+      add someone, ask whoever in the family set this up.{% endif %}</p>
   {% endif %}
 
   {% comment %} BY-02/BY-03. This member has no email address anywhere — not on their

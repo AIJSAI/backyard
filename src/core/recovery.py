@@ -32,6 +32,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 from datetime import timedelta
+from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.contrib.auth.password_validation import validate_password
@@ -59,9 +60,19 @@ def _digest(raw: str) -> str:
 
 
 def _require_secure_base() -> None:
-    base = settings.BASE_URL.lower()
-    is_local = any(host in base for host in ("localhost", "127.0.0.1"))
-    if not base.startswith("https://") and not is_local:
+    """Refuse to mint against a base URL that would carry the link in the clear (T-EDGE-1).
+
+    The HOSTNAME, parsed and compared exactly -- not a substring of the whole URL.
+    `"localhost" in BASE_URL` is true for `http://localhost.evil.com` and `"127.0.0.1" in
+    BASE_URL` for `http://127.0.0.1.evil.com`: an attacker-registrable domain that merely
+    CONTAINS the word would be classified local here. settings.py:44-50 names that exact
+    defect and fixed it there; re-introducing it in a guard that gates a password-setting
+    capability would make this the weaker of the two checks, not the second one.
+    """
+    base = settings.BASE_URL
+    hostname = (urlsplit(base).hostname or "").lower()
+    is_local = hostname in {"localhost", "127.0.0.1", "::1"}
+    if not base.lower().startswith("https://") and not is_local:
         raise RecoveryRefused(
             "Recovery links only mint against an https base URL in production (T-EDGE-1)."
         )
@@ -80,7 +91,11 @@ def issue(member: Member, *, issued_by: Member) -> str:
     """
     if member.is_supervised:
         raise RecoveryRefused("A supervised account is recovered by its parent (TM-10).")
-    if member.user_id is None:
+    account = member.user
+    if account is None or not account.is_active:
+        # A removed member keeps their `user` row with `is_active` False (removal.py step
+        # 3), so a link minted for them redeems cleanly and then lands on a sign-in that
+        # can never succeed -- a control that lies at the last step instead of the first.
         raise RecoveryRefused("This person has no password to reset.")
     _require_secure_base()
     raw = secrets.token_urlsafe(32)  # 256 bits

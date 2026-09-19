@@ -16,8 +16,11 @@
 # them, silently breaking every form in a real browser.
 #
 # Do NOT add a `log` directive here: request lines carry bearer tokens in their
-# paths (/d/, /join/, /media/, /digest/*, /break-glass/ — threat model
-# TS-EDGE-LOG). If you need edge access logs, redact those paths first.
+# paths (/d/, /t/, /join/, /media/, /digest/*, /break-glass/, /get-back-in/ —
+# threat model TS-EDGE-LOG). If you need edge access logs, redact those paths
+# first, and the Referer header with them: /get-back-in/ is a form page, so the
+# browser sends its own token-bearing URL as Referer on every same-origin
+# subresource it loads.
 
 {
 	admin off

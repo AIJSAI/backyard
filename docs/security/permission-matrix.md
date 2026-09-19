@@ -94,12 +94,21 @@ instance admin's.
 **The admin-issued recovery link (BY-01, `core/recovery.py`) is keyed on
 `can_manage_member`, not on `can_provision_token`**, and the asymmetry is the point: a
 recovery link grants ONE act — setting a password the issuer does not learn — and using it
-ends every session the member had, so an issuer who redeemed one themselves would lock the
-member out loudly rather than read their family quietly. It is refused for a member with no
-login (an elder) and for a supervised child, who is their parent's. An admin's own recovery
-is never in the product at all: that is break-glass, which needs server shell (S-805,
-T-AUTH-G1), and it is keyed on the INSTANCE_ADMIN role rather than `is_superuser` so the
-second admin the succession path creates can be recovered (S10).
+ends every session the member had, so an issuer who redeemed one themselves would sign the
+member out rather than read their family quietly. That signal is real but it is not proof:
+an issuer can redeem, read, then mint a SECOND link and hand that one over, leaving the
+member with a single unexplained sign-out. The authority is granted on the judgement that a
+yard admin who can already remove that member and delete their photographs is not held
+back by a password reset — not on the claim that impersonation is impossible. It is
+refused for a member with no login (an elder), for a supervised child, who is their
+parent's, and for a removed member, whose account is already deactivated. An admin's OWN
+recovery is never in the product at all: that is break-glass, which needs server shell
+(S-805, T-AUTH-G1), and it is keyed on the INSTANCE_ADMIN role rather than `is_superuser`
+so the second admin the succession path creates can be recovered (S10). Recovery FROM
+ABOVE is in the product: `can_manage_member` is True for the instance admin against a yard
+admin or a peer instance admin, so the roster offers the link on those rows. It grants
+nothing they do not already hold via remove and re-role, and it is written down here
+rather than implied away.
 
 ## Provenance
 

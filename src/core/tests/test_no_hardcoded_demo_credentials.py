@@ -31,6 +31,7 @@ import ast
 import pathlib
 import re
 import subprocess
+import tomllib
 
 # "key" is deliberately absent: it collides with dictionary-key locals and would make the
 # guard noisy enough that someone eventually allowlists their way around it.
@@ -309,6 +310,109 @@ def test_the_burned_list_and_the_gitleaks_allowlist_do_not_drift() -> None:
         "unrecorded as a deliberate synthetic fixture. If it is one, add it here too; if it "
         "is not, it does not belong in an allowlist."
     )
+
+
+def _every_allowlisted_regex() -> list[str]:
+    """Every regex in EVERY `[[allowlists]]` block of `.gitleaks.toml`.
+
+    `_synthetic_fixture_allowlist` above reads ONE block, located by the opening sentence
+    of its description. So a value exempted in any OTHER block is invisible to the drift
+    check -- which is the hole that check exists to close, reopened one level up. gitleaks
+    applies an allowlist in every scan mode, so a block added anywhere in this file
+    silences the scanner everywhere, including on a brand-new commit.
+
+    Parsed with `tomllib` rather than by splitting on `[[allowlists]]`. The obvious text
+    parser is answerable by writing about it: this config's own comments quote the string
+    `[[allowlists]]` while explaining a past defect, so a split lands mid-comment and a
+    block-shaped fragment with no `regexes` list appears out of nowhere. The same class of
+    quiet miss applies to bounding a regex list at the next `]`, since a regex may contain
+    one (`backyard-qa-20[0-9]{2}`). gitleaks reads this file as TOML; so does this.
+    """
+    config = tomllib.loads((_REPO_ROOT / ".gitleaks.toml").read_text())
+    blocks = config.get("allowlists", [])
+    assert len(blocks) > 1, (
+        ".gitleaks.toml parsed to "
+        f"{len(blocks)} [[allowlists]] block(s). This guard exists because there is more "
+        "than one, so a count of zero or one means the parser or the config changed shape "
+        "and every assertion below would pass against nothing."
+    )
+    found: list[str] = []
+    for block in blocks:
+        regexes = block.get("regexes")
+        assert regexes, (
+            "a [[allowlists]] block in .gitleaks.toml has no `regexes` list, so this "
+            "parser cannot see what it exempts. A path- or commit-scoped allowlist is a "
+            "wider exemption than a value one and needs its own reasoning here:\n"
+            f"{block.get('description', block)!r:.400}"
+        )
+        found.extend(regexes)
+    return found
+
+
+# Exempted in .gitleaks.toml and deliberately NOT a synthetic fixture. Each is here
+# because a gate that can never go green is a gate people route around, and each names the
+# guard that still catches a REINTRODUCTION -- because a gitleaks allowlist does not.
+_NON_FIXTURE_EXEMPTIONS = frozenset(
+    {
+        "SHA-256-digest",  # a phrase in a design doc, not a key
+        "^migrator_pw$",  # psql variable NAMES in postgres/initdb/01-roles.sh
+        "^app_pw$",
+        "^hunter2$",  # this file's own guard fixture
+        "<[^>]*[Pp]assword[^>]*>",  # redaction placeholders left where one was removed
+        "<a low-entropy literal>",
+        "<a literal default>",
+        "not-a-secret",
+        "^whsec_live$",
+        r"^(os\.environ|sys\.argv|getattr|globals|locals)",
+        # THE BURNED PRODUCTION PASSWORD, as a pattern. A reintroduction is caught by
+        # test_no_burned_credential_reappears_in_any_tracked_file, never by gitleaks.
+        "backyard-qa-20[0-9]{2}",
+        # Two passphrases that exist only in one commit of the BY-01 branch and cannot be
+        # removed without a force-push. A reintroduction into code is caught by _findings()
+        # above, which does NOT allow them.
+        "^an-Old-passphrase-9$",
+        "^a-Brand-new-passphrase-42$",
+    }
+)
+
+
+def test_no_gitleaks_allowlist_block_is_invisible_to_this_guard() -> None:
+    """Every exempted value in `.gitleaks.toml`, from EVERY block, is accounted for here.
+
+    The drift test above reads one block, found by its description. So the single edit that
+    looks most like housekeeping -- a NEW `[[allowlists]]` block with a plausible sentence
+    at the top -- exempts a value from the secret scan in every scan mode while no list
+    records it and no test can see it. That is the path-allowlist defect this config was
+    rewritten to remove, one level up.
+    """
+    accounted = set(_ALLOWED_LITERALS) | _NON_FIXTURE_EXEMPTIONS
+    unaccounted = sorted(v for v in _every_allowlisted_regex() if v not in accounted)
+    assert not unaccounted, (
+        f"`.gitleaks.toml` exempts values no guard in this file records: {unaccounted}.\n"
+        "An allowlist entry silences gitleaks in every scan mode, including on a fresh "
+        "commit. Add it to `_ALLOWED_LITERALS` if it is a synthetic fixture, or to "
+        "`_NON_FIXTURE_EXEMPTIONS` with the guard that catches a reintroduction named "
+        "beside it. If neither is true, it does not belong in an allowlist."
+    )
+
+
+def test_the_every_block_parser_sees_past_the_one_block_the_drift_check_reads() -> None:
+    """The denominator. A parser that returned only the fixture block would make the test
+    above a restatement of the drift check, and the blind spot would still be open.
+
+    Pinned on the two-passphrase block, which is the one this branch added OUTSIDE the
+    span `_synthetic_fixture_allowlist` reads -- the first use of the blind spot.
+    """
+    every = _every_allowlisted_regex()
+    fixture_block = _synthetic_fixture_allowlist()
+    assert "^an-Old-passphrase-9$" in every, (
+        "the every-block parser missed a block the drift check cannot see"
+    )
+    assert "^an-Old-passphrase-9$" not in fixture_block, (
+        "that value is now inside the fixture block, so this test no longer measures the "
+        "difference between the two parsers -- pick another block's value"
+    )
+    assert set(fixture_block) < set(every), "the every-block parser is not a superset"
 
 
 def test_the_guard_catches_a_plain_assignment() -> None:

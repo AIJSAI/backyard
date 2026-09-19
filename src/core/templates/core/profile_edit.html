@@ -72,38 +72,46 @@
       </div>
     </fieldset>
 
-    <label for="phone">Phone</label>
-    <input id="phone" type="text" name="phone" value="{{ member.phone }}" maxlength="40">
-    <div class="visibility">
-      <label for="phone_visibility">Who can see my phone</label>
-      <select id="phone_visibility" name="phone_visibility">
-        {% for value, label in visibility_choices %}
-          <option value="{{ value }}"{% if value == member.phone_visibility %} selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
+    {% comment %} BY-11 widened who may edit a profile to any admin who may manage the
+       target, so this form is now rendered for a yard admin standing in for somebody
+       else. These three fields carry their own per-field visibility and this page shows
+       the RAW row, so rendering them here would publish to the editor exactly what
+       `profiles.viewable_profile` was built to withhold. The view refuses to write them
+       on the same predicate, so this is presentation, not the control. {% endcomment %}
+    {% if show_contact_fields %}
+      <label for="phone">Phone</label>
+      <input id="phone" type="text" name="phone" value="{{ member.phone }}" maxlength="40">
+      <div class="visibility">
+        <label for="phone_visibility">Who can see my phone</label>
+        <select id="phone_visibility" name="phone_visibility">
+          {% for value, label in visibility_choices %}
+            <option value="{{ value }}"{% if value == member.phone_visibility %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
 
-    <label for="contact_email">Email</label>
-    <input id="contact_email" type="email" name="contact_email" value="{{ member.contact_email }}" maxlength="254">
-    <div class="visibility">
-      <label for="contact_email_visibility">Who can see my email</label>
-      <select id="contact_email_visibility" name="contact_email_visibility">
-        {% for value, label in visibility_choices %}
-          <option value="{{ value }}"{% if value == member.contact_email_visibility %} selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
+      <label for="contact_email">Email</label>
+      <input id="contact_email" type="email" name="contact_email" value="{{ member.contact_email }}" maxlength="254">
+      <div class="visibility">
+        <label for="contact_email_visibility">Who can see my email</label>
+        <select id="contact_email_visibility" name="contact_email_visibility">
+          {% for value, label in visibility_choices %}
+            <option value="{{ value }}"{% if value == member.contact_email_visibility %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
 
-    <label for="address">Address</label>
-    <input id="address" type="text" name="address" value="{{ member.address }}" maxlength="255">
-    <div class="visibility">
-      <label for="address_visibility">Who can see my address</label>
-      <select id="address_visibility" name="address_visibility">
-        {% for value, label in visibility_choices %}
-          <option value="{{ value }}"{% if value == member.address_visibility %} selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
+      <label for="address">Address</label>
+      <input id="address" type="text" name="address" value="{{ member.address }}" maxlength="255">
+      <div class="visibility">
+        <label for="address_visibility">Who can see my address</label>
+        <select id="address_visibility" name="address_visibility">
+          {% for value, label in visibility_choices %}
+            <option value="{{ value }}"{% if value == member.address_visibility %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    {% endif %}
 
     <button type="submit">Save</button>
   </form>

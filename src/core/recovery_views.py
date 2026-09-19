@@ -15,8 +15,13 @@ Deliberately NOT `can_provision_token`, which the elder link uses. That check is
 stricter because an elder link is a credential the ISSUER can open and read the target's
 whole scope with. A recovery link is not: it grants one act, setting a password the
 issuer does not learn, and using it ends every session the member had — so an admin who
-redeemed one themselves would lock the member out loudly rather than read their family
-quietly. The narrower authority is the right one here.
+redeemed one themselves would sign the member out rather than read their family quietly.
+
+That signal is real and it is not proof, which the permission matrix now says in the same
+words: an issuer can redeem, read, then mint a SECOND link and hand that one over, and the
+member sees one unexplained sign-out. The authority rests on the judgement that a yard
+admin who can already remove that member and delete their photographs is not held back by
+a password reset, not on impersonation being impossible.
 """
 
 from __future__ import annotations
@@ -49,9 +54,11 @@ def issue_recovery(request: HttpRequest, member_id: int) -> HttpResponse:
     if not permissions.can_manage_member(actor, target):
         raise PermissionDenied
     # Named explicitly rather than left to issue()'s refusal, so the roster never offers a
-    # control that fails on submit: a supervised child is their parent's (TM-10) and an
-    # elder holds a token link instead of a password.
-    if target.is_supervised or target.user_id is None:
+    # control that fails on submit: a supervised child is their parent's (TM-10), an elder
+    # holds a token link instead of a password, and a removed member's account is already
+    # deactivated, so the link would redeem and then strand them on the sign-in page.
+    account = target.user
+    if target.is_supervised or account is None or not account.is_active:
         raise Http404
 
     context: dict[str, object] = {"actor": actor, "target": target}
@@ -101,15 +108,22 @@ def recover(request: HttpRequest, token: str) -> HttpResponse:
         if not ratelimit.consume(request, action="login"):
             return cast(HttpResponse, ratelimit.respond_429(request))  # allauth is untyped
         password = request.POST.get("password", "")
-        try:
-            recovery.redeem(token, password)
-        except ValidationError as exc:
-            errors.extend(exc.messages)
-        except recovery.RecoveryInvalid as exc:
-            # Consumed or revoked between the GET and now: still the uniform 404.
-            raise Http404 from exc
+        if password != request.POST.get("password_again", ""):
+            # Checked BEFORE redeem, so a typo costs a re-type rather than the link. This
+            # link is single use and there is no "forgot your password" behind it -- a new
+            # password with a typo in it that they cannot reproduce locks them out again
+            # and costs another phone call to an admin.
+            errors.append("Those two are not the same. Type the same password in both boxes.")
         else:
-            return redirect("account_login")
+            try:
+                recovery.redeem(token, password)
+            except ValidationError as exc:
+                errors.extend(exc.messages)
+            except recovery.RecoveryInvalid as exc:
+                # Consumed or revoked between the GET and now: still the uniform 404.
+                raise Http404 from exc
+            else:
+                return redirect("account_login")
     return render(
         request,
         "core/recover.html",

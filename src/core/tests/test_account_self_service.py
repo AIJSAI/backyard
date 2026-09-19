@@ -225,6 +225,26 @@ def test_without_a_recorded_inviter_the_sentence_names_nobody_rather_than_blank(
     assert "whoever in the family set this up" in body
 
 
+def test_the_sentence_outlives_the_orientation_card_being_dismissed() -> None:
+    """The one state every current member is already in.
+
+    Nested inside `{% if show_orientation %}` the sentence reached nobody who had dismissed
+    that card — and migration 0022 stamped `orientation_dismissed_at` on every member who
+    existed when it ran, which is the whole family, plus everyone who has since clicked
+    "Got it". BY-13's stated defect would have been unchanged for all of them, and every
+    other test here creates a brand-new member, so none of them is in the affected state.
+    """
+    _, pod = _world()
+    member, client = _signed_in(pod)
+    client.post(reverse("dismiss_orientation"))
+    member.refresh_from_db()
+    assert member.orientation_dismissed_at is not None
+
+    body = client.get(reverse("feed")).content.decode()
+    assert "You&rsquo;re in" not in body and "You’re in" not in body, "the card came back"
+    assert "Adding people is an admin" in body
+
+
 def test_an_admin_is_not_told_to_ask_somebody_else() -> None:
     """They are the somebody else. The roster's `Invite a household` is theirs already."""
     _, pod = _world()

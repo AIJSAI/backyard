@@ -10,9 +10,18 @@ Who counts as an admin here is the INSTANCE_ADMIN role, not `is_superuser` (S10)
 see is_recoverable_admin. A member promoted through the S-707 succession path is an
 instance admin without the Django flag, and keying on the flag left exactly that
 person — the second admin, the one succession exists to create — with no recovery
-path at all. Note the asymmetry with the member-facing recovery link (BY-01, core/
-recovery.py): an admin is never recoverable from inside the product, because a web
-form that resets an admin is the front door mandatory admin 2FA closes.
+path at all.
+
+Note the boundary with the member-facing recovery link (BY-01, core/recovery.py). Nobody
+recovers their OWN admin account from inside the product: `can_manage_member` refuses
+self-administration at every role, so an admin's own path is this console command --
+a web form an admin can point at themselves is the front door mandatory admin 2FA closes.
+An admin is NOT beyond reach FROM ABOVE, and that is deliberate rather than accidental:
+`can_manage_member` lets the instance admin issue a recovery link for a yard admin or for
+a peer instance admin, and the roster renders the control on those rows. The instance
+admin already holds remove and re-role over them, so it grants no new authority -- but it
+IS a web password-reset path onto an admin account, and it is named here rather than
+implied away.
 
 On success the reset revokes the admin's other sessions (a stolen session cannot
 survive a recovery) and the token itself dies (Django's generator hashes the
