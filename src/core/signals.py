@@ -155,5 +155,12 @@ def confirm_the_family_email_at_the_same_address(
         confirmed_at=timezone.now(),
         # Burn any confirm token the subscription still holds: the address is proven, so a
         # link still sitting in an old mail must not remain a live credential.
-        confirm_token_digest="",  # nosec B105
+        #
+        # B106, not B105: this empty string is a keyword ARGUMENT to a call, which is a
+        # different bandit check from the same literal written as an assignment (the
+        # spelling used in digesting.py). An empty digest is the ABSENCE of a credential —
+        # `_by_token` refuses an empty raw token before it queries — so it hardcodes
+        # nothing; only the annotation was wrong, and CI's `deps` job caught it because
+        # `make gates` does not run bandit.
+        confirm_token_digest="",  # nosec B106
     )
