@@ -31,11 +31,16 @@
         </div>
     {% endif %}
     <form method="post" action="{% url 'mfa_activate_totp' %}">
-        <img src="{{ totp_svg_data_uri }}" alt="{% trans 'Square to scan with your authenticator app.' %}">
+        {% comment %} INLINE SVG, not an <img>. allauth's data: URI is refused by this
+           product's own Content-Security-Policy (img-src 'self' blob:), so the page asked
+           for a scan of an empty box. core.adapters.MFAAdapter.build_totp_svg marks the
+           markup safe in one audited place; the hand-over pages draw theirs the same way.
+           {% endcomment %}
+        <div class="qr" role="img" aria-label="{% trans 'QR code for your authenticator app' %}">{{ totp_svg }}</div>
         {% csrf_token %}
         <label for="setup_key">{% trans "Setup Key" %}</label>
         <input type="text" id="setup_key" value="{{ form.secret }}"
-               aria-describedby="setup-key-help" disabled>
+               aria-describedby="setup-key-help" readonly>
         <p class="hint" id="setup-key-help">
             {% trans "Type this into the app if you cannot scan the QR code." %}
         </p>

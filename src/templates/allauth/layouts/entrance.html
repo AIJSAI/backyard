@@ -14,29 +14,14 @@
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.4 L20.6 10.8 V20.6 H3.4 V10.8 Z M9.7 20.6 V14.8 A2.3 2.3 0 0 1 14.3 14.8 V20.6 Z" fill="currentColor"/></svg>
       Backyard
     </a>
-    {% comment %} One line, and it does one job: tell somebody with no account why there
-       is no way to make one. It used to add that "if someone in the family sent you a
-       link, open it to join", which is the landing page's sentence, and this is not the
-       landing page — everyone who reads this either has an account or has a link in
-       their hand already.
-
-       SIGNED OUT ONLY. This layout is also the shell for the three "Confirm It Is You"
-       screens and the two-factor sign-in step, and their reader is signed in: the page
-       told them Backyard was invite-only three lines above the heading, with Sign Out in
-       its own footer. Two lines that contradict each other is the defect the copy pass
-       was called for, and the lede cannot be dropped from a child template because it
-       sits outside `content`. {% endcomment %}
-    {% comment %} IN A BLOCK, so the one page whose reader must not be told to go and find
-       an invite link can drop it. A relative who has just been removed reads "Backyard is
-       invite-only. Open your invite link to join." and then, three lines lower, "Your
-       access to this Backyard has been removed." The page sends them off to look for a
-       link, which is precisely the wrong action. See account/account_inactive.html.
-       {% endcomment %}
-    {% block entrance_lede %}
-      {% if not user.is_authenticated %}
-        <p class="lede">Backyard is invite-only. Open your invite link to join.</p>
-      {% endif %}
-    {% endblock %}
+    {% comment %} EMPTY BY DEFAULT, and only account/login.html fills it. Every other page in
+       this shell is read by somebody who is ALREADY a member: resetting a password,
+       confirming an address, taking the second sign-in step, proving it is them, or reading
+       that their access was removed. "Open your invite link to join" is the wrong
+       instruction for all of them. Gating on `user.is_authenticated` was not enough: the
+       second step and the emailed confirmation are both read signed out. It sits outside
+       `content`, which is why it is a block of its own. {% endcomment %}
+    {% block entrance_lede %}{% endblock %}
     {% comment %} The card is new in the v3.2 visual pass. Without it the entrance was a
        27rem column centred inside the shell while the footer sat at the shell's left
        edge, so the one screen carrying two elements had two different left margins.

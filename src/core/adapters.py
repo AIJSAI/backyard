@@ -16,8 +16,9 @@ from allauth.account.adapter import DefaultAccountAdapter
 from allauth.mfa.adapter import DefaultMFAAdapter
 from allauth.mfa.models import Authenticator
 from django.contrib.auth.base_user import AbstractBaseUser
+from django.utils.safestring import mark_safe
 
-from core import emailing
+from core import emailing, handover
 
 
 class AccountAdapter(DefaultAccountAdapter):  # type: ignore[misc]  # allauth is untyped
@@ -104,5 +105,29 @@ class MFAAdapter(DefaultMFAAdapter):  # type: ignore[misc]  # allauth is untyped
     }
 
     def generate_authenticator_name(self, user: AbstractBaseUser, type: Authenticator.Type) -> str:
-        count = Authenticator.objects.filter(user_id=user.pk, type=type).count()
-        return f"Passkey {count + 1}"
+        # A COUNT IS NOT A NAME. Counting reuses a number the moment a key is removed, so
+        # losing a phone and enrolling its replacement produced two rows called "Passkey 2",
+        # and on Remove This Passkey? the name is the only thing telling them apart. Take
+        # the lowest number no existing key of this type is using.
+        taken = {
+            authenticator.wrap().name
+            for authenticator in Authenticator.objects.filter(user_id=user.pk, type=type)
+        }
+        number = 1
+        while f"Passkey {number}" in taken:
+            number += 1
+        return f"Passkey {number}"
+
+    def build_totp_svg(self, url: str) -> str:
+        """The authenticator-app QR as INLINE SVG, marked safe here and nowhere else.
+
+        allauth's template puts this SVG in an <img> as a `data:` URI, and this product's
+        Content-Security-Policy is `img-src 'self' blob:` on purpose (core/middleware.py
+        says why `data:` stays out). So the page said "Scan this QR code" above an empty
+        box. The hand-over pages already draw their QR inline, which needs no img-src at
+        all; this is the same function. The only input is the otpauth URL, rendered as
+        qrcode's own path geometry and never as text, so nothing a person typed reaches
+        the markup. The view still base64-encodes the return value for the data URI it no
+        longer uses; a SafeString is a str, so that keeps working.
+        """
+        return mark_safe(handover.qr_svg(url))  # noqa: S308  # nosec

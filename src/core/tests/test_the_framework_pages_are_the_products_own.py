@@ -383,3 +383,68 @@ def test_the_help_text_is_the_same_sentence_as_the_refusal() -> None:
         assert text.count(".") == 1 or text.startswith("That password"), (
             f"a rule grew a second sentence: {text!r}"
         )
+
+
+# ---- three defects the security review of the copy pass found on these pages ------------
+
+
+def test_the_authenticator_app_page_draws_a_qr_the_content_security_policy_allows() -> None:
+    """allauth puts the QR in an <img> as a `data:` URI and this product's CSP is
+    `img-src 'self' blob:` on purpose, so the page said "Scan this QR code" above an empty
+    box. It is inline SVG now, and the setup key can be selected and copied: a `disabled`
+    input cannot be focused in Chrome or Safari, and that key is the only other way in."""
+    from allauth.account.models import EmailAddress
+
+    client = _signed_in_client()
+    user = get_user_model().objects.get(username="nana")
+    EmailAddress.objects.create(user=user, email="nana@example.com", primary=True, verified=True)
+    response = client.get(reverse("mfa_activate_totp"))
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert '<div class="qr"' in html
+    assert "<svg" in html, "the QR is not drawn inline"
+    assert "data:image" not in html, "a data: image is refused by img-src 'self' blob:"
+    key = html[html.index('id="setup_key"') :]
+    key = key[: key.index(">")]
+    assert "readonly" in key
+    assert "disabled" not in key
+
+
+def test_a_generated_passkey_name_is_never_one_already_in_use() -> None:
+    """A count reuses a number the moment a key is removed: lose the phone, remove
+    "Passkey 1", enrol the replacement, and there were two rows called "Passkey 2" whose
+    Remove pages were byte-identical."""
+    from core.adapters import MFAAdapter
+
+    user = _member()
+    first = Authenticator.objects.create(
+        user=user, type=Authenticator.Type.WEBAUTHN, data={"name": "Passkey 1"}
+    )
+    Authenticator.objects.create(
+        user=user, type=Authenticator.Type.WEBAUTHN, data={"name": "Passkey 2"}
+    )
+    first.delete()
+    name = MFAAdapter().generate_authenticator_name(user, Authenticator.Type.WEBAUTHN)
+    assert name == "Passkey 1"
+    Authenticator.objects.create(user=user, type=Authenticator.Type.WEBAUTHN, data={"name": name})
+    assert (
+        MFAAdapter().generate_authenticator_name(user, Authenticator.Type.WEBAUTHN) == "Passkey 3"
+    )
+
+
+def test_the_second_step_of_signing_in_does_not_send_its_reader_to_find_an_invite() -> None:
+    """allauth has not completed the login at the second step, so `user.is_authenticated`
+    is false and the layout's signed-out lede printed above the heading: somebody who had
+    just typed the right password was told Backyard is invite-only."""
+    user = _member()
+    Authenticator.objects.create(
+        user=user,
+        type=Authenticator.Type.TOTP,
+        data={"secret": "-".join(("not", "a", "value"))},
+    )
+    response = Client().post(
+        reverse("account_login"), {"login": "nana", "password": _TEST_PW}, follow=True
+    )
+    html = response.content.decode()
+    assert "Confirm It Is You" in html, "the walk did not reach the second step"
+    assert "invite-only" not in visible_text(html)
