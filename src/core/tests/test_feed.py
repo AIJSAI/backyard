@@ -272,3 +272,53 @@ def test_the_composer_is_empty_on_an_ordinary_feed_open(world: dict[str, object]
     assert textarea.endswith(">"), (
         f"the composer came pre-filled on a plain feed open: {textarea!r}"
     )
+
+
+def test_two_sides_are_named_in_a_sentence_not_a_comma_list(world: dict[str, object]) -> None:
+    """R2-8, seen on production on the owner's own welcome post.
+
+    A post widened to both sides of the family asked "Share with Mom's side, Dad's side?",
+    said "everyone in Mom's side, Dad's side", and offered a button reading "Yes, share
+    with Mom's side, Dad's side". A comma is how a list is punctuated, not how anybody
+    says a sentence — and this is the one screen in the product whose entire job is that
+    the member reads it and understands who is about to see their photographs.
+
+    All three places, because they are three renderings of one context value and a fix
+    that reached two of them would be the worst outcome available.
+    """
+    maternal, paternal = world["maternal"], world["paternal"]
+    assert isinstance(maternal, Yard) and isinstance(paternal, Yard)
+    # A BRIDGING household, because only somebody who belongs to both sides can widen a
+    # post to both: the view drops an audience side the author is not in, so an ordinary
+    # member would have reached a confirmation naming one side and proved nothing.
+    bridge = Pod.objects.create(name="The bridging household")
+    bridge.yards.set([maternal, paternal])
+    author = _member_with_user(bridge, "Bridger")
+
+    response = _client_for(author).post(
+        reverse("compose"),
+        {
+            "body": "for everyone",
+            "pod_id": bridge.id,
+            "audience_yards": [maternal.id, paternal.id],
+        },
+    )
+    assert response.templates[0].name == "core/compose_confirm.html"
+    body = " ".join(response.content.decode().split())
+
+    assert "Share with Maternal and Paternal?" in body, body[:400]
+    assert "everyone in Maternal and Paternal" in body
+    assert "Yes, share with Maternal and Paternal" in body
+    assert "Maternal, Paternal" not in body, "the comma list survived somewhere on the page"
+
+
+def test_three_sides_get_commas_and_a_final_and() -> None:
+    """The list form, once there is a list. Asserted on the helper as well as through a
+    request: a family with three sides is rare enough that the rendered case would be the
+    only coverage, and a one-off join is exactly the thing that gets written twice."""
+    assert feed_views._sides_in_a_sentence([]) == ""
+    assert feed_views._sides_in_a_sentence(["Mom's side"]) == "Mom's side"
+    assert feed_views._sides_in_a_sentence(["Mom's side", "Dad's side"]) == (
+        "Mom's side and Dad's side"
+    )
+    assert feed_views._sides_in_a_sentence(["One", "Two", "Three"]) == "One, Two, and Three"
