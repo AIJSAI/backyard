@@ -61,6 +61,11 @@ _ISOLATION_EXEMPT: dict[str, str] = {
     "InboundQuarantine": "instance-admin-only pre-attribution mail hold (T-OP-G2); no yard scoping",
     "NotificationPreference": "a member's own push setting; never cross-member-visible",
     "PodMute": "a member's own feed-display mute (S-205); a display filter, not a read surface",
+    "HouseholdChange": (
+        "an admin ledger row for one household change (who, whom, which household, when), "
+        "the Invite.created_by / RecoveryToken.issued_by shape: written by the BY-14 flow, "
+        "rendered on no surface at all and reachable from no member read route"
+    ),
     "YardWeekMetrics": "instance-admin-only counts-only aggregate (S-705); no per-person content",
     "PodWeekMetrics": "instance-admin-only counts-only aggregate (S-705); no per-person content",
     "MemberWeekPresence": "instance-admin-only KPI presence input (S-705); an aggregate",

@@ -261,16 +261,69 @@ def revoke_member_credentials(member: Member) -> None:
     _run_steps(member, _REVOCATION_STEPS)
 
 
+def _void_invites_into_yards(yard_ids: set[int]) -> RevocationStep:
+    """A SHRINK's invite scope: the re-entry routes into the sides being LOST, plus every
+    invite the member minted themselves.
+
+    Not `_void_invites`, which resolves its scope from every yard the member is STILL in.
+    On a shrink that is the wrong set in the expensive direction: it voids outstanding
+    invitations into the side the member KEEPS, so taking one person out of one household
+    silently cancels another household's hand-over link on the far side of the instance —
+    and, through a yard admin's own supervised child, in a yard they do not administer at
+    all. The re-entry route T-AUTH-G3 cares about is an invite into the side they just left;
+    an invite into a side they keep is the invited household's credential, not theirs, which
+    is the same line `_REGENERATION_STEPS` already draws for the same reason.
+    """
+
+    def step(member: Member) -> int:
+        return Invite.objects.filter(
+            models.Q(created_by=member) | models.Q(pod__yards__id__in=yard_ids),
+            revoked_at__isnull=True,
+        ).update(revoked_at=timezone.now())
+
+    return step
+
+
+def revoke_for_membership_shrink(member: Member, *, losing_yard_ids: set[int]) -> None:
+    """The registry for a membership SHRINK (BY-14): the member stays on the instance, but
+    a side of the family goes away for them.
+
+    DERIVED from the removal registry, like `_REGENERATION_STEPS` and with the same warning
+    attached — a step added above lands here by default, with removal semantics. Two are
+    narrowed, and both narrowings are named:
+
+    * INVITES scope to the yards being LOST (see `_void_invites_into_yards`).
+    * The digest SUBSCRIPTION stays enabled; only its emailed capabilities die. `enabled` is
+      a PREFERENCE, `digest_settings` is login_required and self-only, and an elder has no
+      login by design (TM-10) — so `_cancel_digest_subscription` on somebody who is STILL
+      HERE ends their only content channel with no route back for any person on the
+      instance, which S-501 and T-EMAIL-6 forbid and which `_REGENERATION_STEPS` was written
+      to stop. Their reach narrows anyway: the send path re-resolves audience inside its own
+      transaction (TM-2), so the next digest carries only what they may still see.
+
+    Everything the member actually HOLDS still dies: sessions, per-digest tokens, reply
+    addresses, the elder master token, recovery links, and the generation bump.
+    """
+    steps = tuple(
+        _void_digest_capabilities
+        if step is _cancel_digest_subscription
+        else _void_invites_into_yards(losing_yard_ids)
+        if step is _void_invites
+        else step
+        for step in _REVOCATION_STEPS
+    )
+    _run_steps(member, steps)
+
+
 def regenerate_member_credentials(member: Member) -> None:
     """Every credential the member HOLDS dies -- including the invites she minted herself --
     while what belongs to the rest of the family survives: her digest subscription, and the
     invites other admins issued into her yards.
 
     For ROTATION: the member is still here and only her own link is being replaced. Not for a
-    membership SHRINK (voluntary leave, a pod leaving a yard): there the yard-wide invite scope
-    is load-bearing again, so those flows call revoke_member_credentials or register their own
-    registry, never this one. Same generation bump, same single transaction as
-    revoke_member_credentials.
+    membership SHRINK, which has its own registry now — `revoke_for_membership_shrink` above,
+    where the invite scope is the sides being LOST rather than the ones she keeps. Same
+    generation bump, same single transaction as revoke_member_credentials.
     """
     _run_steps(member, _REGENERATION_STEPS)
 

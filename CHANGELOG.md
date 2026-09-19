@@ -19,6 +19,27 @@ itself up and telling somebody when it cannot.
 
 ### Added
 
+- **An admin can change somebody's household.** Until now a person entered a household one
+  way only — by redeeming an invite — and redeeming makes a *new* member, so anybody who
+  already had an account was stuck where they were. Nobody could be moved when they joined
+  the wrong household, when an adult child moved out, or when two households merged, and the
+  person running the instance could not put an existing member on a side of the family they
+  had just created without a shell. From a member's row on the members page, an admin can now
+  add them to a household that already exists, make a new household (name plus one or more
+  sides of the family) and put them in it, or take them out of one. Because a household
+  carries a side of the family with it, there is a second page that says in plain words which
+  sides' posts and photographs the person will start — or stop — seeing, naming them, before
+  anything happens. Taking somebody out signs them out everywhere, kills the links in the
+  weekly emails they have already had, and cancels unused invitations into the side they are
+  leaving — but not their weekly email itself, which keeps coming and simply narrows, because
+  somebody who is still here should never be cut off by an act that was only meant to move
+  them; their last household cannot be taken away, because somebody in no household can
+  neither see anyone nor be seen. A yard admin can do all of this only for an ordinary
+  member of their own side, only with households that belong entirely to sides they look
+  after, and never for themselves. The person who runs the instance can do it for
+  themselves — standing up the second side of the family and moving into a household on it
+  is the whole reason this exists — and the page still says out loud what they are about
+  to start seeing, and records that they did it.
 - **An admin can get somebody back in.** A member who joined without an email address had no
   password recovery at all — `Forgot your password?` resolves against an address that does not
   exist, and the page correctly says "sent" either way, so they found out they were locked out

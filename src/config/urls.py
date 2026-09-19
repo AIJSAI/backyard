@@ -11,6 +11,7 @@ from core import (
     digesting_views,
     elder_views,
     feed_views,
+    household_views,
     media_views,
     pod_views,
     profile_views,
@@ -126,6 +127,16 @@ urlpatterns = [
     # other family side). The instance admin bootstraps a side then hands it to a per-side
     # yard-admin, so the family can be onboarded without the founder at a shell.
     path("members/<int:member_id>/role/", admin_views.assign_role, name="assign_role"),
+    # Changing which household somebody is in (BY-14). Until now a member entered a
+    # household ONLY by redeeming an invite, and redeeming mints a NEW member — so nobody
+    # who already had an account could be placed in one, on any side, without a shell. Two
+    # steps on one route: the choices, then a confirm page that names the sides of the
+    # family this person will start or stop seeing.
+    path(
+        "members/<int:member_id>/household/",
+        household_views.change_household,
+        name="change_household",
+    ),
     path("members/family-sides/", admin_views.family_sides, name="family_sides"),
     # Elder-token provisioning (S-104): generate/regenerate a member's link + QR.
     path(
