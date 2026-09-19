@@ -134,7 +134,7 @@ which for most families is several hours wrong and says so with no hedge. A post
 at 4:28 in the morning read "9:28 a.m." on a real instance before this setting existed.
 
 Use an IANA name (`America/Chicago`, `Europe/London`, `Australia/Sydney`) - a country or
-a city on its own is not one, so `America/Omaha` and `CST` are both typos.
+a city on its own is not one, so `America/Seattle` and `CST` are both typos.
 
 **A bad value is a boot failure, by design.** The app refuses to start, with a message
 naming this variable, rather than booting and printing wrong times: a wrong zone is a
