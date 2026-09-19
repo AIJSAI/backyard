@@ -31,12 +31,22 @@ from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
 
-from core import digest_links, digesting, elder_tokens, media, removal, reply_addresses, revocation
+from core import (
+    digest_links,
+    digesting,
+    elder_tokens,
+    invites,
+    media,
+    removal,
+    reply_addresses,
+    revocation,
+)
 from core.models import (
     DigestIssue,
     DigestSubscription,
     DigestToken,
     ElderToken,
+    Invite,
     Member,
     Pod,
     PodMembership,
@@ -310,3 +320,83 @@ def test_removal_still_disables_the_subscription(
     assert subscription.enabled is False
     assert subscription.confirm_token_digest == ""
     assert subscription.unsubscribe_token_digest == ""
+
+
+def _outstanding_invites_on_both_her_sides(member: Member) -> dict[str, tuple[Invite, str]]:
+    """Put the member in a SECOND family side, then mint one live household invite on
+    each side, created by somebody else.
+
+    This is the day-one shape the two new yard admins will produce within minutes of
+    each other: invite the new household, then hand a grandmother her elder link. The
+    invites reach pods she is not in and were issued by an admin she has nothing to do
+    with, so nothing about them is her credential.
+    """
+    her_other_side = Yard.objects.create(name="Paternal", slug="paternal")
+    her_other_pod = Pod.objects.create(name="Her other household")
+    her_other_pod.yards.set([her_other_side])
+    PodMembership.objects.create(member=member, pod=her_other_pod)
+
+    issuer = Member.objects.create(display_name="The other yard admin")
+    outstanding: dict[str, tuple[Invite, str]] = {}
+    for side in (Yard.objects.get(slug="maternal"), her_other_side):
+        household = Pod.objects.create(name=f"New household on the {side.name} side")
+        household.yards.set([side])
+        outstanding[side.slug] = invites.mint_invite(household, issuer)
+    return outstanding
+
+
+def test_regenerate_keeps_outstanding_household_invites_on_every_side(
+    member_with_everything: Credentials,
+) -> None:
+    """Re-issuing an elder's link must not revoke the invites already handed out.
+
+    regenerate ran the removal-shaped handler, which voids every live invite reaching
+    any yard the member belongs to. That scope is right for REMOVAL (T-AUTH-G3: a
+    removed ex must not walk back in through someone else's invite) and wrong here --
+    she is still here, and an invite texted to another household is not the credential
+    being rotated. On the design walk one regeneration silently killed a household
+    invite minted four clicks earlier: the admin was never told, and the family who had
+    been texted the link got the bare 404.
+
+    Both halves are asserted, so the fix cannot be satisfied by weakening the kill: the
+    invites survive AND every credential class the member herself holds still dies.
+    """
+    creds = member_with_everything
+    outstanding = _outstanding_invites_on_both_her_sides(creds.member)
+    for _invite, raw in outstanding.values():
+        assert Client().get(reverse("join", args=[raw])).status_code == 200  # live before
+
+    elder_tokens.regenerate(creds.member)
+
+    for side, (invite, raw) in outstanding.items():
+        invite.refresh_from_db()
+        assert invite.revoked_at is None, f"regeneration revoked the {side} household's invite"
+        assert invites.peek_invite(raw)  # still redeemable, not merely unrevoked
+        assert Client().get(reverse("join", args=[raw])).status_code == 200
+
+    dead = creds.all_dead()
+    assert all(dead.values()), f"survivors: {[k for k, v in dead.items() if not v]}"
+
+
+def test_removal_still_voids_those_invites(
+    member_with_everything: Credentials,
+) -> None:
+    """The security property the regeneration fix must not regress (T-AUTH-G3).
+
+    Removal keeps the wide scope: every live invite reaching the removed member's pods
+    and yards dies, including ones created by someone else, or an ex who was in the
+    family group chat pastes one back in and re-enters.
+    """
+    from core.removal import remove_member
+
+    creds = member_with_everything
+    outstanding = _outstanding_invites_on_both_her_sides(creds.member)
+
+    remove_member(creds.member, content=removal.KEEP)
+
+    for side, (invite, raw) in outstanding.items():
+        invite.refresh_from_db()
+        assert invite.revoked_at is not None, f"removal left the {side} invite live"
+        with pytest.raises(invites.InviteInvalid):
+            invites.peek_invite(raw)
+        assert Client().get(reverse("join", args=[raw])).status_code == 404

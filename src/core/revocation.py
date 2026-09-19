@@ -69,6 +69,9 @@ def _void_invites(member: Member) -> int:
     """Void every live invite the removed member could re-enter through: ones they
     created, and ones reaching any pod in any yard they belong to.
 
+    REMOVAL only -- the scope below is a re-entry scope, so it is not in
+    _REGENERATION_STEPS. See the comment above that registry.
+
     Scope is pods AND yards, per the threat model's authoritative text (TM-1 at
     T-AUTH-G3: "removal lists all live invites scoped to the removed member's pods
     and yards"). Pods-only would leave a same-yard-different-pod invite live, and
@@ -172,16 +175,31 @@ _REVOCATION_STEPS: tuple[RevocationStep, ...] = (
     _void_elder_tokens,
 )
 
-# The same registry with the digest SUBSCRIPTION left alone. Regenerating an elder's link
-# is meant to be socially cheap and frequent (T-TOKEN-G1: she forwarded it, she lost the
-# phone, reprint the QR) -- but it ran the removal-shaped handler, which set enabled=False
-# AND blanked both digest tokens. An elder has no login by design (TM-10) and
-# digest_settings is login_required and self-only, so there was no way back: one click of
-# "regenerate her link" ended her only content channel permanently, and silenced her reply
-# nudges with it. That contradicts S-501 and T-EMAIL-6, which forbid silent severing.
+# The same registry minus the two steps that punish a member who is still here. Both were
+# found the same way, on a walk, one after the other -- which is the warning this comment
+# carries: this registry is DERIVED, so any step added above lands here by default, and the
+# default is removal semantics.
+#
+# The digest SUBSCRIPTION is left alone. Regenerating an elder's link is meant to be socially
+# cheap and frequent (T-TOKEN-G1: she forwarded it, she lost the phone, reprint the QR) --
+# but it ran the removal-shaped handler, which set enabled=False AND blanked both digest
+# tokens. An elder has no login by design (TM-10) and digest_settings is login_required and
+# self-only, so there was no way back: one click of "regenerate her link" ended her only
+# content channel permanently, and silenced her reply nudges with it. That contradicts S-501
+# and T-EMAIL-6, which forbid silent severing.
+#
+# Outstanding INVITES are left alone for the same reason. _void_invites is scoped to
+# re-entry (every live invite reaching any yard the member belongs to, whoever created it),
+# which is exactly right when the member is being removed and wrong when she is not: those
+# invites are the other households' credential, not hers, and rotating her link says nothing
+# about them. On the design walk one regeneration revoked a household invite minted four
+# clicks earlier -- no warning to the admin, and the bare 404 for the family who had already
+# been texted the link. The two new yard admins do both acts in one sitting, so this was not
+# an edge case.
 _REGENERATION_STEPS: tuple[RevocationStep, ...] = tuple(
     _void_digest_capabilities if step is _cancel_digest_subscription else step
     for step in _REVOCATION_STEPS
+    if step is not _void_invites
 )
 
 
@@ -195,7 +213,8 @@ def revoke_member_credentials(member: Member) -> None:
     and all call this, never their own partial subset.
 
     NOT for regeneration -- use regenerate_member_credentials, which keeps the digest
-    subscription. This function disables it, and an elder has no login to turn it back on.
+    subscription and the outstanding invites. This function disables the subscription (an
+    elder has no login to turn it back on) and voids invites other households still hold.
 
     Ordering contract (security review H-1): call this BEFORE tearing down the
     member's PodMembership rows. _void_invites resolves the yard scope from live
@@ -206,11 +225,12 @@ def revoke_member_credentials(member: Member) -> None:
 
 
 def regenerate_member_credentials(member: Member) -> None:
-    """Every credential class dies, but the member KEEPS their digest subscription.
+    """Every credential the member HOLDS dies; what belongs to the rest of the family
+    survives -- their digest subscription and the invites outstanding in their yards.
 
-    For regeneration and any other flow where the member is still here. Same classes, same
-    generation bump, same single transaction as revoke_member_credentials -- the one
-    difference is that a preference is not treated as a credential.
+    For regeneration and any other flow where the member is still here. Same generation
+    bump, same single transaction as revoke_member_credentials; the difference is that
+    neither a preference nor another household's invite is treated as her credential.
     """
     _run_steps(member, _REGENERATION_STEPS)
 

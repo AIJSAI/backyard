@@ -167,6 +167,25 @@ def test_registry_is_the_only_shape(household: dict[str, object]) -> None:
     assert voided == 0  # no invites existed; the act still completes atomically
 
 
+def test_regeneration_registry_drops_what_is_not_the_members_own_credential() -> None:
+    """Pin the derived registry, since it is BUILT from the removal one and a future
+    step added there lands here by default.
+
+    Two entries differ, for the same reason: the member is still present. Her digest
+    subscription is a preference, not a credential, so only its emailed links die; an
+    outstanding invite belongs to the household being invited, not to her, so it is not
+    hers to rotate. Everything she actually holds is in both registries."""
+    assert revocation._REGENERATION_STEPS == (
+        revocation._revoke_sessions,
+        revocation._void_digest_capabilities,  # not _cancel_...: enabled is a preference
+        revocation._void_digest_tokens,
+        revocation._void_reply_addresses,
+        revocation._void_elder_tokens,
+    )
+    # And the removal registry keeps the step that was dropped, in its place.
+    assert revocation._void_invites in revocation._REVOCATION_STEPS
+
+
 def test_revocation_cancels_the_digest_subscription(household: dict[str, object]) -> None:
     """The digest joins the registry (wave 4): after revocation the member is due
     no digest ever again, and both emailed capabilities (confirm, unsubscribe)
