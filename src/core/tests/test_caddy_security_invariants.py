@@ -107,32 +107,87 @@ def _assert_nosniff_is_asserted_at_the_edge(config: str) -> None:
     )
 
 
+def _site_block(config: str, address: str) -> str | None:
+    """The body of one top-level site block, or None if it is gone."""
+    found = re.search(rf"^{re.escape(address)}\s*\{{(.*?)^\}}", config, re.M | re.S)
+    return found.group(1) if found else None
+
+
+def _top_level_directives(body: str) -> list[tuple[str, str | None]]:
+    """(head, inner) for each directive at the top level of a site block.
+
+    Brace-aware, so a nested `handle { … }` is ONE entry carrying its own body rather than
+    three stray lines. `inner` is None for a directive that opens no block.
+
+    This exists because a substring check cannot answer the question that matters about
+    these two blocks. "Is `abort` somewhere in `:443`?" is satisfied by a file that aborts
+    one path and serves everything else -- which is the opposite of what the block is for,
+    and it is the shape a well-meaning edit reaches for first.
+    """
+    found: list[tuple[str, str | None]] = []
+    depth = 0
+    head = ""
+    inner: list[str] = []
+    for raw in body.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        opens, closes = line.count("{"), line.count("}")
+        if depth == 0:
+            if opens:
+                head = line[: line.index("{")].strip()
+                inner = []
+                depth = opens - closes
+                if depth == 0:
+                    found.append((head, ""))
+            else:
+                found.append((line, None))
+            continue
+        depth += opens - closes
+        if depth == 0:
+            found.append((head, "\n".join(inner)))
+        else:
+            inner.append(line)
+    return found
+
+
 def _assert_the_default_host_is_aborted(config: str) -> None:
-    fallback = re.search(r"^:443\s*\{(.*?)^\}", config, re.M | re.S)
-    assert fallback, (
+    fallback = _site_block(config, ":443")
+    assert fallback is not None, (
         "the `:443 { … }` block is gone from caddy/Caddyfile.prod. Without it a request whose "
         "Host does not match the site block is answered by Caddy's implicit fallback: an "
         "empty 200 carrying a bare `Server: Caddy` and none of the headers above -- the one "
         "response that skipped every security header was also the one advertising what "
         "served it."
     )
-    assert "abort" in fallback.group(1), (
-        "the `:443` fallback no longer aborts, so an unmatched Host gets a reply again"
+    # The WHOLE block, not a substring of it. `abort` moved under a path matcher, with a
+    # `respond` or a `reverse_proxy` left as the default, satisfies "the word abort appears
+    # here" while answering every unmatched Host again.
+    directives = _top_level_directives(fallback)
+    assert directives == [("abort", None)], (
+        "the `:443` fallback block is no longer exactly one `abort`; it now reads "
+        f"{directives}. An unmatched Host must reach NOTHING: this block carries no "
+        "certificate and none of the site block's headers, so anything it answers is the one "
+        "response on this edge with no security headers at all."
     )
 
 
 def _assert_the_health_port_serves_only_health(config: str) -> None:
-    block = re.search(r"^:8000\s*\{(.*?)^\}", config, re.M | re.S)
-    assert block, (
+    block = _site_block(config, ":8000")
+    assert block is not None, (
         "the `:8000 { … }` block is gone from caddy/Caddyfile.prod. It is the container "
         "healthcheck's target, and it is what lets one healthcheck line in docker-compose.yml "
         "mean the same thing in the local and production stacks."
     )
-    body = block.group(1)
-    assert "handle /healthz" in body, "the :8000 block no longer handles /healthz"
-    assert "abort" in body, (
-        "the `:8000` block no longer aborts every path but /healthz, so the internal health "
-        "listener now answers on paths it was never meant to serve"
+    directives = _top_level_directives(block)
+    assert directives == [
+        ("handle /healthz", "reverse_proxy web:8000"),
+        ("handle", "abort"),
+    ], (
+        f"the `:8000` block no longer serves /healthz and nothing else; it reads {directives}. "
+        "Both halves are pinned because either one alone is satisfiable by the wrong file: a "
+        "catch-all `handle` that proxies rather than aborts turns the internal, "
+        "certificate-less health listener into a second unencrypted front door onto the app."
     )
 
 
@@ -146,21 +201,60 @@ _INVARIANTS = {
     "health port serves only health": _assert_the_health_port_serves_only_health,
 }
 
-# (invariant, an edit to the real file that must break it). The replacement is applied to the
-# file's text, so each mutation is a plausible edit rather than a synthetic string -- which is
-# the difference between proving the check fires and proving a regex matches.
+# (invariant, a name for the case, an edit to the real file that must break it). The
+# replacement is applied to the file's TEXT, so each mutation is a plausible edit rather than
+# a synthetic string -- the difference between proving the check fires and proving a regex
+# matches.
+#
+# The last four are the ones a substring check could not see. Each keeps the word the old
+# check looked for and moves it somewhere that changes what the block does, which is the
+# shape a well-meaning edit takes: "abort the health path, serve the rest".
 _MUTATIONS = (
-    ("admin off", "\tadmin off", "\tadmin localhost:2019"),
-    ("no log directive", "\tservers {", "\tlog\n\tservers {"),
+    ("admin off", "admin-endpoint-reopened", "\tadmin off", "\tadmin localhost:2019"),
+    ("no log directive", "access-log-added", "\tservers {", "\tlog\n\tservers {"),
     (
         "no global Referrer-Policy",
+        "global-referrer-policy-added",
         "\t\tX-Content-Type-Options nosniff",
         "\t\tX-Content-Type-Options nosniff\n\t\tReferrer-Policy no-referrer",
     ),
-    ("Server and Via stripped", "\t\t-Via", "\t\t"),
-    ("nosniff at the edge", "\t\tX-Content-Type-Options nosniff", "\t\t"),
-    ("unmatched Host is aborted", ":443 {\n\tabort\n}", ":443 {\n\trespond 200\n}"),
-    ("health port serves only health", "\thandle {\n\t\tabort\n\t}", "\thandle {\n\t\t\n\t}"),
+    ("Server and Via stripped", "via-header-restored", "\t\t-Via", "\t\t"),
+    ("nosniff at the edge", "nosniff-dropped", "\t\tX-Content-Type-Options nosniff", "\t\t"),
+    (
+        "unmatched Host is aborted",
+        "fallback-answers-again",
+        ":443 {\n\tabort\n}",
+        ":443 {\n\trespond 200\n}",
+    ),
+    (
+        # `abort` still present, under a path matcher, with a default that replies: the exact
+        # file the old substring check called clean.
+        "unmatched Host is aborted",
+        "fallback-aborts-one-path-and-serves-the-rest",
+        ":443 {\n\tabort\n}",
+        ":443 {\n\thandle /healthz {\n\t\tabort\n\t}\n\trespond 200\n}",
+    ),
+    (
+        "health port serves only health",
+        "health-catch-all-emptied",
+        "\thandle {\n\t\tabort\n\t}",
+        "\thandle {\n\t\t\n\t}",
+    ),
+    (
+        # The catch-all proxies instead of aborting: a second, certificate-less front door
+        # onto the app, with `handle /healthz` still there to satisfy the old check.
+        "health port serves only health",
+        "health-catch-all-proxies-the-app",
+        "\thandle {\n\t\tabort\n\t}",
+        "\thandle {\n\t\treverse_proxy web:8000\n\t}",
+    ),
+    (
+        # A third path opened beside the two that belong there.
+        "health port serves only health",
+        "health-block-grows-a-third-route",
+        "\thandle {\n\t\tabort\n\t}",
+        "\thandle /metrics {\n\t\treverse_proxy web:8000\n\t}\n\thandle {\n\t\tabort\n\t}",
+    ),
 )
 
 
@@ -180,10 +274,12 @@ def test_a_caddy_security_invariant_still_holds(invariant: str) -> None:
 
 
 @pytest.mark.parametrize(
-    ("invariant", "find", "replace"),
-    [pytest.param(*row, id=row[0].replace(" ", "-")) for row in _MUTATIONS],
+    ("invariant", "case", "find", "replace"),
+    [pytest.param(*row, id=row[1]) for row in _MUTATIONS],
 )
-def test_each_invariant_can_actually_fail(invariant: str, find: str, replace: str) -> None:
+def test_each_invariant_can_actually_fail(
+    invariant: str, case: str, find: str, replace: str
+) -> None:
     """Break the thing, and require the guard to notice.
 
     Without this, every check above is one typo away from matching nothing and passing
@@ -192,12 +288,44 @@ def test_each_invariant_can_actually_fail(invariant: str, find: str, replace: st
     """
     original = _CADDYFILE.read_text(encoding="utf-8")
     assert find in original, (
-        f"the {invariant!r} mutation no longer applies: {find!r} is not in the Caddyfile, so "
+        f"the {case!r} mutation no longer applies: {find!r} is not in the Caddyfile, so "
         "this proof is measuring nothing. Re-point it at the current text."
     )
     broken = _directives(original.replace(find, replace, 1))
     with pytest.raises(AssertionError):
         _INVARIANTS[invariant](broken)
+
+
+def test_every_invariant_has_a_mutation_that_breaks_it() -> None:
+    """The denominator for the proofs above. An invariant with no mutation beside it is one
+    nobody has watched fail, which is the state every gate in this repository turned out to
+    be in the first time somebody checked."""
+    proven = {invariant for invariant, _, _, _ in _MUTATIONS}
+    unproven = sorted(set(_INVARIANTS) - proven)
+    assert not unproven, (
+        f"{unproven} are asserted above with nothing proving the assertion can fail. Add a "
+        "mutation to _MUTATIONS that breaks each one in the real file's text."
+    )
+
+
+def test_the_block_reader_sees_structure_a_substring_check_cannot() -> None:
+    """The parser the two block rules rest on, proven on the shape that fooled the old one.
+
+    A file that aborts one path and replies to everything else contains the word `abort`,
+    which is all the previous check asked for. Read as structure it is plainly a different
+    block, and that difference is what the rules above now assert.
+    """
+    assert _top_level_directives("\tabort\n") == [("abort", None)]
+    assert _top_level_directives("\thandle /healthz {\n\t\treverse_proxy web:8000\n\t}\n") == [
+        ("handle /healthz", "reverse_proxy web:8000")
+    ]
+
+    sneaky = "\thandle /healthz {\n\t\tabort\n\t}\n\trespond 200\n"
+    assert "abort" in sneaky, "the fixture must keep the word the old check looked for"
+    assert _top_level_directives(sneaky) == [
+        ("handle /healthz", "abort"),
+        ("respond 200", None),
+    ], "a path-matched abort beside a default `respond` must not read as a bare abort"
 
 
 def test_the_comments_that_warn_about_these_directives_are_not_read_as_directives() -> None:

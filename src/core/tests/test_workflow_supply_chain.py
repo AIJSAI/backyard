@@ -3,13 +3,15 @@
 Three properties, each of which was wrong on this repository until 2026-09-19 and each of
 which fails silently when it regresses:
 
-1. **Actions are pinned to a full commit SHA, with the release tag in a trailing comment.**
-   `actions/checkout@v4` is a pointer its owner can move, and moving it is the entire
-   tj-actions supply-chain attack. This repository is public, and the workflow the pin sits
-   in runs `uv sync` and `docker build`. The comment is not decoration: Dependabot's
-   `github-actions` ecosystem reads it and rewrites the SHA and the comment together, which
-   is what stops a SHA pin freezing at whatever was current the day somebody pinned it. A
-   pin with no comment is a pin nothing will ever update.
+1. **Actions are pinned to an immutable reference.** For an ordinary action that is a full
+   commit SHA with the release tag in a trailing comment: `actions/checkout@v4` is a pointer
+   its owner can move, and moving it is the entire tj-actions supply-chain attack. This
+   repository is public, and the workflow the pin sits in runs `uv sync` and `docker build`.
+   The comment is not decoration: Dependabot's `github-actions` ecosystem reads it and
+   rewrites the SHA and the comment together, which is what stops a SHA pin freezing at
+   whatever was current the day somebody pinned it. A pin with no comment is a pin nothing
+   will ever update. For a `docker://` container action it is a registry digest instead,
+   because what is pinned there is an image rather than a commit.
 2. **Every job has `timeout-minutes`.** GitHub's default is six hours. A job that hangs on a
    `wait_for`, a health loop or a stalled TLS handshake holds a runner for six hours and
    reports nothing; on the monitor workflow that is the alarm going quiet on exactly the
@@ -40,14 +42,24 @@ _ROOT = Path(__file__).resolve().parents[3]
 _WORKFLOW_DIR = _ROOT / ".github" / "workflows"
 _DEPENDABOT = _ROOT / ".github" / "dependabot.yml"
 
-# `owner/repo@ref` on a `uses:` line, with whatever follows on the line.
-_USES = re.compile(r"^\s*-?\s*uses:\s*(?P<action>[^\s@]+)@(?P<ref>[^\s#]+)\s*(?P<rest>.*)$")
+# Whatever a `uses:` line names, and whatever follows it on the line. The reference is
+# captured WHOLE rather than split on `@` here: a reference with no `@` at all
+# (`uses: actions/checkout`, `uses: docker://vendor/action:latest`) is the most mutable
+# form there is, and a pattern that required the `@` skipped those lines entirely instead
+# of failing on them.
+_USES = re.compile(r"^\s*-?\s*uses:\s*(?P<reference>\S+)\s*(?P<rest>.*)$")
 _SHA = re.compile(r"^[0-9a-f]{40}$")
+# A container action pins an IMAGE, so its immutable form is a registry digest rather than a
+# git commit: `uses: docker://image@sha256:<64 hex>`.
+_IMAGE_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 # The trailing comment Dependabot reads and rewrites: `# v7.0.1`, `# v10.1.0`.
 _VERSION_COMMENT = re.compile(r"^#\s*v\d[\w.\-+]*\s*$")
 
 _JOB = re.compile(r"^  (?P<name>[A-Za-z_][\w-]*):\s*$")
 _JOB_KEY = re.compile(r"^    (?P<key>[A-Za-z_-]+):")
+
+_CONCURRENCY_BLOCK = re.compile(r"^concurrency:[ \t]*$(?P<body>.*?)^\S", re.M | re.S)
+_CANCEL_IN_PROGRESS = re.compile(r"^\s*cancel-in-progress:\s*(?P<value>.*?)\s*$", re.M)
 
 # A workflow that says, in a comment, why it has no concurrency group. A phrase rather than a
 # suppression marker, so the exemption costs a sentence a reader can disagree with.
@@ -95,23 +107,60 @@ def _jobs(text: str) -> dict[str, list[str]]:
     return jobs
 
 
-def _third_party_uses(text: str) -> list[tuple[str, str, str]]:
-    """(action, ref, trailing text) for every `uses:` naming a third-party action.
+def _third_party_uses(text: str) -> list[tuple[str, str]]:
+    """(reference, trailing text) for every `uses:` naming something outside this repository.
 
-    A local composite action (`uses: ./.github/actions/...`) has no SHA to pin and is in this
-    repository already; there are none today, and this is what keeps adding one from failing
-    for the wrong reason.
+    A local composite action (`uses: ./.github/actions/...`) is exempt: it has no SHA to pin
+    because it IS this checkout, and the pull request that changes it is the review. There
+    are none today, and the exception is what keeps adding one from failing for the wrong
+    reason.
+
+    Everything else is returned, container actions included. `docker://` used to be skipped
+    beside the local-path case, which was wrong in the way this whole file is about: a
+    `uses: docker://vendor/action:latest` is a MUTABLE third-party image executing in a job
+    that holds a checkout and a database, and it would have passed a guard whose docstring
+    claimed every third-party action was covered. The rule for it lives in the test, because
+    an image pins a registry digest rather than a git commit.
     """
     found = []
     for line in text.splitlines():
         match = _USES.match(line)
         if not match:
             continue
-        action = match.group("action")
-        if action.startswith(".") or action.startswith("docker://"):
+        reference = match.group("reference")
+        if reference.startswith("."):
             continue
-        found.append((action, match.group("ref"), match.group("rest").strip()))
+        found.append((reference, match.group("rest").strip()))
     return found
+
+
+def _cancels_superseded_runs(value: str) -> bool:
+    """Whether a `cancel-in-progress:` value actually drops a superseded pull-request run.
+
+    Checking that the KEY is present is not the same question, and the difference is the
+    whole point of the setting: `cancel-in-progress: false` gives a concurrency group that
+    QUEUES superseded runs instead of dropping them, which is slower than having no group at
+    all, while satisfying a key-only check.
+
+    A GitHub expression cannot be evaluated here, so the rule is that it must NAME the event
+    it keys on. That accepts the `${{ github.event_name == 'pull_request' }}` form this
+    repository uses, accepts a plain `true`, and rejects the three shapes that silently
+    disarm the group: `false`, an empty value, and `${{ false }}`.
+    """
+    value = value.strip().strip('"').strip("'").strip()
+    if not value:
+        return False
+    if value.lower() in {"true", "yes", "on"}:
+        return True
+    expression = re.fullmatch(r"\$\{\{(?P<body>.*)\}\}", value, re.S)
+    if not expression:
+        return False
+    body = expression.group("body").strip().lower()
+    if body in {"true", "1"}:
+        return True
+    if body in {"false", "0", "!true"}:
+        return False
+    return "pull_request" in body
 
 
 def test_there_are_workflows_to_check() -> None:
@@ -130,16 +179,28 @@ def test_there_are_workflows_to_check() -> None:
 
 
 @pytest.mark.parametrize("workflow", _workflows(), ids=lambda p: p.name)
-def test_every_third_party_action_is_pinned_to_a_sha_with_its_version(workflow: Path) -> None:
-    for action, ref, rest in _third_party_uses(workflow.read_text(encoding="utf-8")):
-        assert _SHA.match(ref), (
-            f"{workflow.name} uses `{action}@{ref}`. A tag is a mutable pointer the action's "
+def test_every_third_party_action_is_pinned_to_an_immutable_reference(workflow: Path) -> None:
+    for reference, rest in _third_party_uses(workflow.read_text(encoding="utf-8")):
+        name, at, ref = reference.rpartition("@")
+        if reference.startswith("docker://"):
+            # A container action names an image, so its immutable form is a registry digest.
+            # No version comment is required of it: a digest has no release tag for
+            # Dependabot to rewrite, and demanding one would push people back to a tag.
+            assert at and _IMAGE_DIGEST.match(ref), (
+                f"{workflow.name} uses `{reference}`, a third-party container image pinned by "
+                "tag or by nothing at all. A tag is repointed by whoever owns the registry "
+                "namespace, and this image would execute in a job holding a checkout and a "
+                "database. Pin it as `docker://<image>@sha256:<64 hex>`."
+            )
+            continue
+        assert at and _SHA.match(ref), (
+            f"{workflow.name} uses `{reference}`. A tag is a mutable pointer the action's "
             "owner can move, which is the whole of the tj-actions supply-chain attack, and "
             "this workflow runs `uv sync` and `docker build` on a public repository. Pin the "
             "full commit SHA and put the release tag in a trailing comment."
         )
         assert _VERSION_COMMENT.match(rest), (
-            f"{workflow.name} pins `{action}` to a SHA with no `# vX.Y.Z` comment "
+            f"{workflow.name} pins `{name}` to a SHA with no `# vX.Y.Z` comment "
             f"(found {rest!r}). Dependabot's github-actions ecosystem rewrites the SHA and "
             "that comment together; without it the pin is frozen at whatever was current the "
             "day it was written, and a human reading the line cannot tell which version it is."
@@ -178,17 +239,26 @@ def test_a_pull_request_workflow_cancels_superseded_runs_or_says_why_not(
         return  # not triggered by pull requests; nothing to supersede
     if _CONCURRENCY_WAIVER in text:
         return
-    concurrency = re.search(r"^concurrency:\s*$(.*?)^\S", text + "\n\x00", re.M | re.S)
+    concurrency = _CONCURRENCY_BLOCK.search(text + "\n\x00")
     assert concurrency, (
         f"{workflow.name} runs on pull requests with no `concurrency:` group, so every push "
         "to a branch leaves its predecessor running: minutes spent answering about a commit "
         f"nobody is merging. Add the group, or record why not with the words "
         f"{_CONCURRENCY_WAIVER!r}."
     )
-    assert "cancel-in-progress" in concurrency.group(1), (
-        f"{workflow.name} has a concurrency group that never cancels, which QUEUES superseded "
-        "runs instead of dropping them — slower than no group at all. Set cancel-in-progress, "
-        f"or record why not with the words {_CONCURRENCY_WAIVER!r}."
+    cancel = _CANCEL_IN_PROGRESS.search(concurrency.group("body"))
+    assert cancel, (
+        f"{workflow.name} has a concurrency group with no `cancel-in-progress:` key, which "
+        "QUEUES superseded runs instead of dropping them — slower than no group at all. Set "
+        f"it, or record why not with the words {_CONCURRENCY_WAIVER!r}."
+    )
+    assert _cancels_superseded_runs(cancel.group("value")), (
+        f"{workflow.name} sets `cancel-in-progress: {cancel.group('value')}`, which does not "
+        "cancel a superseded pull-request run. The key being present is not the question: "
+        "`false` (and `${{ false }}`) leaves the group QUEUING superseded runs, which is "
+        "slower than no group at all while satisfying anything that only looks for the key. "
+        f"Use `true`, or an expression naming `pull_request`, or record why not with the "
+        f"words {_CONCURRENCY_WAIVER!r}."
     )
 
 
@@ -227,9 +297,74 @@ def test_the_pinning_rule_rejects_what_it_is_supposed_to_reject() -> None:
     assert _VERSION_COMMENT.match("# v10.1.0")
 
     found = _third_party_uses("      - uses: actions/checkout@v4\n      - uses: ./.github/x\n")
-    assert found == [("actions/checkout", "v4", "")], (
-        "the `uses:` reader must find a third-party action and skip a local one; "
+    assert found == [("actions/checkout@v4", "")], (
+        "the `uses:` reader must find a third-party action WHOLE (the `@ref` included, so a "
+        "reference carrying none can still be judged) and skip a local one; "
         f"it returned {found}"
+    )
+
+
+def test_a_container_action_must_be_an_immutable_digest() -> None:
+    """Non-vacuity for the `docker://` rule, which is the one with no example in the tree.
+
+    A guard written for a case the repository does not contain yet is a guard nobody has
+    watched fire, so the rejection is exercised against the real assertion rather than
+    against the regex alone.
+    """
+    seen = _third_party_uses("      - uses: docker://vendor/action:latest\n")
+    assert seen == [("docker://vendor/action:latest", "")], (
+        "a container action must REACH the rule rather than be skipped beside the local-path "
+        f"exception, which is how it passed before; the reader returned {seen}"
+    )
+
+    digest = "sha256:" + "ab" * 32
+    assert _IMAGE_DIGEST.match(digest)
+    assert not _IMAGE_DIGEST.match("latest"), "a tag is not a digest"
+    assert not _IMAGE_DIGEST.match("sha256:" + "ab" * 31), "63 hex is not a digest"
+    assert not _IMAGE_DIGEST.match("sha1:" + "ab" * 32), "only sha256 digests are immutable here"
+
+    def check(line: str) -> None:
+        """The rule above, over one `uses:` line. Kept in step with it by the real-file test
+        next to it: if the two ever disagree, the workflows are what the repository runs."""
+        for reference, rest in _third_party_uses(line):
+            _, at, ref = reference.rpartition("@")
+            if reference.startswith("docker://"):
+                assert at and _IMAGE_DIGEST.match(ref), reference
+                continue
+            assert at and _SHA.match(ref), reference
+            assert _VERSION_COMMENT.match(rest), reference
+
+    check(f"      - uses: docker://vendor/action@{digest}\n")
+    for rejected in (
+        "      - uses: docker://vendor/action:latest\n",
+        "      - uses: docker://vendor/action\n",
+        f"      - uses: docker://vendor/action@sha256:{'ab' * 31}\n",
+        "      - uses: actions/checkout\n",  # no ref at all: the most mutable form there is
+    ):
+        with pytest.raises(AssertionError):
+            check(rejected)
+
+
+def test_the_cancel_in_progress_rule_reads_the_value_not_the_key() -> None:
+    """Non-vacuity. A key-only check passes `cancel-in-progress: false`, which leaves the
+    group queueing superseded runs -- the setting doing the opposite of what it is there
+    for, behind a guard reporting green."""
+    for accepted in (
+        "true",
+        "${{ github.event_name == 'pull_request' }}",
+        "${{ true }}",
+    ):
+        assert _cancels_superseded_runs(accepted), f"{accepted!r} does cancel and was rejected"
+    for rejected in ("false", "", "   ", "${{ false }}", "${{ github.ref == 'refs/heads/main' }}"):
+        assert not _cancels_superseded_runs(rejected), (
+            f"{rejected!r} does not cancel a superseded pull-request run and was accepted"
+        )
+
+    body = "  group: x\n  cancel-in-progress: false\n"
+    found = _CANCEL_IN_PROGRESS.search(body)
+    assert found and found.group("value") == "false", (
+        "the value reader must return what the key is set TO; it returned "
+        f"{found.group('value') if found else None!r}"
     )
 
 
