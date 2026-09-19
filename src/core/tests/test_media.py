@@ -600,9 +600,11 @@ def test_rehosted_preview_image_is_not_in_the_post_gallery(world: dict[str, obje
     link_image = media.ingest_link_preview_image(post=post, raw=_png())
     assert link_image is not None
     body = _client_for(author).get(reverse("post_detail", args=[post.id])).content.decode()
-    # The uploaded photo's thumbnail is in the gallery; the link-preview asset (with no
-    # LinkPreview row pointing at it here) appears nowhere on the page.
-    assert reverse("serve_media", args=[photo.thumbnail_token]) in body
+    # The uploaded photo is in the gallery — at its FULL rendition, because a thread
+    # page enlarges what the feed shows as a 400px tile (D14) — and the link-preview
+    # asset (with no LinkPreview row pointing at it here) appears nowhere on the page.
+    assert reverse("serve_media", args=[photo.token]) in body
+    assert reverse("serve_media", args=[photo.thumbnail_token]) not in body
     assert reverse("serve_media", args=[link_image.token]) not in body
 
 

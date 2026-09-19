@@ -92,6 +92,15 @@ _PAIRS: list[tuple[str, str]] = [
     ("btn-ink", "btn-bg-hover"),  # primary button label, hovered
 ]
 
+# The initials-avatar tones. Added with the discs themselves: the tone is an INDEX
+# (core/templatetags/avatars.py emits data-tone="3"), and base.html maps it to a token
+# pair — precisely so the monogram's contrast can be PROVEN here rather than hoped for,
+# which a computed hsl() per member never could be. Six is the whole palette; a seventh
+# added to the stylesheet without a row here would be the way this goes quietly vacuous,
+# which test_every_declared_tone_is_measured below refuses.
+_TONE_COUNT = 6
+_PAIRS += [(f"tone-{n}-ink", f"tone-{n}-bg") for n in range(1, _TONE_COUNT + 1)]
+
 
 def test_every_text_pair_meets_aa_in_both_themes() -> None:
     themes = _themes()
@@ -107,6 +116,23 @@ def test_every_text_pair_meets_aa_in_both_themes() -> None:
                     f"= {ratio:.2f}:1 < {_AA}:1"
                 )
     assert not failures, "WCAG AA contrast failures:\n" + "\n".join(failures)
+
+
+def test_every_declared_tone_is_measured() -> None:
+    """Guard the guard, the way this file's failure mode actually arrives: someone adds a
+    seventh avatar tone to the stylesheet, the loop above never looks at it, and an
+    unmeasured monogram ships. The stylesheet is the source of truth for how many exist.
+    """
+    tokens = _themes()["light"]
+    declared = {name for name in tokens if name.startswith("tone-") and name.endswith("-bg")}
+    assert len(declared) == _TONE_COUNT, (
+        f"base.html declares {len(declared)} avatar tones but {_TONE_COUNT} are measured; "
+        "add the new pair to _PAIRS and bump _TONE_COUNT (and avatars.TONE_COUNT)"
+    )
+    # The tag and the stylesheet must agree, or the tag emits an index nothing paints.
+    from core.templatetags.avatars import TONE_COUNT
+
+    assert TONE_COUNT == _TONE_COUNT
 
 
 def test_the_pair_list_is_non_vacuous() -> None:

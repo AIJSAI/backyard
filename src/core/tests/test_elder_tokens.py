@@ -370,7 +370,13 @@ def test_reading_her_page_pushes_the_expiry_out(world: World) -> None:
 def test_sending_love_returns_her_to_the_post_she_tapped(world: World) -> None:
     """A bare redirect to the feed threw her to the top of the page every time. On the
     fourth post down, with the bigger-text setting on, that is a long scroll back to where
-    she was — for the one interaction the surface offers."""
+    she was — for the one interaction the surface offers.
+
+    The anchor is the REACTION BLOCK, not the post (D52). `#post-N` lands at the top of
+    the article, above its full-width uncropped photographs, so the confirmation she was
+    just promised — the filled "You love this" and her name among the hearts — sat about
+    sixteen hundred pixels below where she arrived. She taps, the screen jumps, and as far
+    as she can tell nothing happened."""
     client = Client()
     client.get(reverse("elder_enter", args=[world.raw]))
     post = Post.objects.get(body__startswith="MATERNAL-BODY")
@@ -378,9 +384,11 @@ def test_sending_love_returns_her_to_the_post_she_tapped(world: World) -> None:
     response = client.post(reverse("elder_react", args=[post.pk]))
 
     assert response.status_code == 302
-    assert response.headers["Location"] == f"{reverse('elder_feed')}#post-{post.pk}", (
+    assert response.headers["Location"] == f"{reverse('elder_feed')}#love-{post.pk}", (
         f"reacting redirected to {response.headers['Location']!r}, which loses her place"
     )
+    # Non-vacuous: the id has to be ON the page, or the fragment is a scroll to nowhere.
+    assert f'id="love-{post.pk}"' in client.get(reverse("elder_feed")).content.decode()
     # And the anchor it points at exists on the page it lands on.
     assert f'id="post-{post.pk}"' in client.get(reverse("elder_feed")).content.decode()
 

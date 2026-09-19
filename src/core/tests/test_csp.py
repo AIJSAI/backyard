@@ -67,6 +67,26 @@ def test_the_inline_scripts_carry_the_header_nonce_and_none_are_bare() -> None:
     assert re.search(r"<script(?![^>]*\bnonce=)[^>]*>", body) is None
 
 
+def test_images_come_from_this_origin_or_the_page_itself_and_nowhere_else() -> None:
+    """`blob:` is admitted for exactly one thing: the composer's own preview thumbnails.
+
+    The picker renders what the member just chose through URL.createObjectURL, and under a
+    bare `img-src 'self'` the browser refused every one of them — the strip was a row of
+    empty boxes, which is worse than the filename it replaced. A blob: URL names an object
+    the PAGE created in its own memory and is unreachable from any other origin, so this
+    admits no remote bytes.
+
+    `data:` is asserted ABSENT and that is the point of the test: it is the neighbouring
+    scheme, it looks equally harmless, and it is the one that would let injected markup
+    carry its own image payload inline. A future "images do not load" fix that reaches for
+    it fails here.
+    """
+    csp = _logged_in_member().get(reverse("feed"))["Content-Security-Policy"]
+    assert _directive(csp, "img-src") == "img-src 'self' blob:"
+    assert "data:" not in csp
+    assert "*" not in csp  # no wildcard host crept into any directive
+
+
 def test_a_fresh_nonce_per_request() -> None:
     client = _logged_in_member()
     first = re.search(

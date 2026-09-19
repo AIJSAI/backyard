@@ -13,13 +13,14 @@ import tempfile
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.db.models import Prefetch
 from django.http import FileResponse, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.text import slugify
 
 from . import export, permissions, profiles, scoping, vcards
 from .feed_views import _acting_member
-from .models import Member, Pod
+from .models import Member, Pod, Yard
 
 _VISIBILITY = {Member.HIDDEN, Member.POD, Member.YARD}
 
@@ -69,11 +70,41 @@ def directory(request: HttpRequest) -> HttpResponse:
     if query:
         members = members.filter(display_name__icontains=query)
     viewer_pod_ids = scoping.member_pod_ids(member)  # computed once, not per row (MEDIUM-2)
+    # The household and side each row names, prefetched in two queries rather than the two
+    # per row that calling scoping.visible_pods_of / visible_yards_of_pod directly would
+    # cost. Both filters are the viewer's own yard set, so what comes back is exactly what
+    # those two scoped helpers would have returned — never a bridge member's far side.
+    viewer_yard_ids = scoping.member_yard_ids(member)
+    members = members.prefetch_related(
+        Prefetch(
+            "pods",
+            queryset=Pod.objects.filter(yards__id__in=viewer_yard_ids)
+            .distinct()
+            .prefetch_related(
+                Prefetch(
+                    "yards",
+                    queryset=Yard.objects.filter(id__in=viewer_yard_ids),
+                    to_attr="shared_yards",
+                )
+            ),
+            to_attr="shared_pods",
+        )
+    )
     rows = [
-        profiles.viewable_profile(member, other, viewer_pod_ids=viewer_pod_ids)
+        profiles.viewable_profile(
+            member,
+            other,
+            viewer_pod_ids=viewer_pod_ids,
+            placing=profiles.placing_text(member, other, shared_pods=other.shared_pods),
+        )
         for other in members[:200]
     ]
     return render(request, "core/directory.html", {"member": member, "profiles": rows, "q": query})
+
+
+# What a profile page shows of somebody's writing: enough to prove there is a person
+# behind the name, few enough that the page is still a profile and not a second feed.
+_PROFILE_POSTS = 3
 
 
 @login_required
@@ -81,10 +112,25 @@ def member_profile(request: HttpRequest, member_id: int) -> HttpResponse:
     """One member's profile, as this viewer may see it. Cross-yard is a 404 (S-902)."""
     viewer = _acting_member(request)
     target = scoping.require_visible_member(viewer, member_id)
+    # Their recent posts, through the SAME audience query the feed uses — so a post the
+    # viewer could not see on the feed is not reachable through the directory either. A
+    # profile that was three lines on a blank page is a dead end; a person's own words are
+    # the one thing that makes it not one.
+    recent_posts = list(
+        scoping.visible_posts(viewer)
+        .filter(author=target)
+        .order_by("-created_at", "-id")[:_PROFILE_POSTS]
+    )
     return render(
         request,
         "core/member_profile.html",
-        {"member": viewer, "profile": profiles.viewable_profile(viewer, target)},
+        {
+            "member": viewer,
+            "profile": profiles.viewable_profile(
+                viewer, target, placing=profiles.placing_text(viewer, target)
+            ),
+            "recent_posts": recent_posts,
+        },
     )
 
 
