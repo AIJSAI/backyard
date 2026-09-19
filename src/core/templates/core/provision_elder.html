@@ -19,7 +19,8 @@
 
   {% if minted_link %}
     <h2>{% if regenerated %}New link ready (the old one no longer works){% else %}Link ready to hand over{% endif %}</h2>
-    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_label="Elder link" handover_share_title="Your family on Backyard" handover_note="Hand it over in person or by a private message, or print this page for the QR. It appears only once." %}
+    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="Elder link" handover_share_title="Your family on Backyard" handover_note="Hand it over in person or by a private message, or print this page for the QR. It appears only once." %}
+    {% if regenerated %}<p class="muted">If you made a new link because a phone or tablet was lost, also check the <a href="{% url 'member_invites' %}">invites that are still open</a>. An invite that device can read is still a way in.</p>{% endif %}
   {% endif %}
 
   <form method="post" action="{% url 'provision_elder' target.id %}">
