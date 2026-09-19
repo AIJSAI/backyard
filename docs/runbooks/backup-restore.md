@@ -1,6 +1,7 @@
 # Backup and restore runbook (S-704, S-802)
 
-Backing up and restoring a whole Backyard instance is one command each, and the
+The instance backs itself up every night without being asked (see "The nightly
+backup" below). Backing up and restoring by hand is one command each, and the
 round trip — back up, delete the row, restore, assert it came back — runs in CI on
 every push, in the `code` job's "Compose live probe" step against a real Postgres.
 
@@ -54,7 +55,75 @@ container start, three copies deep, which is verbatim T-BACKUP-1 and T-MEDIA-5.
 every boot.** That warning is the fix working, not a cosmetic nag. Read access to
 `/data` yields those dumps whole. Set the passphrase.
 
-## Back up
+## The nightly backup
+
+The worker takes one at **03:30 every day** (`core/tasks.scheduled_backup_task`),
+through the same `backup_instance` command this runbook documents — there is no
+second backup implementation to drift.
+
+- **Where:** `/data/backups/scheduled-YYYY-MM-DD.bak` on the data volume, one file
+  per day. It is on the same volume as the media it archives, which is the point
+  worth being uncomfortable about: see "Getting a copy off the box" below.
+- **Encrypted, or nothing.** The nightly run never passes `--no-encrypt`, so with
+  no passphrase set it writes **no archive at all** and records the reason. It
+  does not fall back to plaintext.
+- **Retention:** the last 14 days, plus the newest archive of each of the last 8
+  ISO weeks. Only files named `scheduled-*.bak` are ever deleted — your own
+  archives and the entrypoint's `preflight-*` dumps are not candidates.
+- **Who dumps:** the worker holds no migrator password (it runs ffmpeg on
+  uploaded video and must never hold DDL credentials), so the dump runs as
+  `backyard_app`, which ADR-004 already grants SELECT on every table.
+
+### When it fails
+
+It fails loudly in three places at once, which is the whole design:
+
+1. the **weekly health email** grows a `[!] Scheduled backup: FAILING since …`
+   line carrying the reason;
+2. `/healthz` answers `degraded` instead of `ok` — and the external monitor
+   (`.github/workflows/monitor.yml`) turns that into mail from GitHub within half
+   an hour;
+3. the worker log carries it at error level:
+
+```sh
+docker compose logs --since 24h worker | grep -i "scheduled backup"
+```
+
+To see the detail without waiting for Monday's email, sign in as the instance
+admin and open `/healthz` — the fields are there for an admin and for nobody
+else. To run one right now rather than waiting for 03:30:
+
+```sh
+docker compose exec -T worker sh -c \
+  'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+     python manage.py shell -c "from core import scheduled_backup; print(scheduled_backup.run())"'
+```
+
+### Getting a copy off the box
+
+**Nothing in the product copies a backup off the server, and that is deliberate.**
+A copy step inside the container needs a credential for the destination, and that
+credential would sit next to the ciphertext on the same volume — the same reason
+this runbook tells you not to keep the passphrase file in `/data`. A stolen disk
+or a provider snapshot would then carry both halves.
+
+So the hook point is on the **host**, where the destination credential already
+lives, outside the containers. The archives are in the `appdata` volume under
+`backups/`; find its path once and put a copy step in the host's own cron:
+
+```sh
+# Where the archives actually are on this host:
+docker volume inspect backyard_appdata --format '{{ .Mountpoint }}'
+
+# Then, in the host's crontab (04:30, an hour after the instance writes one):
+# 30 4 * * * rsync -a --delete <that path>/backups/ <your-backup-host>:/srv/backyard/
+```
+
+The health email's "Off-box backup age" line still reads NOT MEASURED, and it
+should: the instance cannot see where you copied a file to, and a line claiming
+otherwise would be the more dangerous kind of wrong (T-OP-G3).
+
+## Back up by hand
 
 Compose already places `POSTGRES_MIGRATOR_PASSWORD` in the web service's
 environment, so you do **not** need to pass it — and passing it with `-e` puts a
@@ -102,6 +171,17 @@ age -r "$YOUR_AGE_PUBLIC_KEY" -o backup-YYYY-MM-DD.tar.age backup-YYYY-MM-DD.tar
 ```
 
 ## Restore
+
+The nightly archives are what you will usually be restoring, so start by seeing
+what is actually there rather than assuming last night's exists:
+
+```sh
+docker compose exec -T web sh -c 'ls -lt /data/backups/'
+```
+
+`scheduled-YYYY-MM-DD.bak` is the nightly one, `backup-*` is whatever you took by
+hand, and `preflight-*` are the dumps the entrypoint takes before each migration
+(three of them, kept for the upgrade that goes wrong, not for this).
 
 Restore is **destructive**: it clean-restores the database (dropping existing
 objects) and replaces the media tree. It refuses a database that still has

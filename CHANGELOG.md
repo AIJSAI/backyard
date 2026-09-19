@@ -7,6 +7,33 @@ promise yet — the schema and the URLs may still move.
 **Install a tag, not `main`.** `main` is where the work happens and it changes daily; a tag is
 a point somebody deliberately stopped at, with a full green gate behind it.
 
+## [Unreleased]
+
+### Added
+
+- **The instance backs itself up.** `backup_instance` shipped with nothing running it, so
+  an instance holding a family's photographs had a documented backup command and no
+  backups. The worker now takes an encrypted archive nightly at 03:30, keeps 14 daily and
+  8 weekly, and deletes only archives it wrote itself. With no passphrase configured it
+  writes nothing at all rather than falling back to plaintext.
+- **A failing backup is now distinguishable from an old one.** The weekly health email and
+  the health surface carry the reason the last scheduled run failed, instead of a
+  "last backup" date that reads the same whether the backup ran or refused to.
+- **Days until the TLS certificate expires**, in the health email. Renewal is automatic and
+  silent, and so is its failure; an expired certificate is a full-page browser warning for
+  every relative at once.
+- **Container healthchecks for web, worker and caddy.** Only the database had one.
+- **A monitor that does not live on the monitored box** (`.github/workflows/monitor.yml`):
+  every 30 minutes it checks the health endpoint and the certificate, and fails so GitHub
+  emails the owner. Every other watcher the instance has is a worker periodic, so a dead
+  worker silenced its own alarm.
+
+### Changed
+
+- `/healthz` answers `ok` or `degraded` (always HTTP 200) instead of always `ok`. The
+  fields behind that word are visible to a signed-in instance admin and to nobody else: at
+  a public URL, disk headroom and backup age are an operations map for whoever asks first.
+
 ## [0.1.2] — 2026-08-07
 
 `v0.1.1` could not be installed from its own README, and several things it shipped were

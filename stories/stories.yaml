@@ -961,6 +961,33 @@ epics:
     v1: false
     evidence: src/core/tests/test_health_email.py + docs/receipts/2026-07-29-s804-s806-succession.md
 
+  - id: S-807
+    epic: E8
+    persona: self-hoster
+    story: "As the family tech person, the instance backs itself up nightly and something outside the box tells me when it stops being healthy."
+    acceptance:
+    - "A scheduled daily backup runs on the worker through the existing backup command, encrypted, with 14-daily/8-weekly retention that can only delete archives the scheduler itself wrote"
+    - "With no passphrase configured the scheduled backup writes NOTHING and never falls back to plaintext"
+    - "A failed scheduled backup is reported with its reason in the weekly health email, at the health surface, and in the worker log at error level"
+    - "web, worker and caddy carry container healthchecks, and the compose live probe proves all four reach healthy"
+    - "The health surface reports backup age, disk headroom and days until the TLS certificate expires; the unauthenticated endpoint says only ok or degraded, and the detail is visible to the instance admin"
+    - "A scheduled GitHub workflow outside the instance checks the health endpoint and the certificate lifetime, and fails so the owner is emailed"
+    status: tested      # The code is proven: unit tests plus a live compose run on
+                        # 2026-09-18 where the worker — holding NO migrator credentials —
+                        # wrote an encrypted archive that the web container then restored,
+                        # marker row intact. NOT `passing`, because the two things this
+                        # story is really about have not been OBSERVED on the live box yet:
+                        # a 03:30 run happening by itself, and the monitor failing into the
+                        # owner's inbox. Those are a deploy and a repository variable away,
+                        # and calling this passing before either is exactly the "a gate that
+                        # proves the wrong thing" habit this repo keeps finding in itself.
+    v1: false
+    security:
+      threat_refs:
+      - T-MON-1
+      - T-BACKUP-1
+      - T-OP-G3
+      source: docs/security/threat-model.md
   - id: S-804
     epic: E8
     persona: self-hoster
