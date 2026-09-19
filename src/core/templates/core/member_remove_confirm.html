@@ -53,9 +53,14 @@
       added by <strong>other people</strong> replying to {{ target.display_name }}. Those
       go too.</p>
   {% endif %}
+  {% comment %} Two sentences, which is what the guide allows an irreversible act. It was
+     four, and the third ("No one can get them back.") restated the first while "erased from
+     the server" had already been said in the list directly above; repetition on the most
+     consequential page in the product reads as anxiety rather than care. Every FACT is
+     kept: permanent, erased rather than hidden, and the copies already in inboxes.
+     {% endcomment %}
   <p><strong>This cannot be undone.</strong> The photos are erased from the server, not
-    hidden. No one can get them back. Copies already sent in email updates cannot be
-    recalled.</p>
+    hidden, and copies already sent in email updates cannot be recalled.</p>
 
   <p>To remove {{ target.display_name }} without deleting anything, go back and choose one
     of the other two options.</p>
@@ -68,4 +73,12 @@
            autocapitalize="off" autocorrect="off" spellcheck="false" required>
     <button type="submit" class="danger">Delete Posts And Photos</button>
   </form>
+  {% comment %} A way out UNDER the button, which every other confirmation page in the
+     product has (delete_confirm, takedown_confirm, authenticator_confirm_delete,
+     deactivate_form) and the most destructive page in the product did not. Measured at
+     390px: this page is 2078px tall, so by the time an admin has read the counts, typed
+     the name and reached "Delete Posts And Photos", the Cancel at the top is a screen and
+     a half above and off screen. The top one stays: it is the way out for somebody who
+     opened this page by mistake and never scrolled. {% endcomment %}
+  <p><a href="{% url 'members' %}">Cancel</a></p>
 {% endblock %}

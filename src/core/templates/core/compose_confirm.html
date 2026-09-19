@@ -3,7 +3,11 @@
 {% block body %}
   <h1>Share With {{ audience_names }}?</h1>
   <p class="muted">
-    This post goes to everyone in {{ audience_names }}, about {{ member_count }}
+    {% comment %} No "about". The number is `reach.count()` (feed_views), an exact count of
+       the people this post will reach, and a hedge on the one screen whose whole job is to
+       say precisely how far a post is about to travel reads as uncertainty about the
+       privacy question the page is asking. {% endcomment %}
+    This post goes to everyone in {{ audience_names }}, {{ member_count }}
     {% if member_count == 1 %}person{% else %}people{% endif %}, not only your household.
   </p>
 
@@ -45,12 +49,22 @@
     <form method="post" action="{% url 'compose_cancel' %}">
       {% csrf_token %}
       {% if staged_handle %}<input type="hidden" name="staged_uploads" value="{{ staged_handle }}">{% endif %}
-      <button type="submit" class="btn-quiet">Cancel</button>
+      {% comment %} "Discard Post", never "Cancel". Everywhere else in this product Cancel
+         means "go back, change nothing" — Delete This Post?, Take This Post Down?, Remove
+         This Passkey? all use it that way — and here it POSTed to compose_cancel, threw
+         away what the member had just written and released the staged photographs. A
+         Cancel that is the destructive option is the trap the guide's "the way out is
+         always Cancel" rule exists to prevent. {% endcomment %}
+      <button type="submit" class="btn-quiet">Discard Post</button>
     </form>
   </div>
 
   {% comment %} F5. Leaving this page any other way — the back button, the header nav, a
      phone call — no longer throws the post away: it is held (core/drafts.py) and the
-     composer opens with it. Only Cancel above discards it. {% endcomment %}
-  <p class="muted">Cancel discards this post. Leaving this page keeps it as a draft.</p>
+     composer opens with it. Only Discard Post above discards it.
+
+     The first clause of this sentence ("Cancel discards this post") only ever existed to
+     warn about a mislabelled button. Now that the button says what it does, the sentence
+     is left with the one thing that is genuinely not obvious. {% endcomment %}
+  <p class="muted">Leaving this page keeps the post as a draft.</p>
 {% endblock %}

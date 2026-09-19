@@ -286,7 +286,7 @@ def test_the_username_field_says_what_to_put_in_it(invite_to_pod: tuple[Pod, str
     it carried no hint at all."""
     _, raw = invite_to_pod
     body = " ".join(_page(raw).split())
-    assert "Your first name is fine." in body
+    assert "Use your first name." in body
     # Tied to the field, not merely present on the page: an unlinked sentence is not read
     # out to somebody who reaches the box with a screen reader.
     assert 'aria-describedby="username-help"' in body

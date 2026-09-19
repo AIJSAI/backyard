@@ -55,6 +55,10 @@ button.on { background: #1e5c46; color: #ffffff; }
 button:focus-visible, a:focus-visible { outline: 3px solid #8a5a12; outline-offset: 3px; }
 .post { border-top: 2px solid #d9e0da; padding: 24px 0; }
 .byline { color: #4c5a52; margin: 0 0 12px; }
+/* Whose link this is, under the top bar. Same quiet colour as a post's byline (#4c5a52 on
+   #ffffff, 7.26:1) because it is the same kind of thing: a fact about the page, not news
+   from a grandchild. It scales with the big-text toggle like everything else here. */
+.for-reader { margin: 12px 0 0; color: #4c5a52; }
 .post p { margin: 0 0 18px; }
 /* A post keeps the shape it was typed in here too. It is the surface most likely to
    carry a recipe off a card, or an address, and a grandmother reading a run-on
@@ -110,6 +114,25 @@ p.clip-status { margin: 18px 0; color: #4c5a52; }
     </form>
   </div>
 
+  {% comment %} WHOSE LINK THIS IS. "Hello, Nana" was rightly cut as a greeting she cannot
+     act on, but it carried the only statement of whose page this was, and this is the one
+     surface where a name is load-bearing rather than decorative: a no-login link reads and
+     sends love AS its holder, and on the shared tablet this page exists for, two
+     grandparents with two links open a byte-identical page. Love sent from the wrong link
+     is attributed to the wrong person and she cannot undo it.
+
+     A FACT, not a greeting: "For <name>", with nothing around it. The kinship name first
+     because that is what this family actually calls her and what the reactions further
+     down already print; her first name as the fallback, never the full one, which wraps to
+     three lines at the enlarged size. Guarded on truthiness so a member with neither
+     renders nothing rather than a sentence with a hole in it.
+
+     UNDER the top bar, not inside it: `.top` is a space-between flex row, so a third child
+     would land between the title and the Bigger Text button. {% endcomment %}
+  {% if member.kinship_name or member.short_name %}
+    <p class="for-reader">For {{ member.kinship_name|default:member.short_name }}</p>
+  {% endif %}
+
   {% for post in posts %}
     <article class="post" id="post-{{ post.id }}">
       {% comment %} One date format across the product: this page said "Sept. 18, 2026"
@@ -157,10 +180,13 @@ p.clip-status { margin: 18px 0; color: #4c5a52; }
         {% endif %}
       {% endfor %}
       {% for comment in post.comments.all|slice:":5" %}
-        {% comment %} "(via email)", the same badge the post page and the digest page carry.
-           This surface said "(by email)" and the other two said "(via email)" for the same
-           fact. {% endcomment %}
-        <p class="reply"><strong>{{ comment.author.display_name }}</strong>{% if comment.via_email %} (via email){% endif %}{% if comment.body %} said: {{ comment.body }}{% else %} sent photos{% endif %}</p>
+        {% comment %} "Via Email", the same badge the post page and the digest page carry.
+           The comment here claimed the three surfaces were unified while this one still
+           said "(via email)" in lower case against their "Via Email" — one object, two
+           spellings, on the page the guide is most protective of. This surface is
+           standalone and has no `.via-email` component, so it is the WORDS that match,
+           without the pill. {% endcomment %}
+        <p class="reply"><strong>{{ comment.author.display_name }}</strong>{% if comment.via_email %} (Via Email){% endif %}{% if comment.body %} said: {{ comment.body }}{% else %} sent photos{% endif %}</p>
         {% comment %} S-404. Deliberately <img src> and NOT wrapped in a link, exactly as
            the post's own photos are: test_elder_wcag asserts every href on this page is
            the elder feed itself (S-601, no dead ends), so a full-size link would red the
@@ -196,7 +222,9 @@ p.clip-status { margin: 18px 0; color: #4c5a52; }
       </div>
     </article>
   {% empty %}
-    <p class="post">Nothing new right now. Posts will appear here.</p>
+    {% comment %} An empty state is one line saying what is empty plus the one action. There is no
+       action on this surface, so the second sentence only restated the first. {% endcomment %}
+    <p class="post">Nothing new right now.</p>
   {% endfor %}
   <p class="back-wrap"><a class="back" href="{% url 'elder_feed' %}">Back To The Top</a></p>
   {% comment %} The same help line the rest of the product carries, naming the relative who

@@ -36,16 +36,27 @@
 
   {% if subscription %}
     <p>
+      {% comment %} "off ... weekly" in one sentence contradicted itself, and a relative read
+         it as "off, but still scheduled" and went looking for the switch again. While it is
+         off, the answer to how often is nothing. The stored cadence is untouched and the
+         word comes back the moment they turn it on. The ADDRESS stays in both states: it is
+         the one fact somebody turning this back on needs to check. {% endcomment %}
       Email updates are <strong>{% if subscription.enabled %}on{% else %}off{% endif %}</strong>
-      for {{ subscription.address }},
-      {% if subscription.cadence == "daily" %}daily{% elif subscription.cadence == "monthly" %}monthly{% else %}weekly{% endif %}.{% if not subscription.confirmed_at %} The address is not confirmed yet.{% endif %}
+      for {{ subscription.address }}{% if subscription.enabled %},
+      {% if subscription.cadence == "daily" %}daily{% elif subscription.cadence == "monthly" %}monthly{% else %}weekly{% endif %}{% endif %}.{% if not subscription.confirmed_at %} The address is not confirmed yet.{% endif %}
     </p>
     {% comment %} The off switch. This page could turn it ON and never off, while stating
        that it was "on" as though that were a state the reader could change. The only way
        to stop it was the link in the footer of an email you had already received — and
        somebody who has not confirmed their address has never received one, so their
        subscription could not be turned off at all. {% endcomment %}
-    <form method="post" action="{% url 'digest_settings' %}" class="inline">
+    {% comment %} NOT `class="inline"`. `.inline` is `display: inline` (base.html), so the
+       form established no block box, the button's vertical padding overflowed its line box
+       and the hint below was struck through by the button's bottom border. Measured at
+       390px on 2026-09-19: "Turning this off stops the email only." was drawn ON TOP of
+       "Turn Off Email Updates". Nothing else on this page needs the form to be inline.
+       {% endcomment %}
+    <form method="post" action="{% url 'digest_settings' %}">
       {% csrf_token %}
       {% if subscription.enabled %}
         <input type="hidden" name="action" value="turn_off">
@@ -56,7 +67,15 @@
       {% endif %}
     </form>
     {% if subscription.enabled %}
-      <p class="hint">Turning this off stops the email only. You stay a member.</p>
+      {% comment %} `.media-hint`, NOT `.hint`. Measured at 390px on 2026-09-19: this
+         sentence was drawn ON TOP of the "Turn Off Email Updates" button, struck through
+         by its bottom border, on a member-facing screen. `.hint` carries `margin-top:
+         -0.6rem` so it sits tight under a FIELD, and there is no field here — it follows a
+         46px button. The design system already has the component for exactly this case
+         and says so in its own comment: same size, same colour, the one margin that
+         differs "because it sits under a button rather than under a field". No new class,
+         no CSS change. {% endcomment %}
+      <p class="media-hint">Turning this off stops the email only. You stay a member.</p>
     {% endif %}
   {% endif %}
 

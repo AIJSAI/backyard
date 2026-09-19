@@ -8,7 +8,14 @@
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;padding:0;background-color:#fbfcfb;">
  <tr>
   <td align="center" style="padding:24px 12px;">
-   <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #dde4df;border-radius:10px;">
+   {% comment %} FLUID UP TO 600px, not pinned at it. Measured at a 390px viewport on
+      2026-09-19: the pinned card needed 632 CSS px and clipped the body text of every post
+      at the right edge ("Sorry it took a fortnigh..."). This is the one surface the whole
+      family receives every week, and it was the only object in the product that did not
+      fit a phone. `width="100%"` with `max-width:600px` is the mail-safe pattern every
+      major client honours; the outer cell's `align="center"` still centres it on a
+      desktop, where it is the same 600px it always was. {% endcomment %}
+   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #dde4df;border-radius:10px;">
     <tr>
      <td style="padding:26px 30px 30px;font-family:Georgia,'Iowan Old Style',Palatino,serif;font-size:18px;line-height:1.5;color:#1c211e;">
 
