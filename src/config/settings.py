@@ -204,11 +204,17 @@ SESSION_ENGINE = "django.contrib.sessions.backends.db"
 # individually revocable, so the username never leaves this machine.
 MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"
 
+# Django's four rules, with Django's four checks and this product's four sentences. The
+# library's wording explained each rule twice — a help text for a form and a refusal for a
+# developer — on the join form, the setup form, the get-back-in page, the emailed reset and
+# the signed-in password change. core/password_rules.py inherits every `validate` unchanged
+# and overrides only `get_error_message` / `get_help_text`, so what is refused here is
+# exactly what Django refuses.
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
-    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
-    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    {"NAME": "core.password_rules.NotYourOwnDetails"},
+    {"NAME": "core.password_rules.MinimumLength"},
+    {"NAME": "core.password_rules.NotACommonPassword"},
+    {"NAME": "core.password_rules.NotAllNumbers"},
 ]
 
 # --- Authentication (django-allauth, S-101) ---------------------------------
@@ -293,6 +299,10 @@ ALLAUTH_TRUSTED_PROXY_COUNT = 1
 # it forces email verification, which invite-token signup (email optional) cannot
 # meet, so the invite flow is a custom view (S-101) that enrolls WebAuthn after.
 MFA_SUPPORTED_TYPES = ["webauthn", "totp", "recovery_codes"]
+# Copy only, and the same reason ACCOUNT_ADAPTER is set above: the name prefilled into the
+# Add A Passkey box is built in the library's Python, not in a template, so it was the one
+# string on those screens no template override could reach. See core.adapters.MFAAdapter.
+MFA_ADAPTER = "core.adapters.MFAAdapter"
 MFA_PASSKEY_LOGIN_ENABLED = True
 MFA_PASSKEY_SIGNUP_ENABLED = False
 # Local HTTP repro only: fido2 <= 1.1.3 rejects localhost as a secure origin.
@@ -357,10 +367,9 @@ SETUP_HANDOVER_FILE = os.environ.get("SETUP_HANDOVER_FILE", "/data/first-run-sec
 #
 # Deliberately ABOVE the composer's own caps (20 photos + 4 videos = 24). At exactly 20
 # this framework limit fired first and Django answered a bare 400 — so someone picking 25
-# birthday photos got an unexplained error page instead of the composer's "5 of your 25
-# photos could not be added — 20 is the limit for one post." The application must be the
-# thing that explains itself; this stays a backstop against an absurd request, not the
-# everyday ceiling.
+# birthday photos got an unexplained error page instead of the composer's own sentence
+# about what it could not add. The application must be the thing that explains itself;
+# this stays a backstop against an absurd request, not the everyday ceiling.
 DATA_UPLOAD_MAX_NUMBER_FILES = 40
 
 # --- Outbound email (wave 4 substrate, S-501) --------------------------------

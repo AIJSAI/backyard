@@ -1,0 +1,15 @@
+{% comment %} PROJECT OVERRIDE of django-allauth's mfa/webauthn/snippets/scripts.html.
+
+   The three scripts are the package's, in the package's order, and this file exists only
+   for the sentence above them. "This functionality requires JavaScript." is what a
+   relative with scripting off reads on the sign-in page and on every passkey screen, and
+   it names neither the thing that will not work nor what to do instead. Passkeys are the
+   only part of this product that needs JavaScript at all; everything else, including
+   signing in with a password, works without it. {% endcomment %}
+{% load i18n static %}
+<noscript>
+    <p class="notice">{% trans "Passkeys need JavaScript turned on. Sign in with your password instead." %}</p>
+</noscript>
+<script src="{% static 'mfa/js/webauthn-json.js' %}"></script>
+<script src="{% static 'mfa/js/webauthn.js' %}"></script>
+<script src="{% static 'account/js/onload.js' %}"></script>

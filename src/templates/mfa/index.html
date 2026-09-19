@@ -1,0 +1,92 @@
+{% extends "mfa/base_manage.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's mfa/index.html.
+
+   The page Settings sends a relative to under "Passkeys and sign-in codes", and the page
+   the roster's "Add a second way to prove it's you" lands on. Until the copy pass it was
+   the library's own developer-facing English on this product's layout: "Two-Factor
+   Authentication", "Security Keys", "An authenticator app is not active.", and three
+   panels of bare verbs — Activate, Manage, Add, View, Download, Generate — that said
+   nothing about what they would do.
+
+   The page is named after the link that leads here, so the two agree. Its three sections
+   are the three things a person can actually set up, each one sentence of state and one
+   control. The counts keep allauth's plural branches, because "1 passkeys" is the kind of
+   detail that tells a relative nobody reads this screen.
+
+   WHY "PASSKEY" AND NOT "SECURITY KEY". The library calls a WebAuthn credential a security
+   key everywhere and prints "Passkey" only on a badge. This product has said "passkey" on
+   its own surfaces since the settings list was written, the thing a relative registers is
+   the face or fingerprint on the phone in their hand, and one object gets one word.
+   {% endcomment %}
+{% load allauth i18n %}
+{% block head_title %}
+    {% trans "Passkeys And Sign-In Codes" %}
+{% endblock head_title %}
+{% block content %}
+    <h1>{% trans "Passkeys And Sign-In Codes" %}</h1>
+    {% comment %} "None of them is required" is the one sentence on this page that is not
+       about a control: the second factor is an offer and never a gate (FD-2), and the two
+       relatives becoming admins here were told so on the roster. A person who thinks this
+       page can lock them out does not open it twice. {% endcomment %}
+    <p>{% trans "Extra ways to prove it is you when you sign in. None of them is required." %}</p>
+    {% if "webauthn" in MFA_SUPPORTED_TYPES %}
+        <h2>{% trans "Passkeys" %}</h2>
+        {% if authenticators.webauthn|length %}
+            <p>
+                {% blocktranslate count count=authenticators.webauthn|length %}You have added {{ count }} passkey.{% plural %}You have added {{ count }} passkeys.{% endblocktranslate %}
+            </p>
+            <p><a class="btn" href="{% url 'mfa_list_webauthn' %}">{% trans "Manage Passkeys" %}</a></p>
+        {% else %}
+            <p>{% trans "Sign in with your face, fingerprint or screen lock instead of a password." %}</p>
+            <p><a class="btn" href="{% url 'mfa_add_webauthn' %}">{% trans "Add A Passkey" %}</a></p>
+        {% endif %}
+    {% endif %}
+    {% if "totp" in MFA_SUPPORTED_TYPES %}
+        <h2>{% trans "Authenticator App" %}</h2>
+        {% if authenticators.totp %}
+            <p>{% trans "An authenticator app is set up." %}</p>
+            <p>
+                <a class="btn-danger" href="{% url 'mfa_deactivate_totp' %}">{% trans "Turn Off The Authenticator App" %}</a>
+            </p>
+        {% else %}
+            <p>{% trans "An app on your phone gives you a six-digit code to type when you sign in." %}</p>
+            <p><a class="btn" href="{% url 'mfa_activate_totp' %}">{% trans "Set Up An Authenticator App" %}</a></p>
+        {% endif %}
+    {% endif %}
+    {% if "recovery_codes" in MFA_SUPPORTED_TYPES %}
+        <h2>{% trans "Recovery Codes" %}</h2>
+        {% with unused_count=authenticators.recovery_codes.get_unused_codes|length %}
+            {% if authenticators.recovery_codes %}
+                <p>
+                    {% blocktranslate count unused_count=unused_count %}You have {{ unused_count }} code left to use.{% plural %}You have {{ unused_count }} codes left to use.{% endblocktranslate %}
+                </p>
+            {% elif is_mfa_enabled %}
+                {% comment %} Written as what they are FOR rather than as an absence. The whole
+                   reason a relative would set these up is the phone-in-the-lake case, and the
+                   stock line ("No recovery codes set up.") never says it. {% endcomment %}
+                <p>{% trans "One-time codes to print or write down. Use one to sign in if you lose your phone." %}</p>
+            {% else %}
+                {% comment %} allauth offers recovery codes only once a passkey or an app
+                   exists, and the stock page simply showed no button. One line: what they are,
+                   and the one thing standing between the reader and having them. {% endcomment %}
+                <p>{% trans "One-time codes for signing in if you lose your phone. Add a passkey or an authenticator app first." %}</p>
+            {% endif %}
+            {% if is_mfa_enabled %}
+                {% comment %} The same two controls the package offers, under the same
+                   condition: it hides both once the codes are shown-once-only, because
+                   there is nothing left to show or download. {% endcomment %}
+                {% if authenticators.recovery_codes and unused_count > 0 and not MFA_RECOVERY_CODES_SHOW_ONCE %}
+                    <p>
+                        <a class="btn" href="{% url 'mfa_view_recovery_codes' %}">{% trans "See Your Codes" %}</a>
+                    </p>
+                    <p>
+                        <a class="btn-secondary" href="{% url 'mfa_download_recovery_codes' %}">{% trans "Download Your Codes" %}</a>
+                    </p>
+                {% endif %}
+                <p>
+                    <a class="btn-secondary" href="{% url 'mfa_generate_recovery_codes' %}">{% trans "Create New Codes" %}</a>
+                </p>
+            {% endif %}
+        {% endwith %}
+    {% endif %}
+{% endblock content %}

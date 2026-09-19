@@ -1,0 +1,41 @@
+{% extends "mfa/base_entrance.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's mfa/trust.html.
+
+   UNREACHABLE TODAY, AND WRITTEN ANYWAY. This page is offered straight after a two-factor
+   sign-in, but only when MFA_TRUST_ENABLED is on, and it is off — so `mfa_trust` is not
+   even a route in this instance. The completeness sweep recorded it as stock text on a
+   live screen, which it is not. It is one flag away from being one, though, and the flag
+   is the kind that gets flipped on a Tuesday, so the words are here rather than in a
+   backlog.
+
+   "Trust this browser" is the library's phrase for it, and it asks a relative to reason
+   about a browser. What the answer actually decides is whether this device asks for a code
+   again, so that is what the page asks.
+
+   The form action, the two `action` values (`trust` and `skip`) and the hidden
+   `logout-from-stage` form Cancel submits are the package's. {% endcomment %}
+{% load i18n %}
+{% block head_title %}
+    {% trans "Skip The Code On This Device?" %}
+{% endblock head_title %}
+{% block content %}
+    <h1>{% trans "Skip The Code On This Device?" %}</h1>
+    <p>{% trans "This device will not ask for a code again for a while. Say no on a shared or borrowed one." %}</p>
+    <form method="post" action="{% url 'mfa_trust' %}">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button name="action" value="trust" type="submit">
+            {% blocktranslate with period=trust_until|timeuntil:trust_from %}Skip For {{ period }}{% endblocktranslate %}
+        </button>
+        <button name="action" value="skip" type="submit" class="btn-secondary">
+            {% trans "Ask Every Time" %}
+        </button>
+    </form>
+    <p>
+        <button type="submit" form="logout-from-stage" class="btn-quiet">{% trans "Cancel" %}</button>
+    </p>
+    <form id="logout-from-stage" method="post" action="{% url 'account_logout' %}">
+        <input type="hidden" name="next" value="{% url 'account_login' %}">
+        {% csrf_token %}
+    </form>
+{% endblock content %}

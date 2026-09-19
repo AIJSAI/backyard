@@ -1,0 +1,29 @@
+{% extends "mfa/recovery_codes/base.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's mfa/recovery_codes/generate.html.
+
+   A confirmation page. The stock one ran three sentences together in a single paragraph —
+   "You are about to generate a new set of recovery codes for your account." "This action
+   will invalidate your existing codes." "Are you sure?" — under a heading that said only
+   "Recovery Codes", and offered no way out.
+
+   The middle sentence is a KEEP: making new codes throws the old ones away, and somebody
+   who has printed the old list needs to be told before, not after. It is the only reason
+   this page exists at all, so it is the heading's answer and it only appears when there
+   are codes to lose. `form.as_p` is the package's. {% endcomment %}
+{% load i18n %}
+{% block content %}
+    <h1>{% trans "Create New Recovery Codes?" %}</h1>
+    {% if unused_code_count %}
+        <p>{% trans "Your current codes stop working straight away. Throw away any copies you have printed." %}</p>
+    {% else %}
+        <p>{% trans "You will get a new set of one-time codes to print or write down." %}</p>
+    {% endif %}
+    <form method="post" action="{% url 'mfa_generate_recovery_codes' %}">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit"{% if unused_code_count %} class="danger"{% endif %}>
+            {% trans "Create New Codes" %}
+        </button>
+    </form>
+    <p><a class="btn-quiet" href="{% url 'mfa_index' %}">{% trans "Cancel" %}</a></p>
+{% endblock content %}

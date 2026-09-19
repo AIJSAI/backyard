@@ -1,0 +1,56 @@
+{% extends "mfa/recovery_codes/base.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's mfa/recovery_codes/index.html.
+
+   The codes themselves. The stock page opened on "There are 7 out of 10 recovery codes
+   available.", which is a count of rows in a table rather than an answer to the question
+   somebody came here with, and the box holding the codes was labelled "Unused codes" with
+   no word anywhere about what to do with them.
+
+   The textarea keeps its id `recovery_codes` and the tick box keeps `codes_saved`: the
+   script block at the bottom is the package's and names both. So is the `{# djlint:off #}`
+   run that prints one code per line — the newlines inside a textarea are the file format,
+   and indenting them would put spaces in every code. {% endcomment %}
+{% load i18n static %}
+{% block content %}
+    <h1>{% trans "Recovery Codes" %}</h1>
+    <p>
+        {% blocktranslate count unused_count=unused_codes|length %}You have {{ unused_count }} code left to use.{% plural %}You have {{ unused_count }} codes left to use.{% endblocktranslate %}
+        {% trans "Each code works once." %}
+    </p>
+    {% if can_view_codes %}
+        <label for="recovery_codes">{% trans "Your Codes" %}</label>
+        {# djlint:off #}
+        <textarea id="recovery_codes" rows="{{ unused_codes|length }}" readonly>{% for code in unused_codes %}{% if forloop.counter0 %}
+{% endif %}{{ code }}{% endfor %}</textarea>
+        {# djlint:on #}
+        <p class="hint">{% trans "Print them, or write them down, and keep them somewhere safe." %}</p>
+    {% endif %}
+    {% if can_download_codes %}
+        <p>
+            <a class="btn" href="{% url 'mfa_download_recovery_codes' %}">{% trans "Download Your Codes" %}</a>
+        </p>
+    {% endif %}
+    {% if can_generate_codes %}
+        <p>
+            <a class="btn-secondary" href="{% url 'mfa_generate_recovery_codes' %}">{% trans "Create New Codes" %}</a>
+        </p>
+    {% endif %}
+    {% if MFA_RECOVERY_CODES_SHOW_ONCE and can_view_codes %}
+        <label class="inline-check" for="codes_saved">
+            <input type="checkbox" id="codes_saved">
+            {% trans "I Have Saved These Codes" %}
+        </label>
+    {% endif %}
+{% endblock content %}
+{% block extra_body %}
+    {{ block.super }}
+    <script src="{% static 'mfa/js/recovery_codes.js' %}"></script>
+    <script src="{% static 'account/js/onload.js' %}"></script>
+    <script data-allauth-onload="allauth.recoveryCodes.forms.viewForm" type="application/json">{
+    "ids": {
+        "saveConfirmation": "codes_saved",
+        "recoveryCodes": "recovery_codes"
+    }
+}
+    </script>
+{% endblock extra_body %}

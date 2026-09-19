@@ -1,0 +1,25 @@
+{% extends "account/base_reauthenticate.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's mfa/reauthenticate.html.
+
+   The authenticator-code half of "prove it is you again". Same shape as the password one:
+   the sentence that used to float above an unlabelled box is now the field's label, and a
+   refused code lands in the product's own errors block instead of a stray `errorlist`.
+   A recovery code is accepted in this box too, which the stock page never said. {% endcomment %}
+{% load i18n %}
+{% block reauthenticate_content %}
+    {% if form.errors %}
+        <div class="errors">
+            {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+            {% for error in form.code.errors %}<p>{{ error }}</p>{% endfor %}
+        </div>
+    {% endif %}
+    <p>{% trans "Type the code from your authenticator app, or one of your recovery codes." %}</p>
+    <form method="post" action="{% url 'mfa_reauthenticate' %}">
+        {% csrf_token %}
+        <label for="id_code">{% trans "Code" %}</label>
+        <input type="text" id="id_code" name="code" inputmode="numeric"
+               autocomplete="one-time-code" required>
+        {{ redirect_field }}
+        <button type="submit">{% trans "Confirm" %}</button>
+    </form>
+{% endblock %}

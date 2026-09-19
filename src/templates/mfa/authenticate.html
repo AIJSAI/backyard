@@ -1,0 +1,78 @@
+{% extends "mfa/base_entrance.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's mfa/authenticate.html.
+
+   The second step of signing in, for anybody who has set up a passkey or an authenticator
+   app. It shipped as the library wrote it — "Two-Factor Authentication", "Your account is
+   protected by two-factor authentication. Please enter an authenticator code:", a field
+   labelled Code inside a placeholder also reading Code, and a heading called "Alternative
+   options" — which is developer English standing between a relative and their family's
+   photos.
+
+   EVERYTHING THAT MAKES IT WORK IS THE PACKAGE'S AND IS COPIED EXACTLY: the `code` field
+   name, the second form's id `webauthn_form`, the button id `mfa_webauthn_authenticate`,
+   the `js_data` script block, the scripts include and the hidden `logout-from-stage` form
+   that Cancel submits. Only the words around them changed.
+
+   The errors are rendered in the product's own `.errors` block rather than through
+   `form.as_p`, so a wrong code looks like every other refusal in the product. {% endcomment %}
+{% load i18n static %}
+{% block head_title %}
+    {% trans "Confirm It Is You" %}
+{% endblock head_title %}
+{% block content %}
+    <h1>{% trans "Confirm It Is You" %}</h1>
+    {% comment %} Not "open your authenticator app": this page also answers for somebody
+       who has only a passkey, and the box takes a recovery code either way. The same
+       sentence as mfa/reauthenticate.html, because it is the same box. {% endcomment %}
+    <p>{% trans "Type the code from your authenticator app, or one of your recovery codes." %}</p>
+    {% comment %} Both forms report here. A refused passkey used to surface as a stray
+       `errorlist` under the hidden form at the very bottom of the page, below Cancel.
+       {% endcomment %}
+    {% if form.errors or webauthn_form.errors %}
+        <div class="errors">
+            {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+            {% for error in form.code.errors %}<p>{{ error }}</p>{% endfor %}
+            {% for error in webauthn_form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+            {% for error in webauthn_form.credential.errors %}<p>{{ error }}</p>{% endfor %}
+        </div>
+    {% endif %}
+    <form method="post" action="{% url 'mfa_authenticate' %}">
+        {% csrf_token %}
+        <label for="id_code">{% trans "Code" %}</label>
+        <input type="text" id="id_code" name="code" inputmode="numeric"
+               autocomplete="one-time-code" required>
+        <button type="submit">{% trans "Sign In" %}</button>
+    </form>
+    {% if "webauthn" in MFA_SUPPORTED_TYPES %}
+        <h2>{% trans "If You Have A Passkey" %}</h2>
+        <p>
+            <button form="webauthn_form" id="mfa_webauthn_authenticate" type="button" class="btn-secondary">
+                {% trans "Use A Passkey Instead" %}
+            </button>
+        </p>
+    {% endif %}
+    <p>
+        <button type="submit" form="logout-from-stage" class="btn-quiet">{% trans "Cancel" %}</button>
+    </p>
+    {% if "webauthn" in MFA_SUPPORTED_TYPES %}
+        {% comment %} Hidden: one field, filled in by the browser's passkey prompt. {% endcomment %}
+        <form id="webauthn_form" method="post" action="{% url 'mfa_authenticate' %}">
+            {% csrf_token %}
+            {{ webauthn_form.credential }}
+        </form>
+        {{ js_data|json_script:"js_data" }}
+        {% include "mfa/webauthn/snippets/scripts.html" %}
+        <script data-allauth-onload="allauth.webauthn.forms.authenticateForm" type="application/json">{
+    "ids": {
+        "authenticate": "mfa_webauthn_authenticate",
+        "credential": "{{ webauthn_form.credential.auto_id }}",
+        "data": "js_data"
+    }
+}
+        </script>
+    {% endif %}
+    <form id="logout-from-stage" method="post" action="{% url 'account_logout' %}">
+        <input type="hidden" name="next" value="{% url 'account_login' %}">
+        {% csrf_token %}
+    </form>
+{% endblock content %}

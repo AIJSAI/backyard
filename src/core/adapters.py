@@ -13,6 +13,9 @@ from __future__ import annotations
 from typing import Any
 
 from allauth.account.adapter import DefaultAccountAdapter
+from allauth.mfa.adapter import DefaultMFAAdapter
+from allauth.mfa.models import Authenticator
+from django.contrib.auth.base_user import AbstractBaseUser
 
 from core import emailing
 
@@ -30,17 +33,18 @@ class AccountAdapter(DefaultAccountAdapter):  # type: ignore[misc]  # allauth is
     # username nobody has.
     error_messages = {
         **DefaultAccountAdapter.error_messages,
+        # The control is quoted by its own name: the sign-in page's reset link reads
+        # "Forgot Your Password?" (account/password_reset_help_text.html), and an error
+        # that tells somebody to use a control spells it the way the screen spells it.
         "username_password_mismatch": (
-            "That username or password did not work. Try again, or use "
-            '"Forgot your password?" below.'
+            'That username or password is not correct. Use "Forgot Your Password?" to reset it.'
         ),
         "email_password_mismatch": (
-            'That email or password did not work. Try again, or use "Forgot your password?" below.'
+            "That email address or password is not correct. "
+            'Use "Forgot Your Password?" to reset it.'
         ),
-        "incorrect_password": "That password did not match. Try again.",
-        "too_many_login_attempts": (
-            "That is a lot of tries in a row. Wait a few minutes and have another go."
-        ),
+        "incorrect_password": "That password is not correct.",
+        "too_many_login_attempts": "Too many sign-in attempts. Wait a few minutes and try again.",
     }
 
     def is_open_for_signup(self, request: Any) -> bool:  # noqa: ARG002
@@ -59,3 +63,22 @@ class AccountAdapter(DefaultAccountAdapter):  # type: ignore[misc]  # allauth is
         a second place for the two to disagree.
         """
         return emailing.from_address()
+
+
+class MFAAdapter(DefaultMFAAdapter):  # type: ignore[misc]  # allauth is untyped
+    """The name prefilled in the Add A Passkey box.
+
+    The last stock allauth string a relative reads on the passkey screens, and the only one
+    not in a template: allauth prefills "Master key", then "Backup key", then "Key nr. 3".
+    Two of those are claims about a key's importance that nothing in this product enforces
+    — any passkey signs you in — and all three use the library's word for the object where
+    every screen here says passkey. It is also STORED, so it is what the Passkeys list
+    shows for ever after.
+
+    The field stays optional, exactly as the package leaves it: the WebAuthn ceremony
+    completes before the POST, so a blank name must still save.
+    """
+
+    def generate_authenticator_name(self, user: AbstractBaseUser, type: Authenticator.Type) -> str:
+        count = Authenticator.objects.filter(user_id=user.pk, type=type).count()
+        return f"Passkey {count + 1}"

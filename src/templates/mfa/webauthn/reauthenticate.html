@@ -1,0 +1,33 @@
+{% extends "account/base_reauthenticate.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's mfa/webauthn/reauthenticate.html.
+
+   The passkey half of "prove it is you again". One button, which opens the browser's own
+   passkey prompt. The button id, the hidden credential field, the `js_data` block and the
+   scripts include are the package's, copied exactly; the word on the button is this
+   product's, because the library called it a security key. {% endcomment %}
+{% load i18n static %}
+{% block reauthenticate_content %}
+    {% if form.errors %}
+        <div class="errors">
+            {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+            {% for error in form.credential.errors %}<p>{{ error }}</p>{% endfor %}
+        </div>
+    {% endif %}
+    <p>{% trans "Your device will ask for your face, your fingerprint or your screen lock." %}</p>
+    <form method="post" action="{% url 'mfa_reauthenticate_webauthn' %}">
+        {% csrf_token %}
+        {{ form.credential }}
+        {{ redirect_field }}
+        <button id="mfa_webauthn_reauthenticate" type="submit">{% trans "Use A Passkey" %}</button>
+    </form>
+    {{ js_data|json_script:"js_data" }}
+    {% include "mfa/webauthn/snippets/scripts.html" %}
+    <script data-allauth-onload="allauth.webauthn.forms.authenticateForm" type="application/json">{
+    "ids": {
+        "authenticate": "mfa_webauthn_reauthenticate",
+        "credential": "{{ form.credential.auto_id }}",
+        "data": "js_data"
+    }
+}
+    </script>
+{% endblock %}

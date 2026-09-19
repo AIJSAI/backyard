@@ -1,0 +1,11 @@
+{% extends "mfa/base_manage.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's mfa/recovery_codes/base.html.
+
+   One string, and it is the document title for both recovery-code pages, neither of which
+   sets one of its own. "Recovery Codes" is already what this product calls them, so this
+   file exists to keep the title where a copy pass can see it rather than in the library.
+   {% endcomment %}
+{% load i18n %}
+{% block head_title %}
+    {% trans "Recovery Codes" %}
+{% endblock head_title %}
