@@ -141,8 +141,11 @@ def _departed_with_a_footprint_only_inside(pod_ids: set[int]) -> list[Member]:
     deleted; but one OUTSIDE still says this person has a life beyond the fixture family.
 
     SOFT-DELETED ROWS COUNT as a footprint. `removal` with "delete their posts" stamps
-    `deleted_at` and leaves the row, and the wipe's own guard reads the same unfiltered
-    table, so a post the family can no longer see is still a post that is somewhere.
+    `deleted_at` and leaves the row, so a post the family can no longer see is still
+    evidence of WHERE somebody wrote: outside the set it keeps them safe, inside it is the
+    proof that they were part of the fixture family. (The wipe's own guard no longer blocks
+    on a tombstone — see `demo_data._refuse_if_it_reaches_real_data` — but where a person
+    wrote does not change because they later deleted it.)
 
     A SUPERVISED CHILD WHO IS STAYING vetoes their parent. `Member.managing_parent` is
     SET_NULL, so deleting the parent would leave a real child with nobody recorded as
