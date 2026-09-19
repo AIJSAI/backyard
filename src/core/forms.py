@@ -22,6 +22,7 @@ from typing import Any
 from allauth.account.forms import AddEmailForm as AllauthAddEmailForm
 from allauth.account.forms import LoginForm as AllauthLoginForm
 from allauth.account.forms import ResetPasswordForm as AllauthResetPasswordForm
+from allauth.account.models import EmailAddress
 
 from core.recovery import take_the_recovered_username
 
@@ -94,11 +95,37 @@ class AddEmailForm(AllauthAddEmailForm):  # type: ignore[misc]  # allauth is unt
 
 
 class ResetPasswordForm(AllauthResetPasswordForm):  # type: ignore[misc]  # allauth is untyped
-    """allauth's "forgot your password" form, with a label and no colon.
+    """allauth's "forgot your password" form, with a label, no colon, and one rule.
 
-    The field stays `email` and the enumeration-safe behaviour is untouched: this
-    changes what the label says and nothing about what the form does.
+    THE RULE: a reset link is mailed only to an address its owner has CONFIRMED.
+
+    allauth looks the typed address up with `prefer_verified=True`, which prefers a
+    confirmed row and falls back to an unconfirmed one. core/join.py stores the address a
+    relative types at join as `verified=False` "so a typo cannot silently hand recovery of
+    this account to whoever owns the address that was actually typed", and the fallback
+    undid exactly that: the stranger who owns the mistyped mailbox first receives the
+    confirmation mail, which names this site, and could then ask for a reset of an account
+    that is not theirs and be sent one. Measured on 2026-09-19 during the review of #209.
+
+    So the users allauth found are narrowed to those holding a confirmed EmailAddress row
+    for this exact address. Nothing else moves, and the page cannot tell the two cases
+    apart: with no user left, allauth sends its "unknown account" mail to the typed
+    address and redirects to the same "sent" page, which is what ACCOUNT_PREVENT_ENUMERATION
+    is for. A member whose only address is unconfirmed confirms it (the mail can be sent
+    again from Your Sign-In Email) or asks an admin for a Sign-In Link.
     """
+
+    def clean_email(self) -> str:
+        value: str = super().clean_email()
+        confirmed = set(
+            EmailAddress.objects.filter(email__iexact=value.strip(), verified=True).values_list(
+                "user_id", flat=True
+            )
+        )
+        # allauth is untyped, so `users` has no declared type for mypy to narrow from.
+        found: list[Any] = list(getattr(self, "users", []))
+        self.users = [user for user in found if user.pk in confirmed]
+        return value
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         kwargs.setdefault("label_suffix", "")

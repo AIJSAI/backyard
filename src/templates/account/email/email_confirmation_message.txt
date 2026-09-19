@@ -21,7 +21,7 @@
    and email updates." {% endcomment %}
 {% block content %}{% autoescape off %}{% blocktrans %}Somebody added this address to a Backyard account.
 
-Confirm that this address is yours. If it is your primary address and you turned on email updates at this address, they start once it is confirmed:{% endblocktrans %}
+Confirm this address to use it for password reset. If it is your primary address and you turned on email updates at this address, they start once it is confirmed:{% endblocktrans %}
 
 {% if code %}{{ code }}{% else %}{{ activate_url }}{% endif %}
 

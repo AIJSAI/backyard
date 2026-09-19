@@ -427,7 +427,7 @@ def test_the_account_mail_says_what_its_link_actually_does(pod: Pod) -> None:
     flat = " ".join(body.split())
     # Conditional, because the link starts Email Updates only for a PRIMARY address that
     # has them turned on; a flat promise was false for a secondary address.
-    assert "Confirm that this address is yours." in flat
+    assert "Confirm this address to use it for password reset." in flat
     assert (
         "If it is your primary address and you turned on email updates at this address, "
         "they start once it is confirmed"

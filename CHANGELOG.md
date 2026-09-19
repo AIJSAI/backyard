@@ -54,6 +54,19 @@ a point somebody deliberately stopped at, with a full green gate behind it.
     parametrised per file, and a failure prints the pasteable fix. The rules they enforce
     are written down in [docs/design/voice.md](docs/design/voice.md).
 
+### Security
+
+- **A password reset link is mailed only to a confirmed address.** django-allauth prefers a
+  confirmed address and falls back to an unconfirmed one. Joining stores the address a
+  relative types as unconfirmed, precisely so that a typo cannot hand recovery of the account
+  to whoever owns the mistyped mailbox, and the fallback undid that: the owner of that
+  mailbox first receives the confirmation mail, which names the site, and could then ask for
+  a reset and be sent one. The reset form now keeps only users holding a confirmed row for
+  the exact address typed. The page answers identically either way, as before. A member
+  whose only address is unconfirmed confirms it (Your Sign-In Email can send the mail again)
+  or asks an admin for a Sign-In Link; the join form, the reset pages, Your Sign-In Email,
+  the "no such account" mail and the admin guide all say "confirmed" now.
+
 ### Fixed
 
 - **Found by reading every screen and e-mail at phone width after the rewrite**, as a
@@ -91,10 +104,9 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   - "Backyard is invite-only. Open your invite link to join." printed on every signed-out
     page in the sign-in layout, including the second sign-in step and the emailed address
     confirmation, whose readers are already members. It is on the sign-in page only.
-  - The address-confirmation mail and page said confirming enables password reset and email
-    updates. Email updates start only for a primary address that has them turned on at that
-    address, and they say so now. They no longer promise password reset, which
-    django-allauth already sends to an unconfirmed address.
+  - The address-confirmation mail and page said confirming enables email updates. They
+    start only for a primary address that has them turned on at that address, and the mail
+    and the page say so now.
   - The Email Updates settings page accepted any text with an "@" in it and cut a long
     address at 254 characters. It uses the same validator as joining: a malformed address
     is refused and nothing is stored or mailed.

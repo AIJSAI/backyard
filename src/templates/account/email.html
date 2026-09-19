@@ -15,7 +15,7 @@
         {% trans "Your Sign-In Email" %}
     {% endelement %}
     {% element p %}
-        {% trans "Used to reset your password. Nothing else is sent to it unless you turn on email updates." %}
+        {% trans "Used to reset your password, once it is confirmed. Nothing else is sent to it unless you turn on email updates." %}
     {% endelement %}
     {% if emailaddresses %}
         {% url 'account_email' as email_url %}
