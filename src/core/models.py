@@ -196,13 +196,18 @@ class Member(models.Model):
     # phone number, so they are read by a relative on a phone, not by us. "People in my
     # yards" named an object no screen in the product ever defined.
     # Short and parallel, and Title Case like every other option a person picks from.
-    # "Everyone in my family" became "Everyone": the reader is inside a family network and
-    # does not need to be told so again in the third option of a select (copy pass rule 4,
-    # 2026-09-19 — "let's not make it all family branded").
+    # "Everyone in my family" became "All Members": the reader is inside a family network
+    # and does not need to be told so again in the third option of a select (copy pass rule
+    # 4, 2026-09-19 — "let's not make it all family branded"). NOT the bare "Everyone",
+    # which the judge walk of 2026-09-19 read as the public web on the one control that
+    # governs a phone number, an email address and a home address — a first-time relative
+    # withholds a number they would happily share, or shares one they would not. "All
+    # Members" names exactly who: everyone who can sign in here, and nobody else. It also
+    # stays parallel with "No One" and "My Household".
     FIELD_VISIBILITY_CHOICES = [
         (HIDDEN, "No One"),
         (POD, "My Household"),
-        (YARD, "Everyone"),
+        (YARD, "All Members"),
     ]
     birthday_month = models.PositiveSmallIntegerField(null=True, blank=True)
     birthday_day = models.PositiveSmallIntegerField(null=True, blank=True)
@@ -1093,12 +1098,17 @@ class InboundQuarantine(models.Model):
     MALFORMED = "malformed"
     RATE_LIMITED = "rate_limited"
     # Read by the family admin on the quarantine page. "From" was the mail header's name,
-    # which is the machine's word for it, not a person's.
+    # which is the machine's word for it, not a person's — and three of the four that
+    # replaced it were still a mail server talking. This page's whole instruction is "Talk
+    # to the member directly", so the reason has to be sayable out loud on the phone: a
+    # relative running this for his family cannot act on "Reply separator not found", which
+    # names an object that exists nowhere else in the product. The VALUES are untouched;
+    # only the words are.
     REASON_CHOICES = [
-        (FROM_MISMATCH, "Sender address did not match the member"),
-        (NO_SEPARATOR, "Reply separator not found"),
-        (MALFORMED, "Malformed or oversized message"),
-        (RATE_LIMITED, "Too many replies too fast"),
+        (FROM_MISMATCH, "Sent from an address that is not theirs"),
+        (NO_SEPARATOR, "Could not tell the reply from the quoted email"),
+        (MALFORMED, "The email was damaged or too large"),
+        (RATE_LIMITED, "Too many replies in a row"),
     ]
 
     reason = models.CharField(max_length=16, choices=REASON_CHOICES)
