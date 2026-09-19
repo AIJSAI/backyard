@@ -460,6 +460,62 @@ def test_restore_refuses_a_media_tree_over_the_absolute_ceiling(
     assert "ceiling" in str(caught.value) and "Nothing has been written" in str(caught.value)
 
 
+def test_the_refusal_happens_before_pg_restore_has_touched_the_database(
+    settings: Any, tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The sentence has to be true at the moment it is read (Copilot review).
+
+    `pg_restore --clean` drops and rebuilds every table, and it runs BEFORE the media
+    tree is extracted. A refusal raised from inside `_restore_media` therefore arrived
+    after the family's database had already been replaced — while saying "Nothing has
+    been written", which is exactly the kind of false sentence somebody acts on at the
+    worst possible moment.
+
+    Fails without the `_refuse_an_oversized_media_archive` call ahead of `pg_restore`:
+    pg_restore is invoked, and then the refusal claims nothing happened.
+    """
+    settings.MEDIA_ROOT = str(tmp_path / "data" / "media")
+    invoked: list[str] = []
+
+    def recording_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        invoked.append(argv[0])
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("core.backups.subprocess.run", recording_run)
+    _free_space(monkeypatch, 10**15)
+    monkeypatch.setattr(backups, "MAX_RESTORED_MEDIA_BYTES", 1000)
+    archive = _media_archive({f"media/part-{i}.bin": b"x" * 400 for i in range(4)})
+
+    with pytest.raises(backups.BackupError) as caught:
+        backups.restore_backup(archive, force=True)
+
+    assert "Nothing has been written" in str(caught.value)
+    assert "pg_restore" not in invoked, (
+        "the database was cleaned and restored before the refusal that says nothing was"
+    )
+
+
+def test_a_traversing_media_archive_is_also_refused_before_pg_restore(
+    settings: Any, tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The #47 traversal refusal moved forward with the size one, for the same reason:
+    a crafted archive should not cost the family their database on the way to being
+    rejected."""
+    settings.MEDIA_ROOT = str(tmp_path / "data" / "media")
+    invoked: list[str] = []
+
+    def recording_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        invoked.append(argv[0])
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("core.backups.subprocess.run", recording_run)
+    archive = _media_archive({"media/photo.jpg": b"ok", "secret_key": b"ATTACKER-KEY"})
+
+    with pytest.raises(backups.BackupError, match="unexpected member in media archive"):
+        backups.restore_backup(archive, force=True)
+    assert "pg_restore" not in invoked
+
+
 def test_restore_names_the_one_oversized_file(
     fake_pg: None, settings: Any, tmp_path: Path, monkeypatch: Any
 ) -> None:

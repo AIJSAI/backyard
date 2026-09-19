@@ -258,6 +258,14 @@ def restore_backup(source: IO[bytes], *, force: bool) -> dict[str, int]:
             archive.extract(DB_DUMP_NAME, path=workdir, filter="data")
             archive.extract(MEDIA_TAR_NAME, path=workdir, filter="data")
 
+        # The media ceilings are checked HERE, before pg_restore, and the order is the
+        # whole point (Copilot review of the hardening PR). `pg_restore --clean` drops and
+        # rebuilds every table, so a refusal raised from inside `_restore_media` would have
+        # come AFTER the family's database had already been replaced — while saying
+        # "Nothing has been written", which would be false at the moment it matters most.
+        # Reading the tar's headers costs nothing and answers before anything is destroyed.
+        _refuse_an_oversized_media_archive(Path(workdir) / MEDIA_TAR_NAME, Path(workdir))
+
         result = subprocess.run(  # noqa: S603  # fixed argv, never a shell
             [
                 "pg_restore",
@@ -353,6 +361,25 @@ def _forced_security_replay() -> dict[str, int]:
     }
 
 
+def _refuse_an_oversized_media_archive(media_tar_path: Path, destination: Path) -> None:
+    """Read the media archive's headers and refuse it if it will not fit (S20).
+
+    Split from the extraction so it can run BEFORE `pg_restore`, which is the only
+    ordering under which its refusal can honestly say nothing has been written: the
+    restore's first destructive act is `pg_restore --clean`, not the extraction.
+
+    The archive's shape is checked here too — every member must be under `media/` — so the
+    traversal refusal (#47 review HIGH) also lands before the database is touched.
+    """
+    with tarfile.open(media_tar_path, "r:gz") as media_tar:
+        members = media_tar.getmembers()
+    for member in members:
+        top = Path(member.name).parts[0] if member.name else ""
+        if top != "media":
+            raise BackupError(f"unexpected member in media archive: {member.name!r}")
+    _refuse_an_oversized_extraction(members, destination)
+
+
 def _refuse_an_oversized_extraction(members: list[tarfile.TarInfo], destination: Path) -> None:
     """Refuse, BEFORE a byte is written, a media archive that will not fit (S20).
 
@@ -423,13 +450,11 @@ def _restore_media(media_tar_path: Path, workdir: Path) -> None:
     media_root = Path(settings.MEDIA_ROOT)
     staging = workdir / "media_staging"
     staging.mkdir()
+    # Re-asked immediately before the extraction as well as before pg_restore. Not
+    # belt-and-braces for its own sake: this function is reachable on its own, and the
+    # check that protects the volume belongs next to the write that fills it.
+    _refuse_an_oversized_media_archive(media_tar_path, workdir)
     with tarfile.open(media_tar_path, "r:gz") as media_tar:
-        members = media_tar.getmembers()
-        for member in members:
-            top = Path(member.name).parts[0] if member.name else ""
-            if top != "media":
-                raise BackupError(f"unexpected member in media archive: {member.name!r}")
-        _refuse_an_oversized_extraction(members, staging)
         media_tar.extractall(path=staging, filter="data")  # destination is the throwaway staging
     restored = staging / "media"
     if not restored.exists():
