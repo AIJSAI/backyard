@@ -17,37 +17,24 @@
     </aside>
   {% endif %}
 
-  {% comment %} S-906. Three facts a newcomer would otherwise be told by phone: where
-     they are, who sees what they write, and that nothing will chase them. Shown until
-     they dismiss it and never again — not a notification, not a tour, no steps. {% endcomment %}
-  {% if show_orientation %}
-    <aside class="orientation" aria-labelledby="orientation-heading">
-      {% comment %} No comma before the list: with a single side it rendered
-         "You're in, Dad's side." — caught by looking at the page, not by a test. {% endcomment %}
-      <h2 id="orientation-heading">You&rsquo;re in{% if yards %}
-        {% for yard in yards %}{% if not forloop.first %}{% if forloop.last %} and {% else %}, {% endif %}{% endif %}<strong>{{ yard.name }}</strong>{% endfor %}{% endif %}.</h2>
-      <p>Your feed shows what the households there share.</p>
-      <p>What you post goes to <strong>your household only</strong>, unless you tick a whole
-        side of the family when you write it.</p>
-      <p>Nothing is ever sent to you unless you turn it on in Settings.</p>
-      <form method="post" action="{% url 'dismiss_orientation' %}">
-        {% csrf_token %}
-        <button type="submit">Got it</button>
-      </form>
-    </aside>
-  {% endif %}
+  {% comment %} S-906's orientation card is GONE from here (owner direction 7). It filled
+     a phone screen with an explanation before anyone had seen a single photograph, and
+     for all that room it never said what this place is, never offered the Family email,
+     and never helped with a first post. Those three things are now the welcome
+     (core/welcome_views.py), shown once, right after joining, where somebody is actually
+     reading. `Member.orientation_dismissed_at` still means "has seen the welcome", so
+     the family already here is unaffected. {% endcomment %}
 
-  {% comment %} BY-13, OUTSIDE the orientation card on purpose. Nested inside it, the
-     sentence reached only members who have not dismissed that card -- and migration 0022
-     backfilled `orientation_dismissed_at` for every member who already existed, which is
-     the whole current family, plus every newcomer the moment they click "Got it". It is
-     one standing fact about who does what, not a prompt, so it needs no dismissal and no
-     column: the same shape as base.html's "Stuck? Ask whoever in the family set this up."
-     {% endcomment %}
+  {% comment %} BY-13. One standing fact about who does what, not a prompt, so it needs no
+     dismissal and no column: the same shape as the footer's help line. It was always
+     outside the orientation card, because nested inside it the sentence reached only the
+     members who had not dismissed that card — which, after migration 0022's backfill, was
+     nobody who was already here. {% endcomment %}
   {% if show_invite_help %}
     <p class="muted">Adding people is an admin&rsquo;s job. {% if inviter %}To add someone,
       ask <strong>{{ inviter.display_name }}</strong> &mdash; they can make you a link.{% else %}To
-      add someone, ask whoever in the family set this up.{% endif %}</p>
+      add someone, ask {% if help_contact %}{{ help_contact }}{% else %}whoever in the family
+      set this up{% endif %}.{% endif %}</p>
   {% endif %}
 
   {% comment %} BY-02/BY-03. This member has no email address anywhere — not on their
@@ -112,7 +99,7 @@
         </select>
       </div>
       <fieldset>
-        <legend>Also a whole side of the family</legend>
+        <legend>Share with a wider group</legend>
         {% comment %} .sides is the fieldset's CONTROL box — it wears the same border and
            48px height as the select beside it, so the two columns line up. {% endcomment %}
         <div class="sides">

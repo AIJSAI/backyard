@@ -208,6 +208,29 @@ def _is_instance_admin(request: HttpRequest) -> bool:
     return member is not None and permissions.is_instance_admin(member)
 
 
+def how_it_works(request: HttpRequest) -> HttpResponse:
+    """One plain page that answers the questions a relative actually asks (owner
+    direction 7-8), and the family's plain-language privacy note (S-705, GAP-7).
+
+    Deliberately public: it is linked from the sign-in page, so somebody who cannot
+    get in can still read what this is and how to get help. It names no member and
+    lists no household — the only thing it reads from the database is the first name
+    of whoever runs this Backyard, through the same context processor the footer uses.
+    """
+    return render(request, "core/how_it_works.html")
+
+
+def about(request: HttpRequest) -> HttpResponse:
+    """The quiet page that carries the licence and the source offer (AGPL section 13).
+
+    It used to be the second-loudest line in the footer of every screen, including a
+    grandparent's. The obligation is to OFFER the source to a network user, which a page
+    one tap from Settings and from the sign-in page does; the family does not need a
+    licence notice under every photograph.
+    """
+    return render(request, "core/about.html")
+
+
 def robots(request: HttpRequest) -> HttpResponse:
     """A private family instance is never crawled: disallow everything (TM-5).
     Token routes additionally send X-Robots-Tag per response, so this file is a

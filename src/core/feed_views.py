@@ -214,11 +214,7 @@ def _render_feed(
             # posts rendered here are already the ones they can see, so the affordance is
             # exactly scoped to what they may act on.
             "is_moderator": permissions.is_admin(member),
-            # S-906: shown until dismissed, then never again. Not a notification and
-            # not a tour — three facts a newcomer would otherwise have to be told by
-            # whichever relative invited them.
-            "show_orientation": member.orientation_dismissed_at is None,
-            # BY-13: a fourth fact on the orientation card, for the people it applies to.
+            # BY-13: who does the inviting, for the people it applies to.
             # Only admins issue invites in v1, and nothing a plain member could reach said
             # so — the obvious next thing to do in a family network, add somebody, looked
             # broken rather than delegated. An admin is the somebody else, so they are not
@@ -674,29 +670,11 @@ def notification_settings(request: HttpRequest) -> HttpResponse:
 
 @login_required
 @require_POST
-def dismiss_orientation(request: HttpRequest) -> HttpResponse:
-    """S-906: the member says they have read the orientation, and it never returns.
-
-    POST-only. A GET that dismissed it would let a link preview or a prefetch clear
-    the one thing a newcomer has not read yet — the same class of mistake the
-    compose-cancel route already guards against.
-
-    Idempotent, and it does NOT re-stamp: dismissing twice keeps the first moment, so
-    the column stays a truthful record of when they said they were oriented.
-    """
-    member = _acting_member(request)
-    Member.objects.filter(pk=member.pk, orientation_dismissed_at__isnull=True).update(
-        orientation_dismissed_at=timezone.now()
-    )
-    return redirect("feed")
-
-
-@login_required
-@require_POST
 def dismiss_email_prompt(request: HttpRequest) -> HttpResponse:
     """BY-02: the member has seen the add-an-email prompt and does not want it again.
 
-    POST-only and non-re-stamping for the same reasons as dismiss_orientation above. Kept
+    POST-only, because a link preview or a prefetch must not clear the one thing a member
+    has not read yet — the same class of mistake the compose-cancel route guards. Kept
     on the member row rather than in the session so it stays dismissed on their phone and
     their laptop, and after they sign out — a prompt that comes back is a nag.
     """

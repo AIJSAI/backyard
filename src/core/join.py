@@ -186,9 +186,13 @@ def join(request: HttpRequest, token: str) -> HttpResponse:
                     # infer a lambda with a default-arg binding, and partial states the
                     # captured values explicitly.
                     transaction.on_commit(partial(_send_confirmation, request, member, email))
-                # S-101 acceptance: completing signup lands DIRECTLY in the pod feed, the
-                # member's home surface, never a community-setup screen or a bare root.
-                return redirect("feed")
+                # S-101 acceptance: completing signup lands DIRECTLY inside the family,
+                # never a community-setup screen or a bare root. It now lands on the
+                # welcome first (owner direction 7) — three short screens, skippable at
+                # every one, whose last control is the feed. The welcome is not a setup
+                # wizard: it asks for nothing the account needs, and skipping it leaves a
+                # complete, working member standing in their feed.
+                return redirect("welcome")
     # `typed` is what makes a rejected join survivable. This form is the FIRST thing a
     # relative ever does in this product, on a phone, from a link somebody texted them —
     # and every validation failure used to hand back four empty boxes. Django's password

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.http import HttpRequest
+from django.utils.functional import SimpleLazyObject
 
 from core import permissions
 from core.models import Member
@@ -57,8 +58,38 @@ def _member_for(request: HttpRequest) -> Member | None:
         return None
 
 
+def help_contact_name() -> str:
+    """The first name of whoever runs this Backyard, for the footer's help line.
+
+    "Stuck? Ask whoever in the family set this up." is true and impersonal, and on a
+    family's app it reads like a support page. The person is a relative and has a name,
+    so the footer says it: "Stuck? Ask Jim."
+
+    Read from the DATABASE at render time, never hardcoded — this repository is public,
+    and a relative's name does not belong in it. Empty when there is no instance admin
+    with a display name (a bare instance, or an operator account created by the setup
+    wizard with a username only), and the template falls back to the old sentence, which
+    is the string WCAG SC 3.2.6 is pinned on.
+
+    One indexed query on the hottest path in the app, so it is kept to the single column
+    it needs. If that ever shows up in a profile it wants caching, not removing.
+    """
+    admin = (
+        Member.objects.filter(role=Member.INSTANCE_ADMIN)
+        .exclude(display_name="")
+        .order_by("pk")
+        .values_list("display_name", flat=True)
+        .first()
+    )
+    if not admin:
+        return ""
+    # First name only: "Ask Jim" is how a family talks. A single-word display name is
+    # already its own first name, and a name with no spaces at all still works.
+    return admin.strip().split()[0] if admin.strip() else ""
+
+
 def viewer(request: HttpRequest) -> dict[str, object]:
-    """`viewer_member` and `viewer_is_admin`, for the site header.
+    """`viewer_member`, `viewer_is_admin` and `help_contact`, for the site chrome.
 
     Named for the reader rather than for the model, because `member` alone is ambiguous in
     a template that is also rendering somebody else's member row — which the roster and the
@@ -68,4 +99,8 @@ def viewer(request: HttpRequest) -> dict[str, object]:
     return {
         "viewer_member": member,
         "viewer_is_admin": member is not None and permissions.is_admin(member),
+        # Lazy: this processor runs on EVERY render, and in this product a 404 is not
+        # exceptional — it is the answer to every authorization denial (TM-2). A template
+        # that never prints the help line never pays for the lookup.
+        "help_contact": SimpleLazyObject(help_contact_name),
     }

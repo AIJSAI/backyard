@@ -1,0 +1,41 @@
+{% extends "core/base.html" %}
+{% comment %} Screen three. The composer, with the first line already written so nobody
+   has to face an empty box on their first minute here, and the photo control beside it.
+
+   It posts to the ordinary compose endpoint: one way to write a post in this product,
+   one set of limits, one audience rule. A second composer with its own view would be a
+   second place for the audience rule to be got wrong. {% endcomment %}
+{% block title %}Say hello{% endblock %}
+{% block body %}
+  <h1>Say hello</h1>
+  <p>Only if you feel like it. Your household will see this.</p>
+
+  {% if households %}
+    <form method="post" action="{% url 'compose' %}" class="composer" enctype="multipart/form-data">
+      {% csrf_token %}
+      <label class="visually-hidden" for="welcome-body">Your first post</label>
+      <textarea id="welcome-body" name="body" rows="3" required>{{ suggested_body }}</textarea>
+
+      <label for="welcome-photos">Add photos</label>
+      <input id="welcome-photos" type="file" name="photos"
+             accept="image/jpeg,image/png,image/webp,image/gif" multiple>
+
+      {% if households|length > 1 %}
+        <label for="welcome-pod">Which household</label>
+        <select id="welcome-pod" name="pod_id" required>
+          {% for pod in households %}<option value="{{ pod.id }}">{{ pod.name }}</option>{% endfor %}
+        </select>
+      {% else %}
+        {% for pod in households %}<input type="hidden" name="pod_id" value="{{ pod.id }}">{% endfor %}
+      {% endif %}
+
+      <button type="submit">Post it</button>
+    </form>
+  {% endif %}
+
+  {% comment %} A plain link, not a POST: the welcome is already marked as seen by the
+     time this screen renders, so leaving it changes nothing. {% endcomment %}
+  <p><a class="btn-secondary btn" href="{% url 'feed' %}">Go to the family</a></p>
+  <p class="muted"><a href="{% url 'how_it_works' %}">How this works</a> — who sees what
+    you post, and how to stop anything you do not want.</p>
+{% endblock %}

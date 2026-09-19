@@ -176,10 +176,10 @@ def test_dismissing_twice_keeps_the_first_moment() -> None:
     assert member.email_prompt_dismissed_at == first
 
 
-def test_the_prompt_is_independent_of_the_orientation_card() -> None:
+def test_the_prompt_is_independent_of_the_welcome_having_been_seen() -> None:
     """It has to reach the members who joined BEFORE the join form had an email box, and
-    those are exactly the ones the S-906 orientation backfill dismissed. Sharing a column
-    would have hidden the prompt from its whole audience."""
+    those are exactly the ones the S-906 backfill stamped as already oriented. Sharing a
+    column would have hidden the prompt from its whole audience."""
     from django.utils import timezone
 
     _, pod = _world()
@@ -188,7 +188,6 @@ def test_the_prompt_is_independent_of_the_orientation_card() -> None:
 
     body = client.get(reverse("feed")).content.decode()
     assert "forget your password" in body
-    assert "You&rsquo;re in" not in body  # the orientation really is gone
 
 
 # --- BY-13: whose job inviting is ---------------------------------------------------
@@ -225,23 +224,24 @@ def test_without_a_recorded_inviter_the_sentence_names_nobody_rather_than_blank(
     assert "whoever in the family set this up" in body
 
 
-def test_the_sentence_outlives_the_orientation_card_being_dismissed() -> None:
+def test_the_sentence_reaches_a_member_who_has_already_seen_the_welcome() -> None:
     """The one state every current member is already in.
 
-    Nested inside `{% if show_orientation %}` the sentence reached nobody who had dismissed
-    that card — and migration 0022 stamped `orientation_dismissed_at` on every member who
-    existed when it ran, which is the whole family, plus everyone who has since clicked
-    "Got it". BY-13's stated defect would have been unchanged for all of them, and every
+    Nested inside the orientation card the sentence reached nobody who had dismissed it —
+    and migration 0022 stamped `orientation_dismissed_at` on every member who existed when
+    it ran, which is the whole family, plus everyone who has since been through the
+    welcome. BY-13's stated defect would have been unchanged for all of them, and every
     other test here creates a brand-new member, so none of them is in the affected state.
     """
+    from django.utils import timezone
+
     _, pod = _world()
     member, client = _signed_in(pod)
-    client.post(reverse("dismiss_orientation"))
+    Member.objects.filter(pk=member.pk).update(orientation_dismissed_at=timezone.now())
     member.refresh_from_db()
     assert member.orientation_dismissed_at is not None
 
     body = client.get(reverse("feed")).content.decode()
-    assert "You&rsquo;re in" not in body and "You’re in" not in body, "the card came back"
     assert "Adding people is an admin" in body
 
 
