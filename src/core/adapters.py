@@ -79,6 +79,30 @@ class MFAAdapter(DefaultMFAAdapter):  # type: ignore[misc]  # allauth is untyped
     completes before the POST, so a blank name must still save.
     """
 
+    # The library's words on the two-step screens, and the siblings of the four
+    # AccountAdapter replaces above. One of them is captured on a real screen: "You cannot
+    # activate two-factor authentication until you have verified your email address." is
+    # the loudest thing on the page, and it breaks three rules at once. "Two-factor
+    # authentication" appears on no screen in this product — the page is called Passkeys
+    # And Sign-In Codes — an address here is CONFIRMED and never "verified", and an error
+    # is what is wrong PLUS the fix, where all five of allauth's state a rule and stop.
+    # Same treatment as the account errors, and nothing about the behaviour changes: these
+    # are the text of a refusal, not the refusal.
+    error_messages = {
+        **DefaultMFAAdapter.error_messages,
+        "add_email_blocked": (
+            "Remove your passkeys and authenticator app before adding an email address."
+        ),
+        "cannot_delete_authenticator": "That sign-in method cannot be turned off.",
+        "cannot_generate_recovery_codes": (
+            "Add a passkey or an authenticator app before creating recovery codes."
+        ),
+        "incorrect_code": "That code is not correct.",
+        "unverified_email": (
+            "Confirm your email address first. Open Your Sign-In Email in Settings."
+        ),
+    }
+
     def generate_authenticator_name(self, user: AbstractBaseUser, type: Authenticator.Type) -> str:
         count = Authenticator.objects.filter(user_id=user.pk, type=type).count()
         return f"Passkey {count + 1}"

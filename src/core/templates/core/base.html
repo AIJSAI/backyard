@@ -1197,9 +1197,16 @@ caption { text-align: left; color: var(--ink-soft); margin-bottom: 0.5rem; }
 th, td { text-align: left; padding: 0.65rem 0.6rem; border-bottom: 1px solid var(--line); }
 /* Style the FIRST row's th too: members_metrics.html has no <thead> today
    (fix recommended in the handoff README), so this selector pair covers both. */
+/* NO text-transform. The guide is explicit — "Write the capitals in the source text
+   itself. Never CSS text-transform" — and every <th> in this product is already correct
+   Title Case ("Member", "How Often", "Last Few Sends"), so the rule was taking correct
+   source and shouting it: MEMBER, HOW OFTEN, LAST FEW SENDS. ALL CAPS is not Title Case.
+   The size comes up and the tracking comes down to keep the header row distinct as an
+   eyebrow without the shout; at 0.72rem with 0.08em it was also the least legible type in
+   the product. */
 thead th, table tr:first-child th {
-  border-bottom: 2px solid var(--green); font-size: 0.72rem;
-  text-transform: uppercase; letter-spacing: 0.08em; color: var(--green-deep); background: none;
+  border-bottom: 2px solid var(--green); font-size: 0.78rem;
+  letter-spacing: 0.04em; color: var(--green-deep); background: none;
 }
 @media (prefers-color-scheme: dark) { thead th, table tr:first-child th { color: var(--green); } }
 :root[data-theme="light"] thead th, :root[data-theme="light"] table tr:first-child th { color: var(--green-deep); }
@@ -1464,8 +1471,14 @@ ul.contacts > li { padding: 0.15rem 0; }
   td { display: flex; justify-content: space-between; align-items: baseline;
     gap: 1rem; border-bottom: 1px solid var(--line); padding: 0.45rem 0; text-align: right; }
   tr > td:last-child { border-bottom: 0; }
-  td::before { content: attr(data-label); font-weight: 700; font-size: 0.74rem;
-    letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); text-align: left; }
+  /* The same ban, and this is the instance that actually shows on a phone: under 40rem
+     every table reflows to cards and this pseudo-element printed each cell's data-label in
+     ALL CAPS — MEMBER, ADDRESS, HOW OFTEN, STATUS, LAST FEW SENDS, and HOUSEHOLDS AND
+     GROUPS THAT POSTED wrapping across the card. Every data-label in the product is
+     already Title Case. It is every admin table the two new admins will use, at the width
+     they will use it. */
+  td::before { content: attr(data-label); font-weight: 700; font-size: 0.8rem;
+    letter-spacing: 0.02em; color: var(--ink-soft); text-align: left; }
   /* Admin lists: rows become stacked blocks; action forms stop right-floating. */
   ul.members > li, ul.pods > li, ul.invites > li,
   ul.digests > li, ul.quarantine > li, ul.yards > li { display: block; }

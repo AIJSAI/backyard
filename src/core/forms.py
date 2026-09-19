@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from allauth.account.forms import AddEmailForm as AllauthAddEmailForm
 from allauth.account.forms import LoginForm as AllauthLoginForm
 from allauth.account.forms import ResetPasswordForm as AllauthResetPasswordForm
 
@@ -68,6 +69,28 @@ class LoginForm(AllauthLoginForm):  # type: ignore[misc]  # allauth is untyped
             # to an adult who has used phones for fifteen years is the filler the copy pass
             # was called for.
             self.fields["remember"].label = "Keep Me Signed In"
+
+
+class AddEmailForm(AllauthAddEmailForm):  # type: ignore[misc]  # allauth is untyped
+    """allauth's Add An Email Address form, with the product's label and no colon.
+
+    The last stock Django label a relative reads, and the one this module missed: the
+    docstring above names "Email:" as a string it exists to kill, then covers the login and
+    reset forms only. ACCOUNT_FORMS overrode those two, so account/email.html — Your
+    Sign-In Email, which every member with an address reaches from Settings — went on
+    rendering the library's sentence-case label with Django's colon suffix.
+
+    Nothing about the field, its validation or the confirmation flow changes.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs.setdefault("label_suffix", "")
+        super().__init__(*args, **kwargs)
+        if "email" in self.fields:
+            self.fields["email"].label = "Email Address"
+            # allauth's own placeholder is "Email address", the label word for word. A
+            # placeholder is a format example here or it is nothing.
+            self.fields["email"].widget.attrs["placeholder"] = "you@example.com"
 
 
 class ResetPasswordForm(AllauthResetPasswordForm):  # type: ignore[misc]  # allauth is untyped

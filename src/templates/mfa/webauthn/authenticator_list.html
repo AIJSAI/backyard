@@ -40,13 +40,27 @@
                                 <span class="role">{% trans "Signs You In On Its Own" %}</span>
                             {% elif authenticator.wrap.is_passwordless is False %}
                                 <span class="role">{% trans "Second Step Only" %}</span>
-                            {% else %}
-                                <span class="flag"
-                                      title="{% trans 'This device did not say whether this passkey can sign you in on its own.' %}">{% trans "Not Known" %}</span>
                             {% endif %}
+                            {% comment %} NOTHING in the third case. It used to print an
+                               amber "Not Known" flag — the badge this design system uses
+                               for an expired invite and a revoked link — beside a passkey
+                               the browser had just registered successfully. `is_passwordless`
+                               is None when the WebAuthn response did not report the
+                               attribute: that is a fact about the browser, not about the
+                               passkey or the family, the member can do nothing with it,
+                               and an alarm-coloured badge says they should. The other two
+                               states still say what they are. {% endcomment %}
                         </td>
                         <td data-label="{% trans 'Added' %}">
-                            {{ authenticator.created_at|date:"SHORT_DATE_FORMAT" }}.
+                            {% comment %} "Sep 19, 2026", the one date shape in this product (it is
+                               pinned as DATE_FORMAT in core/templatetags/times.py).
+                               SHORT_DATE_FORMAT printed 09/19/2026 here, a second format
+                               for one object, and an ambiguous one outside the US. The
+                               plain filter rather than {% when_date %} because this
+                               allauth override does not include core/_localise_times.html,
+                               and the server's own zone is the right answer on an account
+                               page. {% endcomment %}
+                            {{ authenticator.created_at|date:"M j, Y" }}.
                             {% if authenticator.last_used_at %}
                                 {% blocktranslate with last_used=authenticator.last_used_at|naturaltime %}Last used {{ last_used }}.{% endblocktranslate %}
                             {% else %}

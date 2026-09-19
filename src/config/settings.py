@@ -249,6 +249,10 @@ ACCOUNT_ADAPTER = "core.adapters.AccountAdapter"  # signup is invite-only (S-101
 # Copy only (v3.2 visual pass): sign-in shipped allauth's "Login:" / "Remember Me:"
 # with Django's colon suffix, on the first surface a family member ever sees.
 ACCOUNT_FORMS = {
+    # Your Sign-In Email renders allauth's AddEmailForm, whose field still carried the
+    # library's "Email:" — sentence case with Django's colon suffix — which is the exact
+    # shape core.forms was written to remove from the sign-in and reset screens.
+    "add_email": "core.forms.AddEmailForm",
     "login": "core.forms.LoginForm",
     "reset_password": "core.forms.ResetPasswordForm",
 }
