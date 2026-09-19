@@ -18,8 +18,23 @@ WCM is driven by four inputs, each per yard:
 |---|---|---|
 | Posting breadth | Distinct pods that posted this week | A feed with one poster is a broadcast, not a backyard; breadth predicts return visits |
 | Reciprocity rate | Share of posts receiving any response (reaction, comment, or elder email reply) within 7 days | The field-research failure mode was one-way flow; responses close the loop that keeps posters posting (R2) |
-| Elder touch rate | Share of elder members with any touch this week (token link, digest open proxy, email reply, frame display heartbeat) | The hardest segment; if elders connect, the design is working (R3) |
+| Elder touch rate | Share of elder members with any touch this week (token link, digest open proxy, email reply) | The hardest segment; if elders connect, the design is working (R3) |
 | Catch-up regularity | Members with at least one feed visit in the week | The lurker habit is legitimate participation and the base of the pyramid |
+
+**A frame display heartbeat is NOT an elder touch.** The elder-touch row used to list one,
+which contradicted the definition of "active" four paragraphs above it, inside this one
+file. A heartbeat is a powered-on tablet, not a deliberate act: wire it in and the one
+signal that would tell a family an elder has gone quiet reads "active" for as long as her
+frame has electricity. The ruling on record is to keep the heartbeat when S-603 is built,
+record it under its own name (*"the frame in the kitchen has been dark for nine days"* is a
+real signal, arguably a better one) and keep it out of `touched` — see
+[the S-603 display threat draft](security/s603-display-threat-draft.md), row T-DISPLAY-5.
+Nothing emits a heartbeat today; S-603 is still `spec`
+(`grep -n 'id: S-603' -A 6 stories/stories.yaml`).
+
+Every input the code actually counts is a human doing something: a feed visit, a post, a
+reaction, a comment, a digest open, an email reply. Read them off `core/metrics.rollup_week`
+rather than from this page.
 
 ## Anti-metrics (explicitly never optimized, never displayed)
 
