@@ -13,6 +13,40 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
+### Changed
+
+- **Every word the product shows a person has been rewritten.** The owner read the shipped
+  copy end to end and rejected it. Nothing about what the product does has changed: no
+  route, no form field, no permission, no stored value. What changed is what it says.
+  - **A plainer voice.** The product no longer calls itself "we", "us" or "our", and no
+    longer reassures, charms or explains what an adult already knows. Sentences that only
+    set a mood are gone. Warnings that stop an irreversible or a security mistake all
+    stayed, shorter: what a no-login link lets its holder do, who becomes a side admin when
+    a hand-over link is first opened, that a link is shown once, and that deleting erases
+    photographs from the server for good.
+  - **Titles, headings, buttons and labels Capitalise Every Word**, written into the source
+    rather than applied with CSS, so screen readers and tests read what the page shows.
+    Names, addresses and anything a person typed are never re-cased.
+  - **"Email Updates" replaces "the Family email" and "digest"** on every screen, in the
+    settings page, in the mail itself and in its subject line. Route names, model names and
+    URLs are untouched, so links already sitting in inboxes still work.
+  - **One footer, on every layout**, including the sign-in pages and the grandparent page:
+    the help line at one end, the account action or the two public pages at the other,
+    stacked cleanly on a phone. The help sentence is "Need help? Contact <name>."
+  - **A real 403 page.** A member who tapped something they may not do used to get Django's
+    unstyled built-in "403 Forbidden" with no header, no footer and no way back. There is a
+    page now, in the product's own chrome. It deliberately does not print the internal
+    refusal message.
+  - **The passkey, two-factor and password-management pages are the product's own.**
+    Thirty-six screens and flash messages that still spoke django-allauth's developer
+    English ("Please reauthenticate to safeguard your account", "Master key") now read like
+    the rest of the app, and Django's four bulleted password rules are one plain sentence.
+  - **Three guards keep it that way**: one for the vocabulary, one for the voice (no first
+    person, no exclamation marks, em dashes, ellipses or curly quotes) and one for
+    capitalisation. They read every template and every e-mail this product sends, they are
+    parametrised per file, and a failure prints the pasteable fix. The rules they enforce
+    are written down in [docs/design/voice.md](docs/design/voice.md).
+
 ### Fixed
 
 - **The outside monitor's alarm reached nobody's inbox.** It raised the alarm by opening an

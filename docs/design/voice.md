@@ -136,16 +136,38 @@ Use exactly these words.
 | a group a member made | Group | |
 | the periodic e-mail | **Email Updates** | sentence form: "email updates". Frequency: **Weekly**, **Monthly**, **Off** |
 | its settings link | Email Updates | page title "Email Updates"; label "How Often" |
-| its e-mail subject | "New In \<Side\>: \<Mon D\> To \<Mon D\>" | the body opens with the date range, no greeting |
+| its e-mail subject | "New In \<Side\>: \<Mon D\> To \<Mon D\>" | built in `core/digest.py`; the side's own name is never re-cased. The body opens with the date range, no greeting |
 | the why-you-got-this line | "You are receiving this because Email Updates is on. Turn it off: \<link\>" | |
 | roles | Member, Side Admin, Family Admin | plainly: "Side Admin: adds and removes members on one side." "Family Admin: manages everyone and both sides." Never "look after" |
 | the elder link | No-Login Link | |
 | the recovery link | Sign-In Link (admin-issued) | the admin's page is "Create Sign-In Link" |
+| the password-reset control | "Forgot Your Password?" | on the sign-in page and on Change Your Password, and quoted by that name wherever a page or an error names it |
+| a WebAuthn credential | **Passkey** | never "security key". The badge beside one says what it DOES: "Signs You In On Its Own", "Second Step Only", "Not Known". The name prefilled in the Add box is "Passkey 1", not the library's "Master key" |
+| a TOTP app | **Authenticator App** | what it gives you is a "six-digit code", never a "verification code" or an "OTP" |
+| the one-time fallback list | **Recovery Codes** | "Each code works once." |
+| proving who you are again | "Confirm It Is You" | the heading on all three re-authentication screens AND on the two-factor sign-in step: one job, one set of words |
+| the second box on a password form | Confirm Password | all four password screens: change, set, the emailed reset, the no-login recovery |
 | help line, signed in or holding a live link | "Need help? Contact \<first name\>." | |
 | help line, public | "Need help? Contact the person who invited you." | |
 | the landing page | heading "Welcome To Backyard"; body "A private, invite-only family network. Open your invite link to join."; button "Sign In" | the owner's own sentence, and the ONE place the landing says "family" |
 | welcome, screen one | "A private, ad-free network to stay connected with everyone." then one sentence on who sees a post | |
 | the audience sentence | "Posts are shared with your household. To reach more people, choose a side of the family or a group when posting." | household = the people you live with; a side = one branch, shown by its own name; a group = people you pick. This sentence is where "family" earns its place |
+
+## Two subject lines that are not free to change
+
+Both are copy with a mechanism behind it, and both are currently recorded only in a
+template comment and a test docstring.
+
+- **The two confirmation subjects must stay DIFFERENT.** The account address confirmation
+  is "Confirm Your Email Address"; the Email Updates address confirmation is "Confirm This
+  Address For Email Updates". They confirm different things, and one identical subject
+  arriving twice from one sender is what the 2026-09-19 walk found.
+- **The two password-reset subjects must stay BYTE-IDENTICAL.** allauth sends
+  `unknown_account_subject.txt` to an address with no account and
+  `password_reset_key_subject.txt` to one with an account. A different subject for the
+  unknown address leaks whether an address has an account here, which is the whole point of
+  `ACCOUNT_PREVENT_ENUMERATION`. Armed by
+  `src/core/tests/test_one_address_one_confirmation.py`.
 
 ## The furniture
 
@@ -159,8 +181,12 @@ automatically; a standalone page includes it as
 with no links.
 
 **Helper text** is `class="hint"`, one class, one size, one colour, one rhythm, under the
-control it explains. (`class="field-help"` is the legacy spelling of the same thing and is
-styled identically; new markup uses `hint`.)
+control it explains. `.media-hint` is the same size and colour and differs only in its
+margin, because it sits under a button rather than under a field. There is no third helper
+class, and the transitional `field-help` alias is gone.
+
+**A settings row** is `<p class="settings-link">` wrapping nothing but its link. The row IS
+the link: no dash, no sentence after it. The page it opens says the rest.
 
 **Errors** are `class="errors"` — a block whose `<p>` children are the sentences. Django
 and django-allauth emit `<ul class="errorlist">`, which is styled to look identical, so a
@@ -176,7 +202,7 @@ files: `pytest -k "welcome_email.html"`.
 | The glossary, and every struck word and phrase, in templates | `src/core/tests/test_one_word_per_concept.py::test_no_template_shows_a_banned_word_to_a_person` |
 | The same, in model choice labels and the role descriptions | `test_no_model_choice_label_shows_a_banned_word_to_a_person`, `test_no_role_description_shows_a_banned_word_to_a_person` |
 | The same, in every e-mail this product sends | the three `@pytest.mark.django_db` tests at the foot of the same file |
-| No "we", "us", "our", "let's"; no exclamation marks, em dashes or ellipses | `src/core/tests/test_the_product_voice.py` |
+| No "we", "us", "our", "let's"; no exclamation marks, em dashes, ellipses or curly quotes | `src/core/tests/test_the_product_voice.py` |
 | Capitalise Every Word in titles, h1–h4, buttons, legends, labels, `<th>`, `<summary>`, nav links, links styled as buttons, and e-mail subjects | `src/core/tests/test_title_case.py` |
 
 All three read a template through `src/core/tests/copy_scan.py`, which strips comments,
