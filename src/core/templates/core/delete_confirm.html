@@ -5,7 +5,7 @@
   <blockquote class="quoted-post">{{ post.body }}</blockquote>
   <p class="muted">
     This removes it from the feed for everyone and permanently deletes any photos on
-    it. Copies already sent in an email digest cannot be recalled.
+    it. A copy that already went out in a family email cannot be recalled.
   </p>
   <form method="post" action="{% url 'delete_post' post.id %}">
     {% csrf_token %}

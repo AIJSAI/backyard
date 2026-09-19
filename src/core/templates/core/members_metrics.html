@@ -1,11 +1,16 @@
 {% extends "core/base.html" %}
-{% block title %}Connection health{% endblock %}
+{% comment %} This page opened with "Weekly aggregates per yard (docs/metrics.md). Counts
+   only; the one per-person datum is a yes/no weekly presence..." — a repository file path
+   printed on a screen a non-technical relative is expected to use, next to "aggregates",
+   "per yard" and "datum". It is the same fact, said the way it is said to the family in
+   docs/family-privacy-note.md and on the How this works page. {% endcomment %}
+{% block title %}How the family is using it{% endblock %}
 {% block body %}
-  <h1>Connection health</h1>
-  <p><a href="{% url 'members' %}">Back to members</a></p>
-  <p class="muted">Weekly aggregates per yard (docs/metrics.md). Counts only; the one
-  per-person datum is a yes/no weekly presence, disclosed to the family in the docs
-  and not shown here.</p>
+  <h1>How the family is using it</h1>
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Back to Family members</a></p>
+  <p class="muted">A weekly count of posts and replies for each side of the family. We
+    record whether someone visited in a week, never what they looked at, and no number
+    here is about any one person.</p>
   {% comment %} A real thead/tbody, and data-label on every cell. Both are load-bearing,
      not tidiness: without <thead> the stylesheet's `thead th` rule never matched, so the
      header rendered as an ordinary cell AND the zebra counted it and striped the wrong
@@ -14,22 +19,22 @@
      sideways — a WCAG 2.2 SC 1.4.10 failure. {% endcomment %}
   <table class="metrics">
     <thead>
-      <tr><th>Week</th><th>Yard</th><th>Connected</th><th>Posting breadth</th><th>Responded</th><th>Catch-up</th><th>Digest opens</th><th>Email replies</th></tr>
+      <tr><th>Week</th><th>Side of the family</th><th>Stopped by</th><th>Posting breadth</th><th>Posts with a reply</th><th>Caught up later</th><th>Opened the email</th><th>Replied by email</th></tr>
     </thead>
     <tbody>
       {% for row in rows %}
         <tr>
           <td data-label="Week">{{ row.week_start }}</td>
-          <td data-label="Yard">{{ row.yard.name }}</td>
-          <td data-label="Connected">{{ row.wcm }} of {{ row.member_count }}</td>
+          <td data-label="Side of the family">{{ row.yard.name }}</td>
+          <td data-label="Stopped by">{{ row.wcm }} of {{ row.member_count }}</td>
           <td data-label="Posting breadth">{{ row.posting_breadth }}</td>
-          <td data-label="Responded">{{ row.posts_responded }} of {{ row.posts_in_week }}</td>
-          <td data-label="Catch-up">{{ row.catch_up_members }}</td>
-          <td data-label="Digest opens">{{ row.digest_opens }}</td>
-          <td data-label="Email replies">{{ row.email_replies }}</td>
+          <td data-label="Posts with a reply">{{ row.posts_responded }} of {{ row.posts_in_week }}</td>
+          <td data-label="Caught up later">{{ row.catch_up_members }}</td>
+          <td data-label="Opened the email">{{ row.digest_opens }}</td>
+          <td data-label="Replied by email">{{ row.email_replies }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="8" class="empty">No weeks rolled up yet.</td></tr>
+        <tr><td colspan="8" class="empty">No weeks counted up yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>

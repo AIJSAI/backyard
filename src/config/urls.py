@@ -19,6 +19,7 @@ from core import (
     pwa_views,
     recovery_views,
     views,
+    welcome_views,
 )
 from core.breakglass import break_glass
 from core.inbound_webhook import BoundedResendInboundWebhookView
@@ -54,6 +55,24 @@ def _inbound_urlpatterns() -> list[URLPattern]:
 urlpatterns = [
     path("", views.home, name="home"),
     path("setup/", views.setup, name="setup"),
+    # The two plain pages every surface points at: what this place is and how to stop
+    # anything you do not want (also the family's plain-language privacy note, S-705),
+    # and the quiet page carrying the licence and the AGPL section 13 source offer.
+    # Both public: they are linked from the sign-in page, so somebody who cannot get in
+    # can still read what this is and who to ask.
+    path("how-this-works/", views.how_it_works, name="how_it_works"),
+    path("about/", views.about, name="about"),
+    # The welcome, once, right after joining (owner direction 7). Three screens, each
+    # skippable; Member.orientation_dismissed_at is the seen-once marker, so the family
+    # that is already here never sees it.
+    path("welcome/", welcome_views.welcome, name="welcome"),
+    path("welcome/skip/", welcome_views.welcome_skip, name="welcome_skip"),
+    path(
+        "welcome/family-email/",
+        welcome_views.welcome_family_email,
+        name="welcome_family_email",
+    ),
+    path("welcome/hello/", welcome_views.welcome_hello, name="welcome_hello"),
     # The feed is the member's landing surface: their visible posts, newest first,
     # plus the composer. compose is POST-only and writes through core/posting.
     path("feed/", feed_views.feed, name="feed"),
@@ -80,11 +99,10 @@ urlpatterns = [
     # single reply opt-in, off by default.
     path("posts/<int:post_id>/react/", feed_views.react, name="react"),
     path("settings/notifications/", feed_views.notification_settings, name="notification_settings"),
-    # S-906: the newcomer's orientation, dismissed once and never shown again.
-    # POST-only, so a prefetch cannot clear it before it has been read.
-    path("feed/oriented/", feed_views.dismiss_orientation, name="dismiss_orientation"),
-    # BY-02: the same shape for the add-an-email prompt shown to a member who has no
-    # address on file and therefore no password reset at all.
+    # BY-02: the add-an-email prompt shown to a member who has no address on file and
+    # therefore no password reset at all. POST-only, so a prefetch cannot clear it before
+    # it has been read. (`feed/oriented/` lived beside this and is gone: the orientation
+    # card it dismissed was replaced by the welcome, which marks itself seen.)
     path("feed/email-prompt/", feed_views.dismiss_email_prompt, name="dismiss_email_prompt"),
     # Ad-hoc pods and quiet exits (S-204, S-205).
     path("pods/", pod_views.pod_list, name="pod_list"),
@@ -123,6 +141,9 @@ urlpatterns = [
         digesting_views.unsubscribe_digest,
         name="digest_unsubscribe",
     ),
+    # The two new admins' day-one guide, in the product rather than in a repo file the
+    # people it is written for cannot open. Linked from the roster; any admin may read it.
+    path("members/day-one/", admin_views.admins_day_one, name="admins_day_one"),
     path("members/digests/", admin_views.digests, name="member_digests"),
     path("members/quarantine/", admin_views.quarantine, name="member_quarantine"),
     path("members/metrics/", admin_views.metrics, name="member_metrics"),

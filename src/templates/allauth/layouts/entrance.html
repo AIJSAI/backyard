@@ -22,5 +22,15 @@
     <div class="entrance-card">
       {% block content %}{% endblock %}
     </div>
+    {% comment %} The two quiet pages, offered where somebody who cannot get in can still
+       reach them. "About this Backyard" is also where the AGPL section 13 source offer
+       lives now that it is no longer printed under every photograph in the product —
+       test_agpl_source_offer.py walks this link rather than grepping for the URL, so a
+       change that leaves a network user with no route to the source fails the build.
+       {% endcomment %}
+    <p class="lede">
+      <a href="{% url 'how_it_works' %}">How this works</a> &middot;
+      <a href="{% url 'about' %}">About this Backyard</a>
+    </p>
   </div>
 {% endblock %}

@@ -1,0 +1,57 @@
+{% extends "core/base.html" %}
+{% comment %} The guide for the two relatives who run a side of the family. It existed
+   only as a file in a git repository, which is exactly nowhere for the people it is
+   written for.
+
+   ONE SCREEN. It was 667 words and accurate, which is a different thing from useful on a
+   phone; the owner asked for concise and friendly, so every "why" came out and the button
+   names stayed. What survives is what somebody needs at the moment they are doing it.
+   Every control it names was clicked through at 390px before this shipped, and
+   test_admins_day_one.py holds each one against the rendered roster.
+   docs/guide/admins-day-one.md carries the same text. {% endcomment %}
+{% block title %}A guide for the two of you{% endblock %}
+{% block body %}
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Back to Family members</a></p>
+  <h1>A guide for the two of you</h1>
+  <p class="muted">Everything here starts from <strong>Family members</strong>, the
+    <strong>Members</strong> link at the top of every page.</p>
+
+  <h2>1. Invite a household</h2>
+  <p>A household is one home: a couple, a family, a sibling and their kids. One link
+    covers all of them.</p>
+  <p><strong>Family members &rarr; Invite a household.</strong> Name it, tick which side
+    of the family it belongs to, and send the link however you normally reach them.</p>
+  <p class="muted">It is shown once. Lost it? Make another from
+    <a href="{% url 'member_invites' %}">Outstanding invites</a>.</p>
+
+  <h2>2. Give a grandparent a no-login link</h2>
+  <p><strong>Post something to their side of the family first</strong>, or they will open
+    the link and find an empty page. You cannot preview it for them.</p>
+  <p>Then <strong>Family members &rarr; Add a grandparent</strong> for somebody new, or
+    <strong>No-login link</strong> on the row of somebody already here.</p>
+  <p>Hand it over in person or in a private message. Anyone holding it can read and send
+    love as them. Not in a group chat.</p>
+
+  <h2>3. Help someone who is locked out</h2>
+  <p>If they gave an email address, <strong>Forgot your password?</strong> on the sign-in
+    page does it without you.</p>
+  <p>If not, use <strong>Get back in link</strong> on their row. It works once and stops
+    working after two days.</p>
+  <p><strong>Make sure you are really talking to them first</strong> &mdash; a call, or a
+    text to the number you already have.</p>
+
+  <h2>4. Move or remove someone</h2>
+  <p><strong>Change household</strong> on their row moves somebody who is already here
+    into another household, or out of one.</p>
+  <p><strong>Remove &hellip;</strong> asks what happens to what they wrote, and you have to
+    answer: keep their posts, keep them without their name, or delete them.</p>
+  <p>Deleting erases their photos from the server for good, and asks you to type their
+    name first. Photos other people added replying to their posts go too.</p>
+
+  <h2>5. When you are stuck</h2>
+  <p>Ask {% if help_contact %}{{ help_contact }}{% else %}whoever in the family set this
+    up{% endif %}. Nothing here is a one-tap disaster &mdash; the two that cannot be undone
+    both ask you twice.</p>
+  <p class="page-action"><a href="{% url 'how_it_works' %}">How this works</a> &mdash; the
+    page the rest of the family reads.</p>
+{% endblock %}

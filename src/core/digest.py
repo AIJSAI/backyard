@@ -221,7 +221,9 @@ def build_digest(
     return DigestEmail(
         # Belt (#37 review LOW-4): DigestEmail is header-safe as a VALUE, not
         # only when the send seam happens to strip it.
-        subject=emailing.strip_control(f"{yard.name}: your family digest"),
+        # The subject is what a relative sees in their inbox list, so it says what is
+        # inside rather than naming the machinery that sent it.
+        subject=emailing.strip_control(f"{yard.name}: what the family has been up to"),
         text=render_to_string("core/email/digest.txt", context),
         html=render_to_string("core/email/digest.html", context),
         blocks=blocks,

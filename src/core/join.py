@@ -43,6 +43,27 @@ _username_validator = UnicodeUsernameValidator()
 _MODEL_BACKEND = "django.contrib.auth.backends.ModelBackend"
 
 
+def email_errors(email: str) -> list[str]:
+    """What is wrong with an address a member typed, in their words. Empty is fine.
+
+    THE one validator for an address this product will store and send to, shared by the
+    join form and the welcome's Family-email step. It NEVER truncates: `[:254]` made the
+    length check below unreachable and, worse, silently stored a DIFFERENT address from
+    the one typed — a 260-character address becomes a valid-looking 254-character one
+    that belongs to nobody. For a field whose whole purpose is account recovery, quietly
+    altering the value is the failure this refuses to have.
+    """
+    if not email:
+        return []
+    if len(email) > 254:
+        return ["That email address is too long (max 254 characters)."]
+    try:
+        validate_email(email)
+    except ValidationError:
+        return ["That does not look like an email address."]
+    return []
+
+
 def _validate(display_name: str, username: str, password: str, email: str) -> list[str]:
     errors: list[str] = []
     if not display_name:
@@ -69,14 +90,7 @@ def _validate(display_name: str, username: str, password: str, email: str) -> li
     # may genuinely not have one, which is the reason this custom view exists at all. But a
     # typo is worse than a blank, because it is a recovery path the member believes they have
     # and does not, so a value that IS given must parse.
-    if email:
-        if len(email) > 254:
-            errors.append("That email address is too long (max 254 characters).")
-        else:
-            try:
-                validate_email(email)
-            except ValidationError:
-                errors.append("That does not look like an email address.")
+    errors.extend(email_errors(email))
     return errors
 
 
@@ -190,9 +204,13 @@ def join(request: HttpRequest, token: str) -> HttpResponse:
                     # infer a lambda with a default-arg binding, and partial states the
                     # captured values explicitly.
                     transaction.on_commit(partial(_send_confirmation, request, member, email))
-                # S-101 acceptance: completing signup lands DIRECTLY in the pod feed, the
-                # member's home surface, never a community-setup screen or a bare root.
-                return redirect("feed")
+                # S-101 acceptance: completing signup lands DIRECTLY inside the family,
+                # never a community-setup screen or a bare root. It now lands on the
+                # welcome first (owner direction 7) — three short screens, skippable at
+                # every one, whose last control is the feed. The welcome is not a setup
+                # wizard: it asks for nothing the account needs, and skipping it leaves a
+                # complete, working member standing in their feed.
+                return redirect("welcome")
     # `typed` is what makes a rejected join survivable. This form is the FIRST thing a
     # relative ever does in this product, on a phone, from a link somebody texted them —
     # and every validation failure used to hand back four empty boxes. Django's password

@@ -57,6 +57,31 @@ def _confirmed(member: Member, address: str) -> DigestSubscription:
     return subscription
 
 
+def _posted(
+    author: Member,
+    pod: Pod,
+    *,
+    yard: Yard | None = None,
+    body: str = "something happened",
+    at: datetime.datetime | None = None,
+) -> Post:
+    """One post inside the window a run will cover.
+
+    Every send test needs one. A window with no visible posts now sends NOTHING —
+    no email, no issue, no delivery — so a fixture with no post would prove that
+    rule over and over and nothing about the property each test is actually for.
+    `at` back- or forward-dates the row for the tests that span two windows;
+    `created_at` is auto_now_add, so it has to be written with an UPDATE.
+    """
+    post = Post.objects.create(author=author, pod=pod, body=body)
+    if yard is not None:
+        post.audience_yards.set([yard])
+    if at is not None:
+        Post.objects.filter(pk=post.pk).update(created_at=at)
+        post.refresh_from_db()
+    return post
+
+
 @dataclass
 class World:
     maternal: Yard
@@ -104,8 +129,8 @@ def test_bridge_member_gets_exactly_two_clean_emails(world: World) -> None:
     assert report.sent == 2 and report.failed == 0
     assert len(mail.outbox) == 2
     by_subject = {message.subject: message for message in mail.outbox}
-    maternal_message = by_subject["Maternal: your family digest"]
-    paternal_message = by_subject["Paternal: your family digest"]
+    maternal_message = by_subject["Maternal: what the family has been up to"]
+    paternal_message = by_subject["Paternal: what the family has been up to"]
     assert "MAT-BODY" in maternal_message.body and "PAT-BODY" not in maternal_message.body
     assert "Paternal cousin" not in maternal_message.body
     assert "PAT-BODY" in paternal_message.body and "MAT-BODY" not in paternal_message.body
@@ -126,6 +151,8 @@ def test_revoked_between_due_and_send_yields_zero(world: World) -> None:
     """Queued-send cancellation (TM-1): the due list is stale the moment
     revocation runs, and the in-transaction re-check wins."""
     _confirmed(world.maternal_cousin, "cousin@example.com")
+    # With something to send, so the zero below is revocation and not an empty window.
+    _posted(world.maternal_cousin, world.m_pod, yard=world.maternal)
     due = digesting.due_recipients(timezone.now())
     assert len(due) == 1  # the member IS due...
     revocation.revoke_member_credentials(world.maternal_cousin)
@@ -140,8 +167,10 @@ def test_deleted_after_enqueue_is_absent_from_the_sent_payload(world: World) -> 
     """TS-DJ-11's named acceptance test: the send path re-resolves through the
     builder at send time rather than trusting anything computed earlier."""
     _confirmed(world.maternal_cousin, "cousin@example.com")
-    post = Post.objects.create(author=world.maternal_cousin, pod=world.m_pod, body="DOOMED-BODY")
-    post.audience_yards.set([world.maternal])
+    post = _posted(world.maternal_cousin, world.m_pod, yard=world.maternal, body="DOOMED-BODY")
+    # A second post survives, so the digest still goes out and the absence below is the
+    # live re-resolution rather than the empty-window rule swallowing the whole email.
+    _posted(world.maternal_cousin, world.m_pod, yard=world.maternal, body="SURVIVING-BODY")
     assert len(digesting.due_recipients(timezone.now())) == 1  # "enqueued" with the post live
 
     post.deleted_at = timezone.now()
@@ -149,6 +178,7 @@ def test_deleted_after_enqueue_is_absent_from_the_sent_payload(world: World) -> 
 
     send_due_digests(timezone.now())
     assert len(mail.outbox) == 1
+    assert "SURVIVING-BODY" in mail.outbox[0].body
     assert "DOOMED-BODY" not in mail.outbox[0].body
 
 
@@ -159,6 +189,9 @@ def test_hard_crash_is_isolated_and_leaves_no_half_state(world: World, monkeypat
     _confirmed(world.maternal_cousin, "first@example.com")
     _confirmed(world.bridge, "second@example.com")
     _confirmed(world.paternal_cousin, "third@example.com")
+    # One post on each side, so all three recipients have a window worth sending.
+    _posted(world.maternal_cousin, world.m_pod, yard=world.maternal)
+    _posted(world.paternal_cousin, world.p_pod, yard=world.paternal)
 
     real_send = emailing.send_family_email
 
@@ -186,6 +219,7 @@ def test_transport_failure_records_and_never_flips_subscription(
     """T-EMAIL-6: a bounce-shaped failure surfaces on the panel; the member is
     never silently severed, and the window is not re-hammered."""
     _confirmed(world.maternal_cousin, "cousin@example.com")
+    _posted(world.maternal_cousin, world.m_pod, yard=world.maternal)
 
     def refusing_send(**kwargs: Any) -> None:
         raise smtplib.SMTPRecipientsRefused({"cousin@example.com": (550, b"mailbox unavailable")})
@@ -207,6 +241,7 @@ def test_transport_failure_records_and_never_flips_subscription(
 
 def test_overlapping_runs_are_idempotent(world: World) -> None:
     _confirmed(world.maternal_cousin, "cousin@example.com")
+    _posted(world.maternal_cousin, world.m_pod, yard=world.maternal)
     first = send_due_digests(timezone.now())
     second = send_due_digests(timezone.now())
     assert first.sent == 1
@@ -220,6 +255,7 @@ def test_unsubscribe_link_in_the_sent_digest_works_and_rotates(world: World) -> 
     from django.test import Client
 
     _confirmed(world.maternal_cousin, "cousin@example.com")
+    _posted(world.maternal_cousin, world.m_pod, yard=world.maternal)
     send_due_digests(timezone.now())
     body = mail.outbox[0].body
     marker = "/digest/unsubscribe/"
@@ -229,6 +265,12 @@ def test_unsubscribe_link_in_the_sent_digest_works_and_rotates(world: World) -> 
 
     # A later digest rotates the capability; the old link dies (T-EMAIL-2 shape).
     later = timezone.now() + datetime.timedelta(days=8)
+    _posted(
+        world.maternal_cousin,
+        world.m_pod,
+        yard=world.maternal,
+        at=timezone.now() + datetime.timedelta(days=4),
+    )
     send_due_digests(later)
     assert Client().get(f"/digest/unsubscribe/{raw}/").status_code == 404
 
@@ -240,6 +282,9 @@ def test_multi_yard_emails_share_one_working_unsubscribe_link(world: World) -> N
     from django.test import Client
 
     _confirmed(world.bridge, "bridge@example.com")
+    # A household post in the bridging pod lands in BOTH sides' slices, so both
+    # emails have something to carry.
+    _posted(world.bridge, world.bridge_pod)
     send_due_digests(timezone.now())
     assert len(mail.outbox) == 2
     marker = "/digest/unsubscribe/"
@@ -260,6 +305,7 @@ def test_transport_failure_never_kills_the_previous_emailed_unsubscribe_link(
     from django.test import Client
 
     _confirmed(world.maternal_cousin, "cousin@example.com")
+    _posted(world.maternal_cousin, world.m_pod, yard=world.maternal, body="week one")
     send_due_digests(timezone.now())
     body = mail.outbox[0].body
     marker = "/digest/unsubscribe/"
@@ -271,6 +317,13 @@ def test_transport_failure_never_kills_the_previous_emailed_unsubscribe_link(
 
     monkeypatch.setattr("core.digest_send.emailing.send_family_email", greylisted)
     later = timezone.now() + datetime.timedelta(days=8)
+    _posted(
+        world.maternal_cousin,
+        world.m_pod,
+        yard=world.maternal,
+        body="week two",
+        at=timezone.now() + datetime.timedelta(days=4),
+    )
     report = send_due_digests(later)
     assert report.failed == 1
     assert Client().get(f"/digest/unsubscribe/{week1_raw}/").status_code == 200  # still alive
@@ -289,10 +342,10 @@ def test_partial_crash_never_loses_a_yards_window(world: World, monkeypatch: Any
     window must still reach the paternal digest on the next run — the window
     anchors per (member, yard), never on a sibling yard's success."""
     _confirmed(world.bridge, "bridge@example.com")
-    lost_post = Post.objects.create(
-        author=world.paternal_cousin, pod=world.p_pod, body="ALMOST-LOST-BODY"
-    )
-    lost_post.audience_yards.set([world.paternal])
+    _posted(world.paternal_cousin, world.p_pod, yard=world.paternal, body="ALMOST-LOST-BODY")
+    # The maternal side needs a post of its own, or the "one sent" below would be zero:
+    # an empty window is skipped outright now.
+    _posted(world.maternal_cousin, world.m_pod, yard=world.maternal, body="MATERNAL-BODY")
 
     real_send = emailing.send_family_email
 
@@ -372,8 +425,7 @@ def test_transport_failure_rolls_back_supersession_of_old_reply_addresses(
     from core.models import ReplyAddress
 
     _confirmed(world.maternal_cousin, "cousin@example.com")
-    post = Post.objects.create(author=world.maternal_cousin, pod=world.m_pod, body="week one")
-    post.audience_yards.set([world.maternal])
+    _posted(world.maternal_cousin, world.m_pod, yard=world.maternal, body="week one")
     send_due_digests(timezone.now())
     week1 = ReplyAddress.objects.get()
     assert week1.superseded_at is None
@@ -382,6 +434,15 @@ def test_transport_failure_rolls_back_supersession_of_old_reply_addresses(
         raise smtplib.SMTPResponseException(450, b"try again later")
 
     monkeypatch.setattr("core.digest_send.emailing.send_family_email", greylisted)
+    # Week two has to have content, or the run would skip the window and this test
+    # would pass without ever attempting the send it is about.
+    _posted(
+        world.maternal_cousin,
+        world.m_pod,
+        yard=world.maternal,
+        body="week two",
+        at=timezone.now() + datetime.timedelta(days=4),
+    )
     send_due_digests(timezone.now() + datetime.timedelta(days=8))
     week1.refresh_from_db()
     assert week1.superseded_at is None  # the failed send never started the grace clock
@@ -394,7 +455,7 @@ def test_same_run_yards_do_not_supersede_each_other(world: World) -> None:
     from core.models import ReplyAddress
 
     _confirmed(world.bridge, "bridge@example.com")
-    post = Post.objects.create(author=world.bridge, pod=world.bridge_pod, body="both sides")
+    post = _posted(world.bridge, world.bridge_pod, body="both sides")
     send_due_digests(timezone.now())
     # The MED-2 regression: after ONE run, the bridge member's two per-yard
     # mints have NOT stamped each other — zero superseded addresses.
@@ -402,9 +463,156 @@ def test_same_run_yards_do_not_supersede_each_other(world: World) -> None:
     assert ReplyAddress.objects.filter(superseded_at__isnull=False).count() == 0
     # The NEXT run supersedes each yard's own predecessor (starting its grace
     # window, T-EMAIL-2) — per-yard streams age independently, and both aged
-    # addresses stay within grace rather than dying.
+    # addresses stay within grace rather than dying. It needs content of its own:
+    # a second window with nothing in it is skipped and supersedes nothing.
+    _posted(
+        world.bridge,
+        world.bridge_pod,
+        body="the week after",
+        at=timezone.now() + datetime.timedelta(days=4),
+    )
     send_due_digests(timezone.now() + datetime.timedelta(days=8))
     for yard in (world.maternal, world.paternal):
         aged = ReplyAddress.objects.get(issue__yard=yard, post=post)
         assert aged.superseded_at is not None
         assert aged.superseded_at > timezone.now() - datetime.timedelta(hours=1)
+
+
+# --- a quiet week sends nothing -------------------------------------------------------
+#
+# Owner direction, 2026-09-19: "A family that posts occasionally must only get mail when
+# something happened." Before this, a confirmed weekly subscription produced an email
+# every seven days whether or not anyone had posted — a greeting, a date line and a
+# footer, with no family in it. That is what teaches people to stop opening the thing.
+
+
+def test_a_window_with_no_posts_sends_nothing_and_records_nothing(world: World) -> None:
+    """The rule itself, on all three surfaces it has to hold on at once: no mail
+    leaves, no issue row claims the window, and the delivery panel gains no line
+    saying something was handed to the relay."""
+    _confirmed(world.maternal_cousin, "cousin@example.com")
+
+    report = send_due_digests(timezone.now())
+
+    assert report.sent == 0 and report.failed == 0 and report.crashed == 0
+    assert mail.outbox == []
+    assert not DigestIssue.objects.filter(member=world.maternal_cousin).exists(), (
+        "an empty window recorded an issue, so the next period would start after it"
+    )
+    assert not DigestDelivery.objects.exists()
+
+
+def test_a_quiet_week_leaves_the_window_open_for_the_next_one(world: World) -> None:
+    """The half that makes the skip safe rather than lossy.
+
+    Skipping is only correct if the days it skipped are still covered later. A post
+    written during the quiet week must arrive in the NEXT email, which it can only do
+    if nothing recorded those days as already sent.
+    """
+    _confirmed(world.maternal_cousin, "cousin@example.com")
+    quiet_run = timezone.now()
+    assert send_due_digests(quiet_run).sent == 0
+
+    # Somebody posts the day after the run that sent nothing.
+    _posted(
+        world.maternal_cousin,
+        world.m_pod,
+        yard=world.maternal,
+        body="LATE-BODY",
+        at=quiet_run + datetime.timedelta(days=1),
+    )
+    second = send_due_digests(quiet_run + datetime.timedelta(days=8))
+
+    assert second.sent == 1
+    assert len(mail.outbox) == 1
+    assert "LATE-BODY" in mail.outbox[0].body, (
+        "the post written during the quiet week fell into a window nobody covered"
+    )
+
+
+def test_a_quiet_side_is_skipped_while_a_busy_one_still_sends(world: World) -> None:
+    """Per (member, yard), not per member: the bridging relative hears from the side
+    that had news and not from the side that did not."""
+    _confirmed(world.bridge, "bridge@example.com")
+    _posted(world.maternal_cousin, world.m_pod, yard=world.maternal, body="MAT-ONLY")
+
+    report = send_due_digests(timezone.now())
+
+    assert report.sent == 1
+    assert [m.subject for m in mail.outbox] == ["Maternal: what the family has been up to"]
+    assert DigestIssue.objects.filter(member=world.bridge).count() == 1
+
+
+def test_a_window_whose_only_post_is_invisible_sends_nothing(world: World) -> None:
+    """Emptiness is measured through the audience guard, not by counting rows.
+
+    A post exists in the window; it is simply not this member's to see. The check
+    shares one query definition with the builder (digest_links.window_posts), so
+    "is there anything to send" and "what goes in the email" cannot disagree.
+    """
+    _confirmed(world.maternal_cousin, "cousin@example.com")
+    _posted(world.paternal_cousin, world.p_pod, yard=world.paternal, body="OTHER-SIDE")
+
+    assert send_due_digests(timezone.now()).sent == 0
+    assert mail.outbox == []
+
+
+def test_a_post_deleted_between_the_two_looks_still_sends_nothing(
+    world: World, monkeypatch: Any
+) -> None:
+    """The gap the quiet-week rule left open, and the reviewer's exact probe.
+
+    The window is measured once, then the email is BUILT — and the builder re-resolves
+    audience live (TM-2), so a post deleted in between simply is not in it. Between those
+    two moments the run had already decided to send, so the family got the greeting, the
+    date line and the footer with nothing in between.
+
+    Driven deterministically by standing in the gap: the first look reports the post, and
+    the post is gone by the time the builder asks.
+    """
+    _confirmed(world.maternal_cousin, "cousin@example.com")
+    post = _posted(world.maternal_cousin, world.m_pod, yard=world.maternal, body="GOING-AWAY")
+
+    def vanishes_after_the_first_look(*args: Any, **kwargs: Any) -> bool:
+        Post.objects.filter(pk=post.pk).update(deleted_at=timezone.now())
+        return True  # ...but the run has already been told there is something to send
+
+    monkeypatch.setattr("core.digest_send._window_has_posts", vanishes_after_the_first_look)
+
+    report = send_due_digests(timezone.now())
+
+    assert report.sent == 0, "an email went out with no family in it"
+    assert mail.outbox == []
+    assert not DigestIssue.objects.filter(member=world.maternal_cousin).exists(), (
+        "the window was recorded as covered, so those days can never be sent"
+    )
+    assert not DigestDelivery.objects.exists()
+
+
+def test_the_second_look_leaves_the_window_open_for_the_next_run(
+    world: World, monkeypatch: Any
+) -> None:
+    """Rolling the window back is only correct if the days come round again."""
+    _confirmed(world.maternal_cousin, "cousin@example.com")
+    doomed = _posted(world.maternal_cousin, world.m_pod, yard=world.maternal, body="GOING-AWAY")
+    first_run = timezone.now()
+
+    def vanishes_after_the_first_look(*args: Any, **kwargs: Any) -> bool:
+        Post.objects.filter(pk=doomed.pk, deleted_at__isnull=True).update(deleted_at=timezone.now())
+        return True
+
+    monkeypatch.setattr("core.digest_send._window_has_posts", vanishes_after_the_first_look)
+    assert send_due_digests(first_run).sent == 0
+
+    monkeypatch.undo()
+    _posted(
+        world.maternal_cousin,
+        world.m_pod,
+        yard=world.maternal,
+        body="STILL-HERE",
+        at=first_run + datetime.timedelta(days=1),
+    )
+    second = send_due_digests(first_run + datetime.timedelta(days=8))
+
+    assert second.sent == 1
+    assert "STILL-HERE" in mail.outbox[0].body

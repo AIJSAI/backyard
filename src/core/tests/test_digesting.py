@@ -318,13 +318,13 @@ def test_a_member_can_turn_the_digest_off_from_their_own_settings_page(world: Wo
     assert DigestSubscription.objects.get(member=world.nana).enabled
 
     page = client.get(reverse("digest_settings")).content.decode()
-    assert "Turn the digest off" in page, "the settings page offers no way to turn it off"
+    assert "Stop the Family email" in page, "the settings page offers no way to turn it off"
 
     response = client.post(reverse("digest_settings"), {"action": "turn_off"})
 
     assert response.status_code == 200
     assert not DigestSubscription.objects.get(member=world.nana).enabled
-    assert "Turn the digest back on" in response.content.decode()
+    assert "Send me the Family email" in response.content.decode()
 
 
 def test_turning_it_off_and_on_sends_nothing_and_keeps_the_confirmation(world: World) -> None:

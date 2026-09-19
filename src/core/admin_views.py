@@ -244,6 +244,24 @@ def members(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+def admins_day_one(request: HttpRequest) -> HttpResponse:
+    """The guide for the two relatives who run a side of the family, in the product.
+
+    It existed only as `docs/runbooks/setting-up-your-side.md`, which is a file in a git
+    repository — so the people it is written for could read it exactly nowhere. One
+    screen, reachable from the roster they are already standing on, covering the five
+    things that come up on day one and nothing else.
+
+    Any admin, not just the instance admin: a yard admin IS the person this is for.
+    `docs/guide/admins-day-one.md` carries the same text for anyone reading the repo.
+    """
+    actor = _acting_member(request)
+    if not permissions.is_admin(actor):
+        raise PermissionDenied
+    return render(request, "core/admins_day_one.html", {"actor": actor})
+
+
+@login_required
 def assign_role(request: HttpRequest, member_id: int) -> HttpResponse:
     """Appoint a delegate or change a member's role (S-707). POST-only. The role must be
     in the offered whitelist AND authorized by can_assign_role for this (actor, target),
@@ -260,6 +278,13 @@ def assign_role(request: HttpRequest, member_id: int) -> HttpResponse:
     # byte-identical 404 for a cross-yard target (S-202).
     target = get_object_or_404(permissions.administrable_members(actor), pk=member_id)
     new_role = request.POST.get("role", "")
+    # "No change" is a real answer. The roster's select now opens on the member's CURRENT
+    # role — it used to open on whichever role happened to be first, so every ordinary
+    # relative's row read as though they were already an admin — and that option carries
+    # an empty value. Submitting it must go quietly back to the roster rather than 404,
+    # which is what an empty string used to do on the line below.
+    if not new_role:
+        return redirect("members")
     # Whitelist first: never trust the form's role string (wave-1 review). A value outside
     # the offered set is treated as an unknown request, not a server error.
     if new_role not in _ASSIGNABLE_ROLES or target.is_supervised:

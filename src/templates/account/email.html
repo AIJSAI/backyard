@@ -1,0 +1,93 @@
+{% extends "account/base_manage_email.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's account/email.html.
+
+   Copy only: every form, name, radio and action button is the package's, so the add,
+   make-primary, re-send and remove paths are untouched. What changed is what a relative
+   reads — "Email Addresses", "Add Email Address", "Email:", "Re-send Verification" — and
+   the page never said what the address is FOR. In this product it is one thing: the way
+   back in if you forget your password. {% endcomment %}
+{% load static allauth i18n %}
+{% block head_title %}
+    {% trans "Your sign-in email" %}
+{% endblock head_title %}
+{% block content %}
+    {% element h1 %}
+        {% trans "Your sign-in email" %}
+    {% endelement %}
+    {% element p %}
+        {% trans "This is how you get back in if you forget your password. Nothing else is ever sent to it unless you ask." %}
+    {% endelement %}
+    {% if emailaddresses %}
+        {% url 'account_email' as email_url %}
+        {% element form form=form action=email_url method="post" tags="email,list" %}
+            {% slot body %}
+                {% csrf_token %}
+                {% for radio in emailaddress_radios %}
+                    {% with emailaddress=radio.emailaddress %}
+                        {% element field type="radio" checked=radio.checked name="email" value=emailaddress.email id=radio.id %}
+                            {% slot label %}
+                                {{ emailaddress.email }}
+                                {% if emailaddress.verified %}
+                                    {% element badge tags="success,email,verified" %}
+                                        {% translate "confirmed" %}
+                                    {% endelement %}
+                                {% else %}
+                                    {% element badge tags="warning,email,unverified" %}
+                                        {% translate "not confirmed yet" %}
+                                    {% endelement %}
+                                {% endif %}
+                                {% if emailaddress.primary %}
+                                    {% element badge tags="email,primary" %}
+                                        {% translate "the one we use" %}
+                                    {% endelement %}
+                                {% endif %}
+                            {% endslot %}
+                        {% endelement %}
+                    {% endwith %}
+                {% endfor %}
+            {% endslot %}
+            {% slot actions %}
+                {% element button type="submit" name="action_primary" %}
+                    {% trans 'Use this one' %}
+                {% endelement %}
+                {% element button tags="secondary" type="submit" name="action_send" %}
+                    {% trans 'Send the confirmation again' %}
+                {% endelement %}
+                {% element button tags="danger,delete" type="submit" name="action_remove" %}
+                    {% trans 'Remove it' %}
+                {% endelement %}
+            {% endslot %}
+        {% endelement %}
+    {% else %}
+        {% include "account/snippets/warn_no_email.html" %}
+    {% endif %}
+    {% if can_add_email %}
+        {% element h2 %}
+            {% trans "Add an email address" %}
+        {% endelement %}
+        {% url 'account_email' as action_url %}
+        {% element form form=form method="post" action=action_url tags="email,add" %}
+            {% slot body %}
+                {% csrf_token %}
+                {% element fields form=form %}
+                {% endelement %}
+            {% endslot %}
+            {% slot actions %}
+                {% element button name="action_add" type="submit" %}
+                    {% trans "Add it" %}
+                {% endelement %}
+            {% endslot %}
+        {% endelement %}
+        {% element p %}
+            {% trans "We will send one email to check the address is yours." %}
+        {% endelement %}
+    {% endif %}
+{% endblock content %}
+{% block extra_body %}
+    <script src="{% static 'account/js/account.js' %}"></script>
+    <script src="{% static 'account/js/onload.js' %}"></script>
+    <script data-allauth-onload="allauth.account.forms.manageEmailForm" type="application/json">{
+    "i18n": {"confirmDelete": "{% trans 'Remove this email address?' %}"}
+}
+    </script>
+{% endblock extra_body %}

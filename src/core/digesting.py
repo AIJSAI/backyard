@@ -32,11 +32,11 @@ from .models import DigestSubscription, Member
 # The confirmation email is content-free by construction (T-EMAIL-6): composed
 # here from constants and the minted link only, so no family name, member name,
 # or post fragment can ever reach an unconfirmed (possibly typo'd) address.
-_CONFIRM_SUBJECT = "Confirm this address for a Backyard digest"
+_CONFIRM_SUBJECT = "Is this your email address?"
 _CONFIRM_BODY = (
-    "Someone asked a Backyard family instance to send its digest to this email "
-    "address.\n\nIf that was you, confirm here:\n\n{link}\n\nIf it was not you, "
-    "ignore this email; nothing else will be sent to this address."
+    "Someone asked for a family email to be sent to this address.\n\nIf that was you, "
+    "confirm it here:\n\n{link}\n\nNothing from the family is sent until you do.\n\n"
+    "If it was not you, ignore this email; nothing else will be sent to this address."
 )
 
 

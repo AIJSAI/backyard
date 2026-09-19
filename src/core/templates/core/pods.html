@@ -1,9 +1,16 @@
 {% extends "core/base.html" %}
-{% block title %}Your pods{% endblock %}
+{% comment %} This page listed "Your pods" with no definition anywhere in the product, and
+   offered a form to create another one. A relative cannot act on a noun nobody has
+   defined for them. There are two real things here and the family has a word for each: a
+   HOUSEHOLD (one home, made for you when you were invited) and a GROUP (a few of you, made
+   by whoever started it). The page now says which each row is, and the create form makes
+   the second kind and says so. {% endcomment %}
+{% block title %}Households and groups{% endblock %}
 {% block body %}
-  {% comment %} No "Back to the feed" here: the header nav carries Feed on every page,
-     so this was a second, differently-styled copy of a link already on screen. {% endcomment %}
-  <h1>Your pods</h1>
+  {% comment %} No "Back to the feed" here: the header nav carries Feed on every page. {% endcomment %}
+  <h1>Your households and groups</h1>
+  <p class="muted">Your household is the home you were invited into. A group is a few of
+    you who wanted somewhere smaller &mdash; the cousins, the ones planning a birthday.</p>
 
   {% comment %} A refused "Leave" lands back here with the reason, rather than on an
      error page: the only thing that refuses is the leave that would leave somebody in
@@ -16,7 +23,7 @@
     {% for row in rows %}
       <li>
         <span class="pod-name">{{ row.pod.name }}</span>
-        {% if row.is_adhoc %}<span class="muted">(just this group)</span>{% endif %}
+        {% if row.is_adhoc %}<span class="muted">(a group)</span>{% else %}<span class="muted">(your household)</span>{% endif %}
         {% if row.pod.house_rule %}<p class="house-rule">{{ row.pod.house_rule }}</p>{% endif %}
 
         <form method="post" action="{% url 'pod_mute' row.pod.id %}" class="inline">
@@ -34,36 +41,43 @@
         {% if row.is_owner %}
           <form method="post" action="{% url 'pod_house_rule' row.pod.id %}">
             {% csrf_token %}
-            <input type="text" name="house_rule" value="{{ row.pod.house_rule }}" maxlength="200"
-                   placeholder="One-sentence house rule">
-            <button type="submit">Set rule</button>
+            <label for="rule-{{ row.pod.id }}">One line about what this group is for</label>
+            <input id="rule-{{ row.pod.id }}" type="text" name="house_rule"
+                   value="{{ row.pod.house_rule }}" maxlength="200"
+                   placeholder="e.g. Just the cousins">
+            <button type="submit">Save that line</button>
           </form>
           <form method="post" action="{% url 'pod_add_member' row.pod.id %}">
             {% csrf_token %}
-            <select name="member_id">
+            <label for="add-{{ row.pod.id }}">Add someone to this group</label>
+            <select id="add-{{ row.pod.id }}" name="member_id">
               {% for c in candidates %}<option value="{{ c.id }}">{{ c.display_name }}</option>{% endfor %}
             </select>
-            <button type="submit">Add member</button>
+            <button type="submit">Add them</button>
           </form>
         {% endif %}
       </li>
+    {% empty %}
+      <li class="empty">Nothing here yet.</li>
     {% endfor %}
   </ul>
 
-  <h2>Start a pod that is just your group</h2>
+  <h2>Start a group</h2>
+  <p class="muted">A smaller place for a few of you. Everyone in it is from the same side
+    of the family, and what you post there stays there.</p>
   {% comment %} Two of these three fields were placeholder-only while the middle one
      carried a bold label, so the form read as ragged — and a placeholder disappears
-     the moment someone types. All three are labelled now. {% endcomment %}
+     the moment someone types. All three are labelled. {% endcomment %}
   <form method="post" action="{% url 'pod_create' %}">
     {% csrf_token %}
-    <label for="pod_name">Pod name</label>
+    <label for="pod_name">Name the group</label>
     <input id="pod_name" type="text" name="name" placeholder="e.g. The Cousins" required maxlength="100">
-    <label for="yard_id">In which side of the family</label>
+    <label for="yard_id">Which side of the family</label>
     <select id="yard_id" name="yard_id" required>
       {% for yard in yards %}<option value="{{ yard.id }}">{{ yard.name }}</option>{% endfor %}
     </select>
-    <label for="pod_house_rule">House rule (optional)</label>
-    <input id="pod_house_rule" type="text" name="house_rule" placeholder="One sentence" maxlength="200">
-    <button type="submit">Create pod</button>
+    <label for="pod_house_rule">One line about what it is for (optional)</label>
+    <input id="pod_house_rule" type="text" name="house_rule" placeholder="e.g. Just the cousins" maxlength="200">
+    <button type="submit">Create the group</button>
   </form>
 {% endblock %}

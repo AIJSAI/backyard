@@ -1,16 +1,16 @@
 {% extends "core/base.html" %}
-{% block title %}Pause the digest{% endblock %}
+{% block title %}Stop the family email{% endblock %}
 {% block body %}
   {% if done %}
-    <h1>Digest turned off</h1>
-    <p>No more digest emails will be sent to this address. You are still a member of
-    your family's Backyard; turn the digest back on any time from your settings.</p>
+    <h1>The family email is off</h1>
+    <p>Nothing more will be sent to this address. You are still part of the family;
+    you can turn it back on any time under Settings.</p>
   {% else %}
-    <h1>Stop the digest emails?</h1>
+    <h1>Stop the family email?</h1>
     <p>This stops the email only. It does not remove you from the family.</p>
     <form method="post">
       {% csrf_token %}
-      <button type="submit">Yes, stop the emails</button>
+      <button type="submit">Yes, stop it</button>
     </form>
   {% endif %}
 {% endblock %}

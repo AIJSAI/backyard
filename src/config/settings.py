@@ -221,8 +221,17 @@ CACHES = {
 ACCOUNT_ADAPTER = "core.adapters.AccountAdapter"  # signup is invite-only (S-101)
 # Copy only (v3.2 visual pass): sign-in shipped allauth's "Login:" / "Remember Me:"
 # with Django's colon suffix, on the first surface a family member ever sees.
-ACCOUNT_FORMS = {"login": "core.forms.LoginForm"}
+ACCOUNT_FORMS = {
+    "login": "core.forms.LoginForm",
+    "reset_password": "core.forms.ResetPasswordForm",
+}
 ACCOUNT_LOGIN_METHODS = {"username", "email"}
+# No "[backyard.family] " in front of every subject line. allauth defaults this to None,
+# which makes it "[<site name>] " — so the confirmation email a relative gets arrived as
+# "[backyard.family] Please Confirm Your Email Address". A family's own page does not
+# bracket-stamp its mail like a mailing list; the subjects are written to stand alone in
+# src/templates/account/email/.
+ACCOUNT_EMAIL_SUBJECT_PREFIX = ""
 ACCOUNT_EMAIL_VERIFICATION = "optional"  # invite-token members may have no email
 ACCOUNT_PREVENT_ENUMERATION = True  # login/reset never reveal whether an account exists
 ACCOUNT_RATE_LIMITS = {
