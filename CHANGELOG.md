@@ -26,13 +26,14 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   scored 8.8. The container publishes no port and shares no network with the edge, so the
   only things that can speak SQL to it are the app and the worker — this is the layer
   beneath a compromised app rather than a door onto it. The bump also refreshes the `psql`
-  the self-host guide has you run by hand against the box. What it does NOT close are the
-  two 8.8 entries that fire through `pg_dump` (CVE-2026-19385, CVE-2026-18408): every dump
-  and restore this product takes — the entrypoint's pre-flight backup on every boot,
+  the self-host guide has you run by hand against the box, which is where the 8.8 `psql`
+  entry (CVE-2026-18408, `\unrestrict`) lives, so this bump closes that one. What it does NOT
+  close is the 8.8 entry that fires through `pg_dump` (CVE-2026-19385): every dump and
+  restore this product takes — the entrypoint's pre-flight backup on every boot,
   `backup_instance`, `restore_instance` — runs the `postgresql-client-18` installed in the
-  APP image, not the client in this container, so those two close only on the `build --pull`
-  below. A minor Postgres upgrade needs no dump and restore; the new digest is pulled on the
-  next `up -d`.
+  APP image, not the client in this container, so that one closes only on the `build --pull`
+  below, which refreshes the app image's `psql` as well. A minor Postgres upgrade needs no
+  dump and restore; the new digest is pulled on the next `up -d`.
 - **The Caddy image is refreshed** to a current Alpine base. Same Caddy v2.11.4 binary.
 - **Every documented redeploy now builds with `--pull`, chained to the `up`.** The app image
   installs `pg_dump` and `ffmpeg` in a layer above the application code, so nothing an
