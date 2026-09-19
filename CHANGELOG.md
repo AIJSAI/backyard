@@ -451,6 +451,15 @@ itself up and telling somebody when it cannot.
   so printing it forwarded the ability to post as you — but the README, the install guide and
   the QA script all still described replying by email as a working feature. The inbound
   pipeline is live and configured; nothing hands anybody an address to use it with.
+- **The printed recovery sheet's restore actually works now.** Its steps had you write the
+  passphrase to a file on the host and then pass that host path to a command running inside
+  the container, where it does not exist — so the one document read when the instance is
+  already gone failed on a tired person's first attempt. The passphrase goes in the box's
+  environment file before the stack comes up (which the new box needs anyway, so its own
+  nightly backups keep encrypting under the same passphrase), the archive is streamed in as
+  the app user, and the restore takes no passphrase flag at all because the command reads the
+  environment. A new guard asserts that any `--passphrase-file` path a runbook documents is
+  introduced by a mount in the same document; it was proven to fail on the sheet's old text.
 - **`docs/RESUME-HERE.md` is short and current**; the five-hundred-line version it replaces
   is kept unedited under `docs/archive/` with a banner saying it is history. Open work lives
   in GitHub issues, and the two remaining documents say plainly which of them is a record and

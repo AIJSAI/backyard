@@ -115,7 +115,8 @@ Two documents remain and neither is a backlog:
   evidence link on the same line, and CI enforces it.
 
 The gate before anything is shared with anybody is still the founder's own QA walk,
-[`runbooks/founder-qa.md`](runbooks/founder-qa.md).
+[`runbooks/founder-qa.md`](runbooks/founder-qa.md), with the S-721 delegate rehearsal beside
+it as issue 194 — a second person, because the founder must not role-play the delegate.
 
 ## The runbooks
 

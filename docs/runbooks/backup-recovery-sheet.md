@@ -90,28 +90,57 @@ admin (Members → Set role → Instance admin) and write their name below. One 
 
 ## To restore, on a fresh machine
 
-1. Bring up the stack (see `docs/runbooks/live-repro.md` §B). It will generate a new
-   `DJANGO_SECRET_KEY`; that is fine, the restore replaces the database.
-2. Put the archive somewhere the `web` container can read — **stream it in**, because
-   `docker compose cp` lands it owned by the host's user and the container cannot read it
-   (`backup-restore.md`, "Getting the archive INTO the container") — and the passphrase in
-   a file the container can reach:
+Do these in order. **Do not open `/setup/` and make yourself an admin first** — the restore
+replaces the database anyway, and an instance that has a member in it makes the restore
+refuse (step 3 says what to do if you already did).
 
-       printf '%s' '<the passphrase above>' > /root/backyard.key
-       chmod 600 /root/backyard.key
+On the reference box every `docker` command needs `sudo`, because a fresh machine leaves
+your user outside the `docker` group; the socket error it prints otherwise reads exactly
+like "the stack is not running".
 
-3. Restore:
+1. **Put the passphrase in the box's `.env` BEFORE the stack comes up**, then bring the
+   stack up (`docs/runbooks/live-repro.md` §B). Write the line by hand — not with a shell
+   command, which would put the passphrase in your history:
 
-       docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
-         python manage.py restore_instance \
-         /data/backups/<archive>.bak --passphrase-file /root/backyard.key --force'
+       BACKYARD_BACKUP_PASSPHRASE=<the passphrase above>
+
+   Compose passes that variable into both `web` and `worker`, and the new box needs it
+   there permanently anyway, so its own nightly backups keep encrypting under the same
+   passphrase. A new `DJANGO_SECRET_KEY` gets generated on first boot; that is fine.
+
+   *(The tighter alternative, if the sheet's owner set one up, is a 0600 keyfile mounted
+   read-only into both containers with `BACKYARD_BACKUP_PASSPHRASE_FILE` naming its path
+   **inside** the container — `/run/secrets/backyard.key`, never anything under `/data`.
+   That only works if the mount is in `docker-compose.prod.yml`, so unless you can see it
+   there, use the `.env` line above.)*
+
+2. **Stream the archive in as the app user.** Do not use `docker compose cp`: it lands the
+   file owned by the host's user and the container's unprivileged user cannot read it
+   (`backup-restore.md`, "Getting the archive INTO the container").
+
+       cat <archive>.bak | sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+         exec -T web sh -c 'umask 077; cat > /data/backups/<archive>.bak'
+
+3. **Restore. No `--passphrase-file`** — the command reads `BACKYARD_BACKUP_PASSPHRASE`
+   out of the container's environment, which step 1 put there:
+
+       sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web sh -c \
+         'export DJANGO_SECRET_KEY=$(cat /data/secret_key); python manage.py restore_instance /data/backups/<archive>.bak'
+
+   If it says it is **refusing to restore over a database that still has members**, you
+   created the first admin before restoring. Add `--force` to the end of that command and
+   run it again.
+
+   If it says the archive is encrypted and asks for a passphrase, step 1 did not take:
+   check the `.env` line and bring the stack up again. The passphrase must be at least 12
+   characters, and leading and trailing whitespace is ignored.
 
 4. **Restart, then check.** `restore_instance` does not migrate — the entrypoint does — so
    an archive from an older release leaves the schema behind until the containers come back:
 
-       docker compose restart web worker
-       docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
-         python manage.py migrate --check'
+       sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml restart web worker
+       sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web sh -c \
+         'export DJANGO_SECRET_KEY=$(cat /data/secret_key); python manage.py migrate --check'
 
    That must exit 0 before you tell anyone the instance is up.
 

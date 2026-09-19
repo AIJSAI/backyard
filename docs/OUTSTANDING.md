@@ -107,12 +107,11 @@ written here.
 
 ### Smaller, still real
 
-**None of S8–S24 below has its own GitHub issue unless the line says so.** They are recorded
-here with their evidence rather than filed one-per-issue, because filing seventeen issues
-nobody has scheduled turns the tracker into a second version of this file. The ones that were
-picked up by later work name the pull request or the issue that carries them; the rest are a
-standing list for whoever does the next security pass, and that is what they are being
-honest about being.
+**S8–S24 are carried as ONE tracked item, issue 195**, together with the gate entries still
+open after this pass (G3, G4, G5). They are recorded here with their evidence rather than
+filed one-per-issue, because seventeen issues nobody has scheduled turns the tracker into a
+second version of this file. Where a line names a different issue or a pull request, that is
+the one that carries it.
 
 - **S8** — `profiles._can_see_field` returns `True` for YARD unconditionally; every current caller pre-scopes, so no live route, but one future caller reintroduces T-YARD-6. Adjacent, and filed: `can_edit_profile_of` carries the same supervised-parent bypass the household surface now re-checks (issue 181, item 4).
 - **S9** — **DONE 2026-09-19 (security-hardening PR), with issue 174's first half.** `pods.leave_pod` now locks the member row, refuses a leave that would strand somebody, and runs `revocation.revoke_for_membership_shrink` scoped to the sides actually being lost, before the membership row goes. Pod-leaves-yard and the deceased flow are still unbuilt and are named as unbuilt in TM-1 rather than described as shipped.
@@ -141,9 +140,9 @@ honest about being.
   render time (`core/middleware.py`, `config/settings.py`). Caddy's `encode zstd gzip` now
   masks the wire cost; the **disclosure** is unchanged, and compression is not the fix. The
   fix is to strip at render time and keep them in source — they are load-bearing for whoever
-  reads the templates next. **This has no GitHub issue and needs one**; it is deliberately
-  not fixed in a documentation pull request, because a render-time change to every page in
-  the product is not a docs change however small the diff looks.
+  reads the templates next. **Tracked as issue 191**; it is deliberately not fixed in a
+  documentation pull request, because a render-time change to every page in the product is
+  not a docs change however small the diff looks.
 - ~~**S26**~~ — **DONE.** The Ubicloud project id and Cloudflare zone id are parameterised in
   `runbooks/live-repro.md` and the 2026-07-26 audit, and the return of that class is guarded
   by shape rather than by a denylist (`src/core/tests/test_no_infrastructure_identifiers.py`,
@@ -152,17 +151,18 @@ honest about being.
   `receipts/2026-07-22-wave-4-close.md`, named as the live inbox. Already public through git
   author metadata on every commit, which is why it is hygiene rather than a finding — but a
   receipt is a dated record and editing one to clean a grep is the thing this project has
-  repeatedly decided not to do, so closing it is a judgement call rather than an edit. No
-  issue.
+  repeatedly decided not to do, so closing it is a judgement call rather than an edit.
+  Tracked as issue 192.
 - **S28** — **DONE 2026-08-01.** The demo relative carrying the author's real surname is now `Priya Whitfield`, matching the fictional family the design tooling already used. It had also reached a shipping `posting.py` comment and two receipts, and the README carried a blanket "no real family content" claim that was false a few files away — both corrected. Guarded by `src/core/tests/test_privacy_line_holds.py`.
-- **S29** — ~~No `/.well-known/security.txt`~~ **half DONE:** `caddy/Caddyfile.prod` serves one, with a `Canonical:` line. Still absent: `Permissions-Policy`, `CORP`, `COEP`. No issue.
+- **S29** — ~~No `/.well-known/security.txt`~~ **half DONE:** `caddy/Caddyfile.prod` serves one, with a `Canonical:` line. Still absent: `Permissions-Policy`, `CORP`, `COEP` — tracked as issue 193.
 
 ---
 
 ## 3. Gates that still overstate
 
 From the gate audit. These do not break anything today; they mean a future regression goes
-unnoticed.
+unnoticed. Most are closed; the three still open after the 2026-09-19 pass — G3, G4 and G5 —
+are carried with S8–S24 as issue 195.
 
 - **G1** — ~~`test_self_host_docs.py` **suppresses itself**: `pytest.skip` when a command is not
   named in the guide, so 2 of 3 cases are vacuous~~ **CLOSED (#144).** The enumeration was
@@ -322,7 +322,7 @@ one by one, because a list under that heading is read as current:
   30 minutes from GitHub's infrastructure, and opens one issue rather than e-mailing per run.
 - **65KB uncompressed on every anonymous page** — the compression half is **CLOSED**
   (`caddy/Caddyfile.prod` now has `encode zstd gzip`); the 26,041 bytes of CSS commentary are
-  **still served** and are S25 above, which still needs an issue.
+  **still served** and are S25 above, tracked as issue 191.
 - **No audit log exists**, and `remove_member(content="delete")` hard-purges photos behind one
   session POST with no reauth, no confirmation and no undo. **Partly addressed:** the removal
   form now asks what happens to their posts and makes you type the name, and `HouseholdChange`
@@ -353,16 +353,18 @@ anybody the key to.
 The first three steps of the original order are done. What it now reads as:
 
 1. ~~Operator actions 1–4~~ · ~~S1–S7~~ · ~~G1–G2~~ — all closed; see §0, §2 and §3.
-2. **S25**, the 26KB of developer commentary on every anonymous page. One change, every
-   visitor, and the only item in this file that is both open and touches what a stranger
-   receives. It needs an issue.
+2. **S25** (issue 191), the 26KB of developer commentary on every anonymous page. One
+   change, every visitor, and the only item in this file that is both open and touches what
+   a stranger receives.
 3. **The founder's QA walk** ([`runbooks/founder-qa.md`](runbooks/founder-qa.md)), which is
-   and has always been the gate, and the S-721 delegate rehearsal beside it — a second person
-   walking [`runbooks/setting-up-your-side.md`](runbooks/setting-up-your-side.md) cold, because
-   the founder must not role-play the delegate.
-4. The filed follow-ups, in the tracker rather than here: 176, 180, 181, 182, 187, 188.
+   and has always been the gate, and the S-721 delegate rehearsal beside it (issue 194) — a
+   second person walking [`runbooks/setting-up-your-side.md`](runbooks/setting-up-your-side.md)
+   cold, because the founder must not role-play the delegate.
+4. The filed follow-ups, in the tracker rather than here: 176, 180, 181, 182, 187, 188,
+   and the hygiene pair 192 (S27) and 193 (the rest of S29).
 5. Founder decisions, then S-603 or not.
-6. The long tail: S8–S24, G3–G7, G10 — recorded above, unscheduled, and honest about it.
+6. The long tail — S8–S24 and the gate entries still open after this pass, G3, G4 and G5 —
+   recorded above and carried as one unscheduled item, issue 195.
 
 Phase 5 and 6 stay where they are: gated on the founder's QA walk and the decision to go public.
 
