@@ -2,20 +2,28 @@
 {% block title %}Invite a household{% endblock %}
 {% block body %}
   <h1>Invite a household</h1>
-  <p><a href="{% url 'members' %}">Back to members</a> · <a href="{% url 'member_invites' %}">Outstanding invites</a></p>
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Back to Family members</a></p>
+
+  {% if minted_link %}
+    {% comment %} On success the page used to re-render the create form UNDERNEATH the
+       result, empty, carrying an identical primary button — so an admin could not tell
+       whether it had worked or whether they were meant to fill it in again. The form is
+       gone once there is a link to hand over, and inviting another household is a quiet
+       link at the end. {% endcomment %}
+    <h2>Here is the link for the {{ household_name }}</h2>
+    <p>It lets up to {{ max_uses }} people into <strong>{{ yard_name }}</strong>, and it
+    stops working on {{ expires_at|date:"M j, Y" }}. Send it however you normally reach
+    them.</p>
+    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="Invite link" handover_share_title="Join our family on Backyard" %}
+    <p class="page-action"><a href="{% url 'invite_household' %}">Invite another household</a>
+      &middot; <a href="{% url 'member_invites' %}">Outstanding invites</a></p>
+  {% else %}
 
   <p class="notice">Name the household and pick which side of the family it joins. This creates the
   household and a one-time link you hand over. Whoever opens the link just picks a name and a
   password and lands straight in the family feed, with no setup screens.</p>
 
   {% if errors %}<div class="errors">{% for e in errors %}<p>{{ e }}</p>{% endfor %}</div>{% endif %}
-
-  {% if minted_link %}
-    <h2>Link ready to hand over</h2>
-    <p>For the <strong>{{ household_name }}</strong> household in <strong>{{ yard_name }}</strong>.
-    It works for up to {{ max_uses }} people and expires {{ expires_at|date:"M j, Y" }}.</p>
-    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="Invite link" handover_share_title="Join our family on Backyard" %}
-  {% endif %}
 
   <form method="post" action="{% url 'invite_household' %}">
     {% csrf_token %}
@@ -48,4 +56,6 @@
     </fieldset>
     <button type="submit">Create the household and get the link</button>
   </form>
+  <p class="page-action"><a href="{% url 'member_invites' %}">Outstanding invites</a></p>
+  {% endif %}
 {% endblock %}

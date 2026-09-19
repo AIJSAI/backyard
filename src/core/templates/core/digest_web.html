@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
-{% block title %}Your family digest{% endblock %}
+{% block title %}Your family email{% endblock %}
 {% block body %}
-  <h1>{{ issue.yard.name }}: your family digest</h1>
+  <h1>{{ issue.yard.name }}: what the family has been up to</h1>
   <p class="muted">What your family shared, {{ issue.window_start|date }} to {{ issue.window_end|date }}.</p>
   {% for post in posts %}
     <article class="post">

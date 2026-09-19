@@ -147,7 +147,7 @@ def test_roster_visibly_flags_supervised_members_to_admins(world: dict[str, obje
     assert response.status_code == 200
     content = response.content.decode()
     assert "Kiddo" in content  # the supervised child appears on the roster at all
-    flag = '<span class="flag">supervised</span>'
+    flag = '<span class="flag">child account</span>'
     assert flag in content  # and is flagged
     # exactly one flag: the supervised child, never the full members (MemberA/AAdmin/Admin)
     assert content.count(flag) == 1

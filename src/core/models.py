@@ -173,10 +173,13 @@ class Member(models.Model):
     HIDDEN = "hidden"
     POD = "pod"
     YARD = "yard"
+    # These strings are the OPTIONS in the control that decides who sees somebody's
+    # phone number, so they are read by a relative on a phone, not by us. "People in my
+    # yards" named an object no screen in the product ever defined.
     FIELD_VISIBILITY_CHOICES = [
         (HIDDEN, "No one"),
-        (POD, "People in my pods"),
-        (YARD, "People in my yards"),
+        (POD, "My household"),
+        (YARD, "Everyone in my family"),
     ]
     birthday_month = models.PositiveSmallIntegerField(null=True, blank=True)
     birthday_day = models.PositiveSmallIntegerField(null=True, blank=True)

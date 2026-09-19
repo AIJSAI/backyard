@@ -3,10 +3,10 @@
 {% block body %}
   <h1>Notifications</h1>
   <p class="muted">
-    Backyard never pushes anything at you by default. The only thing you can turn on
-    is a nudge when someone replies to your own post. There is no all-activity feed
-    to subscribe to, on purpose.
+    Backyard never sends you anything unless you ask. The one thing you can turn on
+    is a nudge when someone replies to your own post.
   </p>
+  <p class="back-link"><a class="back" href="{% url 'profile_edit' %}">Back to Settings</a></p>
   <form method="post" action="{% url 'notification_settings' %}">
     {% csrf_token %}
     <label class="inline-check">

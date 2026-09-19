@@ -1,0 +1,31 @@
+{% extends "account/base_manage.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's account/logout.html.
+
+   Copy only. The library's house style is Title Case: the nav link that brings you here
+   says "Sign out" and the page it opened said "Sign Out", in both the heading and the
+   button. Every other heading and button in this product is sentence case. The markup,
+   the form and the redirect field are the package's, verbatim. {% endcomment %}
+{% load allauth i18n %}
+{% block head_title %}
+    {% trans "Sign out" %}
+{% endblock head_title %}
+{% block content %}
+    {% element h1 %}
+        {% trans "Sign out" %}
+    {% endelement %}
+    {% element p %}
+        {% trans 'Sign out of Backyard on this device?' %}
+    {% endelement %}
+    {% url 'account_logout' as action_url %}
+    {% element form method="post" action=action_url no_visible_fields=True %}
+        {% slot body %}
+            {% csrf_token %}
+            {{ redirect_field }}
+        {% endslot %}
+        {% slot actions %}
+            {% element button type="submit" %}
+                {% trans 'Sign out' %}
+            {% endelement %}
+        {% endslot %}
+    {% endelement %}
+{% endblock content %}

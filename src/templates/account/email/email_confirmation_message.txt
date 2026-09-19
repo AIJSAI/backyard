@@ -1,0 +1,17 @@
+{% extends "account/email/base_message.txt" %}
+{% load i18n %}
+{% comment %} PROJECT OVERRIDE. The stock body read "Hello from backyard.family! You're
+   receiving this email because user james has given your email address to register an
+   account on backyard.family. ... Thank you for using backyard.family!" — a username, a
+   bare domain three times, "register an account", and two exclamation marks, in a message
+   a relative reads on their phone. It says what the address is FOR and nothing else, and
+   it never prints a member's username. {% endcomment %}
+{% block content %}{% autoescape off %}{% blocktrans %}Someone added this address to their family's Backyard.
+
+If that was you, confirm it here:{% endblocktrans %}
+
+{% if code %}{{ code }}{% else %}{{ activate_url }}{% endif %}
+
+{% blocktrans %}Confirming means we can send you a way back in if you ever forget your password. Nothing else is sent to this address unless you ask for it.
+
+If it was not you, ignore this email. Nothing else will be sent here.{% endblocktrans %}{% endautoescape %}{% endblock content %}

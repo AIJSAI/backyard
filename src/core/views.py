@@ -134,9 +134,9 @@ def setup(request: HttpRequest) -> HttpResponse:
         if not display_name:
             errors.append("Tell us the name your family will see for you.")
         if not yard_name:
-            errors.append("Name this side of the family (its yard).")
+            errors.append("Name this side of the family.")
         if not pod_name:
-            errors.append("Name your household (its pod).")
+            errors.append("Name your household.")
         # Pass the prospective user so password-equals-username is rejected for the
         # most privileged account on the instance.
         try:

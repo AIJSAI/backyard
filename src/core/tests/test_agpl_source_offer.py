@@ -5,15 +5,30 @@ nothing in any served page. The obligation is not discharged by the repository �
 owed the offer is the one using the software over a network, and she may never see the
 repository. That is the entire point of section 13 as distinct from section 4.
 
-The elder surface is asserted separately and deliberately. `elder_feed.html` is STANDALONE by
-design (it does not extend `base.html`, so it carries no session-bearing chrome), which means
-a footer added to the base template renders on every page EXCEPT the one an elder actually
-uses — and she is exactly the network user this clause exists for.
+WHERE the offer lives changed on 2026-09-19 (owner direction 1). It used to be a line in the
+footer of all thirty-odd screens, including a grandparent's, where it was the second-loudest
+sentence on a page of family photographs. Section 13 requires that the source be OFFERED; it
+does not require that the offer be printed under every picture. It now lives on /about/, one
+tap from Settings and one tap from the sign-in page.
+
+So these tests WALK to it rather than grepping for a string:
+
+* a signed-out stranger — the commonest network user — is offered a route from sign-in;
+* a signed-in member is offered a route from Settings;
+* and the two surfaces that cannot link anywhere still carry the offer in their own text.
+
+The elder page is one of those two and is asserted separately and deliberately.
+`elder_feed.html` is STANDALONE by design (it does not extend `base.html`, so it carries no
+session-bearing chrome), and S-601 gives it no way off itself — every href on it must be the
+elder feed. It cannot link to /about/, so it says the offer itself.
 """
 
 from __future__ import annotations
 
+import re
+
 import pytest
+from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 
@@ -21,6 +36,8 @@ from core import elder_tokens
 from core.models import Member, Pod, PodMembership, Yard
 
 _REPO = "github.com/AIJSAI/backyard"
+_BACKEND = "django.contrib.auth.backends.ModelBackend"
+User = get_user_model()
 
 
 def _family() -> tuple[Yard, Pod]:
@@ -30,17 +47,66 @@ def _family() -> tuple[Yard, Pod]:
     return yard, pod
 
 
+def _hrefs(html: str) -> set[str]:
+    return set(re.findall(r'href="([^"]+)"', html))
+
+
 @pytest.mark.django_db
-def test_the_login_page_offers_the_source() -> None:
-    """The surface an unauthenticated stranger reaches, which is most network users."""
-    html = Client().get(reverse("account_login")).content.decode()
-    assert _REPO in html, "a network user is offered no route to the source (AGPL section 13)"
+def test_the_about_page_carries_the_offer() -> None:
+    """The page the two routes below lead to. Asserted first, so a failure downstream
+    reads as "the route is broken" rather than "the offer is gone"."""
+    page = Client().get(reverse("about"))
+    assert page.status_code == 200
+    html = page.content.decode()
+    assert _REPO in html, "the About page makes no source offer at all (AGPL section 13)"
     assert "AGPL" in html
 
 
 @pytest.mark.django_db
-def test_the_elder_surface_offers_the_source() -> None:
-    """The one that would have been missed: standalone template, no base.html."""
+def test_a_signed_out_stranger_is_offered_a_route_to_the_source() -> None:
+    """The surface an unauthenticated stranger reaches, which is most network users.
+
+    Walked, not grepped: the assertion is that the sign-in page OFFERS the route and the
+    route answers. A test that looked for the repository string on the login page would
+    have passed on a footer line the owner asked to remove, and would fail here for a
+    cosmetic reason rather than a legal one.
+    """
+    html = Client().get(reverse("account_login")).content.decode()
+    about = reverse("about")
+    assert about in _hrefs(html), (
+        "a network user who cannot sign in is offered no route to the source "
+        "(AGPL section 13)"
+    )
+    assert _REPO in Client().get(about).content.decode()
+
+
+@pytest.mark.django_db
+def test_a_signed_in_member_is_offered_a_route_to_the_source() -> None:
+    """The other half of the network-user population: somebody already inside. Two hops,
+    the way a person walks it — the header's Settings, then the link on that page."""
+    _, pod = _family()
+    user = User.objects.create_user(username="m")
+    member = Member.objects.create(display_name="M", user=user)
+    PodMembership.objects.create(member=member, pod=pod)
+    client = Client()
+    client.force_login(user, backend=_BACKEND)
+
+    feed = client.get(reverse("feed")).content.decode()
+    settings_url = reverse("profile_edit")
+    assert settings_url in _hrefs(feed), "no route into settings from the feed"
+
+    settings_page = client.get(settings_url).content.decode()
+    about = reverse("about")
+    assert about in _hrefs(settings_page), (
+        "a signed-in member is offered no route to the source from anywhere they stand"
+    )
+    assert _REPO in client.get(about).content.decode()
+
+
+@pytest.mark.django_db
+def test_the_elder_surface_offers_the_source_in_its_own_text() -> None:
+    """The one that would have been missed: standalone template, no base.html, and S-601
+    forbids it any href but its own — so it cannot use the route the other two use."""
     _, pod = _family()
     member = Member.objects.create(display_name="Nana")
     PodMembership.objects.create(member=member, pod=pod)
@@ -53,40 +119,35 @@ def test_the_elder_surface_offers_the_source() -> None:
     html = page.content.decode()
 
     assert _REPO in html, (
-        "the elder path renders no source offer. It does not extend base.html, so a footer "
-        "added there reaches every page except the one an elder actually uses — and she is "
-        "the network user AGPL section 13 exists for."
+        "the no-login surface renders no source offer. It does not extend base.html and it "
+        "may not link anywhere, so it is the one page that must carry the offer itself — "
+        "and she is exactly the network user AGPL section 13 exists for."
     )
     assert "AGPL" in html
 
 
-@pytest.mark.django_db
-def test_the_offer_is_not_only_on_one_template() -> None:
-    """Denominator: both surfaces, so a single shared fixture cannot make this vacuous.
+def test_every_link_less_standalone_page_carries_the_offer_itself() -> None:
+    """Denominator, on the template sources.
 
-    If the two assertions above ever pass because some middleware injects the string
-    globally, this still holds — but it also means the templates could each lose their line
-    without a failure. Asserted on the template sources so the offer is where it is claimed
-    to be, not merely present in a response by accident.
+    A standalone page — a full HTML document that `{% extends %}` nothing — inherits no
+    footer and no chrome, so it has to make the offer itself or find a link. Two of the
+    three cannot link: the elder feed is forbidden any href but its own (S-601), and
+    500.html is rendered when the app is broken enough that resolving a URL may not work.
+    `base.html` is the third, and it is the one that CAN: every page built on it reaches
+    /about/ from Settings, which the walked tests above prove rather than assume.
+
+    Computed rather than declared. The list was once ("base.html", "elder_feed.html") and
+    a THIRD standalone page existed — src/templates/500.html — which two named templates
+    could not notice.
     """
     from pathlib import Path
 
     from core.tests.comment_stripping import without_comments
 
-    # Enumerated, not named. The list was ("base.html", "elder_feed.html"), and a THIRD
-    # standalone page existed: src/templates/500.html, which Django renders when the app is
-    # broken enough that inheriting from base.html may not work at all — so it inherits no
-    # footer and carried no offer. Two named templates cannot notice a third being added.
-    #
-    # "Standalone" is computed rather than declared: a full HTML document that does not
-    # `{% extends %}` anything inherits nothing, so it must carry the offer itself. Everything
-    # else gets it from base.html's footer, which this same check pins.
     core_templates = Path(__file__).resolve().parents[1] / "templates" / "core"
     project_templates = Path(__file__).resolve().parents[2] / "templates"
-    # Read each template ONCE and carry the text with the path. The previous form called
-    # `read_text()` twice per candidate in the filter and a third time in the loop below,
-    # which is not merely wasteful: three reads of a file that another test may be
-    # rewriting are three chances to disagree about what the file says.
+    # Read each template ONCE and carry the text with the path: three reads of a file
+    # another test may be rewriting are three chances to disagree about what it says.
     sources = {
         path: path.read_text()
         for path in list(core_templates.glob("*.html")) + list(project_templates.glob("*.html"))
@@ -98,15 +159,22 @@ def test_the_offer_is_not_only_on_one_template() -> None:
         f"only {len(standalone)} standalone templates found ({[p.name for p in standalone]}); "
         "the globs are wrong, so this check is inspecting almost nothing"
     )
+    # base.html is the shared frame; it reaches the offer by link, and the two walked
+    # tests above are what hold that. Named here so the exemption is visible rather than
+    # implied by an absence.
+    links_to_about = {"base.html"}
     for path in standalone:
         name = path.name
+        if name in links_to_about:
+            continue
         # ALL comment syntaxes, via the shared helper. This test originally stripped only
-        # `{% comment %}` -- the identical hole that had already been fixed twice this
-        # session, reintroduced by hand in a brand-new file. Both templates use `{# ... #}`
-        # too, so the offer could have been moved into one and still satisfied the check.
+        # `{% comment %}` -- the identical hole that had already been fixed twice, and both
+        # templates use `{# ... #}` too, so the offer could have been moved into one and
+        # still satisfied the check.
         source = without_comments(sources[path])
         assert _REPO in source, (
             f"{name} is a standalone page — it extends nothing, so it inherits no footer — "
-            "and carries no source offer outside its comments. AGPL section 13 requires a "
-            "network user be OFFERED the source; a page that never makes the offer does not."
+            "and it cannot link away either. It carries no source offer outside its "
+            "comments. AGPL section 13 requires a network user be OFFERED the source; a "
+            "page that never makes the offer does not."
         )

@@ -121,6 +121,9 @@ urlpatterns = [
         ResendInboundWebhookView.as_view(),
         name="anymail_resend_inbound",
     ),
+    # The two new admins' day-one guide, in the product rather than in a repo file the
+    # people it is written for cannot open. Linked from the roster; any admin may read it.
+    path("members/day-one/", admin_views.admins_day_one, name="admins_day_one"),
     path("members/digests/", admin_views.digests, name="member_digests"),
     path("members/quarantine/", admin_views.quarantine, name="member_quarantine"),
     path("members/metrics/", admin_views.metrics, name="member_metrics"),

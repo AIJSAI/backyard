@@ -1,50 +1,66 @@
 {% extends "core/base.html" %}
-{% block title %}Digest settings{% endblock %}
+{% comment %} The member's own Family email settings. Three names for one thing used to
+   share this screen — the heading said "Your weekly email", the button said "Turn on the
+   digest", the browser tab said "Digest settings" — so a relative could not tell whether
+   they were looking at one feature or three. It is the Family email, here and everywhere
+   (owner direction 2), and the frequency choices are weekly and monthly only. A member
+   who already chose daily keeps it, and the page says so in words rather than offering a
+   control that would set it again. {% endcomment %}
+{% block title %}The Family email{% endblock %}
 {% block body %}
-  <h1>Your weekly email</h1>
-  <p><a href="{% url 'feed' %}">Back to the feed</a></p>
+  <h1>The Family email</h1>
+  <p class="back-link"><a class="back" href="{% url 'profile_edit' %}">Back to Settings</a></p>
+
+  <p class="muted">What the family has been up to, sent to you. It is off unless you turn
+    it on, and a quiet week sends nothing at all.</p>
 
   {% if error %}<div class="errors"><p>{{ error }}</p></div>{% endif %}
   {% if sent %}
-    <p class="notice">Check {{ subscription.address }} for a confirmation email. Nothing
-    from the family is sent until you confirm it is your address.</p>
+    <p class="notice">Check {{ subscription.address }} for one email asking if the address
+    is yours. Nothing from the family is sent until you tap the link in it.</p>
   {% elif saved %}
     <p class="notice">Saved.</p>
   {% endif %}
 
   {% if subscription %}
     <p>
-      Digest is <strong>{% if subscription.enabled %}on{% else %}off{% endif %}</strong>
-      for {{ subscription.address }} ({{ subscription.get_cadence_display|lower }}{% if not subscription.confirmed_at %}, awaiting confirmation{% endif %}).
+      The Family email is <strong>{% if subscription.enabled %}on{% else %}off{% endif %}</strong>
+      for {{ subscription.address }},
+      {% if subscription.cadence == "daily" %}once a day{% elif subscription.cadence == "monthly" %}once a month{% else %}once a week{% endif %}{% if not subscription.confirmed_at %}, waiting for you to confirm the address{% endif %}.
     </p>
-    {% comment %} The off switch. This page could turn the digest ON and never off, while
-       stating "Digest is on" as though that were a state the reader could change. The only
-       way to stop it was the unsubscribe link in the footer of a digest you had already
-       received — and somebody who has not confirmed their address has never received one,
-       so their subscription could not be turned off at all. {% endcomment %}
+    {% comment %} The off switch. This page could turn it ON and never off, while stating
+       that it was "on" as though that were a state the reader could change. The only way
+       to stop it was the link in the footer of an email you had already received — and
+       somebody who has not confirmed their address has never received one, so their
+       subscription could not be turned off at all. {% endcomment %}
     <form method="post" action="{% url 'digest_settings' %}" class="inline">
       {% csrf_token %}
       {% if subscription.enabled %}
         <input type="hidden" name="action" value="turn_off">
-        <button type="submit">Turn the digest off</button>
-        <span class="muted">Stops the email. You stay in the family and keep every pod.</span>
+        <button type="submit">Stop the Family email</button>
+        <span class="muted">Stops the email. You stay in the family and keep everything else.</span>
       {% else %}
         <input type="hidden" name="action" value="turn_on">
-        <button type="submit">Turn the digest back on</button>
+        <button type="submit">Send me the Family email</button>
       {% endif %}
     </form>
   {% endif %}
 
   <form method="post" action="{% url 'digest_settings' %}">
     {% csrf_token %}
-    <label for="address">Email address</label>
+    <label for="address">Send it to</label>
     <input id="address" type="email" name="address" value="{{ subscription.address|default:'' }}" maxlength="254" required>
     <label for="cadence">How often</label>
+    {% comment %} Daily is deliberately absent (owner direction 2). The model still accepts
+       it so nobody who already chose it is broken by this, and their current setting is
+       named in the sentence above; this control simply does not offer it again. {% endcomment %}
     <select id="cadence" name="cadence">
-      <option value="daily"{% if subscription.cadence == "daily" %} selected{% endif %}>Daily</option>
-      <option value="weekly"{% if subscription.cadence == "weekly" or not subscription %} selected{% endif %}>Weekly</option>
-      <option value="monthly"{% if subscription.cadence == "monthly" %} selected{% endif %}>Monthly</option>
+      <option value="weekly"{% if subscription.cadence == "weekly" or not subscription %} selected{% endif %}>Once a week</option>
+      <option value="monthly"{% if subscription.cadence == "monthly" %} selected{% endif %}>Once a month</option>
     </select>
-    <button type="submit">{% if subscription %}Update and re-confirm{% else %}Turn on the digest{% endif %}</button>
+    <button type="submit">{% if subscription %}Save and confirm the address{% else %}Send me the Family email{% endif %}</button>
   </form>
+
+  <p class="page-action"><a href="{% url 'how_it_works' %}">How this works</a> &mdash; what
+    is in it, and every other way to stop it.</p>
 {% endblock %}

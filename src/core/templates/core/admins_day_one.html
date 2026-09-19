@@ -1,0 +1,81 @@
+{% extends "core/base.html" %}
+{% comment %} The guide for the two relatives who run a side of the family. It existed
+   only as a file in a git repository, which is exactly nowhere for the people it is
+   written for.
+
+   ONE SCREEN, five things, no fluff. Every instruction names a control that exists on
+   this branch and was clicked through at phone width before this shipped — if the
+   product and this page ever disagree, the page is wrong until somebody changes one of
+   them. docs/guide/admins-day-one.md carries the same text for anyone reading the repo.
+   {% endcomment %}
+{% block title %}A guide for the two of you{% endblock %}
+{% block body %}
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Back to Family members</a></p>
+  <h1>A guide for the two of you</h1>
+  <p class="muted">Five things that come up. Everything here starts from
+    <strong>Family members</strong>, which is the <strong>Members</strong> link at the top
+    of every page.</p>
+
+  <h2>1. Invite a household</h2>
+  <p>A household is one home: a couple, a family, a sibling and their kids. One link
+    covers all of them.</p>
+  <p><strong>Family members &rarr; Invite a household.</strong> Name it the way the family
+    would say it, tick which side of the family it belongs to, and you get a link with a
+    Copy button and a QR code. The page says how many people it works for and the day it
+    stops working.</p>
+  <p>Send it however you normally reach them. Text is fine. They open it, pick a name and
+    a password, and they are in the feed.</p>
+  <p class="muted">The link is shown once. If you lose it, make another from
+    <a href="{% url 'member_invites' %}">Outstanding invites</a> — that costs nothing, and
+    the old one keeps working until it expires or you revoke it.</p>
+
+  <h2>2. Give a grandparent a no-login link</h2>
+  <p>For somebody who does not want a password. The link just opens: large text, the
+    family's posts and photos, one button to send love. Nothing to install.</p>
+  <p><strong>Post something to their side of the family first.</strong> Their page shows
+    only what their household can see, so if nobody has posted to that side yet they will
+    open it and read &ldquo;Nothing new right now.&rdquo; You cannot preview it for them.
+    Put a photo up first, then send the link.</p>
+  <p><strong>Family members &rarr; Add a grandparent</strong> sets up a new one: their
+    name, what the family calls them, their household, and which side of the family.
+    Somebody who is already here gets theirs from <strong>No-login link</strong> on their
+    row.</p>
+  <p>Hand it over in person or in a private message. Anyone holding that link can read and
+    send love as them — that is the trade that buys &ldquo;no password, ever&rdquo;. Not in
+    a group chat.</p>
+
+  <h2>3. Help someone who is locked out</h2>
+  <p>If they gave an email address, they can do it themselves with <strong>Forgot your
+    password?</strong> on the sign-in page.</p>
+  <p>If they did not, find them on <strong>Family members</strong> and use <strong>Get back
+    in link</strong> on their row. That makes a one-time link you text to them or read out
+    over the phone; they choose a new password with it and they are in. It works once and
+    stops working after two days.</p>
+  <p><strong>Make sure you are really talking to them first</strong> — a call, or a text to
+    the number you already have. Whoever holds that link can set the password.</p>
+  <p class="muted">You will see that control only for ordinary members on your own side of
+    the family. Another admin, or somebody who belongs to both sides, is not yours to
+    recover.</p>
+
+  <h2>4. Remove someone</h2>
+  <p>On their row, open <strong>Remove &hellip;</strong>. Before it will do anything it
+    asks what happens to what they wrote, and you have to answer:</p>
+  <ul>
+    <li><strong>Keep their posts</strong>, still with their name on them.</li>
+    <li><strong>Keep their posts, without their name.</strong> They stay in the family's
+      history as &ldquo;a family member&rdquo;.</li>
+    <li><strong>Delete their posts, replies and photos.</strong> The photos are erased from
+      the server and cannot be brought back. This one asks you to type their name before it
+      goes through.</li>
+  </ul>
+  <p>Removing somebody stops every link and every email they had, straight away. It does
+    not touch anyone else's posts, including replies other people wrote on theirs.</p>
+
+  <h2>5. When you are stuck</h2>
+  <p>Ask {% if help_contact %}{{ help_contact }}{% else %}whoever in the family set this
+    up{% endif %}. Nothing here is urgent enough to lose an evening over, and nothing you
+    can do from these pages is a one-tap disaster — the two that cannot be undone both ask
+    you twice.</p>
+  <p class="page-action"><a href="{% url 'how_it_works' %}">How this works</a> — the same
+    page the rest of the family reads, if somebody asks you who can see what.</p>
+{% endblock %}

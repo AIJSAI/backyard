@@ -18,7 +18,7 @@
       </div>
 
       <p style="color: #5d6a61; font-size: 12px; margin: 0 0 10px;">{{ separator }}</p>
-      <h1 style="font-size: 24px; color: #1e5c46; margin: 0 0 4px; font-family: Georgia, 'Iowan Old Style', Palatino, serif; line-height: 1.2;">{{ header.yard_name }}: your family digest</h1>
+      <h1 style="font-size: 24px; color: #1e5c46; margin: 0 0 4px; font-family: Georgia, 'Iowan Old Style', Palatino, serif; line-height: 1.2;">{{ header.yard_name }}: what the family has been up to</h1>
       <p style="color: #4c5a52; margin: 0 0 8px;">{{ header.window_text }}</p>
 
       {% for block in post_blocks %}
@@ -36,8 +36,6 @@
               — your reply goes to everyone who can see this post, and you can add photos.</p>
           {% endif %}
         </div>
-      {% empty %}
-        <p style="margin: 24px 0;">A quiet stretch; nothing new this time.</p>
       {% endfor %}
 
       {% if dates_block %}

@@ -1,25 +1,45 @@
 {% extends "core/base.html" %}
+{% comment %} Each invite used to render as one run-on line of five unrelated pieces —
+   "The Nolan family 0/8 joined expires Sep 26, 2026 no one has joined yet [New link]
+   [Revoke]" — wrapping on a phone so that "no one" ended one line and "has joined yet"
+   began the next with a button jammed beside it. A row is a card now: the household's
+   name as its heading, its state on its own line, who has joined under that, and the two
+   controls in their own row at the end.
+
+   The card layout is scoped here rather than added to the shared stylesheet: this is the
+   only list in the product whose rows carry two actions and a nested list. {% endcomment %}
 {% block title %}Outstanding invites{% endblock %}
+{% block extra_head %}
+<style>
+ul.invites > li { display: block; padding: 1.1rem 0; }
+ul.invites .invite-name { display: block; font-size: 1.09rem; font-weight: 700; }
+ul.invites .invite-state { display: block; margin-top: 0.15rem; font-size: 0.94rem; color: var(--ink-soft); }
+ul.invites .invite-actions { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-top: 0.75rem; }
+ul.invites .invite-actions form { margin: 0; }
+</style>
+{% endblock %}
 {% block body %}
   <h1>Outstanding invites</h1>
-  <p><a href="{% url 'members' %}">Back to members</a> · <a href="{% url 'invite_household' %}">Invite a household</a></p>
-  <p class="muted">Every invite you can issue, and who has joined from each. Revoke a link and it
-  stops working immediately.</p>
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Back to Family members</a></p>
+  <p class="muted">Every link you have handed out that still works, and who has joined from
+    each. Revoking one stops it immediately.</p>
+  <p class="page-action"><a href="{% url 'invite_household' %}">Invite a household</a></p>
 
   <ul class="invites">
     {% for invite in invites %}
       <li>
-        <span class="pod">{{ invite.pod.name }}</span>
-        <span class="uses">{{ invite.use_count }}/{{ invite.max_uses }} joined</span>
-        {% if invite.revoked_at %}
-          <span class="flag">revoked</span>
-        {% elif invite.expires_at <= now %}
-          <span class="flag">expired</span>
-        {% elif invite.use_count >= invite.max_uses %}
-          <span class="flag">full</span>
-        {% else %}
-          <span class="expiry">expires {{ invite.expires_at|date:"M j, Y" }}</span>
-        {% endif %}
+        <span class="invite-name">{{ invite.pod.name }}</span>
+        <span class="invite-state">
+          {% if invite.revoked_at %}
+            <span class="flag">revoked</span> This link no longer works.
+          {% elif invite.expires_at <= now %}
+            <span class="flag">expired</span> This link stopped working on {{ invite.expires_at|date:"M j, Y" }}.
+          {% elif invite.use_count >= invite.max_uses %}
+            <span class="flag">full</span> {{ invite.max_uses }} people have used this link, which is all it allows.
+          {% else %}
+            Works until {{ invite.expires_at|date:"M j, Y" }}, for up to {{ invite.max_uses }} people.
+          {% endif %}
+        </span>
         {% with redemptions=invite.redemptions.all %}
           {% if redemptions %}
             <ul class="redeemers">
@@ -28,19 +48,21 @@
               {% endfor %}
             </ul>
           {% else %}
-            <span class="muted">no one has joined yet</span>
+            <span class="invite-state">No one has joined from it yet.</span>
           {% endif %}
         {% endwith %}
-        <form method="post" action="{% url 'resend_invite' invite.id %}" class="inline">
-          {% csrf_token %}
-          <button type="submit">New link</button>
-        </form>
-        {% if not invite.revoked_at %}
-          <form method="post" action="{% url 'revoke_invite' invite.id %}" class="inline">
+        <span class="invite-actions">
+          <form method="post" action="{% url 'resend_invite' invite.id %}" class="inline">
             {% csrf_token %}
-            <button type="submit" class="danger">Revoke</button>
+            <button type="submit">Make another link</button>
           </form>
-        {% endif %}
+          {% if not invite.revoked_at %}
+            <form method="post" action="{% url 'revoke_invite' invite.id %}" class="inline">
+              {% csrf_token %}
+              <button type="submit" class="danger">Revoke</button>
+            </form>
+          {% endif %}
+        </span>
       </li>
     {% empty %}
       <li class="empty">No invites yet. <a href="{% url 'invite_household' %}">Invite a household.</a></li>
