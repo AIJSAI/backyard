@@ -75,7 +75,7 @@ scope, **and the two admin roles (`yard_admin`, `instance_admin`) are grantable 
 by the instance admin**. No one re-roles themselves upward.
 
 `can_edit_profile_of(actor, target)`: may the actor change the target's name, kinship
-name, dates and contact fields? Yourself always (editing your own name is the thing you
+name and dates? Yourself always (editing your own name is the thing you
 should never need a role for, so the self branch is first and is NOT
 `can_manage_member`, which denies self-administration on purpose); a supervised child's
 managing parent; and **any admin who may already administer the target**, which is
@@ -84,6 +84,15 @@ read `is_instance_admin` until BY-11: a yard admin could remove a member of thei
 outright and could not correct their birthday, so a name typed wrong at invite time, or an
 elder's details filled in for her — she has no login by design (TM-10) — routed back to
 the founder.
+
+**The contact fields are NOT in that widening**, and the second predicate is
+`profile_views._may_edit_contact_fields`: yourself, a managing parent, the instance admin —
+the set `can_edit_profile_of` had before BY-11. The edit form renders the raw `Member` row
+rather than `profiles.viewable_profile`, so SHOWING a phone number or a home address there
+is the same disclosure as changing it, and the visibility select beside it would let an
+admin publish one to a whole side of the family with nothing telling its owner (the T-YARD-6
+shape: a second surface bypassing per-field visibility). The view refuses to write them on
+the same predicate the template hides them on, so a hand-written POST is not a way round.
 
 `can_provision_token(actor, target)`: may the actor mint an elder link for the target?
 Deliberately STRICTER than `can_manage_member`: the link is a working no-login credential

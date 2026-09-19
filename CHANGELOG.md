@@ -32,7 +32,9 @@ one control that destroys something asks first.
   exactly the people this reaches.
 - **A plain member is told who can add people.** Inviting is an admin's job in this version
   and no page they could reach said so, so the obvious next thing to do read as broken. The
-  orientation card now names the person who invited them.
+  feed now names the person who invited them. It sits outside the first-visit orientation
+  card on purpose: that card is already dismissed for everybody who was here before it
+  shipped, so inside it the sentence would have reached nobody it was written for.
 
 ### Changed
 
@@ -44,13 +46,22 @@ one control that destroys something asks first.
   unchanged; neither erases a file.
 - **A yard admin can fix a profile on their own side.** They could remove a member outright
   and could not correct that member's birthday, so a name typed wrong at invite time, or a
-  grandparent's details filled in for her, went back to whoever runs the server.
+  grandparent's details filled in for her, went back to whoever runs the server. The name,
+  the nickname and the two dates only: a phone number, an email address and a home address
+  stay between their owner and the people that owner chose, so an admin standing in for
+  somebody else does not see those boxes and cannot change what is in them.
+- **The "get back in" link asks for the new password twice.** It works once, and the people
+  it is for have no email address on file, so a typo they could not reproduce would lock
+  them out again and cost another phone call.
 - **Break-glass admin recovery works for the second admin.** It keyed on the Django superuser
   flag, which only the very first admin has — so the relative promoted to instance admin, the
   person the succession path exists to create, was the one admin who could not be recovered.
 
 ### Fixed
 
+- **A removed member is no longer offered a "get back in" link.** Their row stays on the
+  instance admin's list, so the control rendered — and the link worked right up to the
+  sign-in page, which can never let a removed account in. It is not offered and not minted.
 - **The reachability gate now covers the account pages it was blind to.** It skipped every
   route belonging to an included URLconf, on the grounds that the library owns its own
   reachability. Mounting those routes puts them in this product, and three of them had no

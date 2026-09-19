@@ -125,6 +125,11 @@ on, under `Settings`.
   it for them: **`Members` → `Edit profile`** on their row. That works for anyone on your
   own side of the family; for somebody who belongs to both sides, or for another admin, you
   will not see the control and it is the instance admin's job.
+
+  You will see their name, their nickname and their two dates on that page, and nothing
+  else. Their phone number, email address and home address are not shown to you and you
+  cannot change them — each of those has its own "who can see this" setting that belongs to
+  the person it is about, and standing in to fix a name is not a reason to read them.
 - **You handed a grandparent link to the wrong person.** Mint a new one for that grandparent
   immediately — find them on **`Members`** and use **`Elder link`** on their row. Minting a
   new one kills the old one straight away.
