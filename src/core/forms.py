@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from allauth.account.adapter import get_adapter
 from allauth.account.forms import AddEmailForm as AllauthAddEmailForm
 from allauth.account.forms import LoginForm as AllauthLoginForm
 from allauth.account.forms import ResetPasswordForm as AllauthResetPasswordForm
@@ -111,19 +112,34 @@ class ResetPasswordForm(AllauthResetPasswordForm):  # type: ignore[misc]  # alla
     for this exact address. Nothing else moves, and the page cannot tell the two cases
     apart: with no user left, allauth sends its "unknown account" mail to the typed
     address and redirects to the same "sent" page, which is what ACCOUNT_PREVENT_ENUMERATION
-    is for. A member whose only address is unconfirmed confirms it (the mail can be sent
-    again from Your Sign-In Email) or asks an admin for a Sign-In Link.
+    is for. A member whose only address is unconfirmed cannot resend the confirmation
+    themselves, because Your Sign-In Email is behind the sign-in they have just lost, so
+    their path is the admin's Sign-In Link, which is what the reset page tells them.
+
+    WHAT "CONFIRMED" RESTS ON: core.adapters.AccountAdapter.confirm_email lets only a
+    session signed in as the address's own user confirm it. Without that, the stranger
+    could set the flag this form trusts from the one mail he already receives.
     """
 
     def clean_email(self) -> str:
         value: str = super().clean_email()
+        # THE SAME KEY ALLAUTH JUST LOOKED UP, not a second derivation of it. allauth's
+        # EmailField.clean lowercases and strips, then its clean_email passes the result
+        # through the adapter before querying. Re-deriving the key here would agree with
+        # that only by luck, and a disagreement is silent by construction, because the page
+        # says "sent" either way. `iexact` rather than `=` only so that a row stored in
+        # another letter case can never be dropped: an identical string always matches it.
+        key = get_adapter().clean_email(value)
         confirmed = set(
-            EmailAddress.objects.filter(email__iexact=value.strip(), verified=True).values_list(
+            EmailAddress.objects.filter(email__iexact=key, verified=True).values_list(
                 "user_id", flat=True
             )
         )
-        # allauth is untyped, so `users` has no declared type for mypy to narrow from.
-        found: list[Any] = list(getattr(self, "users", []))
+        # NOT a getattr with a default. allauth's clean_email sets `users`, and an allauth
+        # that stops doing so must fail loudly here: an empty default would silently stop
+        # every password reset in the product, behind a page that says "sent" either way.
+        # The annotation is for mypy only: allauth is untyped.
+        found: list[Any] = list(self.__dict__["users"])
         self.users = [user for user in found if user.pk in confirmed]
         return value
 

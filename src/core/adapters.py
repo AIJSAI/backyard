@@ -13,9 +13,14 @@ from __future__ import annotations
 from typing import Any
 
 from allauth.account.adapter import DefaultAccountAdapter
+from allauth.account.models import EmailAddress
+from allauth.core.exceptions import ImmediateHttpResponse
 from allauth.mfa.adapter import DefaultMFAAdapter
 from allauth.mfa.models import Authenticator
 from django.contrib.auth.base_user import AbstractBaseUser
+from django.contrib.auth.views import redirect_to_login
+from django.http import HttpRequest
+from django.urls import reverse
 from django.utils.safestring import mark_safe
 
 from core import emailing, handover
@@ -64,6 +69,45 @@ class AccountAdapter(DefaultAccountAdapter):  # type: ignore[misc]  # allauth is
         a second place for the two to disagree.
         """
         return emailing.from_address()
+
+    def confirm_email(self, request: HttpRequest, email_address: EmailAddress) -> bool:
+        """A confirmation link proves control of a MAILBOX. It must not prove an ACCOUNT.
+
+        core/join.py stores the address a relative types as `verified=False` "so a typo
+        cannot silently hand recovery of this account to whoever owns the address that was
+        actually typed", and core.forms.ResetPasswordForm mails a reset link only to a
+        confirmed address. Both are undone if the stranger who receives the join-time
+        confirmation mail can flip `verified` himself: allauth's confirmation view is
+        `login_not_required`, so he could confirm, ask for a reset, and receive the link in
+        his own inbox. Measured end to end on 2026-09-19, in a throwaway database: a
+        password was set by a session that never signed in as anybody, and nothing was
+        mailed to the member it belonged to.
+
+        So the flip requires a session already signed in as the address's own user.
+        Anybody else is sent to sign in and lands back on this same link: it costs the
+        honest relative who opens the mail on another device one sign-in, with a password
+        they chose minutes ago, and it costs the stranger everything, because he cannot
+        sign in at all. A visitor signed in as somebody ELSE has already been signed out by
+        the view's own logout_other_user on the GET before this runs.
+
+        ImmediateHttpResponse rather than a False return: allauth's AccountMiddleware turns
+        it into this response, and ATOMIC_REQUESTS rolls the request back on the way out, so
+        a refused confirmation writes nothing and says nothing.
+
+        This covers every path that flips `verified` in THIS configuration: the link and
+        verification by code both arrive here. allauth's `verify_email_indirectly` bypasses
+        this hook, and it is reached only from ACCOUNT_LOGIN_BY_CODE_ENABLED and
+        ACCOUNT_PASSWORD_RESET_BY_CODE_ENABLED. Both are off, a test holds them off, and
+        they must stay off (or grow their own check) for this guarantee to hold.
+
+        It also protects Email Updates: core/signals.py starts them when a PRIMARY address
+        is confirmed, so a stranger's tap used to start family posts flowing to his mailbox.
+        """
+        if request.user.is_authenticated and request.user.pk == email_address.user_id:
+            return bool(super().confirm_email(request, email_address))
+        raise ImmediateHttpResponse(
+            redirect_to_login(request.get_full_path(), reverse("account_login"))
+        )
 
 
 class MFAAdapter(DefaultMFAAdapter):  # type: ignore[misc]  # allauth is untyped

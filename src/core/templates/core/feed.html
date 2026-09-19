@@ -168,12 +168,12 @@
      page — and after posting, their own new post sat two screens down. It is one line
      now, under the composer, where it is still the first thing below what you came to do
      but is no longer in front of it. The offer did not change; its volume did. {% endcomment %}
-  {% if show_email_prompt %}
+  {% if email_prompt %}
     {% comment %} A <div>, not a <p>: a <form> inside a paragraph is invalid, and a browser
        hoists it out of the <p> on parse, which breaks the line it was meant to sit on.
        {% endcomment %}
     <div class="email-prompt">
-      <span><a href="{% url 'account_email' %}">Add an email address</a> to reset your own
+      <span>{% if email_prompt == "confirm" %}<a href="{% url 'account_email' %}">Confirm your email address</a>{% else %}<a href="{% url 'account_email' %}">Add an email address</a>{% endif %} to reset your own
         password.</span>
       <form method="post" action="{% url 'dismiss_email_prompt' %}">
         {% csrf_token %}

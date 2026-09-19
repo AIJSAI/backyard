@@ -89,3 +89,45 @@ def test_a_second_unconfirmed_address_cannot_borrow_the_first_ones_confirmation(
     )
     _ask_for_a_reset("second@example.com")
     assert not _links()
+
+
+def test_an_address_held_only_on_the_user_row_is_not_a_recovery_path() -> None:
+    """allauth also falls back to `User.email` with no EmailAddress row at all. That field
+    records nothing anybody proved, so it gets no link. In-tree nothing creates such an
+    account (join writes both stores); one made at a shell or restored from an old version
+    needs an admin's Sign-In Link, and the changelog says so."""
+    get_user_model().objects.create_user(username="old", password=_PW, email="old@example.com")
+    _ask_for_a_reset("old@example.com")
+    assert not _links()
+
+
+def test_a_removed_member_gets_no_link_even_at_a_confirmed_address() -> None:
+    _member("nana", "nana@example.com", verified=True)
+    get_user_model().objects.filter(username="nana").update(is_active=False)
+    _ask_for_a_reset("nana@example.com")
+    assert not _links()
+
+
+def test_whitespace_and_letter_case_do_not_matter() -> None:
+    _member("nana", "nana@example.com", verified=True)
+    _ask_for_a_reset("  NANA@EXAMPLE.COM  ")
+    assert len(_links()) == 1
+
+
+def test_the_feed_says_so_before_the_day_they_are_locked_out() -> None:
+    """The reset page says "sent" either way, so the feed's one line is the only place a
+    member learns their address cannot get them back in. No address: add one. An
+    unconfirmed one: confirm it. A confirmed one: nothing."""
+    _member("nana", "nana@example.com", verified=False)
+    client = Client()
+    assert client.login(username="nana", password=_PW)
+    page = client.get(reverse("feed")).content.decode()
+    assert "Confirm your email address</a> to reset your own" in page
+
+    EmailAddress.objects.filter(email="nana@example.com").update(verified=True)
+    assert "to reset your own" not in client.get(reverse("feed")).content.decode()
+
+    EmailAddress.objects.filter(email="nana@example.com").delete()
+    assert (
+        "Add an email address</a> to reset your own" in client.get(reverse("feed")).content.decode()
+    )

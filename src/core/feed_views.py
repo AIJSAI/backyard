@@ -263,7 +263,7 @@ def _render_feed(
             "is_moderator": permissions.is_admin(member),
             # BY-02: this member has no way to reset their own password. Shown once,
             # quietly, until they dismiss it or add an address.
-            "show_email_prompt": _needs_an_email(member),
+            "email_prompt": _email_prompt(member),
             "errors": errors or [],
             # The end-cap is only honest when the tail is genuinely reached; otherwise the
             # member gets a way back into the archive instead of a false "all caught up".
@@ -294,27 +294,28 @@ def _render_feed(
     )
 
 
-def _needs_an_email(member: Member) -> bool:
-    """Has this member no address on file at all, and not yet waved the prompt away?
+def _email_prompt(member: Member) -> str:
+    """ "add", "confirm" or "" : what this member must do before `Forgot Your Password?` can
+    reach them, unless they have waved the prompt away.
 
-    BY-02/BY-03. Email is optional at join (S-101) and members who joined before the form
-    even had the box have neither an `EmailAddress` row nor `User.email` — so
-    `Forgot your password?` cannot reach them, and `ACCOUNT_PREVENT_ENUMERATION` correctly
-    makes the reset page say "sent" either way, which means they find out they are locked
-    out at the worst possible moment.
+    BY-02/BY-03, widened when the reset narrowed. A reset link is mailed only to a CONFIRMED
+    address (core.forms.ResetPasswordForm), so an address sitting unconfirmed is the same
+    dead end as no address at all, and ACCOUNT_PREVENT_ENUMERATION correctly makes the reset
+    page say "sent" either way: they would find out on the day they are locked out. This
+    line on the feed is the only place the product says it first.
 
-    BOTH stores are checked because allauth reads both: it resolves a reset against a
-    verified `EmailAddress` and falls back to `USER_MODEL_EMAIL_FIELD` when none matched
-    (allauth/account/utils.py), so either one being set is a recovery path and neither
-    being set is none.
+    `User.email` is no longer counted. allauth's fallback to it is exactly what the
+    narrowing removed, so a bare `User.email` is not a recovery path and must not silence
+    this.
     """
     from allauth.account.models import EmailAddress
 
     if member.user is None or member.email_prompt_dismissed_at is not None:
-        return False
-    if member.user.email:
-        return False
-    return not EmailAddress.objects.filter(user=member.user).exists()
+        return ""
+    addresses = EmailAddress.objects.filter(user=member.user)
+    if addresses.filter(verified=True).exists():
+        return ""
+    return "confirm" if addresses.exists() else "add"
 
 
 @login_required

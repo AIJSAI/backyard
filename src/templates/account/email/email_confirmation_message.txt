@@ -25,4 +25,4 @@ Confirm this address to use it for password reset. If it is your primary address
 
 {% if code %}{{ code }}{% else %}{{ activate_url }}{% endif %}
 
-{% blocktrans %}If you did not ask for this, ignore this email.{% endblocktrans %}{% endautoescape %}{% endblock content %}
+{% blocktrans %}You will be asked to sign in first if you are not already. If you did not ask for this, ignore this email.{% endblocktrans %}{% endautoescape %}{% endblock content %}

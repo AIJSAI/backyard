@@ -17,6 +17,14 @@
             {% element p %}
                 {% if confirmation.email_address.primary %}{% blocktrans with confirmation.email_address.email as email %}Confirm {{ email }} to use it for password reset. If you turned on email updates at this address, they start once it is confirmed.{% endblocktrans %}{% else %}{% blocktrans with confirmation.email_address.email as email %}Confirm {{ email }} to use it for password reset.{% endblocktrans %}{% endif %}
             {% endelement %}
+            {% comment %} Only a session signed in as this address's own account can confirm
+               it (core.adapters.AccountAdapter.confirm_email), so a signed-out reader is told
+               before the button sends them to sign in and brings them back here. {% endcomment %}
+            {% if not user.is_authenticated %}
+                {% element p %}
+                    {% trans "You will be asked to sign in first. Only your own account can confirm this address." %}
+                {% endelement %}
+            {% endif %}
             {% url 'account_confirm_email' confirmation.key as action_url %}
             {% element form method="post" action=action_url %}
                 {% slot actions %}

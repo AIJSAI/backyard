@@ -36,10 +36,10 @@ private message, never in a group chat.
 
 ## 3. When Someone Is Locked Out
 
-1. If they have a confirmed email address, **Forgot Your Password?** on the sign-in page does it
-   without you.
-2. If not, tap **Manage** on their row, then **Sign-In Link**. It works once and expires
-   after two days.
+1. Ask them to try **Forgot Your Password?** on the sign-in page. It works only for an email
+   address they have confirmed.
+2. If no email arrives, tap **Manage** on their row, then **Sign-In Link**. It works once and
+   expires after two days.
 
 **Make sure you are really talking to them first.** Call or text the number you already
 have.

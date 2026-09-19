@@ -115,10 +115,12 @@
   {% endif %}
 
   <h2>If You Forget Your Password</h2>
-  <p>If you gave an email address, use Forgot Your Password? on the sign-in page.</p>
+  <p>If you gave an email address and confirmed it, use Forgot Your Password? on the
+    sign-in page.</p>
   <p>If you did not, ask {% if help_contact %}{{ help_contact }}{% else %}the person who
     invited you{% endif %} for a Sign-In Link. Use it once to choose a new password.</p>
-  <p>Adding an email address means you can reset your password yourself.</p>
+  <p>Adding an email address and confirming it means you can reset your password
+    yourself.</p>
   {% if user.is_authenticated %}
     <p><a class="btn" href="{% url 'account_email' %}">Add Your Email Address</a></p>
   {% else %}
