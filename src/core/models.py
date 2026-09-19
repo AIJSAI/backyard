@@ -232,6 +232,13 @@ class Member(models.Model):
     # they had read it. Existing members are backfilled at migration time, so this
     # only ever appears for people who arrive after it ships.
     orientation_dismissed_at = models.DateTimeField(null=True, blank=True)
+    # BY-02. Null means "has never dismissed the add-an-email prompt". A member with no
+    # address on file has no password reset, so the feed says so once, quietly, and stops
+    # the moment they dismiss it or add one. Its own field rather than a reuse of
+    # orientation_dismissed_at: the orientation is a one-time welcome that existing members
+    # were backfilled out of, and this has to reach the people who joined BEFORE the join
+    # form had an email box at all — exactly the members the orientation backfill dismissed.
+    email_prompt_dismissed_at = models.DateTimeField(null=True, blank=True)
     pods: models.ManyToManyField[Pod, PodMembership] = models.ManyToManyField(
         Pod, through="PodMembership", related_name="members"
     )
@@ -998,6 +1005,54 @@ class ElderToken(models.Model):
 
     def __str__(self) -> str:
         return f"Elder token for {self.member}"
+
+
+class RecoveryToken(models.Model):
+    """An admin-issued "get back in" link for a member who cannot reset by email (BY-01).
+
+    Email is optional at join (S-101), so a member who never gave one has no
+    `Forgot your password?` path at all — allauth resolves a reset against an
+    EmailAddress row that does not exist, and ACCOUNT_PREVENT_ENUMERATION correctly
+    makes the page say "sent" either way, so they get no signal that they are locked
+    out. The only working cure was `manage.py changepassword` at a server shell, which
+    the two relatives about to hold yard_admin do not have.
+
+    Held to the same bar as the other bearer credentials (TM-5, ADR-003): a 256-bit
+    CSPRNG raw value that lives only in the link the admin hands over, SHA-256 at rest,
+    and the carried generation checked on every resolve so one revocation act kills it.
+    Three properties are its own:
+
+    * ONE live token per member (the OneToOne), so issuing a new link revokes the old.
+    * SINGLE USE — `used_at` is stamped when the new password is set, and a used row
+      never resolves again. The row is kept, not deleted, because it is also the record.
+    * 48 HOURS, not the elder token's no-expiry default: this one exists to be opened
+      the same day somebody is read it over the phone.
+
+    `issued_by` plus `created_at` are the whole accountability trail S-702's invite
+    ledger shape already establishes (Invite.created_by): who issued it, for whom, and
+    when, on the row itself. Deliberately NOT a general audit log — one does not exist
+    here, and inventing one for a single action would be a new surface rather than a
+    record.
+    """
+
+    member = models.OneToOneField(Member, on_delete=models.CASCADE, related_name="recovery_token")
+    token_digest = models.CharField(max_length=64, unique=True)
+    minted_generation = models.PositiveIntegerField()
+    # SET_NULL, matching Invite.created_by: removing the admin who issued a link must not
+    # delete the record that it was issued.
+    issued_by = models.ForeignKey(
+        Member,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="recovery_tokens_issued",
+    )
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"Recovery link for {self.member}"
 
 
 class SetupToken(models.Model):

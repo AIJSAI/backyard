@@ -64,6 +64,29 @@ def mint_invite(
     return invite, raw
 
 
+def inviter_of(member: Member) -> Member | None:
+    """Who made the invite this member joined from, if that person is still here (BY-13).
+
+    A plain member cannot issue invites in v1 (can_issue_invite refuses the role), and no
+    page they can reach said whose job it is — so the fifth step of the member walk, invite
+    someone else, could not be completed by the person who had just been invited, and the
+    product never said so out loud. The name is already recorded, so answering "ask them"
+    needs no new field: InviteRedemption links the member to their invite, and
+    Invite.created_by is set at mint.
+
+    None when they were not created from an invite (the founder, an elder, a supervised
+    child) or when the issuer has since been removed — created_by is SET_NULL, so the
+    caller falls back to a sentence that names nobody rather than rendering a blank.
+    """
+    redemption = (
+        InviteRedemption.objects.filter(member=member)
+        .select_related("invite__created_by")
+        .order_by("-created_at")
+        .first()
+    )
+    return redemption.invite.created_by if redemption is not None else None
+
+
 def peek_invite(raw_token: str) -> Invite:
     """Return the invite if it is currently redeemable, else raise InviteInvalid.
 

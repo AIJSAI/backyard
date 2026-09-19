@@ -100,6 +100,11 @@ class RosterRow:
     # `setting-up-your-side.md` tells them to click exactly that when a grandparent's link
     # goes to the wrong person.
     can_provision_elder: bool = False
+    # BY-01. `manageable` AND has a password to reset: an elder holds a token link instead
+    # of a login, and a supervised child's account is their parent's (TM-10), so offering
+    # either a "get back in" link would render a control that 404s on click — the class
+    # `test_no_link_the_product_offers_is_refused_when_you_click_it` exists to catch.
+    can_issue_recovery: bool = False
 
 
 @login_required
@@ -154,6 +159,9 @@ def members(request: HttpRequest) -> HttpResponse:
                 own_pods=list(member.households),
                 can_provision_elder=(
                     not member.is_supervised and permissions.can_provision_token(actor, member)
+                ),
+                can_issue_recovery=(
+                    manageable and not member.is_supervised and member.user_id is not None
                 ),
             )
         )
@@ -337,7 +345,17 @@ def create_supervised(request: HttpRequest) -> HttpResponse:
 @login_required
 def remove(request: HttpRequest, member_id: int) -> HttpResponse:
     """Remove a member (S-702 UI). Permission-gated, then wired to the atomic
-    revocation-and-teardown flow."""
+    revocation-and-teardown flow.
+
+    The DELETE choice takes a second step (NB-5). It is the single most destructive
+    control the two new yard admins will hold — it hard-purges photographs from the
+    volume with no undo — and it sat behind one POST from a radio button on a roster
+    page, three rows away from four other people's Remove buttons. So a `content=delete`
+    POST without a matching typed name renders a confirm page instead of acting: it
+    states the counts, says the photographs cannot be recovered, and asks for the
+    person's name in a box. KEEP and ANONYMIZE are unchanged one-step posts; neither
+    destroys a file.
+    """
     actor = _acting_member(request)
     if request.method != "POST":
         raise Http404
@@ -345,14 +363,42 @@ def remove(request: HttpRequest, member_id: int) -> HttpResponse:
     # (a cross-scope target is a byte-identical 404, same as one that does not exist).
     target = get_object_or_404(permissions.administrable_members(actor), pk=member_id)
     permissions.require_can_manage_member(actor, target)  # raises PermissionDenied
+    content = request.POST.get("content", "")
+    if content == removal.DELETE:
+        typed = request.POST.get("confirm_name", "")
+        if not _name_matches(typed, target.display_name):
+            return render(
+                request,
+                "core/member_remove_confirm.html",
+                {
+                    "actor": actor,
+                    "target": target,
+                    "preview": removal.preview_deletion(target),
+                    # Only after they have actually typed something: arriving at this page
+                    # for the first time is not a failed attempt, and telling somebody they
+                    # got it wrong before they have tried reads as an error they caused.
+                    "mismatch": bool(typed.strip()),
+                },
+            )
     # S-702: the admin chooses what happens to their content, explicitly. An unrecognised
     # or absent value is refused rather than defaulted — a default would silently keep
     # everything, which is the behaviour this criterion exists to replace.
     try:
-        remove_member(target, content=request.POST.get("content", ""))
+        remove_member(target, content=content)
     except removal.UnknownContentChoice as exc:
         raise BadRequest("Choose what happens to this person's posts.") from exc
     return redirect("members")
+
+
+def _name_matches(typed: str, display_name: str) -> bool:
+    """Did the admin type this person's name? Case- and whitespace-forgiving.
+
+    The confirmation is there to make an irreversible act deliberate, not to test
+    anybody's typing on a phone keyboard that capitalises the first letter for them. An
+    empty string never matches, which is what makes the first POST from the roster land
+    on the confirm page rather than deleting.
+    """
+    return bool(typed.strip()) and typed.strip().casefold() == display_name.strip().casefold()
 
 
 @login_required

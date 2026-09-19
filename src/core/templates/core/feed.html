@@ -30,9 +30,38 @@
       <p>What you post goes to <strong>your household only</strong>, unless you tick a whole
         side of the family when you write it.</p>
       <p>Nothing is ever sent to you unless you turn it on in Settings.</p>
+      {% comment %} BY-13. Only admins issue invites in v1, and no page a plain member
+         could reach said so — so the obvious next thing to do here, add somebody, has no
+         control and no explanation, and reads as broken rather than as somebody else's
+         job. The name comes from the invite they joined on; when there is none to give
+         (the founder, or an issuer since removed) the sentence names the role instead of
+         rendering a blank. {% endcomment %}
+      <p>Adding people is an admin's job. {% if inviter %}To add someone, ask
+        <strong>{{ inviter.display_name }}</strong> — they can make you a link.{% else %}To
+        add someone, ask whoever in the family set this up.{% endif %}</p>
       <form method="post" action="{% url 'dismiss_orientation' %}">
         {% csrf_token %}
         <button type="submit">Got it</button>
+      </form>
+    </aside>
+  {% endif %}
+
+  {% comment %} BY-02/BY-03. This member has no email address anywhere — not on their
+     account and not as an allauth address — so "Forgot your password?" cannot reach them,
+     and the reset page says "sent" either way (ACCOUNT_PREVENT_ENUMERATION), so they would
+     only discover it the day they are locked out. Separate from the orientation card
+     because it must reach the members who joined BEFORE the join form had an email box,
+     and those are precisely the ones the orientation backfill already dismissed. {% endcomment %}
+  {% if show_email_prompt %}
+    <aside class="orientation" aria-labelledby="email-prompt-heading">
+      <h2 id="email-prompt-heading">Add an email address?</h2>
+      <p>You have not given one, so you can be signed in here without it — but if you ever
+        forget your password there is no way to send you a new one.</p>
+      <p><a href="{% url 'account_email' %}">Add an email address</a> so you can get back in
+        if you forget your password. Nothing is ever sent to it unless you ask.</p>
+      <form method="post" action="{% url 'dismiss_email_prompt' %}">
+        {% csrf_token %}
+        <button type="submit">Not now</button>
       </form>
     </aside>
   {% endif %}

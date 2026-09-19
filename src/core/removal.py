@@ -38,11 +38,13 @@ survive on disk after someone has been told it is gone.
 
 from __future__ import annotations
 
-from django.db import transaction
+from dataclasses import dataclass
+
+from django.db import models, transaction
 from django.utils import timezone
 
 from . import pods
-from .models import Member, Pod, PodMembership
+from .models import Comment, MediaAsset, Member, Pod, PodMembership, Post
 from .revocation import revoke_member_credentials
 
 KEEP = "keep"
@@ -63,6 +65,54 @@ ANONYMOUS_NAME = "A family member"
 
 class UnknownContentChoice(ValueError):
     """The caller did not make one of the three explicit choices."""
+
+
+@dataclass(frozen=True)
+class DeletionPreview:
+    """Exactly what `remove_member(..., content=DELETE)` would destroy, counted now.
+
+    The confirm step (NB-5) has to STATE what will be destroyed, and a sentence written
+    by hand would drift from `_delete_content` the first time that function grew a clause
+    — which is how `others_photos` came to be a field rather than a footnote. It is the
+    one most likely to surprise the admin: deleting somebody's post purges the photos on
+    OTHER people's replies to it too (purge_post_media takes `comment__post`), because the
+    files would otherwise stay on the volume with their rows gone.
+    """
+
+    posts: int
+    replies: int
+    photos: int
+    others_photos: int
+
+
+def preview_deletion(member: Member) -> DeletionPreview:
+    """Count what a content=DELETE removal would destroy, straight from the querysets
+    `_delete_content` uses, so the confirm page cannot promise a different act."""
+    posts = Post.objects.filter(author=member, deleted_at__isnull=True)
+    comments = Comment.objects.filter(author=member, deleted_at__isnull=True)
+    # Photos and clips only. A LINK_PREVIEW asset is purged too (it hangs off the post),
+    # but it is a re-hosted card image, not something anyone in this family would call a
+    # photograph, and counting it would overstate the loss on the page where that number
+    # is the whole decision.
+    gallery = MediaAsset.objects.filter(
+        media_kind__in=(MediaAsset.PHOTO, MediaAsset.VIDEO),
+    )
+    # The three routes a file leaves the disk by, matching purge_post_media (the post's
+    # own gallery plus every reply's) and purge_comment_media (their own replies).
+    on_their_posts = models.Q(post__in=posts)
+    on_replies_to_their_posts = models.Q(comment__post__in=posts)
+    on_their_replies = models.Q(comment__in=comments)
+    doomed = gallery.filter(on_their_posts | on_replies_to_their_posts | on_their_replies)
+    return DeletionPreview(
+        posts=posts.count(),
+        replies=comments.count(),
+        photos=doomed.distinct().count(),
+        # Replies to their posts written by somebody else: the surprising half of the count.
+        others_photos=gallery.filter(on_replies_to_their_posts)
+        .exclude(comment__author=member)
+        .distinct()
+        .count(),
+    )
 
 
 def remove_member(member: Member, *, content: str) -> None:

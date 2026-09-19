@@ -1,0 +1,46 @@
+{% extends "core/base.html" %}
+{% block title %}Delete {{ target.display_name }}&rsquo;s posts and photos?{% endblock %}
+{% block body %}
+  <h1>Delete {{ target.display_name }}&rsquo;s posts and photos?</h1>
+  <p><a href="{% url 'members' %}">No, take me back</a></p>
+
+  {% if mismatch %}
+    <div class="errors">
+      <p>That is not {{ target.display_name }}&rsquo;s name as it appears in the family.
+        Type it exactly: <strong>{{ target.display_name }}</strong></p>
+    </div>
+  {% endif %}
+
+  {% comment %} NB-5. The counts come from removal.preview_deletion, which reads the same
+     querysets remove_member deletes from, so this page cannot describe a different act
+     than the one the button performs. {% endcomment %}
+  <p class="notice">This removes {{ target.display_name }} from the family
+    <strong>and destroys what they shared</strong>:</p>
+  <ul>
+    <li><strong>{{ preview.posts }}</strong> post{{ preview.posts|pluralize }} of theirs</li>
+    <li><strong>{{ preview.replies }}</strong> repl{{ preview.replies|pluralize:"y,ies" }} of theirs</li>
+    <li><strong>{{ preview.photos }}</strong> photo{{ preview.photos|pluralize }} and video
+      clip{{ preview.photos|pluralize }}, erased from the server</li>
+  </ul>
+  {% if preview.others_photos %}
+    <p>{{ preview.others_photos }} of those photo{{ preview.others_photos|pluralize }} were
+      put there by <strong>other people</strong>, replying to {{ target.display_name }}.
+      They go too.</p>
+  {% endif %}
+  <p><strong>This cannot be undone.</strong> The photographs are erased from the server, not
+    hidden. Nobody can get them back — not you, and not whoever runs this. Copies already
+    sent out in a weekly email cannot be recalled either.</p>
+
+  <p>If you only want {{ target.display_name }} to leave, go back and choose one of the
+    other two options instead: their posts can stay as they are, or stay with their name
+    taken off them.</p>
+
+  <form method="post" action="{% url 'member_remove' target.id %}">
+    {% csrf_token %}
+    <input type="hidden" name="content" value="delete">
+    <label for="confirm-name">Type <strong>{{ target.display_name }}</strong> to confirm</label>
+    <input id="confirm-name" type="text" name="confirm_name" autocomplete="off"
+           autocapitalize="off" autocorrect="off" spellcheck="false" required>
+    <button type="submit" class="danger">Delete {{ target.display_name }}&rsquo;s posts and photos</button>
+  </form>
+{% endblock %}

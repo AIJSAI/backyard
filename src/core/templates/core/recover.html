@@ -1,0 +1,28 @@
+{% extends "core/base.html" %}
+{% block title %}Choose a new password{% endblock %}
+{% block body %}
+  <h1>Choose a new password</h1>
+  {% comment %} The name is here so somebody handed a link by text can tell at a glance
+     that it is theirs, and not a relative's sent to the wrong thread. {% endcomment %}
+  <p class="muted">This link was made for <strong>{{ display_name }}</strong>. Pick a new
+  password and you are back in. If this is not you, close this page.</p>
+
+  {% if errors %}
+    <div class="errors">
+      {% for error in errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <label for="password">New password</label>
+    <input type="password" id="password" name="password" autocomplete="new-password" required>
+    <p class="hint">Use something you will remember. Three or four unrelated words work
+      well and are easy to type on a phone.</p>
+
+    <button type="submit">Save it and sign in</button>
+  </form>
+
+  <p class="muted">You will be signed out anywhere you were already signed in, then you sign
+  back in with the new password.</p>
+{% endblock %}

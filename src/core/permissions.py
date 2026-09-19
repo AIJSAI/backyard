@@ -127,17 +127,26 @@ def can_edit_profile_of(actor: Member, target: Member) -> bool:
     self-edit form covered every field EXCEPT display_name, so a member who married,
     changed their name, or was simply entered wrong had to ask someone with a role.
 
-    Beyond yourself: a supervised child's managing parent, and an instance admin. An
-    elder has no login of her own by design (TM-10), so the admin who provisions her
-    link is the "designated helper" the story names — the model has no separate helper
-    concept, and inventing one here would be a new authorization surface rather than a
-    profile edit.
+    Beyond yourself: a supervised child's managing parent, and any admin who may already
+    administer the target (can_manage_member). An elder has no login of her own by design
+    (TM-10), so the admin who provisions her link is the "designated helper" the story
+    names — the model has no separate helper concept, and inventing one here would be a
+    new authorization surface rather than a profile edit.
+
+    That second clause used to read `is_instance_admin`, which made two of the three
+    likeliest day-one requests route back to the founder: a name typed wrong at invite
+    time, and a grandparent's birthday that needs filling in for her. A yard admin could
+    REMOVE that member outright and could not correct their birthday. can_manage_member is
+    strictly the narrower authority and already carries every isolation rule this needs —
+    own yards only, never a peer admin, never a bridging member, never yourself (which is
+    why the self branch stays first and separate: editing your own profile is the thing
+    you should never need a role for).
     """
     if actor.pk == target.pk:
         return True
     if target.is_supervised and target.managing_parent_id == actor.pk:
         return True
-    return is_instance_admin(actor)
+    return is_admin(actor) and can_manage_member(actor, target)
 
 
 def can_create_supervised(actor: Member, parent: Member) -> bool:
