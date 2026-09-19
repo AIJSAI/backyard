@@ -729,6 +729,65 @@ def test_a_deleted_post_that_still_carries_a_photograph_still_stops_the_wipe(
 
 
 @pytest.mark.django_db
+def test_a_deleted_reply_that_still_carries_a_photograph_still_stops_the_wipe(
+    two_families: dict[str, Family],
+) -> None:
+    """The same backstop on the REPLY arm of `_rows_that_still_carry_media`.
+
+    `asset.comment_id` is a second arm and nothing exercised it: with the post arm covered
+    alone, deleting this one leaves every test green while a real person's reply photographs
+    move from inside the refusal to inside the blast radius.
+    """
+    real_person, demo_post = _a_real_person_inside_the_fixture_pod(two_families)
+    their_reply = Comment.objects.create(
+        post=demo_post, author=real_person, body="deleted, but the photo stayed"
+    )
+    media.ingest_photo(post=None, comment=their_reply, raw=_jpeg())
+    Comment.objects.filter(pk=their_reply.pk).update(deleted_at=timezone.now())
+
+    with pytest.raises(demo_data.DemoDataError, match="reply written by someone real"):
+        demo_data.wipe(MARKER)
+    assert MediaAsset.objects.filter(comment=their_reply).exists(), "it deleted despite refusing"
+
+
+@pytest.mark.django_db
+def test_a_live_reply_by_someone_real_under_a_deleted_post_still_stops_the_wipe(
+    two_families: dict[str, Family],
+) -> None:
+    """Deleting a POST does not stamp its replies, and one person's decision to take their
+    words back is not a decision about somebody else's."""
+    real_person, _ = _a_real_person_inside_the_fixture_pod(two_families)
+    other = Member.objects.create(display_name="Other Real", seeded_by="")
+    PodMembership.objects.create(member=other, pod=two_families["real"].pod)
+    PodMembership.objects.create(member=other, pod=two_families["demo"].pod)
+    their_post = Post.objects.create(
+        author=real_person, pod=two_families["demo"].pod, body="a rehearsal they took back"
+    )
+    someone_elses_reply = Comment.objects.create(post=their_post, author=other, body="still theirs")
+    posting.delete_post(actor=real_person, post=their_post)
+
+    with pytest.raises(demo_data.DemoDataError, match="reply written by someone real"):
+        demo_data.wipe(MARKER)
+    assert Comment.objects.filter(pk=someone_elses_reply.pk).exists(), "it deleted anyway"
+
+
+@pytest.mark.django_db
+def test_the_receipt_carries_the_lines_the_dry_run_promised(
+    two_families: dict[str, Family],
+) -> None:
+    """What was previewed has to be reconcilable against what was destroyed."""
+    real_person, _ = _a_real_person_inside_the_fixture_pod(two_families)
+    their_post = Post.objects.create(
+        author=real_person, pod=two_families["demo"].pod, body="a rehearsal they took back"
+    )
+    posting.delete_post(actor=real_person, post=their_post)
+
+    planned = demo_data.preview(MARKER)
+    removed = demo_data.wipe(MARKER)
+    assert removed[demo_data.ALREADY_DELETED_LABEL] == planned[demo_data.ALREADY_DELETED_LABEL] == 1
+
+
+@pytest.mark.django_db
 def test_the_dry_run_says_in_words_what_the_already_deleted_line_is(
     two_families: dict[str, Family],
 ) -> None:

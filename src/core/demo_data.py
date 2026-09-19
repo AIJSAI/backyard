@@ -233,12 +233,19 @@ def _refuse_if_it_reaches_real_data(collected: dict[Any, list[Any]], marker: str
     # unfiltered table, and so the cure it prescribed could never satisfy it. The only ways
     # left were a shell or abandoning the wipe.
     #
-    # All three paths that stamp `deleted_at` (the author's own delete, a moderator's
-    # take-down, and removing a member with "delete their posts") hard-purge the photographs
-    # at the same moment, no reader can see the row afterwards, and nothing in the product
-    # can restore it. So the tombstone is let through and COUNTED (`ALREADY_DELETED_LABEL`)
-    # — unless a media row still hangs off it, in which case some path did not purge and the
-    # pictures are still real: that one blocks exactly as a live post does.
+    # Every path that stamps `deleted_at` purges the photographs in the SAME transaction, so
+    # no committed state holds a tombstone and its pictures: `commenting.delete_comment`,
+    # `moderation.take_down_comment` and `removal._delete_content` purge in the SERVICE, while
+    # the two POST paths purge one line later in the VIEW (`feed_views.delete_post` and
+    # `feed_views.take_down_post` call `media.purge_post_media`, and ATOMIC_REQUESTS makes the
+    # pair atomic) — so a future NON-VIEW caller of `posting.delete_post` or
+    # `moderation.take_down_post` would stamp without purging. No reader can see a tombstone
+    # (every query filters `deleted_at__isnull=True`) and the product has no restore. So the
+    # tombstone is let through and COUNTED (`ALREADY_DELETED_LABEL`) — unless a media row
+    # still hangs off it, in which case a path did not purge and the pictures are still real:
+    # that one blocks exactly as a live post does. That condition is the backstop for the
+    # view/service split above. Do not remove it, and do not "simplify" it away when the
+    # purge moves.
     still_has_media = _rows_that_still_carry_media(collected)
     for authored_model, attribute, noun in authored:
         for instance in collected.get(authored_model, []):
@@ -260,8 +267,12 @@ def _refuse_if_it_reaches_real_data(collected: dict[Any, list[Any]], marker: str
             "family — most often because a person posted into a demo pod. Move or delete "
             "that content first (its author can, from the feed); this command will not "
             "decide for you which of somebody's photographs were only a rehearsal. A post or "
-            "reply that has ALREADY been deleted never blocks (its photographs were purged "
-            f"when it was deleted); the dry run reports those as {ALREADY_DELETED_LABEL!r}.\n\n"
+            "reply that was ALREADY deleted through the product does not block, and the dry "
+            f"run reports those as {ALREADY_DELETED_LABEL!r} — UNLESS it still carries a media "
+            "row, which means some path stamped the deletion without purging the pictures. If "
+            "a row named above is already deleted, that is what happened: it cannot be deleted "
+            "a second time from the feed, so get the photographs off it (or take a backup and "
+            "remove the row) rather than forcing the wipe.\n\n"
             "Reactions are not on this list and never block: a real person's reaction on "
             "fixture content is not words or photographs, it means nothing once the post it "
             "sits on is gone, and once that post is down there is no screen left on which "
@@ -520,6 +531,10 @@ def wipe(marker: str = SEED_MARKER) -> Counter[str]:
         if not collected:
             return Counter()
         user_ids = _doomed_user_ids(marker)
+        # The two lines the preview promised that are not model counts. A receipt that drops
+        # them makes the dry run unreconcilable against what was actually destroyed.
+        removed[REAL_REACTION_LABEL] = len(_reactions_by_real_people(collected))
+        removed[ALREADY_DELETED_LABEL] = len(_already_deleted_by_real_people(collected))
 
         # Files first, rows second. `_purge` defers the unlink to on_commit, so a rollback
         # cannot leave live rows pointing at deleted files.
