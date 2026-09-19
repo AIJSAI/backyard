@@ -37,17 +37,38 @@ refuses forever with "a post written by someone real", and the only cure was a s
 is the thing this module exists to avoid. Measured on the live instance, 2026-09-19.
 
 `--include-departed` is the narrow answer, and it is opt-in because it is the one selection
-rule not answerable from the household graph. A departed member joins the set only when BOTH
-hold:
+rule not answerable from the household graph. A departed member joins the set only when ALL
+THREE hold, and each one is there for a different reason:
 
-1. they belong to NO household and no group anywhere — the state removal leaves, and one no
-   ordinary member is ever in;
-2. every post, every reply and every reaction they have ever made sits inside the households
-   being marked. One row anywhere else and they are never selected, flag or not.
+1. **They are in no household and no group anywhere.** The state `remove_member` leaves, and
+   one no ordinary member is ever in. This is what keeps the candidate set small.
 
-Without the flag nothing changes except that they are LISTED as deliberately not marked,
-with the reason, so the operator learns the flag exists at the moment it would have helped
-rather than after the wipe has refused.
+2. **At least one POST or REPLY of theirs is INSIDE the households being marked.** This is
+   the ENTRY TICKET, and the first version of this rule did not have one: it asked only that
+   nothing of theirs sat outside, which a person who never wrote anything passes vacuously.
+   Measured in review: a real relative removed from a REAL household on a side this run did
+   not name — or an account created and never placed — was selected, and the wipe then
+   deleted their Member row AND their auth account, under a heading telling the operator
+   that everything they ever wrote was fixture data. It also bought nothing, because the
+   only rows that block the wipe are a post or a reply inside the closure. So the ticket is
+   exactly the thing the flag exists to clear, and nobody else is reachable by it.
+
+   A REACTION is evidence AGAINST and never evidence FOR. It is not authorship — that is
+   why `_refuse_if_it_reaches_real_data` stopped refusing on one — so it cannot be the
+   reason somebody is deleted; but one outside the set still says this person has a life
+   beyond the fixture family, which is the question condition 3 asks.
+
+3. **Nothing of theirs sits anywhere else, and no supervised child of theirs is staying.**
+   One post, reply or reaction outside the marked households — soft-deleted rows included,
+   because the wipe's own guard reads the same unfiltered table — and they are never
+   selected. Nor is anybody who is `managing_parent` of a supervised member the marking is
+   leaving behind: that field is SET_NULL, so deleting the parent would quietly orphan a
+   real child, and the preview would say nothing about it.
+
+Without the flag, a member who meets all three is LISTED as deliberately not marked, with
+the reason, so the operator learns the flag exists at the moment it would have helped rather
+than after the wipe has refused. Anybody who does NOT meet them is not listed at all —
+naming them would teach the operator a flag that would not have helped.
 """
 
 from __future__ import annotations
@@ -99,28 +120,37 @@ class DemoMarkingError(RuntimeError):
     """Refused: the request would have marked something a real person depends on."""
 
 
-def _departed_with_no_footprint_outside(pod_ids: set[int]) -> list[Member]:
-    """Members in NO pod at all whose every post, reply and reaction is inside `pod_ids`.
+def _departed_with_a_footprint_only_inside(pod_ids: set[int]) -> list[Member]:
+    """Members in no pod who wrote INSIDE `pod_ids`, nowhere else, and orphan no child.
 
-    The two halves of the `--include-departed` rule, and nothing else. "In no pod" is the
-    state `removal.remove_member` leaves and the state no ordinary member is ever in, so it
-    is what makes this set small; the footprint test is what makes it safe.
+    The three conditions of the `--include-departed` rule, and nothing else. The module
+    docstring argues each one; what is worth having here is why the ENTRY TICKET is a post
+    or a reply and not "no footprint outside".
 
-    A member with no content at all passes the footprint test vacuously — there is nothing
-    of theirs anywhere, inside or out. That is deliberate and it is why this is behind a
-    flag and why `plan()` prints every name: the operator reads the list and recognises
-    anybody who should not be on it. Narrowing it to "has content inside the set" would
-    have been a rule nobody asked for, and it would leave the removed relative who never
-    posted blocking nothing but sitting in the fixture family forever.
+    THE FIRST VERSION ASKED ONLY THAT NOTHING SAT OUTSIDE, which a person who never wrote
+    anything passes vacuously. Measured in review: a real relative removed from a REAL
+    household on a side this run did not name — or an account created and never placed —
+    came out selected, and the wipe then deleted their Member row AND their auth account,
+    under a heading telling the operator everything they ever wrote was fixture data. It
+    also bought nothing: the only rows that block the wipe are a post or a reply inside the
+    closure (`_refuse_if_it_reaches_real_data`). So the ticket is exactly the obstruction
+    this flag exists to clear, and nobody else is reachable by it.
 
-    SOFT-DELETED ROWS COUNT. `removal` with "delete their posts" stamps `deleted_at` and
-    leaves the row, and the wipe's own guard reads the same unfiltered table — so a post
-    the family can no longer see is still a post that is somewhere, and a somewhere outside
-    this set is still a reason not to touch them.
+    A REACTION IS EVIDENCE AGAINST AND NEVER EVIDENCE FOR. It is not authorship — that is
+    why the wipe stopped refusing on one — so it must not be the reason a person is
+    deleted; but one OUTSIDE still says this person has a life beyond the fixture family.
 
-    Three queries, not three per candidate: this runs inside the output an operator reads
-    before an irreversible step, and `plan()` has a test that its query count does not grow
-    with the size of the list it is printing.
+    SOFT-DELETED ROWS COUNT as a footprint. `removal` with "delete their posts" stamps
+    `deleted_at` and leaves the row, and the wipe's own guard reads the same unfiltered
+    table, so a post the family can no longer see is still a post that is somewhere.
+
+    A SUPERVISED CHILD WHO IS STAYING vetoes their parent. `Member.managing_parent` is
+    SET_NULL, so deleting the parent would leave a real child with nobody recorded as
+    looking after them, and nothing in the preview or the receipt would mention it.
+
+    Five queries for the whole candidate set, not five per candidate: this runs inside the
+    output an operator reads before an irreversible step, and `plan()` has a test that its
+    query count does not grow with the size of the list it is printing.
     """
     candidates = list(Member.objects.filter(pods__isnull=True))
     if not candidates:
@@ -128,7 +158,8 @@ def _departed_with_no_footprint_outside(pod_ids: set[int]) -> list[Member]:
     candidate_ids = {member.pk for member in candidates}
 
     # `exclude(... __in=pod_ids)` with an EMPTY pod_ids excludes nothing, so every row
-    # counts as outside — which is the correct answer when no household was marked.
+    # counts as outside — which is the correct answer when no household was marked. The
+    # matching `filter(... __in=pod_ids)` returns nothing, so nobody earns a ticket either.
     outside: set[int] = set()
     outside.update(
         Post.objects.filter(author_id__in=candidate_ids)
@@ -145,7 +176,33 @@ def _departed_with_no_footprint_outside(pod_ids: set[int]) -> list[Member]:
         .exclude(post__pod_id__in=pod_ids)
         .values_list("member_id", flat=True)
     )
-    return [member for member in candidates if member.pk not in outside]
+
+    inside: set[int] = set()
+    inside.update(
+        Post.objects.filter(author_id__in=candidate_ids, pod_id__in=pod_ids).values_list(
+            "author_id", flat=True
+        )
+    )
+    inside.update(
+        Comment.objects.filter(author_id__in=candidate_ids, post__pod_id__in=pod_ids).values_list(
+            "author_id", flat=True
+        )
+    )
+
+    # A supervised child the marking is NOT taking. `supervised_members` is the reverse of
+    # `managing_parent`; the child is safe only if they are inside a household being marked,
+    # which is the same containment test the rest of this module applies.
+    keeps_a_child = set(
+        Member.objects.filter(managing_parent_id__in=candidate_ids)
+        .exclude(pods__id__in=pod_ids)
+        .values_list("managing_parent_id", flat=True)
+    )
+
+    return [
+        member
+        for member in candidates
+        if member.pk in inside and member.pk not in outside and member.pk not in keeps_a_child
+    ]
 
 
 def _select(
@@ -216,18 +273,23 @@ def _select(
 
     # The people containment cannot reach: removed, therefore in no pod, therefore never
     # returned by the query above — while their posts sit in a household it is about to
-    # mark. Selected only behind the flag, and only with zero footprint outside the set.
-    departed = _departed_with_no_footprint_outside(pod_ids)
+    # mark, where they are what stops the wipe. Selected only behind the flag, and only on
+    # all three conditions; the module docstring argues each one.
+    departed = _departed_with_a_footprint_only_inside(pod_ids)
     if include_departed:
         members.extend(departed)
     else:
         for member in departed:
+            # ONLY the people the flag would have helped are listed. Somebody in no pod who
+            # wrote nothing is not on this list, because the flag would not select them
+            # either — naming them here would teach the operator a cure for a problem they
+            # do not have, on the one screen they read before something irreversible.
             spared.append(
                 f"member {member.display_name!r} — already removed (in no household or "
-                "group), and every post, reply and reaction they ever made is inside the "
-                "households above. Nothing outside this set is theirs. They will NOT be "
-                "marked, so `wipe_demo_data` will refuse on their posts; pass "
-                "--include-departed to mark them too."
+                "group), and what they wrote is inside the households above and nowhere "
+                "else. They will NOT be marked, so `wipe_demo_data` will refuse on their "
+                "posts; pass --include-departed to mark them too, which deletes their "
+                "Member row and their sign-in account."
             )
         departed = []
 

@@ -16,7 +16,10 @@ selects on the marker alone, so it clears a departed member like any other row.
 `--include-departed` exists because a member who was REMOVED from a fixture household keeps
 their Member row and loses every membership, so containment can never reach them while their
 posts stay inside a household being marked — and the wipe then refuses forever on "a post
-written by someone real". See `core.demo_marking` for the two conditions.
+written by someone real". Three conditions, argued in `core.demo_marking`: in no household
+or group; at least one post or reply INSIDE the marked households; nothing anywhere else and
+no supervised child left behind. It deletes a person's Member row and their sign-in account,
+so the names it prints are the thing to read.
 """
 
 from __future__ import annotations
@@ -50,11 +53,13 @@ class Command(BaseCommand):
             "--include-departed",
             action="store_true",
             dest="include_departed",
-            help="ALSO mark people who were removed from one of these households and are "
-            "now in no household or group at all, provided every post, reply and reaction "
-            "they ever made is inside the households being marked. One row anywhere else "
-            "and they are never selected. Without this they are listed, with the reason, "
-            "under 'Deliberately NOT marked'.",
+            help="ALSO mark people who are now in no household or group at all AND wrote "
+            "at least one post or reply inside the households being marked AND have "
+            "nothing — no post, reply or reaction — anywhere else. Never anybody whose "
+            "supervised child is staying. Their posts are what stops `wipe_demo_data`, "
+            "which is the only reason this exists; the wipe then deletes their Member row "
+            "AND their sign-in account, so READ THE NAMES it prints. Without this flag "
+            "they are listed, with the reason, under 'Deliberately NOT marked'.",
         )
         parser.add_argument(
             "--dry-run",
@@ -107,9 +112,15 @@ class Command(BaseCommand):
             # an operator scanning "Member (9)" has no way to tell which of those nine are
             # here because somebody removed them. This is the list they read for a name
             # they recognise.
+            #
+            # THE HEADING NAMES THE COST, not just the reason. It used to say "everything
+            # they ever wrote is inside these sides", which is true and reads like
+            # housekeeping; what actually happens is that a person's Member row and their
+            # sign-in account are destroyed. `wipe_demo_data --dry-run` prints counts and
+            # never names, so this line is the ONLY place these names ever appear.
             self.stdout.write(
-                f"\nAlready removed, and everything they ever wrote is inside these sides "
-                f"({len(departed)}):"
+                "\nAlready removed, wrote only inside these sides, and blocking the wipe "
+                f"({len(departed)}) — their Member row AND their sign-in account go:"
             )
             for name in departed:
                 self.stdout.write(f"    {name}")

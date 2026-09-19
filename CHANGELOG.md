@@ -32,12 +32,15 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   them — while their posts stay inside a household being marked, because "keep their posts"
   and "remove their name" both keep the author. `wipe_demo_data` then refused forever on
   "a post written by someone real", and the only cure was a shell. With the flag such a
-  member is marked too, but only when they are in no household or group anywhere AND every
-  post, reply and reaction they ever made is inside the households being marked; one row
-  anywhere else and they are never selected. The dry run names each of them under its own
-  heading; without the flag they are listed as deliberately not marked, with the reason and
-  the flag. `--undo` clears them like any other marked row, and the wipe's own refusals —
-  real writing, stranding — are unchanged.
+  member is marked too, on three conditions: they are in no household or group anywhere;
+  at least one **post or reply** of theirs is **inside** the households being marked (a
+  reaction is never an entry ticket, only evidence against); and nothing of theirs sits
+  anywhere else and no supervised child of theirs is staying behind. Anybody who never
+  wrote anything is therefore never selected, which matters because the wipe deletes a
+  selected person's Member row and their sign-in account. The dry run names each of them
+  under a heading that says so; without the flag they are listed as deliberately not
+  marked, with the reason and the flag. `--undo` clears them like any other marked row,
+  and the wipe's own refusals — real writing, stranding — are unchanged.
 
 ### Changed
 

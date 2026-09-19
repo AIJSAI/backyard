@@ -99,6 +99,23 @@ that; the names do not.
 > founder under "Deliberately NOT marked" before you type `--yes`. If it does not, stop:
 > marking is reversible (`--undo --yes`), and the wipe that follows is not.
 
+### If a removed relative is blocking the wipe: `--include-departed`
+
+Somebody removed from a fixture household keeps their Member row and loses every
+membership, so containment cannot reach them while their posts sit in a household you are
+marking — and `wipe_demo_data` then refuses forever on "a post written by someone real".
+`mark_demo_data --include-departed` also marks anyone who is in no household or group, wrote
+at least one post or reply **inside** the households being marked, has nothing at all
+anywhere else, and has no supervised child staying behind. It deletes their Member row **and
+their sign-in account**.
+
+**`wipe_demo_data --dry-run` prints counts and never names anybody, so the output of
+`mark_demo_data` is the only place the names of departed people ever appear.** And
+`--include-departed --yes` lists and writes in the same breath, so run it with `--dry-run`
+first and read every name under "Already removed, wrote only inside these sides…" against
+the roster before you type `--yes`. Marking is reversible with `--undo --yes`; the wipe is
+not.
+
 Then run `wipe_demo_data --dry-run` and read the counts, exactly as above. Marking is
 reversible until you do:
 

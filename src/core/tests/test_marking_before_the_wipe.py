@@ -397,15 +397,21 @@ def test_a_soft_deleted_post_outside_still_counts_as_a_footprint(
 def test_somebody_still_in_a_household_is_not_a_departed_candidate(
     an_instance_that_predates_the_marker: Instance,
 ) -> None:
-    """Non-vacuity for the first condition. A rule that only tested the footprint would
-    sweep in the real relative who joined a demo pod during QA — they have no content at
-    all, so their footprint is vacuously inside — and the containment rule spares them for
-    a reason."""
+    """Non-vacuity for condition 1, the one that keeps the candidate set small.
+
+    The real relative who joined a demo pod during QA still has their own household, so
+    containment spares them — and the departed rule must not be a second route to the same
+    person. Asserted even with a post of theirs inside the marked household, which is the
+    entry ticket condition 2 asks for: the ticket is not enough on its own.
+    """
     world = an_instance_that_predates_the_marker
+    Post.objects.create(pod=world.demo_pod, author=world.visitor, body="a QA post")
+
     _selected, spared, departed = demo_marking.plan(
         yard_slugs=["maternal"], marker=MARKER, include_departed=True
     )
     assert departed == [], departed
+    assert "A real visitor" not in _selected["Member"]
     assert any("A real visitor" in reason for reason in spared), spared
     assert world.visitor.pods.exists()
 
@@ -438,7 +444,13 @@ def test_the_dry_run_names_every_departed_person_under_its_own_heading(
     """They are inside the Member list as well, where nothing distinguishes them. An
     operator scanning "Member (9)" has no way to tell which of those nine are here because
     somebody removed them, and that is the group selected by the rule they just switched
-    on — so it gets read on its own."""
+    on — so it gets read on its own.
+
+    THE HEADING NAMES THE COST. It used to say "everything they ever wrote is inside these
+    sides", which is true and reads like housekeeping; what actually happens is that a
+    person's Member row and their sign-in account are destroyed. `wipe_demo_data --dry-run`
+    prints counts and never names, so this line is the only place these names ever appear.
+    """
     world = an_instance_that_predates_the_marker
     _removed_from(
         world.demo_pod, name="A departed cousin", username="departed", content=removal.KEEP
@@ -449,21 +461,25 @@ def test_the_dry_run_names_every_departed_person_under_its_own_heading(
         "mark_demo_data", "--yard", "maternal", "--include-departed", "--dry-run", stdout=out
     )
     printed = out.getvalue()
-    assert "Already removed, and everything they ever wrote is inside these sides (1):" in printed
+    assert (
+        "Already removed, wrote only inside these sides, and blocking the wipe (1) — their "
+        "Member row AND their sign-in account go:" in printed
+    ), printed
     heading = printed.index("Already removed,")
     assert "A departed cousin" in printed[heading:], printed
     assert "Nothing was changed" in printed
     assert not Member.objects.filter(seeded_by=MARKER).exists(), "the dry run wrote the marker"
 
     # And the same run WITHOUT the flag says the name under the other heading, with the
-    # flag in the sentence.
+    # flag in the sentence and the cost of using it.
     out = io.StringIO()
     call_command("mark_demo_data", "--yard", "maternal", "--dry-run", stdout=out)
     printed = out.getvalue()
-    assert "Already removed, and everything they ever wrote" not in printed
+    assert "blocking the wipe" not in printed
     spared = printed.index("Deliberately NOT marked:")
     assert "A departed cousin" in printed[spared:]
     assert "--include-departed" in printed[spared:]
+    assert "sign-in account" in printed[spared:]
 
 
 @pytest.mark.django_db
@@ -517,3 +533,133 @@ def test_the_wipe_finishes_after_people_were_removed_from_a_fixture_household(
     assert Pod.objects.filter(pk=world.real_pod.pk).exists(), "a real household was deleted"
     assert Pod.objects.filter(pk=world.bridge.pk).exists(), "a real household was deleted"
     assert Post.objects.filter(pk=real_post.pk).exists(), "a real person's post was deleted"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("how", ["removed from a real household", "never placed at all"])
+def test_a_pod_less_member_who_never_wrote_anything_is_never_selected(
+    an_instance_that_predates_the_marker: Instance, how: str
+) -> None:
+    """The hole the first version of this rule had, and the reason there is an entry ticket.
+
+    "In no pod" plus "nothing of theirs sits outside" is passed VACUOUSLY by somebody who
+    never wrote anything at all — and "in no pod" is not only what removal leaves. It is
+    also what a relative removed from a REAL household on a side this run did not name
+    looks like, and what an account created and never placed looks like.
+
+    Measured in review before the ticket existed: with the flag, such a person was selected,
+    and the wipe then deleted their Member row AND their auth account, under a heading
+    telling the operator that everything they ever wrote was inside these sides. It also
+    bought nothing: the only rows that stop the wipe are a post or a reply inside the
+    closure, and this person has neither.
+
+    Both shapes are here because they fail different halves of the old reasoning: the first
+    person WAS removed (so "already removed" is true of them) and the second never was.
+    """
+    if how == "removed from a real household":
+        # Their household is in `real`, a side this run does not name. Removal empties
+        # their memberships, which is exactly the state the candidate query looks for.
+        elsewhere = Pod.objects.create(name="A real household")
+        elsewhere.yards.set([Yard.objects.get(slug="real")])
+        user = User.objects.create_user(username="departedreal")
+        person = Member.objects.create(display_name="A Real Relative", user=user)
+        PodMembership.objects.create(member=person, pod=elsewhere)
+        removal.remove_member(person, content=removal.KEEP)
+    else:
+        user = User.objects.create_user(username="neverplaced")
+        person = Member.objects.create(display_name="A Real Relative", user=user)
+    assert not person.pods.exists(), "fixture: they must be in no household"
+
+    _selected, spared, departed = demo_marking.plan(
+        yard_slugs=["maternal"], marker=MARKER, include_departed=True
+    )
+    assert departed == [], (
+        "somebody who never wrote a word was selected, so the flag would delete their "
+        "Member row and their sign-in account for no reason at all"
+    )
+    assert "A Real Relative" not in _selected["Member"]
+
+    # ...and they are not named under "Deliberately NOT marked" either. Listing them would
+    # teach the operator a flag that would not have helped, on the screen they read before
+    # something irreversible.
+    assert not any("A Real Relative" in reason for reason in spared), spared
+
+    # The marking still runs and the wipe still finishes; this person simply is not in it.
+    demo_marking.apply(yard_slugs=["maternal"], marker=MARKER, include_departed=True)
+    person.refresh_from_db()
+    assert person.seeded_by == "", "they were marked anyway"
+    assert User.objects.filter(pk=user.pk).exists()
+
+
+@pytest.mark.django_db
+def test_a_departed_member_whose_supervised_child_is_staying_is_never_selected(
+    an_instance_that_predates_the_marker: Instance,
+) -> None:
+    """`Member.managing_parent` is SET_NULL, so deleting a parent leaves a real child with
+    nobody recorded as looking after them — and neither the preview nor the receipt would
+    mention it, because a field set to NULL is not a deletion and nothing counts it.
+
+    The child here is in a REAL household, so the marking is not taking them. The parent
+    otherwise qualifies on every other condition, which is what makes this a veto rather
+    than a coincidence.
+    """
+    world = an_instance_that_predates_the_marker
+    parent, _post = _removed_from(
+        world.demo_pod, name="A departed parent", username="departedparent", content=removal.KEEP
+    )
+    child = Member.objects.create(
+        display_name="Their child", is_supervised=True, managing_parent=parent
+    )
+    PodMembership.objects.create(member=child, pod=world.real_pod)
+
+    _selected, _spared, departed = demo_marking.plan(
+        yard_slugs=["maternal"], marker=MARKER, include_departed=True
+    )
+    assert departed == [], (
+        "the parent was selected while their supervised child stays in a real household, "
+        "so the wipe would silently null the child's managing_parent"
+    )
+
+    # The veto is a condition on the data, not a permanent block: move the child into a
+    # household this run IS marking and the parent is selected again.
+    PodMembership.objects.filter(member=child).delete()
+    PodMembership.objects.create(member=child, pod=world.demo_pod)
+    _selected, _spared, departed = demo_marking.plan(
+        yard_slugs=["maternal"], marker=MARKER, include_departed=True
+    )
+    assert departed == ["A departed parent"], departed
+
+
+@pytest.mark.django_db
+def test_a_reaction_inside_the_set_is_not_an_entry_ticket(
+    an_instance_that_predates_the_marker: Instance,
+) -> None:
+    """A reaction is evidence AGAINST and never evidence FOR.
+
+    It is not authorship — which is why `_refuse_if_it_reaches_real_data` stopped refusing
+    on one — so it cannot be the reason somebody's account is destroyed. It is also not
+    what blocks the wipe, so selecting on it would buy nothing. One OUTSIDE still keeps
+    them out, which the parametrized test above covers.
+    """
+    world = an_instance_that_predates_the_marker
+    fixture_post = Post.objects.create(
+        author=world.demo_member, pod=world.demo_pod, body="the fixture post"
+    )
+    user = User.objects.create_user(username="onlyreacted")
+    person = Member.objects.create(display_name="A Reactor", user=user)
+    PodMembership.objects.create(member=person, pod=world.demo_pod)
+    Reaction.objects.create(post=fixture_post, member=person, kind=Reaction.HEART)
+    removal.remove_member(person, content=removal.KEEP)
+
+    _selected, _spared, departed = demo_marking.plan(
+        yard_slugs=["maternal"], marker=MARKER, include_departed=True
+    )
+    assert departed == [], "a reaction inside the set bought somebody a deletion"
+
+    # A REPLY inside the set is a ticket, so the distinction being drawn is authorship and
+    # not "any row at all".
+    Comment.objects.create(post=fixture_post, author=person, body="lovely")
+    _selected, _spared, departed = demo_marking.plan(
+        yard_slugs=["maternal"], marker=MARKER, include_departed=True
+    )
+    assert departed == ["A Reactor"], departed
