@@ -73,7 +73,7 @@ def test_a_typo_refuses_to_boot_and_says_what_to_type_instead() -> None:
     quietly picking UTC. The message has to be actionable: an operator reading it should
     not have to find this file."""
     with pytest.raises(RuntimeError) as caught:
-        validate_time_zone("America/Omaha")  # a real city, not an IANA zone
+        validate_time_zone("America/Seattle")  # a real city, not an IANA zone
     message = str(caught.value)
     assert ENV_VAR in message
     assert "America/Chicago" in message, "the error names no example an operator can copy"
