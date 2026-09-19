@@ -28,6 +28,22 @@
 	}
 }
 
+# The container healthcheck's target, and nothing else. The production overlay publishes 80
+# and 443 only, so this port exists solely inside the compose network — no listener is added
+# to the internet by it. It answers the same /healthz on the same port as the local
+# Caddyfile, which is what lets one healthcheck line in docker-compose.yml mean the same
+# thing in both stacks; every other path is closed without a reply, like the :443 fallback
+# below. No certificate is involved: a bare port block is plain HTTP, and this one is
+# reachable only from a sibling container.
+:8000 {
+	handle /healthz {
+		reverse_proxy web:8000
+	}
+	handle {
+		abort
+	}
+}
+
 # A request whose Host does not match the site block above falls through to here. Without
 # this it was answered by Caddy's implicit fallback: an empty 200 carrying a bare
 # `Server: Caddy` and NONE of the headers below -- so the one response that skipped every

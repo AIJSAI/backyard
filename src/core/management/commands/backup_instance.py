@@ -20,66 +20,29 @@ from typing import Any
 from django.core.management.base import BaseCommand, CommandError
 from django.db import DatabaseError
 
-from core import backup_crypto, backups
+from core import backup_crypto, backup_passphrase, backups
 from core.models import BackupRun
 
-ENV_VAR = "BACKYARD_BACKUP_PASSPHRASE"
-
-
-# Short enough not to fight a careful operator, long enough that the scrypt cost is doing
-# work against a real guessing attack rather than covering for "hunter2".
-MIN_PASSPHRASE_CHARS = 12
-
-
-def _normalise(secret: str) -> str | None:
-    """One normalisation for BOTH sources. Whitespace-only is nothing.
-
-    The env path used to strip and the keyfile path did not, so the same secret produced
-    two different keys (`'hunter2\n'` vs `'hunter2'`) depending on which you used. With no
-    key escrow that is not an inconvenience, it is the permanent loss of the only copy of a
-    family's history — back up via the env var, restore via --passphrase-file, and the
-    archive is gone.
-    """
-    return secret.strip() or None
+# The two variable NAMES, re-exported because this command's help text and its refusal
+# message both name them. The length floor and every other rule stayed in
+# backup_passphrase, where the one implementation lives.
+ENV_VAR = backup_passphrase.ENV_VAR
+FILE_ENV_VAR = backup_passphrase.FILE_ENV_VAR
 
 
 def resolve_passphrase(options: dict[str, Any]) -> str | None:
     """The passphrase from a keyfile or the environment, or None if neither is set.
 
-    Never an argv flag: a passphrase on the command line lands in shell history and is
-    visible to every process on the box.
+    The rules live in `core.backup_passphrase`, which the entrypoint's pre-flight dump and
+    the nightly run read too — a passphrase that works for one of the three and not the
+    others is the defect this indirection exists to prevent. All this adds is the command
+    layer's exception type, so a misconfigured keyfile still prints as a CommandError
+    rather than a traceback.
     """
-    keyfile = options.get("passphrase_file")
-    if keyfile:
-        path = Path(keyfile)
-        if not path.is_file():
-            raise CommandError(f"passphrase file not found: {path}")
-        if path.stat().st_mode & 0o077:
-            raise CommandError(
-                f"passphrase file {path} is readable by other users; "
-                "run `chmod 600` on it before using it as a key."
-            )
-        try:
-            secret = _normalise(path.read_text(encoding="utf-8"))
-        except UnicodeDecodeError as exc:
-            # `head -c 32 /dev/urandom > keyfile` is the obvious way to make a *keyfile*,
-            # and it used to die with a UnicodeDecodeError that printed a byte of the key.
-            raise CommandError(
-                f"passphrase file {path} is not UTF-8 text. Use a text passphrase "
-                "(a diceware phrase is ideal); raw binary key material is not supported."
-            ) from exc
-        if secret is None:
-            raise CommandError(f"passphrase file is empty: {path}")
-    else:
-        secret = _normalise(os.environ.get(ENV_VAR, ""))
-    if secret is not None and len(secret) < MIN_PASSPHRASE_CHARS:
-        raise CommandError(
-            f"that backup passphrase is too short ({len(secret)} characters; "
-            f"{MIN_PASSPHRASE_CHARS} is the minimum). There is no key escrow and no reset: "
-            "this passphrase is the only thing standing between a stolen archive and every "
-            "photo of your family. Use a diceware phrase of four or more words."
-        )
-    return secret
+    try:
+        return backup_passphrase.resolve(options.get("passphrase_file"))
+    except backup_passphrase.BackupPassphraseError as exc:
+        raise CommandError(str(exc)) from exc
 
 
 class Command(BaseCommand):
@@ -90,8 +53,19 @@ class Command(BaseCommand):
         parser.add_argument(
             "--passphrase-file",
             help=(
-                "File holding the encryption passphrase. Defaults to the "
-                f"{ENV_VAR} environment variable."
+                f"File holding the encryption passphrase. Defaults to the {ENV_VAR} "
+                f"environment variable, and then to the keyfile {FILE_ENV_VAR} names."
+            ),
+        )
+        parser.add_argument(
+            "--source",
+            choices=[BackupRun.Source.MANUAL, BackupRun.Source.SCHEDULED],
+            default=BackupRun.Source.MANUAL,
+            help=(
+                "Who asked for this backup. The nightly job passes `scheduled`; the health "
+                "surface compares scheduled runs only, so a backup taken by hand can never "
+                "report a dead nightly job as working. Defaults to `manual`, which is the "
+                "safe direction: an unlabelled run never silences that alarm."
             ),
         )
         parser.add_argument(
@@ -116,8 +90,8 @@ class Command(BaseCommand):
         elif passphrase is None:
             raise CommandError(
                 "refusing to write an unencrypted backup by accident.\n"
-                f"Set {ENV_VAR} or pass --passphrase-file, or, if you really want a\n"
-                "plaintext archive, pass --no-encrypt explicitly."
+                f"Set {ENV_VAR} or {FILE_ENV_VAR}, or pass --passphrase-file, or, if you\n"
+                "really want a plaintext archive, pass --no-encrypt explicitly."
             )
 
         # Written to a sidecar first, then renamed into place. Opening `output` directly
@@ -126,16 +100,23 @@ class Command(BaseCommand):
         # that only failed at restore. With no key escrow, "the backup that wasn't" is the
         # whole risk. 0600: the archive is the entire family database and every photo.
         partial = output.with_name(output.name + ".partial")
+        # Every intermediate copy stages BESIDE the archive rather than in TMPDIR (S-806
+        # review): a run makes two more full copies of the instance — the pg_dump plus the
+        # media tar, and the single tar built from them — and in the container TMPDIR is the
+        # image's writable layer while the archive lands on the mounted volume. The nightly
+        # run's headroom guard measures the archive's volume, so copies on the other one are
+        # both unmeasured and able to ENOSPC a dump that the guard just said would fit.
+        staging = output.parent
         try:
             fd = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
             with os.fdopen(fd, "wb") as destination:
                 if passphrase is None or options["no_encrypt"]:
-                    backups.write_backup(destination)
+                    backups.write_backup(destination, staging_dir=staging)
                 else:
                     # Staged through an unlinked temp file so the tar is built once and
                     # encrypted as it streams out; neither side is ever fully resident.
-                    with tempfile.TemporaryFile() as staged:
-                        backups.write_backup(staged)
+                    with tempfile.TemporaryFile(dir=staging) as staged:
+                        backups.write_backup(staged, staging_dir=staging)
                         staged.seek(0)
                         backup_crypto.encrypt(staged, destination, passphrase)
 
@@ -159,8 +140,16 @@ class Command(BaseCommand):
         # and the health email's "last backup" line would then reassure an operator about
         # a backup that does not exist. A failure to record must not fail the backup
         # itself — the archive on disk is the thing that matters.
+        # The NAME is recorded, not just the fact: retention deletes files, and it deletes
+        # only files a scheduled row says this scheduler wrote. A `scheduled-2026-01-01.bak`
+        # an operator copied in by hand matches the pattern and is not ours to remove.
         try:
-            BackupRun.objects.create(byte_count=byte_count, encrypted=not options["no_encrypt"])
+            BackupRun.objects.create(
+                byte_count=byte_count,
+                encrypted=not options["no_encrypt"],
+                source=options["source"],
+                archive_name=output.name,
+            )
         except DatabaseError as exc:  # pragma: no cover - the archive is already safe
             self.stderr.write(
                 self.style.WARNING(

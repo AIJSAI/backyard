@@ -27,6 +27,9 @@ from core.models import Invite, Member, Pod, PodMembership, Yard
 pytestmark = pytest.mark.django_db
 
 _MIGRATOR_PW = "a-drill-migrator-passphrase-1"
+# The runtime role's password, for the worker-path test below. Both values are ones the
+# credential guard and .gitleaks.toml already carry as synthetic.
+_APP_PW = "a-fine-passphrase-1234"
 
 
 @pytest.fixture(autouse=True)
@@ -88,13 +91,108 @@ def test_backup_fails_loudly_when_pg_dump_fails(
         backups.write_backup(io.BytesIO())
 
 
-def test_backup_requires_the_migrator_password(
+def test_a_hung_pg_dump_is_killed_rather_than_held_forever(
+    monkeypatch: Any, settings: Any, tmp_path: Path
+) -> None:
+    """The nightly dump runs unattended on a worker with ONE concurrency slot.
+
+    An unbounded pg_dump does not merely fail the backup: it holds that slot, so the digest,
+    the weekly health email and every transcode stop with it — the T-MON-1 silence the
+    scheduler exists to break, caused by the scheduler. A killed dump is recorded and mailed
+    like any other failure.
+    """
+    settings.MEDIA_ROOT = str(tmp_path / "media")
+    bounds: list[float] = []
+
+    def hanging_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        # KeyError, deliberately, if the call goes back to having no bound: a test that
+        # reads `kwargs.get("timeout")` would pass just as happily against an unbounded run.
+        bounds.append(kwargs["timeout"])
+        raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    monkeypatch.setattr("core.backups.subprocess.run", hanging_run)
+
+    with pytest.raises(backups.BackupError, match="did not finish within"):
+        backups.write_backup(io.BytesIO())
+
+    assert bounds == [backups.DUMP_TIMEOUT_SECONDS]
+
+
+def _recording_pg(monkeypatch: Any) -> list[tuple[list[str], dict[str, str]]]:
+    """Stub pg_dump, keeping the argv and environment it would have been run with."""
+    calls: list[tuple[list[str], dict[str, str]]] = []
+
+    def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append((argv, dict(kwargs.get("env") or {})))
+        if argv[0] == "pg_dump":
+            Path(argv[argv.index("-f") + 1]).write_bytes(b"PGDMP-stub-dump")
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("core.backups.subprocess.run", fake_run)
+    return calls
+
+
+def test_the_operator_path_dumps_as_the_migrator(
+    monkeypatch: Any, settings: Any, tmp_path: Path
+) -> None:
+    """The documented backup runs in the web container, whose environment carries the
+    migrator password; it owns every table, so nothing has to be re-argued about coverage."""
+    settings.MEDIA_ROOT = str(tmp_path / "media")
+    calls = _recording_pg(monkeypatch)
+
+    backups.write_backup(io.BytesIO())
+
+    argv, env = calls[0]
+    assert argv[argv.index("-U") + 1] == "backyard_migrator"
+    assert env["PGPASSWORD"] == _MIGRATOR_PW
+
+
+def test_the_worker_path_dumps_as_the_app_role_with_the_timeout_lifted(
+    monkeypatch: Any, settings: Any, tmp_path: Path
+) -> None:
+    """The scheduled backup runs on the worker, which holds NO DDL credentials by design
+    (TS-CO-3) — and must not be handed them to make a cron job possible.
+
+    ADR-004's default privileges already grant the app role SELECT on every table the
+    migrator creates, so the credential the worker has can read what pg_dump must read. The
+    one thing in the way is that role's 15s statement_timeout (TS-PG-5), a request-path
+    guard that would kill the dump of any real archive partway through.
+    """
+    settings.MEDIA_ROOT = str(tmp_path / "media")
+    monkeypatch.delenv("POSTGRES_MIGRATOR_PASSWORD", raising=False)
+    monkeypatch.setenv("POSTGRES_USER", "backyard_app")
+    monkeypatch.setenv("POSTGRES_PASSWORD", _APP_PW)
+    calls = _recording_pg(monkeypatch)
+
+    backups.write_backup(io.BytesIO())
+
+    argv, env = calls[0]
+    assert argv[argv.index("-U") + 1] == "backyard_app"
+    assert env["PGPASSWORD"] == _APP_PW
+    assert "statement_timeout=0" in env["PGOPTIONS"]
+
+
+def test_a_backup_with_no_database_credentials_at_all_refuses(
     monkeypatch: Any, settings: Any, tmp_path: Path
 ) -> None:
     settings.MEDIA_ROOT = str(tmp_path / "media")
     monkeypatch.delenv("POSTGRES_MIGRATOR_PASSWORD", raising=False)
-    with pytest.raises(backups.BackupError, match="POSTGRES_MIGRATOR_PASSWORD"):
+    monkeypatch.delenv("POSTGRES_PASSWORD", raising=False)
+    with pytest.raises(backups.BackupError, match="no database credentials"):
         backups.write_backup(io.BytesIO())
+
+
+def test_restore_still_requires_the_migrator_password(
+    monkeypatch: Any, settings: Any, tmp_path: Path
+) -> None:
+    """The app-role fallback is for DUMPS only. A restore is DDL — it clean-restores the
+    schema — so the role that cannot run DDL must not be able to start one and fail halfway
+    through, having already dropped objects."""
+    settings.MEDIA_ROOT = str(tmp_path / "media")
+    monkeypatch.delenv("POSTGRES_MIGRATOR_PASSWORD", raising=False)
+    _recording_pg(monkeypatch)
+    with pytest.raises(backups.BackupError, match="POSTGRES_MIGRATOR_PASSWORD"):
+        backups.restore_backup(_a_valid_archive(), force=True)
 
 
 def test_restore_rejects_a_non_backyard_archive(fake_pg: None) -> None:

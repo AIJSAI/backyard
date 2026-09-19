@@ -32,3 +32,10 @@ def _media_root_tmp(settings: pytest.FixtureRequest, tmp_path: Path) -> None:
     """Point MEDIA_ROOT at a per-test temp directory so uploaded-media tests never
     write into the repo or the /data volume, and each test starts clean."""
     settings.MEDIA_ROOT = str(tmp_path / "media")  # type: ignore[attr-defined]
+
+
+@pytest.fixture(autouse=True)
+def _backup_root_tmp(settings: pytest.FixtureRequest, tmp_path: Path) -> None:
+    """Same reason, for the scheduled backup's archives: a test run must never write a
+    copy of anything into /data, and retention DELETES files in this directory."""
+    settings.BACKUP_ROOT = str(tmp_path / "backups")  # type: ignore[attr-defined]

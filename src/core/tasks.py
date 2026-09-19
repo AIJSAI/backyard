@@ -72,6 +72,66 @@ def send_health_email_task(timestamp: int) -> None:
         )
 
 
+@app.periodic(cron="30 3 * * *")  # daily 03:30 UTC (TIME_ZONE is UTC; ~22:30 US-Central)
+@app.task(name="scheduled_backup")
+def scheduled_backup_task(timestamp: int) -> None:
+    """The nightly encrypted backup (S-802, S-806, T-MON-1).
+
+    `backup_instance` shipped with nothing scheduling it, so "a dead backup cron goes
+    unnoticed for months" understated the case: there was no cron. This is it.
+
+    It runs here, on the worker, with the app role's credentials and no DDL ones — see
+    backups._dump_credentials for why that is the whole point rather than a compromise. The
+    worker runs at concurrency 1, so a large archive delays a video transcode for a few
+    minutes at 03:30; a delayed transcode is invisible and a missing backup is not.
+    """
+    from . import scheduled_backup
+
+    try:
+        result = scheduled_backup.run()
+    except scheduled_backup.ScheduledBackupFailed:
+        # exception(), so the traceback and the ERROR level are both in the worker log. The
+        # re-raise marks the job failed in Procrastinate too; the recorded BackupFailure is
+        # what carries the reason into the weekly email and /healthz, because a log line on
+        # a box nobody logs into is not a notification.
+        logger.exception(
+            "the scheduled backup FAILED and no archive was written. The instance is one "
+            "disk away from losing the family's photographs; see docs/runbooks/backup-restore.md"
+        )
+        raise
+    logger.info(
+        "scheduled backup written %s (%s bytes), %s aged-out archive(s) removed",
+        result.path.name,
+        result.byte_count,
+        len(result.pruned),
+    )
+
+
+@app.periodic(cron="45 6 * * *")  # daily 06:45, and on Mondays before the 07:20 health email
+@app.task(name="refresh_certificate_status")
+def refresh_certificate_status_task(timestamp: int) -> None:
+    """Refresh the cached TLS certificate expiry (S-806, T-MON-1).
+
+    Daily, unlike the weekly domain refresh next door: a domain lapses on a ten-month clock
+    and a certificate on a ninety-day one, and the alarm fires at fourteen days remaining —
+    a weekly check could burn half of that window before saying anything. On the WORKER
+    (S-725) for the same reason as the domain lookup, and because /healthz reads the cached
+    row rather than making a handshake of its own.
+    """
+    from . import cert_expiry, health
+
+    if not health.served_over_https():
+        logger.info("BASE_URL is not https; this instance has no certificate to check")
+        return
+    status = cert_expiry.refresh()
+    logger.info(
+        "certificate status refreshed domain=%s expires_at=%s error=%r",
+        status.domain,
+        status.expires_at,
+        status.error,
+    )
+
+
 @app.periodic(cron="40 6 * * 1")  # Mondays 06:40, before the health email reads it
 @app.task(name="refresh_domain_status")
 def refresh_domain_status_task(timestamp: int) -> None:

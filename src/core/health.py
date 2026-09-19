@@ -1,4 +1,4 @@
-"""Instance health, for the weekly admin email (S-806, threat row T-MON-1).
+"""Instance health, for the weekly admin email and /healthz (S-806, threat row T-MON-1).
 
 T-MON-1 is rated High and its stated mitigation did not exist: *"Nothing is watching: a
 dead backup cron or a filling disk goes unnoticed for months, giving every other threat
@@ -13,6 +13,11 @@ today, and they say so on every send.
 Nothing here is per-person activity. It is instance health, not surveillance: no member
 names, no counts of who did what (P1, and the calm-surfaces rule in the threat model's
 tension list).
+
+Two readers, two amounts of detail. The weekly email and a signed-in instance admin get
+every field; the unauthenticated /healthz endpoint gets `public_status` and nothing else,
+because "3% disk free, no backup since July" published at a guessable URL is a map for
+whoever asks first.
 """
 
 from __future__ import annotations
@@ -26,11 +31,18 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.utils import timezone
 
-from .models import BackupRun, DomainStatus
+from .models import BackupFailure, BackupRun, CertificateStatus, DomainStatus
 
 # What a field looks like when the app cannot answer it. Deliberately loud: an operator
 # skimming on a phone must be able to tell "healthy" from "unknown" at a glance.
 NOT_MEASURED = "NOT MEASURED"
+
+# The whole of what an unauthenticated caller is told. Two words, no fields: /healthz is a
+# public URL on a private family instance, and disk free space, backup age and certificate
+# dates are an operational map for anyone who asks (TM-5). The detail goes to the weekly
+# email and to a signed-in instance admin.
+OK = "ok"
+DEGRADED = "degraded"
 
 # Below this, the disk line is called out rather than merely reported.
 LOW_DISK_PERCENT = 15
@@ -38,6 +50,11 @@ LOW_DISK_PERCENT = 15
 DOMAIN_WARN_DAYS = 45
 # A backup older than this is called out.
 STALE_BACKUP_DAYS = 8
+# Inside this many days, the certificate line is called out. Caddy renews at roughly 30 days
+# remaining on a 90-day certificate, so a certificate still here at 14 days has had two
+# weeks of failed renewals — and the external monitor (.github/workflows/monitor.yml) uses
+# the same threshold, so the two alarms agree rather than arguing.
+CERTIFICATE_WARN_DAYS = 14
 
 
 @dataclass(frozen=True)
@@ -77,6 +94,31 @@ def _last_backup_field(now: datetime.datetime) -> Field:
     kind = "encrypted" if run.encrypted else "PLAINTEXT"
     human = "today" if days == 0 else f"{days} day{'s' if days != 1 else ''} ago"
     return Field("Last backup", f"{human} ({kind})", alarming=days >= STALE_BACKUP_DAYS)
+
+
+def _scheduled_backup_field(now: datetime.datetime) -> Field:
+    """Whether the NIGHTLY backup is WORKING, which "last backup" alone cannot say.
+
+    A backup that ran two days ago and a backup that has been refusing to run for two days
+    produce the same "Last backup" line, and the second one is the emergency. The newest
+    failure is compared against the newest SCHEDULED run only: a hand-run `backup_instance`
+    writes a BackupRun row too, and taking one by hand is the operator's first response to
+    this very alarm, so counting it would flip the line to "working" and /healthz back to
+    `ok` with the scheduler still dead. The row carries its own provenance
+    (BackupRun.Source), so this asks the database rather than inferring ownership from a
+    filename anybody can write.
+    """
+    failure = BackupFailure.objects.order_by("-occurred_at").first()
+    if failure is None:
+        return Field("Scheduled backup", "no failures recorded")
+    days = max(0, (now - failure.occurred_at).days)
+    when = "today" if days == 0 else f"{days} day{'s' if days != 1 else ''} ago"
+    newest = (
+        BackupRun.objects.filter(source=BackupRun.Source.SCHEDULED).order_by("-finished_at").first()
+    )
+    if newest is not None and newest.finished_at >= failure.occurred_at:
+        return Field("Scheduled backup", f"working; last failure {when}")
+    return Field("Scheduled backup", f"FAILING since {when} — {failure.error}", alarming=True)
 
 
 def _measurable_path() -> pathlib.Path:
@@ -139,13 +181,64 @@ def _domain_field(now: datetime.datetime) -> Field:
     )
 
 
+def served_over_https() -> bool:
+    """Whether this instance has a certificate to have an opinion about at all."""
+    return settings.BASE_URL.lower().startswith("https://")
+
+
+def _certificate_field(now: datetime.datetime) -> Field:
+    """Days until the TLS certificate expires, from the row the worker refreshes.
+
+    The one outage on this list that a non-technical family cannot route around: an expired
+    certificate is a full-page browser warning everywhere at once, and the advice that fixes
+    it is not advice a grandparent can follow.
+    """
+    if not served_over_https():
+        # The local clean-machine repro is plain HTTP and has no certificate at all. Saying
+        # so beats an alarming line on every developer's instance, which is how a real alarm
+        # gets learned as noise.
+        return Field(
+            "TLS certificate",
+            f"{NOT_MEASURED} — this instance is served over plain HTTP, so it has none",
+        )
+    status = CertificateStatus.objects.filter(domain=instance_domain()).first()
+    if status is None or status.checked_at is None:
+        # The REASON, when there is one. A check that has never succeeded still recorded why
+        # it failed, and "no successful check yet" alone cannot distinguish a certificate
+        # that is broken from one this box simply cannot reach from the inside (a NAT
+        # without hairpinning), which are different jobs for the operator.
+        reason = status.error if status is not None and status.error else "no successful check yet"
+        return Field("TLS certificate", f"{NOT_MEASURED} — {reason}", True)
+    if status.expires_at is None:
+        return Field("TLS certificate", f"{NOT_MEASURED} — {status.error or 'check failed'}", True)
+    days = (status.expires_at - now).days
+    stale_days = (now - status.checked_at).days
+    # The check runs daily, so three days without one is a worker that has stopped.
+    stale_note = f", last checked {stale_days} days ago" if stale_days > 3 else ""
+    if days < 0:
+        gone = abs(days)
+        return Field(
+            "TLS certificate",
+            f"EXPIRED {gone} day{'s' if gone != 1 else ''} ago — every browser in the family "
+            f"now shows a full-page security warning{stale_note}",
+            alarming=True,
+        )
+    return Field(
+        "TLS certificate",
+        f"expires in {days} days{stale_note}",
+        alarming=days <= CERTIFICATE_WARN_DAYS,
+    )
+
+
 def measure(now: datetime.datetime | None = None) -> list[Field]:
     """Every field the health email reports, measured or explicitly not."""
     now = now or timezone.now()
     return [
         _last_backup_field(now),
+        _scheduled_backup_field(now),
         _disk_field(),
         _domain_field(now),
+        _certificate_field(now),
         # The two T-MON-1 asks for that the app genuinely cannot answer today. Listed on
         # purpose: an operator who sees five expected lines and four printed ones learns
         # nothing, and a reader of this email should be able to tell which parts of
@@ -164,3 +257,19 @@ def measure(now: datetime.datetime | None = None) -> list[Field]:
 
 def has_anything_alarming(fields: list[Field]) -> bool:
     return any(f.alarming for f in fields)
+
+
+def public_status(fields: list[Field]) -> str:
+    """`ok` or `degraded` — the entire public answer, from the same fields as the email.
+
+    Only a field the instance actually MEASURED can degrade it, which is a narrower rule
+    than the email's and deliberately so. An instance that cannot reach the registry knows
+    less, not worse; the email says "NOT MEASURED — registry unreachable" and asks the
+    operator to look, while an external monitor polling this endpoint every half hour would
+    turn the same fact into a failing check every half hour until someone made it stop. The
+    cases that matter here are the ones the instance is sure of: no backup has ever
+    completed, the nightly backup is failing, the disk is nearly full, the certificate is
+    nearly gone — including the whole dead-worker family, because a stopped worker ages the
+    backup past its threshold and that IS measured.
+    """
+    return DEGRADED if any(f.alarming and f.measured for f in fields) else OK

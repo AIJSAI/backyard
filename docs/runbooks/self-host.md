@@ -241,14 +241,19 @@ is not encryption, and a stolen disk or provider snapshot would carry both.
 
 ```bash
 printf '%s' 'four random words you can write down' > /root/backyard.key
-chmod 600 /root/backyard.key        # the command refuses a group/world-readable key
+chmod 600 /root/backyard.key        # every reader refuses a group/world-readable key
 
-# add to the web service in docker-compose.prod.yml:
-#   volumes: [ "/root/backyard.key:/run/secrets/backyard.key:ro" ]
+# Mount it into BOTH containers (docker-compose.prod.yml), and name it in .env:
+#   web:    volumes: [ "/root/backyard.key:/run/secrets/backyard.key:ro" ]
+#   worker: volumes: [ "/root/backyard.key:/run/secrets/backyard.key:ro" ]
+#   .env:   BACKYARD_BACKUP_PASSPHRASE_FILE=/run/secrets/backyard.key
+#
+# Both containers, because both encrypt a copy of everything: the worker takes the nightly
+# archive, and web's entrypoint dumps the whole database before every migration. With the
+# variable set, this command needs no flag; --passphrase-file still overrides it.
 docker compose exec -T web sh -c \
   'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
-     python manage.py backup_instance /data/backups/backup-$(date +%F).bak \
-       --passphrase-file /run/secrets/backyard.key'
+     python manage.py backup_instance /data/backups/backup-$(date +%F).bak'
 ```
 
 Backups are **encrypted by default**; the command refuses to write plaintext unless you
@@ -380,10 +385,10 @@ Stated plainly, because finding out later is worse:
   The post appears immediately and the video fills in.
 - **Profiles are thin.** Names, kinship names, birthdays and contact fields with per-field
   visibility — but no profile photo and no work/school history yet.
-- **Pre-flight migration dumps are plaintext only if you leave
-  `BACKYARD_BACKUP_PASSPHRASE` unset.** Set it and the entrypoint encrypts them too; leave
-  it unset and the instance warns on every boot that it just wrote an unencrypted dump of
-  the whole database to the data volume.
+- **Pre-flight migration dumps are plaintext only if you configure NEITHER
+  `BACKYARD_BACKUP_PASSPHRASE` nor `BACKYARD_BACKUP_PASSPHRASE_FILE`.** Set either and the
+  entrypoint encrypts them too; set neither and the instance warns on every boot that it
+  just wrote an unencrypted dump of the whole database to the data volume.
 
 The current, deliberately harsh list is
 [the self-audit](../audits/2026-07-26-honest-100-audit.md).

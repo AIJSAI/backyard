@@ -96,6 +96,14 @@ services:
       # (this value is visible to `docker inspect`), which is what the guide recommends;
       # this exists so the documented .env path is actually true.
       BACKYARD_BACKUP_PASSPHRASE: ${BACKYARD_BACKUP_PASSPHRASE:-}
+      # The keyfile path INSIDE the container, and web needs it as much as the worker does:
+      # web's entrypoint takes the pre-flight dump of the ENTIRE database before every
+      # migration, on every boot. Without this, an operator who took the self-host guide's
+      # tighter advice (keyfile mounted, passphrase deliberately unset) got that dump in
+      # PLAINTEXT on /data every time the container started -- the exact files the off-box
+      # rsync recipe in the backup runbook warns you not to copy. Mount the key read-only
+      # into BOTH services, and never onto /data: a key beside the ciphertext buys nothing.
+      BACKYARD_BACKUP_PASSPHRASE_FILE: ${BACKYARD_BACKUP_PASSPHRASE_FILE:-}
       POSTGRES_DB: ${POSTGRES_DB:-backyard}
       # Runtime connects as the unprivileged app role (ADR-004, TS-PG-1). The migrator
       # credentials are used for the migrate step only; the entrypoint drops them from
@@ -107,6 +115,19 @@ services:
       POSTGRES_HOST: postgres
     volumes:
       - appdata:/data
+    healthcheck:
+      # The app's own /healthz, asked the way a stranger asks it. `python`, not curl: the
+      # Dockerfile purges curl after the build, so a curl healthcheck would report every
+      # container unhealthy forever. ANY 200 passes, `degraded` included — degraded is a
+      # statement about the instance (a filling disk, an ageing backup), and restarting the
+      # container fixes none of those while cycling the family's site would.
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/healthz', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # The first boot migrates and collectstatics before gunicorn binds; without this the
+      # container reports unhealthy for its first minute every time it starts.
+      start_period: 90s
     depends_on:
       postgres:
         condition: service_healthy
@@ -159,12 +180,57 @@ services:
       EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
       EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
       EMAIL_USE_SSL: ${EMAIL_USE_SSL:-0}
+      # The worker takes the nightly backup (core/tasks.scheduled_backup_task), so the
+      # passphrase has to reach THIS container too — it was passed to web only, and an
+      # unset passphrase makes the scheduled backup refuse to run rather than quietly write
+      # the family's whole history in the clear (S-802). Note what is deliberately NOT here:
+      # POSTGRES_MIGRATOR_PASSWORD. The worker runs ffmpeg over member-uploaded video and
+      # must never hold DDL credentials (TS-CO-3, TS-CO-7); the dump runs as the app role,
+      # which ADR-004 already lets read every table (core/backups._dump_credentials).
+      #
+      # And the COST of putting the passphrase here, stated rather than implied: this is the
+      # container that runs ffmpeg on hostile bytes, and it also mounts the volume the
+      # ciphertext lives on. A decode RCE now yields the passphrase (PID 1's environ, same
+      # uid) AND every archive, including the copies taken off the box — the whole of
+      # T-BACKUP-1's confidentiality. Parser children already get an allowlisted env
+      # (TS-CO-5), so this is a /proc read after an RCE, not an inherited variable.
+      # BACKYARD_BACKUP_PASSPHRASE_FILE (a 0600 key mounted read-only) keeps it out of
+      # `docker inspect` and out of the process environment; prefer it on a real instance.
+      BACKYARD_BACKUP_PASSPHRASE: ${BACKYARD_BACKUP_PASSPHRASE:-}
+      # The keyfile path INSIDE the container, for an operator who followed the self-host
+      # guide's tighter recommendation and mounted a 0600 key instead of putting the
+      # passphrase in the environment. Without it the nightly backup has no passphrase and
+      # refuses every night. Mount the key read-only, and never onto /data. web carries the
+      # same variable (see above) for the pre-flight dump it takes on every boot.
+      BACKYARD_BACKUP_PASSPHRASE_FILE: ${BACKYARD_BACKUP_PASSPHRASE_FILE:-}
       POSTGRES_DB: ${POSTGRES_DB:-backyard}
       POSTGRES_USER: backyard_app
       POSTGRES_PASSWORD: ${POSTGRES_APP_PASSWORD:?set POSTGRES_APP_PASSWORD in .env, see .env.example}
       POSTGRES_HOST: postgres
     volumes:
       - appdata:/data
+    healthcheck:
+      # What this proves, exactly: that a process in THIS container can reach the database
+      # and sees the Procrastinate schema. That catches the common worker failures -- a
+      # wrong DSN, a network split, an unmigrated schema -- and the container dying is
+      # already covered by `restart: unless-stopped`.
+      #
+      # What it does NOT prove: that the worker LOOP is consuming jobs. This check runs in a
+      # fresh process, so a wedged worker (a deadlocked job, a hung dump holding the single
+      # slot) still reports healthy. The alarm for that case is outside the box: the backup
+      # ages past STALE_BACKUP_DAYS, /healthz goes degraded and monitor.yml mails the owner.
+      # A real liveness signal would be a worker heartbeat row compared against now().
+      #
+      # DJANGO_SECRET_KEY lives in PID 1's environment only (the entrypoint reads it from
+      # the volume), and a healthcheck is a fresh process, so it reads the same file.
+      test: ["CMD-SHELL", "DJANGO_SECRET_KEY=\"$$(cat /data/secret_key)\" python manage.py procrastinate healthchecks"]
+      # 120s, not 60s: each run is a full Django boot plus a migration-graph load inside the
+      # container that also runs ffmpeg under a 1500m ceiling.
+      interval: 120s
+      timeout: 20s
+      retries: 3
+      # web must have migrated the Procrastinate schema before this can pass.
+      start_period: 120s
     depends_on:
       postgres:
         condition: service_healthy
@@ -191,6 +257,20 @@ services:
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddydata:/data
+    healthcheck:
+      # busybox wget: the caddy image is alpine and ships no curl either. Both Caddyfiles
+      # answer /healthz on :8000 — the local one as its published proxy, the production one
+      # as an internal port compose never publishes — so this single line means the same
+      # thing in both stacks instead of passing in one and lying in the other.
+      #
+      # It proxies through to the app, so caddy reads unhealthy when web is down. That is the
+      # intended reading: the edge's job is reaching the application, and "Caddy is up but
+      # serves nothing" is the state a process-liveness check would call healthy.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
     networks: [edge]
 
 # The TS-CO-4 split: the internet-facing edge never shares a network with the

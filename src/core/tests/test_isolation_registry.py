@@ -67,6 +67,14 @@ _ISOLATION_EXEMPT: dict[str, str] = {
         "instance-level ops record (S-806): the instance's OWN domain expiry, "
         "no member data, no read route"
     ),
+    "BackupFailure": (
+        "instance-level ops record (S-806): why the nightly backup failed, no member "
+        "data; its one read route is /healthz, which shows it to an instance admin only"
+    ),
+    "CertificateStatus": (
+        "instance-level ops record (S-806): the instance's OWN certificate expiry, "
+        "no member data, admin-only at /healthz"
+    ),
 }
 
 
