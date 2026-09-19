@@ -546,8 +546,10 @@ turns the run red.
 know it works:
 
 1. Point `BACKYARD_MONITOR_URL` at a path on your instance that does not exist — the same
-   host with `/healthz-rehearsal` on the end will 404, which the monitor reads as an
-   unexpected answer.
+   host with `/healthz-rehearsal` on the end. The health half asks with `curl -f`, so a 404
+   counts as no answer at all, and after five attempts over about 100 seconds the monitor
+   reports the instance UNREACHABLE. The certificate half still passes, so the issue names
+   exactly one problem.
 2. Open the repository's **Actions → monitor** page and press **Run workflow** (or
    `gh workflow run monitor.yml`). Within a minute or two an issue titled "Backyard needs
    attention" appears, and the same words arrive in the mailbox you set.
