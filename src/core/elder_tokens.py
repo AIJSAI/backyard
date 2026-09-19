@@ -17,7 +17,6 @@ from __future__ import annotations
 import datetime
 import hashlib
 import secrets
-from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.utils import timezone
@@ -39,17 +38,12 @@ def _digest(raw: str) -> str:
 
 
 def _require_secure_base() -> None:
-    """Refuse to mint against a base URL that would carry the link in the clear (T-EDGE-1).
+    # The parsed-hostname check, never a substring: `"localhost" in base` is also true for
+    # http://localhost.evil.example, and false for a legal http://[::1]:8000.
+    from config.base_url_guard import is_local_url
 
-    The HOSTNAME, parsed and compared exactly, for the reason settings.py:44-50 gives: a
-    substring test calls `http://localhost.evil.com` local, and an attacker-registrable
-    domain that merely CONTAINS the word would be handed a plaintext elder credential.
-    Same guard, same wording, as core/recovery.py -- the two mint the same class of thing.
-    """
     base = settings.BASE_URL
-    hostname = (urlsplit(base).hostname or "").lower()
-    is_local = hostname in {"localhost", "127.0.0.1", "::1"}
-    if not base.lower().startswith("https://") and not is_local:
+    if not base.lower().startswith("https://") and not is_local_url(base):
         raise ElderTokenRefused(
             "Token links only mint against an https base URL in production (T-EDGE-1)."
         )

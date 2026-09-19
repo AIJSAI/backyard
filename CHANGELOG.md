@@ -14,7 +14,8 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      link at the foot of the file: there is no tag to compare against yet. -->
 
 Day one for the two relatives about to be made yard admins: nobody gets locked out, and the
-one control that destroys something asks first.
+one control that destroys something asks first. Alongside it, the instance starts backing
+itself up and telling somebody when it cannot.
 
 ### Added
 
@@ -39,6 +40,38 @@ one control that destroys something asks first.
   feed now names the person who invited them. It sits outside the first-visit orientation
   card on purpose: that card is already dismissed for everybody who was here before it
   shipped, so inside it the sentence would have reached nobody it was written for.
+- **The instance backs itself up.** `backup_instance` shipped with nothing running it, so
+  an instance holding a family's photographs had a documented backup command and no
+  backups. The worker now takes an encrypted archive nightly at 03:30 UTC, keeps the last
+  14 days plus the newest archive of each of the last 8 ISO weeks (the two windows overlap,
+  so about eight weeks of history in total), and deletes only archives it wrote itself.
+  With no passphrase configured it writes nothing at all rather than falling back to
+  plaintext. The passphrase can come from `BACKYARD_BACKUP_PASSPHRASE_FILE`, a keyfile
+  mounted read-only, which is what the self-host guide recommends over the environment
+  variable. The run refuses a night that would fill the data volume rather than writing
+  until the disk is full, and a `pg_dump` that hangs is killed after six hours instead of
+  holding the worker's one job slot forever.
+- **A failing backup is now distinguishable from an old one.** The weekly health email and
+  the health surface carry the reason the last scheduled run failed, instead of a
+  "last backup" date that reads the same whether the backup ran or refused to. Each
+  recorded backup says whether the scheduler or a person took it, and only the
+  scheduler's own runs can report the nightly job as working — so taking one backup by
+  hand, which is the first thing the alarm makes you want to do, does not silence it.
+- **Days until the TLS certificate expires**, in the health email. Renewal is automatic and
+  silent, and so is its failure; an expired certificate is a full-page browser warning for
+  every relative at once. A check that has never succeeded reports why, which is the
+  difference between a broken certificate and one this box cannot reach from the inside.
+- **Container healthchecks for web, worker and caddy.** Only the database had one.
+- **A monitor that does not live on the monitored box** (`.github/workflows/monitor.yml`):
+  every 30 minutes it checks the health endpoint AND the certificate — neither result
+  skips the other — and records what it found on a single GitHub issue labelled
+  `monitor-alarm`, which e-mails the owner once because it mentions them. Every other
+  watcher the instance has is a worker periodic, so a dead worker silenced its own alarm.
+  While a problem lasts the monitor comments on that one issue at most once a day rather
+  than opening another; when the instance recovers it comments and closes it, so no open
+  alarm issue is the all-clear. The run itself goes red only if the alarm mechanism
+  failed: a persistent outage should be one issue, not 48 failed runs a day until the
+  owner mutes the repository and loses the outage alarm with it.
 
 ### Changed
 
@@ -62,6 +95,9 @@ one control that destroys something asks first.
 - **Break-glass admin recovery works for the second admin.** It keyed on the Django superuser
   flag, which only the very first admin has — so the relative promoted to instance admin, the
   person the succession path exists to create, was the one admin who could not be recovered.
+- `/healthz` answers `ok` or `degraded` (always HTTP 200) instead of always `ok`. The
+  fields behind that word are visible to a signed-in instance admin and to nobody else: at
+  a public URL, disk headroom and backup age are an operations map for whoever asks first.
 
 ### Fixed
 
@@ -78,6 +114,34 @@ one control that destroys something asks first.
   reachability. Mounting those routes puts them in this product, and three of them had no
   entrance for months. Each one is now either reachable by clicking or listed with the reason
   it has none.
+- **Regenerating a grandparent's link revoked every outstanding household invite on their
+  side of the family.** Inviting a household and handing out a no-login elder link are the
+  two things a new admin does in the same sitting, and doing them in that order silently
+  killed the first: the invite showed as revoked, its Revoke button disappeared, and the
+  family who had already been texted the link got "There's nothing at this address." Nobody
+  was told. Revoking those invites is right when a member is being REMOVED — it is how a
+  removed ex is kept from walking back in through somebody else's invite — and wrong when
+  the person is still here and only their own link is being replaced. Removal is unchanged;
+  regeneration now leaves alone the invites OTHER admins issued, and still kills everything
+  the member actually holds: the old link, their sessions, their digest links, their
+  reply-by-email addresses, and any invite they minted themselves — because a new link is
+  also what you make after a lost phone, and an invite created while somebody else held it
+  would otherwise outlive the rotation. The page that shows the new link now points at the
+  list of open invites for exactly that case.
+- **Every link the app hands out is built from one setting, and a wrong value was
+  invisible.** `BACKYARD_BASE_URL` is what every invite, elder link and digest link is built
+  from. Left unset or stale, all of them still look perfectly normal on the screen that
+  mints them — and every single one is dead for whoever receives it, with nothing in the app
+  saying so. Two changes: an instance configured to serve a real domain now refuses to start
+  when the variable is unset, points at localhost, is not an absolute http(s) address, or
+  names a host this instance does not serve — the stale case, after a domain move — naming
+  the variable in the error (a purely local instance and the production overlay, which
+  derives the value from `BACKYARD_DOMAIN`, are unaffected). **Upgrading:** if you set
+  `DJANGO_ALLOWED_HOSTS` by hand, set `BACKYARD_BASE_URL` before you upgrade, or the app
+  will refuse to start and say why in `docker compose logs web`. And
+  every page that mints a link now says, under it, "This link opens at &lt;host&gt;." — so a
+  wrong address is caught by the person handing the link over, not by the grandmother who
+  was texted it.
 
 ### Security
 

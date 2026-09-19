@@ -1,9 +1,13 @@
 """Whole-instance backup and restore (S-704 instance half, S-802).
 
 One archive captures the two stateful things: the database (a `pg_dump -Fc`
-custom-format dump) and the media tree (MEDIA_ROOT). The backup is taken as the
-migrator role, the only one that can read every table, with the version-matched
-client the image already ships for the pre-flight backup (TS-PG-6). Restore is
+custom-format dump) and the media tree (MEDIA_ROOT). The dump runs with the
+version-matched client the image already ships for the pre-flight backup
+(TS-PG-6), as the migrator where that role's password is present (the operator's
+documented command, in the web container) and otherwise as the runtime app role,
+which ADR-004 already grants SELECT on every table — see `_dump_credentials`,
+which exists so the worker can take the scheduled daily backup without being
+handed DDL credentials it must never hold (TS-CO-3). Restore is
 the inverse and is deliberately destructive, so it refuses to run against a
 database that still has family data unless forced: a restore is for a fresh box
 or a drill, never a casual overwrite.
@@ -45,12 +49,21 @@ from django.contrib.sessions.models import Session
 from django.db import connection, models, transaction
 from django.utils import timezone
 
+from . import backup_passphrase
 from .models import DigestSubscription, Invite, Member
 
 MANIFEST_NAME = "backup-manifest.json"
 DB_DUMP_NAME = "database.dump"
 MEDIA_TAR_NAME = "media.tar.gz"
 BACKUP_FORMAT = "backyard-instance-backup/1"
+
+# A nightly, unattended dump on a single-slot worker needs a wall-clock bound. Without one
+# a hung pg_dump (a stalled connection, a partition mid-stream) holds the worker's ONE
+# concurrency slot forever, which silently stops the digest, the health email, every
+# transcode and every later backup -- the T-MON-1 silence the scheduler exists to break,
+# caused by the scheduler. Generous enough for a real family archive on slow disks; the
+# timeout is recorded and mailed like any other failure.
+DUMP_TIMEOUT_SECONDS = 6 * 60 * 60
 
 
 class BackupError(Exception):
@@ -67,46 +80,109 @@ def _dsn() -> dict[str, str]:
 
 
 def _migrator_env() -> dict[str, str]:
-    """pg_dump/pg_restore run as the migrator (reads every table). The password
-    comes from the environment the operator runs the command in; it is never
-    stored or logged."""
+    """pg_restore runs as the migrator: a restore is DDL, and only that role has it.
+    The password comes from the environment the operator runs the command in; it is
+    never stored or logged."""
     password = os.environ.get("POSTGRES_MIGRATOR_PASSWORD")
     if not password:
         raise BackupError(
             "POSTGRES_MIGRATOR_PASSWORD is not set; run backup/restore in the "
             "migrator's environment (the documented runbook does)."
         )
+    return _with_password(password)
+
+
+def _dump_credentials() -> tuple[str, dict[str, str]]:
+    """The role `pg_dump` connects as, and its environment. One function, two callers.
+
+    The operator's documented backup runs in the WEB container, whose compose environment
+    carries the migrator password, and it keeps using the migrator: it owns every table, so
+    "can it read all of this" is not a question anyone has to re-answer.
+
+    The scheduled daily backup (S-806, NB-1) runs on the WORKER, which deliberately holds no
+    DDL credentials at all — compose never passes them and the entrypoint unsets them for
+    every non-web role (TS-CO-3), because the worker is where ffmpeg runs on member-uploaded
+    video and is therefore the last container that should hold a key to the schema. Handing
+    it the migrator password to make a backup possible would trade the container-hardening
+    story for a cron job.
+
+    It does not need to. ADR-004's default privileges grant backyard_app SELECT on every
+    table and sequence the migrator creates, which is the whole database, so the credential
+    the worker ALREADY has can read everything pg_dump must read. The only thing in the way
+    is the app role's 15s statement_timeout (TS-PG-5) — a guard for request-path queries that
+    would kill a dump of any real archive — so the dump session lifts it explicitly rather
+    than relying on pg_dump happening to set it for us.
+
+    A role that cannot read something does not produce a quiet partial dump: pg_dump fails on
+    "permission denied", the command raises, and the failure is recorded and mailed.
+    """
+    migrator = os.environ.get("POSTGRES_MIGRATOR_PASSWORD")
+    if migrator:
+        return "backyard_migrator", _with_password(migrator)
+    app_user = os.environ.get("POSTGRES_USER")
+    app_password = os.environ.get("POSTGRES_PASSWORD")
+    if not app_user or not app_password:
+        raise BackupError(
+            "no database credentials in the environment: set POSTGRES_MIGRATOR_PASSWORD "
+            "(the operator path, in the web container) or POSTGRES_USER/POSTGRES_PASSWORD "
+            "(the runtime role, which is what the worker's scheduled backup uses)."
+        )
+    env = _with_password(app_password)
+    env["PGOPTIONS"] = f"{env.get('PGOPTIONS', '')} -c statement_timeout=0".strip()
+    return app_user, env
+
+
+def _with_password(password: str) -> dict[str, str]:
     env = dict(os.environ)
     # The backup passphrase is not the database's business. Inheriting it widened its blast
-    # radius to any child core dump or /proc/<pid>/environ read for no benefit at all.
-    env.pop("BACKYARD_BACKUP_PASSPHRASE", None)
+    # radius to any child core dump or /proc/<pid>/environ read for no benefit at all. The
+    # keyfile PATH goes too: it is not the secret, but it is a signpost to it, and pg_dump
+    # has no more use for one than for the other.
+    env.pop(backup_passphrase.ENV_VAR, None)
+    env.pop(backup_passphrase.FILE_ENV_VAR, None)
     env["PGPASSWORD"] = password
     return env
 
 
-def write_backup(destination: IO[bytes]) -> None:
-    """Write a whole-instance backup archive into `destination`."""
+def write_backup(destination: IO[bytes], *, staging_dir: Path | None = None) -> None:
+    """Write a whole-instance backup archive into `destination`.
+
+    `staging_dir` is where the pg_dump and the media tar are built — a full copy of the
+    instance, twice over, before either reaches `destination`. The caller passes the
+    directory the archive itself lands in, because that is the volume whose free space was
+    measured; the default (TMPDIR) is the container's writable layer, which the nightly
+    run's headroom guard does not look at and which is not where the operator grew the disk.
+    """
     dsn = _dsn()
-    with tempfile.TemporaryDirectory() as workdir:
+    dump_user, dump_env = _dump_credentials()
+    with tempfile.TemporaryDirectory(dir=staging_dir) as workdir:
         dump_path = Path(workdir) / DB_DUMP_NAME
-        result = subprocess.run(  # noqa: S603  # fixed argv, never a shell
-            [
-                "pg_dump",
-                "-h",
-                dsn["host"],
-                "-p",
-                dsn["port"],
-                "-U",
-                "backyard_migrator",
-                "-Fc",
-                "-f",
-                str(dump_path),
-                dsn["name"],
-            ],
-            env=_migrator_env(),
-            capture_output=True,
-            text=True,
-        )
+        try:
+            result = subprocess.run(  # noqa: S603  # fixed argv, never a shell
+                [
+                    "pg_dump",
+                    "-h",
+                    dsn["host"],
+                    "-p",
+                    dsn["port"],
+                    "-U",
+                    dump_user,
+                    "-Fc",
+                    "-f",
+                    str(dump_path),
+                    dsn["name"],
+                ],
+                env=dump_env,
+                capture_output=True,
+                text=True,
+                timeout=DUMP_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise BackupError(
+                f"pg_dump did not finish within {DUMP_TIMEOUT_SECONDS // 3600} hours and was "
+                "killed. The worker runs one job at a time, so a dump that hangs takes the "
+                "digest, the health email and every transcode down with it."
+            ) from exc
         if result.returncode != 0:
             raise BackupError(f"pg_dump failed: {result.stderr.strip()[:300]}")
 

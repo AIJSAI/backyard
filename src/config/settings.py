@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from urllib.parse import urlsplit
+
+from config.base_url_guard import is_local_url, validate_base_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -39,16 +40,20 @@ ALLOWED_HOSTS = [h for h in _hosts.split(",") if h]
 # production (threat model TM-8 / T-EDGE-1); enforced once the token service lands.
 BASE_URL = os.environ.get("BACKYARD_BASE_URL", "http://localhost:8000").rstrip("/")
 
+# The hand-over guard (design walk 2026-09-19): BACKYARD_BASE_URL unset on an instance a
+# family actually reaches means every invite, elder link and digest link is handed out dead,
+# with nothing on any screen to say so. config/base_url_guard.py carries the rule and the
+# reasoning; it runs first so an empty value is named as empty rather than as "non-local".
+validate_base_url(base_url=BASE_URL, allowed_hosts=ALLOWED_HOSTS, debug=DEBUG)
+
 # DEBUG serves tracebacks with settings to anyone; it must never be on for a real deployment.
 # Extend the refuse-to-boot posture to it (threat model TS-DJ-10): a public HTTPS base URL with
 # DEBUG on is a misconfiguration we hard-fail rather than serve.
-# The HOSTNAME, parsed and compared exactly -- not a substring search. `"localhost" in
-# BASE_URL` is true for `http://localhost.evil.com`, and `"127.0.0.1" in BASE_URL` for
-# `http://127.0.0.1.evil.com`: an attacker-registrable domain that merely CONTAINS the
-# word would have been classified local and bypassed both hard-fails below, reopening
-# exactly the misconfiguration they exist to close.
-_HOSTNAME = (urlsplit(BASE_URL).hostname or "").lower()
-_is_local = _HOSTNAME in {"localhost", "127.0.0.1", "::1"}
+# The HOSTNAME, parsed and compared exactly -- not a substring search, see is_local_url: an
+# attacker-registrable domain that merely CONTAINS "localhost" or "127.0.0.1" would otherwise
+# be classified local and bypass both hard-fails below, reopening exactly the misconfiguration
+# they exist to close.
+_is_local = is_local_url(BASE_URL)
 
 if DEBUG and not _is_local:
     raise RuntimeError(
@@ -254,6 +259,18 @@ STORAGES = {
 # is served only through the access-checked media view, which re-checks the audience of
 # the owning post (S-403, TM-9, T-MEDIA-1). Tests point this at a temp dir (conftest).
 MEDIA_ROOT = os.environ.get("MEDIA_ROOT", "/data/media")
+# Where the scheduled daily backup writes its archives (S-802, S-806). The same persistent
+# volume as the media it archives, beside the pre-flight dumps the entrypoint already keeps
+# there — so one volume snapshot carries the data and its backups. Env-overridable in the
+# same shape as MEDIA_ROOT above, for an operator who mounts a second volume; tests point it
+# at a temp dir (conftest) so a test run can never write an archive into /data.
+BACKUP_ROOT = os.environ.get("BACKUP_ROOT", "/data/backups")
+# There is deliberately NO backup-passphrase setting here. Both routes to it
+# (BACKYARD_BACKUP_PASSPHRASE and the keyfile BACKYARD_BACKUP_PASSPHRASE_FILE names) are
+# read in one place, core/backup_passphrase.py, which is stdlib-only because the
+# entrypoint's pre-flight dump resolves the passphrase before Django is configured. A
+# second copy of that rule in settings is how the entrypoint and the nightly run came to
+# disagree about whether a keyfile counts (S-802, T-BACKUP-1).
 # Belt for TS-CA-4 at the application layer (the Caddy body cap is the edge control):
 # bound the number of files in one upload. Per-file size is checked in the upload view.
 #
@@ -391,6 +408,21 @@ SECURE_REFERRER_POLICY = "same-origin"
 WHITENOISE_ALLOW_ALL_ORIGINS = False
 
 CSRF_TRUSTED_ORIGINS = [BASE_URL]
+# The one path the https redirect below must never touch. The container healthchecks (web's
+# urlopen, caddy's wget through the prod :8000 block) reach gunicorn over plain HTTP inside
+# the compose network, where there is no TLS to redirect TO: the 301 points at
+# https://127.0.0.1:8000, which is a plain-HTTP listener, the probe errors, and web and caddy
+# report `unhealthy` forever on every https deployment while passing in the local http repro
+# -- the one stack CI boots. Measured: with an https BACKYARD_BASE_URL, GET /healthz answers
+# 301 -> https://127.0.0.1/healthz. Exempting it costs nothing: the endpoint tells a stranger
+# only `ok` or `degraded`, and it is unreachable over plain HTTP from outside the compose
+# network (web publishes no port, Caddy's :80 redirects, and the prod :8000 block is never
+# published).
+#
+# Set OUTSIDE the `if _HTTPS:` block on purpose, even though it only bites when
+# SECURE_SSL_REDIRECT is on: the http repro is where this defect hid, so a test there has to
+# be able to prove the pairing by flipping SECURE_SSL_REDIRECT alone.
+SECURE_REDIRECT_EXEMPT = [r"^healthz$"]
 if _HTTPS:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
@@ -404,4 +436,6 @@ if _HTTPS:
     # web container publishes no host port, so a client cannot reach Django directly to
     # spoof it. A future compose that exposes web's port must revisit this (TM-8).
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    # ...but never for /healthz, which SECURE_REDIRECT_EXEMPT above holds out of this
+    # redirect. Read that comment before changing either line: the two are one control.
     SECURE_SSL_REDIRECT = True

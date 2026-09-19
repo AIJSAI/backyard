@@ -6,7 +6,11 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0025_seeded_by_marker_and_quarantine_set_null"),
+        # Renumbered from 0026 when the backup/health work landed first: two leaf
+        # migrations at the same number is not a merge conflict git can see, and Django
+        # answers it with "Conflicting migrations detected" at every boot. Depending on
+        # that one keeps the graph a single line.
+        ("core", "0026_backup_health_records"),
     ]
 
     operations = [

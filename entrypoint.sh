@@ -59,28 +59,34 @@ if [ "$ROLE" = web ]; then
     # has it. Anyone who reads /data -- a stolen disk, a resold NAS, a provider snapshot, a
     # mis-scoped bind mount -- got the whole archive with no passphrase, which is verbatim
     # T-BACKUP-1 and T-MEDIA-5: the threats TM-7's encrypt-by-default exists to answer.
-    if [ -n "${BACKYARD_BACKUP_PASSPHRASE:-}" ]; then
-      if python -c '
-import os, sys
-sys.path.insert(0, "/app/src")
-from core.backup_crypto import encrypt
-src, dst = sys.argv[1], sys.argv[2]
-fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-with open(src, "rb") as plain, open(fd, "wb") as out:
-    encrypt(plain, out, os.environ["BACKYARD_BACKUP_PASSPHRASE"])
-' "/data/backups/preflight-$STAMP.dump" "/data/backups/preflight-$STAMP.dump.enc"; then
-        rm -f "/data/backups/preflight-$STAMP.dump"
-        echo "Pre-flight backup written ENCRYPTED: preflight-$STAMP.dump.enc"
-      else
-        # Never silently leave a plaintext family archive behind on a failure path.
-        rm -f "/data/backups/preflight-$STAMP.dump.enc"
-        echo "WARNING: pre-flight backup encryption FAILED; the PLAINTEXT dump remains at" \
-             "/data/backups/preflight-$STAMP.dump. Treat that file as the whole database."
-      fi
+    #
+    # WHICH passphrase, and from where, is core.backup_passphrase's decision and nobody
+    # else's -- the same resolver `backup_instance` and the nightly run use. This block
+    # used to test BACKYARD_BACKUP_PASSPHRASE alone, so the keyfile configuration the
+    # self-host guide RECOMMENDS (key mounted read-only, env var deliberately unset) wrote
+    # the whole database to /data in the clear on every boot, three copies deep, and said
+    # so only in a container log. The shell asks and reports; it does not decide.
+    ENCRYPT_RC=0
+    python -c 'import sys; sys.path.insert(0, "/app/src")
+from core import preflight_encrypt
+sys.exit(preflight_encrypt.main(sys.argv[1:]))' \
+      "/data/backups/preflight-$STAMP.dump" "/data/backups/preflight-$STAMP.dump.enc" \
+      || ENCRYPT_RC=$?
+    if [ "$ENCRYPT_RC" -eq 0 ]; then
+      rm -f "/data/backups/preflight-$STAMP.dump"
+      echo "Pre-flight backup written ENCRYPTED: preflight-$STAMP.dump.enc"
+    elif [ "$ENCRYPT_RC" -eq 3 ]; then
+      # preflight_encrypt.NO_PASSPHRASE: nothing is configured by either route.
+      rm -f "/data/backups/preflight-$STAMP.dump.enc"
+      echo "WARNING: neither BACKYARD_BACKUP_PASSPHRASE nor BACKYARD_BACKUP_PASSPHRASE_FILE" \
+           "is set, so the pre-flight backup is PLAINTEXT at" \
+           "/data/backups/preflight-$STAMP.dump -- that is the entire family database." \
+           "Set either one to encrypt it."
     else
-      echo "WARNING: BACKYARD_BACKUP_PASSPHRASE is unset, so the pre-flight backup is" \
-           "PLAINTEXT at /data/backups/preflight-$STAMP.dump -- that is the entire family" \
-           "database. Set BACKYARD_BACKUP_PASSPHRASE to encrypt it."
+      # Never silently leave a plaintext family archive behind on a failure path.
+      rm -f "/data/backups/preflight-$STAMP.dump.enc"
+      echo "WARNING: pre-flight backup encryption FAILED; the PLAINTEXT dump remains at" \
+           "/data/backups/preflight-$STAMP.dump. Treat that file as the whole database."
     fi
 
     # Keep the last three pre-flight backups, in either shape; older ones rotate out.

@@ -1,6 +1,7 @@
 # Backup and restore runbook (S-704, S-802)
 
-Backing up and restoring a whole Backyard instance is one command each, and the
+The instance backs itself up every night without being asked (see "The nightly
+backup" below). Backing up and restoring by hand is one command each, and the
 round trip — back up, delete the row, restore, assert it came back — runs in CI on
 every push, in the `code` job's "Compose live probe" step against a real Postgres.
 
@@ -36,25 +37,149 @@ before it replaces the media tree, so a mid-restore failure can leave the
 database restored and the media stale; re-run the restore from the same archive
 to converge. **Backups are encrypted by default (S-802).** `backup_instance` refuses to write
 a plaintext archive unless you pass `--no-encrypt` explicitly, and it takes the
-passphrase from `BACKYARD_BACKUP_PASSPHRASE` or `--passphrase-file` — never from
-the command line, where it would land in shell history and every process listing.
+passphrase from `--passphrase-file`, `BACKYARD_BACKUP_PASSPHRASE`, or the keyfile
+`BACKYARD_BACKUP_PASSPHRASE_FILE` names, in that order — never from the command
+line, where it would land in shell history and every process listing.
 There is no key escrow: **lose the passphrase and the archive is gone.** Write it
 on the recovery sheet and keep that somewhere a house fire would not take with it.
 
 The **pre-flight dumps** taken by the entrypoint before each migration are
-**encrypted too, whenever `BACKYARD_BACKUP_PASSPHRASE` is set** — compose passes
-it into the web container, so the process taking the dump has it.
+**encrypted too, whenever a passphrase is configured by EITHER route** —
+`BACKYARD_BACKUP_PASSPHRASE` or the keyfile `BACKYARD_BACKUP_PASSPHRASE_FILE`
+names. Compose passes both variables to the web container, which is the one that
+takes the dump, and the resolver that reads them (`core/backup_passphrase.py`) is
+the same one the backup command and the nightly run use — so the keyfile
+configuration this guide recommends encrypts all three.
 
 This used to say they were "still plaintext … because nothing can be holding a
 passphrase at that moment". That reasoning was wrong, and it was load-bearing: it
 justified writing an unencrypted dump of the entire family database on every
 container start, three copies deep, which is verbatim T-BACKUP-1 and T-MEDIA-5.
 
-**If the passphrase is unset, the dumps are plaintext and the instance says so on
+**If NEITHER is configured, the dumps are plaintext and the instance says so on
 every boot.** That warning is the fix working, not a cosmetic nag. Read access to
-`/data` yields those dumps whole. Set the passphrase.
+`/data` yields those dumps whole. Set one of them.
 
-## Back up
+## The nightly backup
+
+The worker takes one at **03:30 UTC every day** (`core/tasks.scheduled_backup_task`) —
+the schedule is UTC because the instance is (`TIME_ZONE = "UTC"`), so work out what that
+is where you live before you go looking for last night's archive. It runs
+through the same `backup_instance` command this runbook documents — there is no
+second backup implementation to drift.
+
+- **Where:** `/data/backups/scheduled-YYYY-MM-DD.bak` on the data volume, one file
+  per day. It is on the same volume as the media it archives, which is the point
+  worth being uncomfortable about: see "Getting a copy off the box" below.
+- **Encrypted, or nothing.** The nightly run never passes `--no-encrypt`, so with
+  no passphrase set it writes **no archive at all** and records the reason. It
+  does not fall back to plaintext.
+- **If you use a keyfile instead of `.env`,** set `BACKYARD_BACKUP_PASSPHRASE_FILE` to
+  the in-container path of the mounted key. Compose passes that variable to **both** web
+  and worker, so mount the key (read-only, `chmod 600`, never under `/data`) into both:
+  the worker takes the nightly archive and web takes the pre-flight dump before every
+  migration. The nightly run has no command line to pass `--passphrase-file` on, so
+  without that variable it refuses every night.
+- **It refuses rather than fills the disk.** If the volume does not hold roughly twice
+  the last archive, the run records that and stops. Twice, because the run builds two
+  more full copies beside the archive before it exists — the database dump plus the media
+  tar, and the single tar built from them — and all of them land on this volume, which is
+  what makes the check honest. An archive is a full copy of the media tree, and filling
+  `/data` stops uploads and the database too.
+- **Retention:** the last 14 days, plus the newest archive of each of the last 8
+  ISO weeks. It deletes only archives a scheduled run RECORDED writing — the name alone
+  is not enough — so your own archives, the entrypoint's `preflight-*` dumps, and a
+  `scheduled-*.bak` you restored or copied in from another box are never candidates.
+- **Who dumps:** the worker holds no migrator password (it runs ffmpeg on
+  uploaded video and must never hold DDL credentials), so the dump runs as
+  `backyard_app`, which ADR-004 already grants SELECT on every table.
+
+### When it fails
+
+It fails loudly in three places at once, which is the whole design:
+
+1. the **weekly health email** grows a `[!] Scheduled backup: FAILING since …`
+   line carrying the reason;
+2. `/healthz` answers `degraded` instead of `ok` — and the external monitor
+   (`.github/workflows/monitor.yml`) turns that into a GitHub issue within half an
+   hour, which e-mails you because it mentions you. See "The monitor outside the
+   box" below for exactly how often it will and will not speak;
+3. the worker log carries it at error level:
+
+```sh
+docker compose logs --since 24h worker | grep -i "scheduled backup"
+```
+
+To see the detail without waiting for Monday's email, sign in as the instance
+admin and open `/healthz` — the fields are there for an admin and for nobody
+else. To run one right now rather than waiting for 03:30:
+
+```sh
+docker compose exec -T worker sh -c \
+  'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
+     python manage.py shell -c "from core import scheduled_backup; print(scheduled_backup.run())"'
+```
+
+### Getting a copy off the box
+
+**Nothing in the product copies a backup off the server, and that is deliberate.**
+A copy step inside the container needs a credential for the destination, and that
+credential would sit next to the ciphertext on the same volume — the same reason
+this runbook tells you not to keep the passphrase file in `/data`. A stolen disk
+or a provider snapshot would then carry both halves.
+
+So the hook point is on the **host**, where the destination credential already
+lives, outside the containers. The archives are in the `appdata` volume under
+`backups/`; find its path once and put a copy step in the host's own cron:
+
+```sh
+# Where the archives actually are on this host:
+docker volume inspect backyard_appdata --format '{{ .Mountpoint }}'
+
+# Then, in the host's crontab. Mind the clocks: the instance writes at 03:30 UTC and cron
+# runs in the HOST's timezone, so pick an hour comfortably after 03:30 UTC where you are.
+#
+# Copy ONLY the scheduled archives, which are always encrypted. `preflight-*.dump` sits in
+# the same directory and is PLAINTEXT whenever NEITHER passphrase route is configured (the
+# entrypoint says so on every boot) -- a wildcard here would ship the entire family
+# database in the clear.
+#
+# And no `--delete`: an off-box copy that mirrors deletions is not a backup against the
+# things it exists for. A mistaken `rm`, a retention bug or ransomware on the box would be
+# replicated to the copy within the hour. Prune the far side by hand, deliberately.
+# 30 9 * * * rsync -a --include='scheduled-*.bak' --exclude='*' <that path>/backups/ <your-backup-host>:/srv/backyard/
+```
+
+### The monitor outside the box
+
+`.github/workflows/monitor.yml` runs on GitHub's infrastructure every 30 minutes and asks
+this instance two questions: does `/healthz` answer, and how many days are left on the TLS
+certificate. Both are asked on every run — neither result skips the other. Arm it by
+setting the repository variable `BACKYARD_MONITOR_URL` (Settings → Secrets and variables →
+Actions → Variables) to the instance's `/healthz` URL; with it unset the workflow exits
+cleanly and watches nothing.
+
+**How it tells you.** Not by failing: a failed run e-mails once per run, so a problem that
+persists — a nightly backup that has been refusing for a week — would send 48 identical
+e-mails a day, and the reliable end of that is a muted repository and no alarm at all. It
+opens **one issue** instead, labelled `monitor-alarm` and titled "Backyard needs
+attention", which mentions the repository owner and therefore e-mails you once. While the
+problem lasts, later runs add a comment to that same issue **at most once a day**. When the
+instance is well again the monitor comments "Recovered" and closes it, so *no open
+`monitor-alarm` issue* is the all-clear. The check run itself goes red only when the alarm
+MECHANISM fails (GitHub's API refusing, a missing permission) — the one failure nothing
+else would ever report.
+
+**It has its own way of going quiet.** GitHub disables scheduled workflows in a public
+repository after 60 days with no repository activity, and e-mails the owner when it does.
+Any push, or pressing "Run workflow" on that page, resets the clock. If this repository
+goes quiet for two months, re-enable this before trusting the silence.
+
+The health email's "Off-box backup age" line still reads NOT MEASURED, and it
+should: the instance cannot see where you copied a file to, and a line claiming
+otherwise would be the more dangerous kind of wrong (T-OP-G3).
+
+## Back up by hand
 
 Compose already places `POSTGRES_MIGRATOR_PASSWORD` in the web service's
 environment, so you do **not** need to pass it — and passing it with `-e` puts a
@@ -76,9 +201,13 @@ docker compose exec -T web sh -c \
 # next to the ciphertext and the encryption would buy nothing (T-BACKUP-1 is
 # exactly that threat). Mount a host keyfile read-only instead:
 #   printf '%s' 'your four-word diceware phrase' > /root/backyard.key
-#   chmod 600 /root/backyard.key        # the command refuses a group/world-readable key
-#   # add to the web service in docker-compose.prod.yml:
+#   chmod 600 /root/backyard.key        # every reader refuses a group/world-readable key
+#   # add to BOTH the web and worker services in docker-compose.prod.yml:
 #   #   volumes: [ "/root/backyard.key:/run/secrets/backyard.key:ro" ]
+#   # and name it once in .env, which compose passes to both:
+#   #   BACKYARD_BACKUP_PASSPHRASE_FILE=/run/secrets/backyard.key
+#   # With that set, the command above needs no flag at all -- and so do the nightly run
+#   # and the entrypoint's pre-flight dump. --passphrase-file still overrides it:
 #   docker compose exec -T web sh -c 'DJANGO_SECRET_KEY=$(cat /data/secret_key) \
 #     python manage.py backup_instance /data/backups/backup-$(date +%F).bak \
 #       --passphrase-file /run/secrets/backyard.key'
@@ -102,6 +231,17 @@ age -r "$YOUR_AGE_PUBLIC_KEY" -o backup-YYYY-MM-DD.tar.age backup-YYYY-MM-DD.tar
 ```
 
 ## Restore
+
+The nightly archives are what you will usually be restoring, so start by seeing
+what is actually there rather than assuming last night's exists:
+
+```sh
+docker compose exec -T web sh -c 'ls -lt /data/backups/'
+```
+
+`scheduled-YYYY-MM-DD.bak` is the nightly one, `backup-*` is whatever you took by
+hand, and `preflight-*` are the dumps the entrypoint takes before each migration
+(three of them, kept for the upgrade that goes wrong, not for this).
 
 Restore is **destructive**: it clean-restores the database (dropping existing
 objects) and replaces the media tree. It refuses a database that still has

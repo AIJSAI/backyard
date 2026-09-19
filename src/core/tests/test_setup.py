@@ -164,6 +164,13 @@ def test_home_routes_a_signed_in_member_to_their_feed(db: None) -> None:
 
 
 def test_healthz_ok(db: None) -> None:
+    """Liveness: the process is up and the database answers.
+
+    The body is `ok` or `degraded` now (S-806) and a fresh test database has never taken a
+    backup, so this asserts what a probe asserts — a 200 with a status it recognises. What
+    the two words mean, and who is allowed to see the detail behind them, is
+    test_health_surface.py.
+    """
     resp = Client().get(reverse("healthz"))
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok"}
+    assert resp.json()["status"] in {"ok", "degraded"}

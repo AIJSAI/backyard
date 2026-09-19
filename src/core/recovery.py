@@ -33,7 +33,6 @@ from __future__ import annotations
 import hashlib
 import secrets
 from datetime import timedelta
-from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.contrib.auth.password_validation import validate_password
@@ -66,14 +65,15 @@ def _require_secure_base() -> None:
     The HOSTNAME, parsed and compared exactly -- not a substring of the whole URL.
     `"localhost" in BASE_URL` is true for `http://localhost.evil.com` and `"127.0.0.1" in
     BASE_URL` for `http://127.0.0.1.evil.com`: an attacker-registrable domain that merely
-    CONTAINS the word would be classified local here. settings.py:44-50 names that exact
-    defect and fixed it there; re-introducing it in a guard that gates a password-setting
-    capability would make this the weaker of the two checks, not the second one.
+    CONTAINS the word would be classified local here, in a guard that gates a
+    password-setting capability. `config.base_url_guard.is_local_url` is the one
+    definition, shared with settings.py's boot check and with elder_tokens -- three
+    callers asking the same question, and not three answers to drift apart.
     """
+    from config.base_url_guard import is_local_url
+
     base = settings.BASE_URL
-    hostname = (urlsplit(base).hostname or "").lower()
-    is_local = hostname in {"localhost", "127.0.0.1", "::1"}
-    if not base.lower().startswith("https://") and not is_local:
+    if not base.lower().startswith("https://") and not is_local_url(base):
         raise RecoveryRefused(
             "Recovery links only mint against an https base URL in production (T-EDGE-1)."
         )
