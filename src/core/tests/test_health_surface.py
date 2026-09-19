@@ -63,13 +63,24 @@ def _healthy_instance() -> None:
     )
 
 
-def _scheduled_archive(day: datetime.date | None = None) -> None:
-    """An archive carrying the name the SCHEDULER gives its own.
+def _scheduled_run() -> BackupRun:
+    """A backup the SCHEDULER took, recorded as such.
 
-    That name is what the "Scheduled backup" field reads, and a hand-run `backup_instance`
-    never produces one — which is the whole distinction the field turns on.
+    Provenance is the whole distinction the "Scheduled backup" field turns on, and it is a
+    recorded fact rather than an inference: a hand-run `backup_instance` writes a row too,
+    and a file named `scheduled-…` is something anyone can produce.
     """
-    path = scheduled_backup.archive_path(day or timezone.localdate())
+    return BackupRun.objects.create(
+        byte_count=1024,
+        encrypted=True,
+        source=BackupRun.Source.SCHEDULED,
+        archive_name=scheduled_backup.archive_path(timezone.localdate()).name,
+    )
+
+
+def _archive_file_on_disk() -> None:
+    """A file with the scheduler's exact naming, written by nobody in particular."""
+    path = scheduled_backup.archive_path(timezone.localdate())
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"an archive")
 
@@ -176,23 +187,43 @@ def test_a_manual_backup_does_not_report_a_failing_nightly_job_as_working() -> N
     """The operator's first response to the alarm is to take a backup by hand. That must
     not be what silences it: the nightly job is still dead and still needs fixing."""
     BackupFailure.objects.create(error="no passphrase configured")
-    BackupRun.objects.create(byte_count=1024, encrypted=True)  # a HAND-run archive
+    # A hand-run archive: the command records one of these too, labelled `manual`, and the
+    # runbook's own instruction after an alarm is to take exactly this.
+    BackupRun.objects.create(
+        byte_count=1024, encrypted=True, source=BackupRun.Source.MANUAL, archive_name="backup.bak"
+    )
 
     field = _field(health.measure(), "Scheduled backup")
 
     assert field.alarming, "a hand-run backup reported the failing nightly job as working"
 
 
-def test_a_scheduled_archive_written_since_the_failure_does_read_as_working() -> None:
+def test_a_scheduled_run_since_the_failure_does_read_as_working() -> None:
     """The other half. Without it the field could simply never say `working` again, and a
     line that is always alarming is a line an operator learns to skip."""
     BackupFailure.objects.create(error="no passphrase configured")
-    _scheduled_archive()
+    _scheduled_run()
 
     field = _field(health.measure(), "Scheduled backup")
 
     assert not field.alarming
     assert "working" in field.value
+
+
+def test_a_file_with_the_schedulers_name_is_not_evidence_the_scheduler_ran() -> None:
+    """Provenance comes from the record, not from a filename (#166 review).
+
+    Reading the directory made the alarm answerable by anything that could write a file
+    into it — a restored archive from another box, an operator's copy taken to look at,
+    the restore drill in this very runbook. "The nightly job is working" is a claim about
+    the job, so it is the job's own row that has to say so.
+    """
+    BackupFailure.objects.create(error="no passphrase configured")
+    _archive_file_on_disk()
+
+    field = _field(health.measure(), "Scheduled backup")
+
+    assert field.alarming, "a file named `scheduled-…` reported the dead nightly job as working"
 
 
 def _detail(payload: dict[str, Any], label: str) -> dict[str, Any]:

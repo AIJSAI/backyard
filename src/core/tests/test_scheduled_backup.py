@@ -20,14 +20,16 @@ from __future__ import annotations
 
 import datetime
 import subprocess
+import tempfile
 from collections import namedtuple
 from pathlib import Path
 from typing import Any
 
 import pytest
+from django.conf import settings
 from django.utils import timezone
 
-from core import scheduled_backup
+from core import backup_passphrase, scheduled_backup
 from core.models import BackupFailure, BackupRun
 
 pytestmark = pytest.mark.django_db
@@ -42,7 +44,8 @@ _PASSPHRASE = "a-fine-passphrase-1234"
 @pytest.fixture(autouse=True)
 def _backup_environment(monkeypatch: Any, settings: Any, tmp_path: Path) -> None:
     """A passphrase, a migrator password and a stub pg_dump: the everyday healthy case."""
-    monkeypatch.setenv("BACKYARD_BACKUP_PASSPHRASE", _PASSPHRASE)
+    monkeypatch.setenv(backup_passphrase.ENV_VAR, _PASSPHRASE)
+    monkeypatch.delenv(backup_passphrase.FILE_ENV_VAR, raising=False)
     monkeypatch.setenv("POSTGRES_MIGRATOR_PASSWORD", "a-drill-migrator-passphrase-1")
     settings.MEDIA_ROOT = str(tmp_path / "media")
 
@@ -54,10 +57,23 @@ def _backup_environment(monkeypatch: Any, settings: Any, tmp_path: Path) -> None
     monkeypatch.setattr("core.backups.subprocess.run", fake_run)
 
 
-def _touch(directory: Path, name: str) -> Path:
+def _touch(directory: Path, name: str, *, recorded: bool = True) -> Path:
+    """An archive on disk, and by default the row saying this scheduler wrote it.
+
+    Retention deletes the INTERSECTION of the two (#166 review): the name says which day an
+    archive is for, and the row says whose it is. `recorded=False` is a file that merely
+    looks like ours.
+    """
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / name
     path.write_bytes(b"an archive")
+    if recorded:
+        BackupRun.objects.create(
+            byte_count=path.stat().st_size,
+            encrypted=True,
+            source=BackupRun.Source.SCHEDULED,
+            archive_name=name,
+        )
     return path
 
 
@@ -72,7 +88,12 @@ def test_the_nightly_run_writes_an_encrypted_archive_and_records_it() -> None:
     # backup_crypto's magic: the archive on disk is ciphertext, not a tar anybody can open.
     assert result.path.read_bytes()[:14] == b"BACKYARD-ENC/1"
     # And the run is recorded, so "last backup age" can be answered at all.
-    assert BackupRun.objects.filter(encrypted=True).count() == 1
+    run = BackupRun.objects.get()
+    assert run.encrypted
+    # With its PROVENANCE, which is what lets the health surface tell this apart from a
+    # backup somebody took by hand, and what lets retention know the file is its own.
+    assert run.source == BackupRun.Source.SCHEDULED
+    assert run.archive_name == result.path.name
     assert not BackupFailure.objects.exists()
 
 
@@ -94,20 +115,21 @@ def test_it_refuses_to_write_plaintext_when_the_passphrase_is_unset(monkeypatch:
 
 
 def test_the_nightly_run_reads_the_keyfile_both_guides_recommend(
-    monkeypatch: Any, settings: Any, tmp_path: Path
+    monkeypatch: Any, tmp_path: Path
 ) -> None:
     """The RECOMMENDED configuration has to be one that works.
 
     Both runbooks tell the operator to mount a 0600 key and leave the env var unset, because
     the env value is visible to `docker inspect`. `backup_instance` takes a keyfile only as a
-    command-line flag and a periodic task is nobody's command line, so until the scheduler
-    read the setting, following the tighter advice meant a refusal every night forever.
+    command-line flag and a periodic task is nobody's command line, so the resolver
+    (core/backup_passphrase) reads the configured path for every caller — see
+    test_backup_passphrase.py for the rule, this for the nightly run using it.
     """
-    monkeypatch.delenv("BACKYARD_BACKUP_PASSPHRASE", raising=False)
+    monkeypatch.delenv(backup_passphrase.ENV_VAR, raising=False)
     keyfile = tmp_path / "backyard.key"
     keyfile.write_text(_PASSPHRASE, encoding="utf-8")
     keyfile.chmod(0o600)
-    settings.BACKUP_PASSPHRASE_FILE = str(keyfile)
+    monkeypatch.setenv(backup_passphrase.FILE_ENV_VAR, str(keyfile))
 
     result = scheduled_backup.run()
 
@@ -163,6 +185,48 @@ def test_it_refuses_a_night_that_would_fill_the_volume(monkeypatch: Any) -> None
     # Recorded verbatim, not wrapped in its own class name: this sentence is written to be
     # read by the operator in the weekly email.
     assert BackupFailure.objects.get().error.startswith("refusing tonight's backup")
+
+
+def test_every_staged_copy_lands_on_the_volume_the_guard_measured(monkeypatch: Any) -> None:
+    """The guard measures BACKUP_ROOT; a run that stages elsewhere is measured nowhere.
+
+    A run makes two more full copies of the instance before the archive exists — the
+    pg_dump plus the media tar, and the single tar built from them — and both used to go to
+    TMPDIR, which in the container is the image's writable layer rather than the mounted
+    volume the operator grew. On the common single-disk host the numbers coincide and it
+    reads fine; on the second-volume host settings.py explicitly contemplates, the guard
+    reserved space on one disk while the run filled another.
+
+    Probed by pointing TMPDIR at a directory that does not exist: staging there fails
+    loudly, so a run that still succeeds is a run that staged beside the archive.
+    """
+    nowhere = Path(settings.MEDIA_ROOT).parent / "a-tmpdir-that-does-not-exist"
+    monkeypatch.setattr(tempfile, "tempdir", str(nowhere))
+
+    result = scheduled_backup.run()
+
+    assert result.path.read_bytes()[:14] == b"BACKYARD-ENC/1"
+    assert not nowhere.exists(), "something still staged in TMPDIR"
+
+
+def test_the_headroom_guard_refuses_on_the_archives_own_volume(monkeypatch: Any) -> None:
+    """The refusal, and the directory it asked about. Both halves matter: a guard that
+    refuses using some OTHER filesystem's free space is a guard that fires on a healthy
+    instance and stays quiet on the one that is about to ENOSPC mid-archive."""
+    scheduled_backup.run()  # tonight's estimate comes from the last archive, so make one
+    last = BackupRun.objects.get()
+    measured: list[Path] = []
+
+    def usage(path: Path) -> Any:
+        measured.append(Path(path))
+        return _Usage(100, 99, last.byte_count)  # room for one copy, not for two
+
+    monkeypatch.setattr("core.scheduled_backup.shutil.disk_usage", usage)
+
+    with pytest.raises(scheduled_backup.ScheduledBackupFailed, match="refusing tonight's backup"):
+        scheduled_backup.run()
+
+    assert measured == [Path(settings.BACKUP_ROOT)]
 
 
 def test_the_headroom_guard_never_blocks_the_first_backup_an_instance_takes(
@@ -232,10 +296,14 @@ def test_retention_never_touches_a_file_it_did_not_write(tmp_path: Path) -> None
     the day before they needed it."""
     directory = tmp_path / "backups"
     strangers = [
-        _touch(directory, "backup-2020-01-01.bak"),  # an operator's manual archive
-        _touch(directory, "preflight-20200101120000.dump.enc"),  # the entrypoint's
-        _touch(directory, "scheduled-not-a-date.bak"),  # our prefix, not our shape
-        _touch(directory, "scheduled-2026-02-31.bak"),  # our shape, not a real date
+        _touch(directory, "backup-2020-01-01.bak", recorded=False),  # an operator's own
+        _touch(directory, "preflight-20200101120000.dump.enc", recorded=False),  # entrypoint's
+        _touch(directory, "scheduled-not-a-date.bak", recorded=False),  # prefix, not our shape
+        _touch(directory, "scheduled-2026-02-31.bak", recorded=False),  # shape, not a real date
+        # Our exact shape, a perfectly real date, aged well past both windows — and this
+        # scheduler never wrote it (#166 review). An archive restored from another box, or
+        # copied in to look at, is not a deletion candidate on the day it ages out.
+        _touch(directory, "scheduled-2020-01-01.bak", recorded=False),
     ]
     for offset in range(40):
         day = datetime.date(2026, 6, 1) + datetime.timedelta(days=offset)
