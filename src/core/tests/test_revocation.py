@@ -171,18 +171,21 @@ def test_regeneration_registry_drops_what_is_not_the_members_own_credential() ->
     """Pin the derived registry, since it is BUILT from the removal one and a future
     step added there lands here by default.
 
-    Two entries differ, for the same reason: the member is still present. Her digest
-    subscription is a preference, not a credential, so only its emailed links die; an
-    outstanding invite belongs to the household being invited, not to her, so it is not
-    hers to rotate. Everything she actually holds is in both registries."""
+    Two entries are NARROWED, for the same reason: the member is still present. Her digest
+    subscription is a preference, not a credential, so only its emailed links die; and the
+    invite step shrinks from the yard-wide re-entry scope to the invites she MINTED, which
+    are her own act and die with the rest, while another admin's invite belongs to the
+    household being invited. Same length as the removal registry, so neither is skipped."""
     assert revocation._REGENERATION_STEPS == (
         revocation._revoke_sessions,
+        revocation._void_invites_created_by_member,  # her own act; not the yard-wide scope
         revocation._void_digest_capabilities,  # not _cancel_...: enabled is a preference
         revocation._void_digest_tokens,
         revocation._void_reply_addresses,
         revocation._void_elder_tokens,
     )
-    # And the removal registry keeps the step that was dropped, in its place.
+    assert len(revocation._REGENERATION_STEPS) == len(revocation._REVOCATION_STEPS)
+    # And the removal registry keeps the wide step, in its place.
     assert revocation._void_invites in revocation._REVOCATION_STEPS
 
 

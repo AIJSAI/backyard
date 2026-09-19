@@ -85,6 +85,63 @@ def test_the_local_compose_and_the_test_settings_keep_booting() -> None:
     validate_base_url(base_url="http://localhost:8000", allowed_hosts=[], debug=False)
 
 
+def test_a_stale_base_url_is_refused_too() -> None:
+    """The domain moved and only one of the two variables did. Django serves the new name;
+    every minted link points at the old one, and if that name has lapsed each link hands a
+    live bearer token to whoever registered it next."""
+    with pytest.raises(RuntimeError, match="not a host this instance serves"):
+        validate_base_url(
+            base_url="https://old.example",
+            allowed_hosts=["new.example", "localhost"],
+            debug=False,
+        )
+
+
+def test_a_value_that_is_not_an_absolute_address_is_refused() -> None:
+    """`family.example` with no scheme parses to a path, so every link minted from it is a
+    relative URL: the same dead hand-over, wearing a plausible value."""
+    with pytest.raises(RuntimeError, match="not an absolute"):
+        validate_base_url(base_url="family.example", allowed_hosts=["family.example"], debug=False)
+
+
+def test_a_subdomain_wildcard_and_legal_loopback_spellings_are_understood() -> None:
+    """Django's own host rules, so the guard never bricks a configuration Django serves."""
+    validate_base_url(
+        base_url="https://yard.family.example", allowed_hosts=[".family.example"], debug=False
+    )
+    for local in (["localhost."], ["[::1]"], [".localhost"]):
+        validate_base_url(base_url="http://localhost:8000", allowed_hosts=local, debug=False)
+
+
+def test_the_guard_is_wired_into_settings_boot() -> None:
+    """The rule is only real if settings.py calls it: delete that one line and every test
+    above still passes. Boot a real settings import with a served host and no base URL."""
+    import os
+    import subprocess  # noqa: S404
+    import sys
+
+    from django.conf import settings as django_settings
+
+    env = {
+        **os.environ,
+        "DJANGO_SETTINGS_MODULE": "config.settings",
+        "PYTHONPATH": str(django_settings.BASE_DIR),
+        "DJANGO_SECRET_KEY": "wired-guard-test-not-a-secret-0123456789abcdef",
+        "DJANGO_ALLOWED_HOSTS": "family.example",
+        "DJANGO_DEBUG": "0",
+    }
+    env.pop("BACKYARD_BASE_URL", None)
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", "import django; django.setup()"],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    assert result.returncode != 0, "settings.py booted without calling the guard"
+    assert "BACKYARD_BASE_URL" in result.stderr
+
+
 def test_a_developers_own_machine_is_exempt() -> None:
     validate_base_url(base_url="http://localhost:8000", allowed_hosts=_SERVED_HOSTS, debug=True)
 
@@ -194,3 +251,12 @@ def test_the_stated_host_is_the_one_in_the_link_including_a_wrong_port(
     url = reverse("provision_elder", args=[world.elder.id])
     body = client.post(url, {"intent": _intent(client, url)}).content.decode()
     assert "This link opens at localhost:8000." in body
+
+
+def test_the_stated_host_never_includes_url_userinfo() -> None:
+    """`https://localhost@evil.example/...` opens at evil.example. Printing the raw netloc
+    would make the one sentence a non-technical admin glances at read as `localhost`."""
+    from core.handover import link_artifacts
+
+    shown = link_artifacts("https://localhost:secret@evil.example:8443/t/TOKEN/")["link_host"]
+    assert shown == "evil.example:8443"

@@ -79,7 +79,10 @@ def link_artifacts(link: str) -> dict[str, object]:
     """
     return {
         "minted_link": link,
-        "link_host": urlsplit(link).netloc,
+        # The netloc minus any userinfo: the port is the part that was wrong on the design
+        # walk and must show, but `https://localhost@evil.example` would otherwise print
+        # a sentence that READS as localhost while the link opens somewhere else entirely.
+        "link_host": urlsplit(link).netloc.rpartition("@")[2],
         "qr_svg": mark_safe(qr_svg(link)),  # noqa: S308  # nosec
     }
 

@@ -98,6 +98,23 @@ def _void_invites(member: Member) -> int:
     return reachable.update(revoked_at=now)
 
 
+def _void_invites_created_by_member(member: Member) -> int:
+    """Void every live invite this member MINTED: regeneration's half of _void_invites.
+
+    An invite she issued is her own act and her own bearer secret -- she saw the raw token
+    once and it is still in whatever she sent it with -- so it dies whenever her credentials
+    are rotated. Rotation is what the product offers when the device or the session was
+    somebody else's for a while (T-TOKEN-5), and an invite minted in that window outlives
+    every credential the rotation does kill: 7 days, 8 redemptions, and a redemption mints a
+    full member with a login. NOT the yard arm: invites other admins issued into her yards
+    are the invited household's credential, not hers. Elders mint nothing (can_issue_invite
+    is admin-only), so on the reprint-her-QR path this voids zero rows.
+    """
+    return Invite.objects.filter(created_by=member, revoked_at__isnull=True).update(
+        revoked_at=timezone.now()
+    )
+
+
 def _void_digest_capabilities(member: Member) -> int:
     """Void both emailed digest capabilities, WITHOUT touching the subscription itself.
 
@@ -188,18 +205,22 @@ _REVOCATION_STEPS: tuple[RevocationStep, ...] = (
 # content channel permanently, and silenced her reply nudges with it. That contradicts S-501
 # and T-EMAIL-6, which forbid silent severing.
 #
-# Outstanding INVITES are left alone for the same reason. _void_invites is scoped to
-# re-entry (every live invite reaching any yard the member belongs to, whoever created it),
-# which is exactly right when the member is being removed and wrong when she is not: those
-# invites are the other households' credential, not hers, and rotating her link says nothing
-# about them. On the design walk one regeneration revoked a household invite minted four
-# clicks earlier -- no warning to the admin, and the bare 404 for the family who had already
-# been texted the link. The two new yard admins do both acts in one sitting, so this was not
-# an edge case.
+# Outstanding invites OTHER ADMINS issued are left alone; hers are not. _void_invites bundles
+# two scopes. The re-entry scope -- every live invite reaching any yard she belongs to,
+# whoever created it -- is right for removal and wrong here: those invites are the other
+# households' credential, and on the design walk one regeneration revoked a household invite
+# minted four clicks earlier, with no warning to the admin and the bare 404 for the family who
+# had already been texted the link. The invites SHE created stay in the rotation, because
+# regeneration is also the answer to a stolen phone or a session somebody else was driving,
+# and an invite minted in that window is a re-entry route that survives every credential this
+# handler kills.
 _REGENERATION_STEPS: tuple[RevocationStep, ...] = tuple(
-    _void_digest_capabilities if step is _cancel_digest_subscription else step
+    _void_digest_capabilities
+    if step is _cancel_digest_subscription
+    else _void_invites_created_by_member
+    if step is _void_invites
+    else step
     for step in _REVOCATION_STEPS
-    if step is not _void_invites
 )
 
 
@@ -213,8 +234,9 @@ def revoke_member_credentials(member: Member) -> None:
     and all call this, never their own partial subset.
 
     NOT for regeneration -- use regenerate_member_credentials, which keeps the digest
-    subscription and the outstanding invites. This function disables the subscription (an
-    elder has no login to turn it back on) and voids invites other households still hold.
+    subscription and the invites OTHER admins issued (it still voids the ones she minted).
+    This function disables the subscription (an elder has no login to turn it back on) and
+    voids invites other households still hold.
 
     Ordering contract (security review H-1): call this BEFORE tearing down the
     member's PodMembership rows. _void_invites resolves the yard scope from live
@@ -225,12 +247,15 @@ def revoke_member_credentials(member: Member) -> None:
 
 
 def regenerate_member_credentials(member: Member) -> None:
-    """Every credential the member HOLDS dies; what belongs to the rest of the family
-    survives -- their digest subscription and the invites outstanding in their yards.
+    """Every credential the member HOLDS dies -- including the invites she minted herself --
+    while what belongs to the rest of the family survives: her digest subscription, and the
+    invites other admins issued into her yards.
 
-    For regeneration and any other flow where the member is still here. Same generation
-    bump, same single transaction as revoke_member_credentials; the difference is that
-    neither a preference nor another household's invite is treated as her credential.
+    For ROTATION: the member is still here and only her own link is being replaced. Not for a
+    membership SHRINK (voluntary leave, a pod leaving a yard): there the yard-wide invite scope
+    is load-bearing again, so those flows call revoke_member_credentials or register their own
+    registry, never this one. Same generation bump, same single transaction as
+    revoke_member_credentials.
     """
     _run_steps(member, _REGENERATION_STEPS)
 

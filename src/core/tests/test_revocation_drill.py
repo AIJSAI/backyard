@@ -378,6 +378,34 @@ def test_regenerate_keeps_outstanding_household_invites_on_every_side(
     assert all(dead.values()), f"survivors: {[k for k, v in dead.items() if not v]}"
 
 
+def test_regenerate_still_voids_the_invites_she_minted_herself(
+    member_with_everything: Credentials,
+) -> None:
+    """Rotation is also the answer to a stolen phone (T-TOKEN-5), so it must not leave the
+    thief a way back in.
+
+    An invite minted from her session while somebody else was driving it outlives every
+    credential the rotation kills: seven days, eight redemptions, and each redemption is a
+    full member with a login. So the invites SHE created die with her link, while the one
+    another admin issued into her yard -- asserted in the same act -- does not.
+    """
+    creds = member_with_everything
+    others = _outstanding_invites_on_both_her_sides(creds.member)
+    household = Pod.objects.create(name="A household she invited herself")
+    household.yards.set([Yard.objects.get(slug="maternal")])
+    hers, hers_raw = invites.mint_invite(household, creds.member)
+    assert Client().get(reverse("join", args=[hers_raw])).status_code == 200  # live before
+
+    elder_tokens.regenerate(creds.member)
+
+    hers.refresh_from_db()
+    assert hers.revoked_at is not None, "her own invite survived the rotation"
+    assert Client().get(reverse("join", args=[hers_raw])).status_code == 404
+    for side, (invite, _raw) in others.items():
+        invite.refresh_from_db()
+        assert invite.revoked_at is None, f"rotation revoked another admin's {side} invite"
+
+
 def test_removal_still_voids_those_invites(
     member_with_everything: Credentials,
 ) -> None:

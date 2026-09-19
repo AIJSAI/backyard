@@ -38,9 +38,12 @@ def _digest(raw: str) -> str:
 
 
 def _require_secure_base() -> None:
-    base = settings.BASE_URL.lower()
-    is_local = any(host in base for host in ("localhost", "127.0.0.1"))
-    if not base.startswith("https://") and not is_local:
+    # The parsed-hostname check, never a substring: `"localhost" in base` is also true for
+    # http://localhost.evil.example, and false for a legal http://[::1]:8000.
+    from config.base_url_guard import is_local_url
+
+    base = settings.BASE_URL
+    if not base.lower().startswith("https://") and not is_local_url(base):
         raise ElderTokenRefused(
             "Token links only mint against an https base URL in production (T-EDGE-1)."
         )
