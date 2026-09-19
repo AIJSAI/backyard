@@ -31,6 +31,7 @@ import pathlib
 import pytest
 
 from core.tests.copy_scan import (
+    script_button_labels,
     template_key,
     templates,
     title_case_offences,
@@ -67,6 +68,41 @@ def test_every_heading_button_and_label_is_title_case(path: pathlib.Path) -> Non
     assert not faults, f"{key} — Capitalise Every Word:\n    " + "\n    ".join(faults)
 
 
+@pytest.mark.parametrize("path", _TEMPLATES, ids=_KEYS)
+def test_a_button_a_script_builds_is_title_case_too(path: pathlib.Path) -> None:
+    """A button the markup declares is covered above; a button JavaScript creates was not.
+
+    The password toggle on the join page is one: nothing in the template says "Show
+    Password", the script does, and the sweep above cannot see it because `<script>` is
+    stripped. Only a button is claimed here, and only where the source says so in one
+    place — `document.createElement("button")` assigned to a name, and that name given a
+    literal `textContent`. A bare string in a script carries no element around it, so
+    nothing else in there can be told apart from a sentence (`copy_scan.script_strings`
+    reads those for the vocabulary and the voice, which need no such distinction).
+    """
+    key = template_key(path)
+    faults = [
+        f"{where} {text!r}\n      small: {', '.join(offenders)}\n      fix:   {title_cased(text)!r}"
+        for where, text in script_button_labels(path.read_text())
+        if (offenders := title_case_offences(text))
+    ]
+    assert not faults, f"{key} — Capitalise Every Word:\n    " + "\n    ".join(faults)
+
+
+def test_the_script_button_reader_is_not_vacuous() -> None:
+    """It reads the shape the product actually writes, and claims nothing else."""
+    toggle = (
+        '<script>var toggle = document.createElement("button");'
+        'toggle.textContent = "Show password";</script>'
+    )
+    found = script_button_labels(toggle)
+    assert found and title_case_offences(found[0][1]) == ["password"]
+    assert not script_button_labels(
+        '<script>var p = document.createElement("p"); p.textContent = "all caught up";</script>'
+    ), "a paragraph is not a button; body text is sentence case"
+    assert not script_button_labels('<script>el.textContent = "a sentence in a div";</script>')
+
+
 def test_the_guard_is_not_vacuous() -> None:
     """Prove it finds each shape it claims to cover, and that it leaves alone what it
     must. Without this, a regex that matched no elements would report a clean product."""
@@ -75,6 +111,19 @@ def test_the_guard_is_not_vacuous() -> None:
     assert not title_case_offences("Skip To Content")
     assert not title_case_offences("Create A Link")
     assert title_cased("Skip to content") == "Skip To Content"
+    # BOTH HALVES OF A HYPHENATED WORD (copy walk decision 3, 2026-09-19). "Sign-in Link"
+    # and "No-login Link" are offences the way "sign In" is, and the fix a failure prints
+    # has to be pastable, so `title_cased` moves each half and keeps the edge punctuation.
+    assert title_case_offences("Sign-in Link")
+    assert title_case_offences("No-login Link")
+    assert title_case_offences("Your sign-in Email")
+    assert not title_case_offences("Sign-In Link")
+    assert not title_case_offences("No-Login Link")
+    assert title_cased("Sign-in Link") == "Sign-In Link"
+    assert title_cased("No-login link") == "No-Login Link"
+    assert title_cased('"Sign-in?"') == '"Sign-In?"'
+    # An address still keeps its own case, hyphen or no hyphen.
+    assert not title_case_offences("Open my-backyard.example.test In Your Browser")
     # Every covered element is actually found.
     for markup, expected in (
         ("<title>Join your family</title>", "<title>"),

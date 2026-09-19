@@ -50,6 +50,7 @@ from core.tests.copy_scan import (
     BANNED,
     TEMPLATE_ROOTS,
     prose,
+    script_strings,
     template_key,
     templates,
     visible_text,
@@ -68,6 +69,47 @@ def test_no_template_shows_a_banned_word_to_a_person(path: pathlib.Path) -> None
         f"{key} shows a relative a word the owner struck out. One word per concept:\n  "
         + "\n  ".join(hits)
     )
+
+
+@pytest.mark.parametrize("path", _TEMPLATES, ids=_KEYS)
+def test_no_word_a_script_writes_onto_the_page_is_a_banned_one(path: pathlib.Path) -> None:
+    """The sweep above cannot see these: `<script>` is stripped before it reads a word.
+
+    A script still writes words a person reads — a button's label, an error sentence, the
+    name a screen reader announces — and `copy_scan.script_strings` is the narrow reader
+    for them. Same vocabulary, same allowlist, so "the digest is sending" typed into a
+    `textContent` fails exactly as it would in an `<h1>`.
+    """
+    key = template_key(path)
+    allowed = ALLOWED.get(key, set())
+    faults = [
+        f"{where} {text!r}: " + "; ".join(hits)
+        for where, text in script_strings(path.read_text())
+        if (hits := vocabulary_offences(text, allowed))
+    ]
+    assert not faults, f"{key} has a script writing a struck-out word:\n  " + "\n  ".join(faults)
+
+
+def test_the_script_reader_is_not_vacuous() -> None:
+    """It finds the shapes it claims to, and still ignores everything else in a script."""
+    assert script_strings('<script>el.textContent = "Turn On The Digest";</script>')
+    assert script_strings("<script>el.innerText = 'Your Pods';</script>")
+    assert script_strings('<script>b.setAttribute("aria-label", "Remove This Photo");</script>')
+    assert script_strings(
+        '<script type="application/json">{"confirmDelete": "Are You Sure?"}</script>'
+    )
+    assert vocabulary_offences(
+        script_strings('<script>el.textContent = "The Digest";</script>')[0][1]
+    )
+    # A comment, a selector, a class name, a MIME type and a data value are not copy.
+    assert not script_strings("<script>// the digest is sent by the worker\n</script>")
+    assert not script_strings("<script>/* a pod is a household */ var x = 1;</script>")
+    assert not script_strings("<script>document.querySelector('.pods');</script>")
+    assert not script_strings("<script>el.className = 'yard';</script>")
+    assert not script_strings("<script>canvas.toBlob(r, 'image/jpeg', 0.85);</script>")
+    assert not script_strings("<script>if (el.getAttribute('data-when') === 'date') {}</script>")
+    assert not script_strings("<script>el.textContent = file.name;</script>")
+    assert not script_strings("<script>el.textContent = '';</script>")
 
 
 def test_the_guard_is_not_vacuous() -> None:

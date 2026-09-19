@@ -28,7 +28,13 @@ import pathlib
 
 import pytest
 
-from core.tests.copy_scan import template_key, templates, visible_text, voice_offences
+from core.tests.copy_scan import (
+    script_strings,
+    template_key,
+    templates,
+    visible_text,
+    voice_offences,
+)
 
 _TEMPLATES = templates()
 _KEYS = [template_key(path) for path in _TEMPLATES]
@@ -45,6 +51,29 @@ def test_no_template_speaks_in_the_first_person_or_shouts(path: pathlib.Path) ->
     key = template_key(path)
     hits = voice_offences(visible_text(path.read_text()).replace(_REPORT_FLAG, ""))
     assert not hits, f"{key} is not written in the product's voice:\n  " + "\n  ".join(hits)
+
+
+@pytest.mark.parametrize("path", _TEMPLATES, ids=_KEYS)
+def test_no_script_writes_a_sentence_in_the_first_person(path: pathlib.Path) -> None:
+    """`<script>` is stripped before the sweep above reads a word, and it has to be — a
+    comment saying "we set this" is not the product speaking. What a script ASSIGNS to
+    `textContent` is, so those literals are read on their own (`copy_scan.script_strings`)
+    and held to the same two rules: no "we", and no shouting, dashes or ellipses."""
+    key = template_key(path)
+    faults = [
+        f"{where} {text!r}: " + "; ".join(hits)
+        for where, text in script_strings(path.read_text())
+        if (hits := voice_offences(text))
+    ]
+    assert not faults, f"{key} has a script speaking out of voice:\n  " + "\n  ".join(faults)
+
+
+def test_the_script_reader_can_fail_and_still_ignores_a_comment() -> None:
+    """Non-vacuity, and the boundary that makes the stripping above survivable: the SAME
+    words in a comment are not a finding, and in a `textContent` they are."""
+    spoken = script_strings('<script>el.textContent = "We could not send it!";</script>')
+    assert spoken and voice_offences(spoken[0][1])
+    assert not script_strings("<script>// we could not send it! …\n</script>")
 
 
 def test_the_guard_is_not_vacuous() -> None:

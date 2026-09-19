@@ -38,6 +38,10 @@ TEMPLATE_ROOTS = (_SRC / "core" / "templates", _SRC / "templates")
 _VISIBLE_ATTRS = re.compile(r'\b(?:placeholder|aria-label|title|alt)="([^"]*)"', re.I)
 _TEMPLATE_VAR = re.compile(r"\{\{.*?\}\}", re.S)
 _TEMPLATE_TAG = re.compile(r"\{%.*?%\}", re.S)
+# `{% trans "Save Changes" %}` and `{% translate 'Confirmed' %}`: the quoted literal is the
+# copy, and it is put back in place of the tag. Anything else after the literal (the
+# `as var` form, a filter, a context) is not this simple and stays stripped.
+_TRANSLATED = re.compile(r"\{%\s*(?:trans|translate)\s+(\"|')(.*?)\1\s*%\}", re.S)
 _STYLE = re.compile(r"<style[^>]*>.*?</style>", re.S | re.I)
 _SCRIPT = re.compile(r"<script[^>]*>.*?</script>", re.S | re.I)
 _TAG = re.compile(r"<[^>]+>")
@@ -54,13 +58,22 @@ def without_noise(source: str) -> str:
 
 
 def without_template_syntax(text: str) -> str:
-    """Template tags and variables out. What is left is literal text.
+    """Template tags and variables out, with `{% trans %}` unwrapped to its own words.
 
     Both, always: `{% if %}` is not visible and neither is `{{ member.display_name }}`,
     and a guard that stripped one would read the other as product copy and accuse a
     relative's own name of being badly capitalised.
+
+    THE EXCEPTION IS `{% trans "..." %}`, and it was a hole the size of the account
+    cluster. Every template under `src/templates/` is a django-allauth override and
+    allauth writes its copy inside that tag, so stripping the tag took the words with it:
+    measured on 2026-09-19, 176 strings across 33 templates — the whole sign-in, password,
+    passkey and email-address family — were read by all three guards as empty. The literal
+    is the product's own text (there is no translation catalogue here; `{% trans %}` is how
+    the package's own markup writes a string), so it is unwrapped and checked like any
+    other. The `as var` form is left stripped: it names a variable, not a line on a page.
     """
-    return _TEMPLATE_TAG.sub(" ", _TEMPLATE_VAR.sub(" ", text))
+    return _TEMPLATE_TAG.sub(" ", _TEMPLATE_VAR.sub(" ", _TRANSLATED.sub(r"\2", text)))
 
 
 def visible_text(source: str) -> str:
@@ -79,6 +92,117 @@ def prose(text: str) -> str:
     and would break every link already sitting in somebody's inbox.
     """
     return _URL.sub(" ", text)
+
+
+# --- words a script writes onto the page ------------------------------------------------
+#
+# The three guards above strip `<script>` wholesale, for the reason the module docstring
+# gives: a comment explaining a decision is not copy, and "// we set this" would otherwise
+# be a voice offence. But a script also WRITES words a person reads — the password toggle's
+# label, a thumbnail's Remove, the sentence that says a photograph did not fit — and those
+# were the one user-facing surface in this product that nothing checked.
+#
+# So the stripping stays and this is a SECOND reader, narrow on purpose. It looks only at
+# string literals on the right of an assignment to `textContent`, `innerText`, `title` or
+# `placeholder`, at `setAttribute("aria-label"|"title"|"placeholder", ...)`, and at the
+# string VALUES inside a `<script type="application/json">` block (which is how allauth is
+# handed the words for its confirm dialog: `{"confirmDelete": "Remove This Email
+# Address?"}`). Everything else inside a script — a selector, a class name, a comment, a
+# MIME type, a data-attribute value — is invisible here, exactly as before.
+_SCRIPT_BLOCK = re.compile(r"<script\b([^>]*)>(.*?)</script>", re.S | re.I)
+_JS_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
+_JS_LINE_COMMENT = re.compile(r"//[^\n]*")
+_JS_STRING = re.compile(r"\"(?:[^\"\\\n]|\\.)*\"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`")
+# The right-hand side stops at the statement's end or the line's, so a ternary spread over
+# three lines contributes only what sits on the first one. That is deliberate: a partial
+# read of an expression is still only ever READ, and widening it to the whole statement is
+# how a guard starts reading variable names as copy.
+_SPOKEN_ASSIGNMENT = re.compile(
+    r"\.(textContent|innerText|title|placeholder)\s*=\s*([^;\n]+)", re.I
+)
+_SPOKEN_ATTRIBUTE = re.compile(
+    r"""setAttribute\(\s*["'](aria-label|title|placeholder)["']\s*,([^)]*)\)""", re.I
+)
+_JSON_STRING_VALUE = re.compile(r":\s*(\"(?:[^\"\\]|\\.)*\")")
+# A button a script builds, so its label can be held to the capitalisation rule that every
+# other button is held to. Read per script and by literal tag name only: a variable whose
+# element comes from a lookup, a helper or a loop is not claimed to be a button.
+_CREATED_BUTTON = re.compile(
+    r"""(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*document\.createElement\(\s*["']button["']"""
+)
+
+
+def _is_copy(literal: str) -> bool:
+    """Does this string literal look like words a person reads, rather than a key?
+
+    A sentence has a space; a label a script writes is capitalised ("Remove", "Video").
+    Everything else a script quotes — `'date'`, `"image/jpeg"`, `"js_data"`, a class name,
+    an element id — is lower case and single-token, and is left alone. A lower-case English
+    word written as copy would be missed; a guard that read every identifier as copy would
+    be switched off within a week, which is the worse failure.
+    """
+    text = literal.strip()
+    if not any(character.isalpha() for character in text):
+        return False
+    first = next(character for character in text if character.isalpha())
+    return " " in text or first.isupper()
+
+
+def _script_bodies(source: str) -> list[tuple[str, str]]:
+    """`(attributes, body)` for every inline `<script>` with something in it."""
+    return [
+        (attributes, body)
+        for attributes, body in _SCRIPT_BLOCK.findall(without_comments(source))
+        if body.strip()
+    ]
+
+
+def _literals(expression: str) -> list[str]:
+    """The copy-shaped string literals in one expression, unquoted and unescaped."""
+    found = []
+    for literal in _JS_STRING.findall(without_template_syntax(expression)):
+        if _is_copy(literal[1:-1]):
+            found.append(html.unescape(literal[1:-1]))
+    return found
+
+
+def script_strings(source: str) -> list[tuple[str, str]]:
+    """`(where, text)` for every string a script in this template shows to a person."""
+    spoken: list[tuple[str, str]] = []
+    for attributes, body in _script_bodies(source):
+        if "json" in attributes.lower():
+            for literal in _JSON_STRING_VALUE.findall(without_template_syntax(body)):
+                if _is_copy(literal[1:-1]):
+                    spoken.append(("script data", html.unescape(literal[1:-1])))
+            continue
+        code = _JS_LINE_COMMENT.sub(" ", _JS_BLOCK_COMMENT.sub(" ", body))
+        for property_name, expression in _SPOKEN_ASSIGNMENT.findall(code):
+            spoken.extend((f".{property_name}", text) for text in _literals(expression))
+        for attribute, expression in _SPOKEN_ATTRIBUTE.findall(code):
+            spoken.extend((f'setAttribute("{attribute}")', text) for text in _literals(expression))
+    return spoken
+
+
+def script_button_labels(source: str) -> list[tuple[str, str]]:
+    """`(where, text)` for the label of every button a script builds and names.
+
+    The capitalisation rule needs to know what KIND of thing a string is, and a script
+    literal carries no element around it — "Remove" is a button and "Preview not available."
+    is a sentence, and nothing in the text says which. This is the one case the source
+    answers: a variable assigned `document.createElement("button")` in the same script, and
+    then given a literal `textContent`.
+    """
+    labels: list[tuple[str, str]] = []
+    for _attributes, body in _script_bodies(source):
+        code = _JS_LINE_COMMENT.sub(" ", _JS_BLOCK_COMMENT.sub(" ", body))
+        for name in set(_CREATED_BUTTON.findall(code)):
+            for expression in re.findall(
+                rf"\b{re.escape(name)}\.(?:textContent|innerText)\s*=\s*([^;\n]+)", code
+            ):
+                labels.extend(
+                    (f"{name}.textContent (a button)", text) for text in _literals(expression)
+                )
+    return labels
 
 
 def templates() -> list[pathlib.Path]:
@@ -279,25 +403,50 @@ def title_case_offences(text: str) -> list[str]:
     return [word for word in text.split() if _is_lowercased(word)]
 
 
+def _halves(word: str) -> list[str]:
+    """A hyphenated word is TWO words a person reads: "Sign-In Link", "No-Login Link".
+
+    Each half carries the rule, so "Sign-in" is an offence exactly as "sign In" is (copy
+    walk decision 3, 2026-09-19). Measured when this was armed: not one string in the
+    product changes, which is what a guard that writes down an existing practice should
+    look like. It exists for the next person, who would otherwise ship "No-login Link"
+    past a green build.
+    """
+    return word.split("-")
+
+
 def _is_lowercased(word: str) -> bool:
     stripped = word.strip(_EDGE)
     if not stripped or _MACHINE.search(stripped):
         return False
-    first = next((ch for ch in stripped if ch.isalpha()), "")
-    return bool(first) and first.islower()
+    for half in _halves(stripped):
+        first = next((ch for ch in half if ch.isalpha()), "")
+        if first and first.islower():
+            return True
+    return False
 
 
 def title_cased(text: str) -> str:
     """`text` with the rule applied: the fix a failure prints, ready to paste.
 
-    Only the first letter of each word moves. A name a person typed, an acronym and an
-    address are left exactly as they are, which is why this is not `str.title()`.
+    Only the first letter of each word moves, and of each half of a hyphenated one. A name
+    a person typed, an acronym and an address are left exactly as they are, which is why
+    this is not `str.title()`. The edge punctuation is preserved around the word so a
+    heading that ends in a question mark still round-trips.
     """
     fixed: list[str] = []
     for word in text.split():
         if not _is_lowercased(word):
             fixed.append(word)
             continue
-        index = next(i for i, ch in enumerate(word) if ch.isalpha())
-        fixed.append(word[:index] + word[index].upper() + word[index + 1 :])
+        lead = word[: len(word) - len(word.lstrip(_EDGE))]
+        tail = word[len(word.rstrip(_EDGE)) :]
+        body = word[len(lead) : len(word) - len(tail)]
+        halves: list[str] = []
+        for half in _halves(body):
+            index = next((i for i, ch in enumerate(half) if ch.isalpha()), None)
+            halves.append(
+                half if index is None else half[:index] + half[index].upper() + half[index + 1 :]
+            )
+        fixed.append(lead + "-".join(halves) + tail)
     return " ".join(fixed)
