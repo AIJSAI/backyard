@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from anymail.webhooks.resend import ResendInboundWebhookView
-from django.urls import include, path
+from django.conf import settings
+from django.urls import URLPattern, include, path
 
 from core import (
     admin_views,
@@ -22,7 +22,35 @@ from core import (
     welcome_views,
 )
 from core.breakglass import break_glass
+from core.inbound_webhook import BoundedResendInboundWebhookView
 from core.join import join
+
+
+def _inbound_urlpatterns() -> list[URLPattern]:
+    """The Resend inbound webhook route — mounted ONLY when its secret is configured (S4).
+
+    Anymail verifies every inbound POST's svix signature against RESEND_INBOUND_SECRET.
+    With no secret there is nothing to verify against: Anymail falls through to a basic-auth
+    check nobody configured and answers an unauthenticated POST with an unhandled 500. An
+    instance on SMTP or the console backend — which is every self-hoster who has not wired
+    Resend, and the local compose stack — was therefore publishing an endpoint that existed
+    only to fail, on a public IP.
+
+    Not mounting it is the honest answer: on those instances this route genuinely does not
+    exist, so it answers like every other unknown path. The view refuses independently too
+    (`BoundedResendInboundWebhookView.dispatch`), because a control that lives only in a
+    URLconf is one `include` away from being bypassed.
+    """
+    if not settings.RESEND_INBOUND_SECRET:
+        return []
+    return [
+        path(
+            "anymail/resend/inbound/",
+            BoundedResendInboundWebhookView.as_view(),
+            name="anymail_resend_inbound",
+        )
+    ]
+
 
 urlpatterns = [
     path("", views.home, name="home"),
@@ -113,15 +141,6 @@ urlpatterns = [
         digesting_views.unsubscribe_digest,
         name="digest_unsubscribe",
     ),
-    # Inbound reply-by-email (S-502): Anymail verifies the Resend webhook's svix
-    # signature (RESEND_INBOUND_SECRET), fetches the full message, and fires the
-    # inbound signal that core/inbound_webhook processes. ONLY this endpoint is
-    # mounted, no tracking endpoints and no other ESPs (minimal deliberate surface).
-    path(
-        "anymail/resend/inbound/",
-        ResendInboundWebhookView.as_view(),
-        name="anymail_resend_inbound",
-    ),
     # The two new admins' day-one guide, in the product rather than in a repo file the
     # people it is written for cannot open. Linked from the roster; any admin may read it.
     path("members/day-one/", admin_views.admins_day_one, name="admins_day_one"),
@@ -159,6 +178,13 @@ urlpatterns = [
         name="change_household",
     ),
     path("members/family-sides/", admin_views.family_sides, name="family_sides"),
+    # FD-2: "not now" on the second-factor offer, for this sign-in only. POST-only, the
+    # same shape as the feed's two dismissals.
+    path(
+        "members/second-factor-prompt/dismiss/",
+        admin_views.dismiss_second_factor_prompt,
+        name="dismiss_second_factor_prompt",
+    ),
     # Elder-token provisioning (S-104): generate/regenerate a member's link + QR.
     path(
         "members/<int:member_id>/elder-link/",
@@ -221,3 +247,8 @@ urlpatterns = [
     # open signup is not mounted, so there is no self-serve account creation.
     path("accounts/", include("allauth.urls")),
 ]
+
+# Inbound reply-by-email (S-502). ONLY this ESP endpoint is ever mounted — no tracking
+# endpoints and no other providers (minimal deliberate surface) — and only when the
+# instance is actually configured to receive inbound mail. See `_inbound_urlpatterns`.
+urlpatterns += _inbound_urlpatterns()

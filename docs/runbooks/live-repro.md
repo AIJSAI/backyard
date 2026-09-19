@@ -50,7 +50,8 @@ uv run pytest -m e2e            # 8 tests; needs the browsers + a live_server
 
 ```bash
 make up            # generates .env (3 db-role passwords), brings up web+worker+postgres+caddy
-make setup-secret  # prints the one-time first-admin secret from the web logs
+make setup-secret  # reads the one-time first-admin secret off the data volume (G10:
+                   # it is no longer printed into the container log)
 # open http://localhost:8000/setup/  → create the first admin
 ```
 
@@ -108,7 +109,7 @@ make setup-secret  # prints the one-time first-admin secret from the web logs
    faces): `entrypoint.sh` already runs `collectstatic`, and WhiteNoise serves the content-hashed
    names, so a plain rebuild is enough — but a stale `staticfiles/` volume would serve the old
    manifest, and `base.html` resolves the fonts through `{% static %}`, so it would 500 rather than
-   fall back. Rebuild the image, do not just restart the container. First-admin secret: `docker compose logs --no-log-prefix web | awk '/paste this one-time secret/{getline;gsub(/^ +/,"");print}'`.
+   fall back. Rebuild the image, do not just restart the container. First-admin secret: `docker compose exec web cat /data/first-run-secret` (or `make setup-secret`); it is no longer in the container log.
 5. **Wire email on the box:** set the Resend env (`op read "op://Backyard/Backyard Resend API/credential"`),
    confirm the health email sends (T-MON-1) and re-measure the delivery/bounce matrix on a **real** elder
    subscription (⚠️ Resend sits behind Cloudflare WAF — a `Python-urllib` UA gets HTTP 403 `error code: 1010`;

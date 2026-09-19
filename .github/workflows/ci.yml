@@ -192,6 +192,23 @@ jobs:
           if docker compose exec -T web sh -c 'head -c 5 /data/backups/preflight-*.dump.enc' | grep -q PGDMP; then
             echo "NOT ENCRYPTED: the .enc pre-flight dump is a plaintext PGDMP archive"; exit 1
           fi
+          echo "--- the first-run secret is handed over in a FILE, not in the log (G10) ---"
+          # It used to be printed to stdout, and compose's json-file driver writes that to
+          # disk where `docker compose logs` replays it. Both halves are asserted so this
+          # cannot pass in the wrong configuration: the file must exist, be 0600, and its
+          # contents must appear nowhere in the container log. The value is read into a
+          # shell variable and never echoed.
+          docker compose exec -T web sh -c 'test -f /data/first-run-secret' \
+            || { echo "no first-run hand-over file; a fresh instance cannot be set up"; exit 1; }
+          HANDOVER_MODE=$(docker compose exec -T web sh -c 'stat -c %a /data/first-run-secret' | tr -d '\r')
+          [ "$HANDOVER_MODE" = "600" ] || { echo "hand-over file mode is $HANDOVER_MODE, not 600"; exit 1; }
+          FIRST_RUN_VALUE=$(docker compose exec -T web sh -c 'cat /data/first-run-secret' | tr -d '\r\n')
+          [ -n "$FIRST_RUN_VALUE" ] || { echo "the hand-over file is empty"; exit 1; }
+          if docker compose logs --no-log-prefix web 2>/dev/null | grep -qF -- "$FIRST_RUN_VALUE"; then
+            echo "LEAK: the one-time setup secret is in the container log"; exit 1
+          fi
+          echo "hand-over file is 0600 and its value appears nowhere in the log"
+
           echo "--- the app role can read AND write the rate-limit cache (TS-DJ-13) ---"
           # As the real backyard_app runtime role, not a superuser: proves the ADR-004
           # default-privilege grant reaches backyard_cache, so allauth's shared rate

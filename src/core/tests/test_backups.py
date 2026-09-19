@@ -15,6 +15,7 @@ import json
 import subprocess
 import tarfile
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -374,6 +375,238 @@ def test_restore_promotes_only_the_media_subtree(
     assert (media_root / "2026" / "photo.jpg").read_bytes() == b"a photo"
     # Nothing leaked into /data (MEDIA_ROOT.parent) beyond the media tree itself.
     assert sorted(p.name for p in media_root.parent.iterdir()) == ["media"]
+
+
+# --- S20: the extraction is bounded before a byte is written -----------------
+
+
+def _media_archive(files: dict[str, bytes]) -> io.BytesIO:
+    """A well-formed backup whose media tar really carries `files`."""
+    inner = io.BytesIO()
+    with tarfile.open(fileobj=inner, mode="w:gz") as media_tar:
+        for name, data in files.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            media_tar.addfile(info, io.BytesIO(data))
+    archive = io.BytesIO()
+    with tarfile.open(fileobj=archive, mode="w") as outer:
+        manifest = json.dumps({"format": backups.BACKUP_FORMAT}).encode()
+        for name, payload in (
+            ("backup-manifest.json", manifest),
+            ("database.dump", b"PGDMP"),
+            ("media.tar.gz", inner.getvalue()),
+        ):
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            outer.addfile(info, io.BytesIO(payload))
+    archive.seek(0)
+    return archive
+
+
+def _free_space(monkeypatch: Any, free: int) -> None:
+    """Report a fixed amount of free space on whatever volume is asked about.
+
+    The ceilings are read from the module rather than written into the test, and the
+    volume reading is faked rather than the SIZES: a tar header's declared size is what
+    `addfile` copies, so an archive cannot claim gigabytes it does not carry, and a test
+    that shrank the ceiling instead would still exercise the same comparison.
+    """
+    monkeypatch.setattr(
+        "core.backups.shutil.disk_usage",
+        lambda path: SimpleNamespace(total=free * 2, used=free, free=free),
+    )
+
+
+def test_restore_refuses_a_media_tree_that_will_not_fit_on_the_volume(
+    fake_pg: None, settings: Any, tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A restore is the command somebody runs when things have ALREADY gone wrong, and it
+    deletes the old media tree before promoting the new one. So filling the disk halfway
+    through leaves a box with neither.
+
+    Fails without `_refuse_an_oversized_extraction`: `extractall` runs, the refusal never
+    happens, and the existing tree is gone.
+    """
+    media_root = tmp_path / "data" / "media"
+    settings.MEDIA_ROOT = str(media_root)
+    media_root.mkdir(parents=True)
+    (media_root / "existing.jpg").write_bytes(b"the family's photos")
+
+    # A volume with a little less room than the reserve plus the incoming tree.
+    _free_space(monkeypatch, backups.RESTORE_FREE_SPACE_RESERVE_BYTES + 100)
+    archive = _media_archive({"media/new.jpg": b"x" * 500})
+
+    with pytest.raises(backups.BackupError) as caught:
+        backups.restore_backup(archive, force=True)
+    message = str(caught.value)
+    assert "Nothing has been written" in message, message
+    assert "usable on this volume" in message, message
+    # The loud refusal has to come BEFORE the destructive half, or the sentence is a lie.
+    assert (media_root / "existing.jpg").read_bytes() == b"the family's photos"
+
+
+def test_restore_refuses_a_media_tree_over_the_absolute_ceiling(
+    fake_pg: None, settings: Any, tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The backstop for a box whose free space says there is plenty: the absolute total
+    still refuses, before anything is written."""
+    settings.MEDIA_ROOT = str(tmp_path / "data" / "media")
+    _free_space(monkeypatch, 10**15)
+    monkeypatch.setattr(backups, "MAX_RESTORED_MEDIA_BYTES", 1000)
+    archive = _media_archive({f"media/part-{i}.bin": b"x" * 400 for i in range(4)})
+
+    with pytest.raises(backups.BackupError) as caught:
+        backups.restore_backup(archive, force=True)
+    assert "ceiling" in str(caught.value) and "Nothing has been written" in str(caught.value)
+
+
+def test_the_refusal_happens_before_pg_restore_has_touched_the_database(
+    settings: Any, tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The sentence has to be true at the moment it is read (Copilot review).
+
+    `pg_restore --clean` drops and rebuilds every table, and it runs BEFORE the media
+    tree is extracted. A refusal raised from inside `_restore_media` therefore arrived
+    after the family's database had already been replaced — while saying "Nothing has
+    been written", which is exactly the kind of false sentence somebody acts on at the
+    worst possible moment.
+
+    Fails without the `_refuse_an_oversized_media_archive` call ahead of `pg_restore`:
+    pg_restore is invoked, and then the refusal claims nothing happened.
+    """
+    settings.MEDIA_ROOT = str(tmp_path / "data" / "media")
+    invoked: list[str] = []
+
+    def recording_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        invoked.append(argv[0])
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("core.backups.subprocess.run", recording_run)
+    _free_space(monkeypatch, 10**15)
+    monkeypatch.setattr(backups, "MAX_RESTORED_MEDIA_BYTES", 1000)
+    archive = _media_archive({f"media/part-{i}.bin": b"x" * 400 for i in range(4)})
+
+    with pytest.raises(backups.BackupError) as caught:
+        backups.restore_backup(archive, force=True)
+
+    assert "Nothing has been written" in str(caught.value)
+    assert "pg_restore" not in invoked, (
+        "the database was cleaned and restored before the refusal that says nothing was"
+    )
+
+
+def test_a_traversing_media_archive_is_also_refused_before_pg_restore(
+    settings: Any, tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The #47 traversal refusal moved forward with the size one, for the same reason:
+    a crafted archive should not cost the family their database on the way to being
+    rejected."""
+    settings.MEDIA_ROOT = str(tmp_path / "data" / "media")
+    invoked: list[str] = []
+
+    def recording_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        invoked.append(argv[0])
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("core.backups.subprocess.run", recording_run)
+    archive = _media_archive({"media/photo.jpg": b"ok", "secret_key": b"ATTACKER-KEY"})
+
+    with pytest.raises(backups.BackupError, match="unexpected member in media archive"):
+        backups.restore_backup(archive, force=True)
+    assert "pg_restore" not in invoked
+
+
+def test_the_outer_members_are_capped_before_either_is_written(
+    fake_pg: None, settings: Any, tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Review M3. The ceilings read the MEDIA tar's own headers, which means the media tar
+    itself — and `database.dump`, which had no ceiling of any kind — were already extracted
+    onto the data volume before anything was consulted. A 200 GB dump filled the disk
+    before the guard that exists to stop exactly that had run.
+
+    Red without the `_refuse_an_oversized_extraction` call on the outer members: both
+    files land in the staging directory and pg_restore is invoked.
+    """
+    settings.MEDIA_ROOT = str(tmp_path / "data" / "media")
+    _free_space(monkeypatch, 10**15)
+    monkeypatch.setattr(backups, "MAX_RESTORED_MEMBER_BYTES", 50)
+    invoked: list[str] = []
+
+    def recording_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        invoked.append(argv[0])
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("core.backups.subprocess.run", recording_run)
+    # The MEDIA tar is tiny; the DATABASE DUMP is what is over the ceiling, which is the
+    # member the old check could not see at all.
+    archive = io.BytesIO()
+    inner = io.BytesIO()
+    with tarfile.open(fileobj=inner, mode="w:gz") as media_tar:
+        info = tarfile.TarInfo("media/photo.jpg")
+        info.size = 2
+        media_tar.addfile(info, io.BytesIO(b"ok"))
+    with tarfile.open(fileobj=archive, mode="w") as outer:
+        manifest = json.dumps({"format": backups.BACKUP_FORMAT}).encode()
+        for name, payload in (
+            ("backup-manifest.json", manifest),
+            ("database.dump", b"PGDMP" + b"x" * 500),
+            ("media.tar.gz", inner.getvalue()),
+        ):
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            outer.addfile(info, io.BytesIO(payload))
+    archive.seek(0)
+
+    with pytest.raises(backups.BackupError) as caught:
+        backups.restore_backup(archive, force=True)
+
+    assert "database.dump" in str(caught.value), caught.value
+    assert "Nothing has been written" in str(caught.value)
+    assert "pg_restore" not in invoked
+
+
+def test_restore_names_the_one_oversized_file(
+    fake_pg: None, settings: Any, tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A total tells an operator nothing about what to look at; the per-member ceiling
+    names the file."""
+    settings.MEDIA_ROOT = str(tmp_path / "data" / "media")
+    _free_space(monkeypatch, 10**15)
+    monkeypatch.setattr(backups, "MAX_RESTORED_MEMBER_BYTES", 1000)
+    archive = _media_archive({"media/ok.jpg": b"x" * 10, "media/bomb.bin": b"x" * 2000})
+
+    with pytest.raises(backups.BackupError) as caught:
+        backups.restore_backup(archive, force=True)
+    assert "media/bomb.bin" in str(caught.value), caught.value
+
+
+def test_an_ordinary_family_archive_still_restores(
+    fake_pg: None, settings: Any, tmp_path: Path
+) -> None:
+    """Guard the guard: the ceilings must not refuse the case they exist to protect."""
+    media_root = tmp_path / "data" / "media"
+    settings.MEDIA_ROOT = str(media_root)
+    archive = io.BytesIO()
+    inner = io.BytesIO()
+    with tarfile.open(fileobj=inner, mode="w:gz") as media_tar:
+        data = b"a photo" * 1000
+        info = tarfile.TarInfo("media/2026/photo.jpg")
+        info.size = len(data)
+        media_tar.addfile(info, io.BytesIO(data))
+    with tarfile.open(fileobj=archive, mode="w") as outer:
+        manifest = json.dumps({"format": backups.BACKUP_FORMAT}).encode()
+        for name, payload in (
+            ("backup-manifest.json", manifest),
+            ("database.dump", b"PGDMP"),
+            ("media.tar.gz", inner.getvalue()),
+        ):
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            outer.addfile(info, io.BytesIO(payload))
+    archive.seek(0)
+
+    backups.restore_backup(archive, force=True)
+    assert (media_root / "2026" / "photo.jpg").read_bytes() == b"a photo" * 1000
 
 
 # --- S-802: the ENCRYPTED path, end to end through the real commands ---------

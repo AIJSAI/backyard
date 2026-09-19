@@ -14,8 +14,9 @@ path at all.
 
 Note the boundary with the member-facing recovery link (BY-01, core/recovery.py). Nobody
 recovers their OWN admin account from inside the product: `can_manage_member` refuses
-self-administration at every role, so an admin's own path is this console command --
-a web form an admin can point at themselves is the front door mandatory admin 2FA closes.
+self-administration at every role, so an admin's own path is this console command -- a web
+form an admin can point at themselves would be a password-reset front door onto the most
+privileged account on the instance, reachable by anyone who can read an inbox.
 An admin is NOT beyond reach FROM ABOVE, and that is deliberate rather than accidental:
 `can_manage_member` lets the instance admin issue a recovery link for a yard admin or for
 a peer instance admin, and the roster renders the control on those rows. The instance
@@ -117,6 +118,11 @@ def _resolve_admin(uidb64: str, token: str) -> UserModel | None:
 
 
 def break_glass(request: HttpRequest, uidb64: str, token: str) -> HttpResponse:
+    # Issue 173: this endpoint sets an INSTANCE ADMIN's password and carried no limit of
+    # any kind, which made it the cheapest unauthenticated write on the box. It is bounded
+    # now by `core.throttling.FamilyLinkThrottleMiddleware`, in middleware rather than
+    # here because every wrong token leaves through Http404 and ATOMIC_REQUESTS would roll
+    # a view-level counter back with it.
     user = _resolve_admin(uidb64, token)
     if user is None:
         raise Http404  # unknown, tampered, or expired token: one uniform 404

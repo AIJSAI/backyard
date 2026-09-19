@@ -97,6 +97,9 @@ def recover(request: HttpRequest, token: str) -> HttpResponse:
     Every unusable-link shape answers the same bare 404 as an unknown route, so this is
     not an account-existence oracle.
     """
+    # The bearer-surface limit rides `FamilyLinkThrottleMiddleware` (S2) and covers the
+    # GET, which the `login` limit below exempts by design. Both apply to the POST: one
+    # bounds the credential endpoint, the other bounds the link.
     try:
         live = recovery.resolve(token)
     except recovery.RecoveryInvalid as exc:

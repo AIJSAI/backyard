@@ -20,6 +20,7 @@ from django.shortcuts import redirect, render
 from django.utils.text import slugify
 
 from . import health, permissions
+from .management.commands import ensure_setup
 from .models import Member, Pod, PodMembership, SetupToken, Yard
 
 if TYPE_CHECKING:
@@ -95,6 +96,12 @@ def _try_create_admin(
         )
         PodMembership.objects.create(member=member, pod=pod)
         SetupToken.objects.all().delete()
+        # The plaintext secret is handed over in a file on the data volume (G10), so the
+        # file goes with the token. `on_commit`, not inline: if this transaction rolls
+        # back the secret is still live, and deleting the only copy of a live credential
+        # would leave a self-hoster with an instance they cannot finish setting up and no
+        # way to read the value except another boot.
+        transaction.on_commit(ensure_setup.clear_handover)
         return admin
 
 

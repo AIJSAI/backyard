@@ -189,6 +189,10 @@ def test_the_project_template_root_shadows_nothing_unintended() -> None:
     allowed = {
         "403_csrf.html",
         "404.html",
+        # The calm page a family link shows when it has been opened very many times in a
+        # few minutes (S2). allauth's handler429 renders `429.html` BY NAME from the
+        # project template root, so this is the only place it can live.
+        "429.html",
         "500.html",
         # Copy-only overrides of allauth's own pages: Title Case, "Email:", dead-end
         # "contact us" endings, and an account-system voice on a family's app.

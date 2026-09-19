@@ -54,11 +54,16 @@ the right gate.
 
 Nothing below moves until these are answered.
 
-**Enforce admin 2FA (T-ADMIN-1).** The threat model claims *"passkey or TOTP, enforced in the
-wizard so a password-only admin never exists."* Nothing enforces it — a password-only
-superuser reaches every admin surface. Left open deliberately: enabling it can lock the only
-admin out, and `breakglass.py` already assumes the control exists. The safe order is
-**enrol, then enforce**. That is a rollout call, not a patch.
+**Admin 2FA (T-ADMIN-1) — RULED 2026-09-19: offered, not enforced. No longer waiting on
+anyone.** The threat model claimed *"passkey or TOTP, enforced in the wizard so a
+password-only admin never exists"* and nothing ever enforced it; the record was corrected
+rather than the code. Requiring one means lockouts for the two non-technical relatives
+becoming admins here, and a locked-out admin on a family box is recovered only through a
+server shell they have not got. What ships is the offer: a second factor available to every
+account, the account-security page reachable from Settings, and one calm dismissible prompt
+on the member roster for an admin with nothing enrolled. Enforcement for the INSTANCE ADMIN
+alone — one account, the person who does have the shell — is a narrower question and is
+filed as issue 182 for the owner.
 
 **S-603 — build the ambient photo frame, or cut it?** The last `spec` story. If built it
 needs a threat-model entry *before* code (new always-on bearer credential on a device in a
@@ -87,29 +92,29 @@ written here.
 
 | # | Finding | Where |
 |---|---|---|
-| S1 | **Anymail's inbound fetch has no `timeout=` and no size cap.** Three `requests.get` calls with neither, inside the webhook's own request cycle — so a slow provider pins a gunicorn worker indefinitely, and the size cap in our code applies only *after* the whole message is downloaded and parsed. Fix by enqueueing the fetch on the worker with a bounded, timed read. | `anymail/webhooks/resend.py:277,287,331` (upstream — needs a subclass) |
-| S2 | **No rate limiting on the unauthenticated bearer surfaces' GET.** `/t/`, `/d/`, `/media/`, `/join/`, `/break-glass/`, `/get-back-in/` — all hit the DB on a GET, none throttled, and each 404 now renders the ~26KB branded page. Token entropy is 256-bit so this is availability, not guessing. `middleware.py` names the gap itself. Two of the three surfaces that SET a credential throttle their POST (`/join/` and `/get-back-in/` both consume allauth's `login` limit). `/break-glass/` does NOT — it resets an instance admin's password on an unauthenticated POST with no limit of any kind (`core/breakglass.py::break_glass` makes no `ratelimit.consume` call), which is the one act in this row worth the most to an attacker. So the gap is the bare lookup on every surface, AND the act on `/break-glass/`. | `elder_views.py`, `digest_views.py`, `media_views.py` — confirmed 0 rate-limit calls |
-| S3 | **Control characters are not stripped from post bodies or display names.** The inbound path strips; the web composer and profile editor do not, and `digest.txt` renders with `autoescape off`. A bidi override or ANSI escape in a name reaches the plaintext digest verbatim; a `\x00` is a 500. | `posting.py`, `commenting.py` — confirmed 0 `strip_control` calls |
-| S4 | **The webhook route is mounted unconditionally**, and the secret is only required when the Resend *send* backend is active. On the documented SMTP config, every unauthenticated POST is an unhandled 500. Fail-closed today only by an upstream library rejecting an empty secret. | `config/urls.py`, `config/email_guard.py` |
-| S5 | **`_trusted_recipient` falls back to a sender-controlled `To:` header** when the transport supplies no envelope recipient, and takes `[0]` of a multi-recipient list. Converts TM-4's "the address IS the credential" into "a header is the credential". Should fail closed. | `inbound_webhook.py:40-54` |
+| ~~S1~~ | **DONE 2026-09-19 (security-hardening PR).** `core.inbound_webhook.BoundedResendInboundWebhookView` overrides the two fetch helpers with a connect/read timeout and a streamed, size-capped read; a refusal lands on the admin's quarantine panel rather than as a 500 the provider retries. ~~Anymail's inbound fetch has no `timeout=` and no size cap.~~ Three `requests.get` calls with neither, inside the webhook's own request cycle — so a slow provider pins a gunicorn worker indefinitely, and the size cap in our code applies only *after* the whole message is downloaded and parsed. Fix by enqueueing the fetch on the worker with a bounded, timed read. | `anymail/webhooks/resend.py:277,287,331` (upstream — needs a subclass) |
+| ~~S2~~ | **DONE 2026-09-19 (security-hardening PR), with issue 173.** `core.throttling.FamilyLinkThrottleMiddleware` bounds `/t/`, `/d/`, `/join/`, `/get-back-in/`, `/break-glass/` and the two digest pages, GET included, and refuses with the product's own calm page. In MIDDLEWARE rather than in the views because ATOMIC_REQUESTS rolls a view's counter write back on the Http404 path — i.e. on exactly the requests worth counting. `/media/` is excused BY NAME with its reason. ~~No rate limiting on the unauthenticated bearer surfaces' GET.~~ `/t/`, `/d/`, `/media/`, `/join/`, `/break-glass/`, `/get-back-in/` — all hit the DB on a GET, none throttled, and each 404 now renders the ~26KB branded page. Token entropy is 256-bit so this is availability, not guessing. `middleware.py` names the gap itself. Two of the three surfaces that SET a credential throttle their POST (`/join/` and `/get-back-in/` both consume allauth's `login` limit). `/break-glass/` does NOT — it resets an instance admin's password on an unauthenticated POST with no limit of any kind (`core/breakglass.py::break_glass` makes no `ratelimit.consume` call), which is the one act in this row worth the most to an attacker. So the gap is the bare lookup on every surface, AND the act on `/break-glass/`. | `elder_views.py`, `digest_views.py`, `media_views.py` — confirmed 0 rate-limit calls |
+| ~~S3~~ | **DONE 2026-09-19 (security-hardening PR).** `emailing.strip_control` / `strip_control_keep_breaks` are the one rule, applied by `posting`, `commenting` and a `pre_save` receiver on `Member`; tested on printability rather than category Cc, because the bidi overrides this was about are category Cf. ~~Control characters are not stripped from post bodies or display names.~~ The inbound path strips; the web composer and profile editor do not, and `digest.txt` renders with `autoescape off`. A bidi override or ANSI escape in a name reaches the plaintext digest verbatim; a `\x00` is a 500. | `posting.py`, `commenting.py` — confirmed 0 `strip_control` calls |
+| ~~S4~~ | **DONE 2026-09-19 (security-hardening PR).** `config.urls._inbound_urlpatterns` mounts it only when `RESEND_INBOUND_SECRET` is configured, and the view's `dispatch` refuses it anyway. ~~The webhook route is mounted unconditionally~~, and the secret is only required when the Resend *send* backend is active. On the documented SMTP config, every unauthenticated POST is an unhandled 500. Fail-closed today only by an upstream library rejecting an empty secret. | `config/urls.py`, `config/email_guard.py` |
+| ~~S5~~ | **DONE 2026-09-19 (security-hardening PR).** `received_for` only, a multi-recipient delivery is refused rather than resolved to its first element, and no trustworthy address means no post — with a quarantine row so the refusal is visible. ~~`_trusted_recipient` falls back to a sender-controlled `To:` header~~ when the transport supplies no envelope recipient, and takes `[0]` of a multi-recipient list. Converts TM-4's "the address IS the credential" into "a header is the credential". Should fail closed. | `inbound_webhook.py:40-54` |
 | S6 | **Supply chain** — mostly CLOSED 2026-09-19. Every third-party action is pinned to a full commit SHA with its release tag in a trailing comment (`checkout` v7.0.1, `setup-python` v7.0.0, `setup-uv` v10.1.0, moved to their current majors), and `.github/dependabot.yml` now runs weekly grouped version updates for `uv`, `docker`, `docker-compose` and `github-actions`, which is what keeps a SHA pin from rotting. **"Dependabot disabled" was never true and is the part of this row to read twice**: security updates have been enabled the whole time — PR #164 and #129 are its output — and what was missing was the *version*-update config, so nothing was ever going to open a pull request for a stale action pin or a stale base-image digest. The Dockerfile base still floats, now on purpose and recorded (see the `FROM` comment and threat model TS-CO-8): it is the only cache key above the apt layer, so a digest pin would freeze the pg client and ffmpeg behind somebody remembering to bump it. **Still open**: `pip-audit` is invoked unpinned (`uv run --with pip-audit`) beside a checksum-verified gitleaks and a pinned `bandit==1.9.2`, and there is still no container/OS image scan. | `.github/workflows/`, `.github/dependabot.yml`, `Dockerfile` — re-measured |
 | S7 | **`cryptography` is undeclared.** The primitive the entire backup guarantee rests on arrives only via `django-allauth[mfa]` → `fido2`. The day that extra changes, encrypted backup breaks at import. | `pyproject.toml` — confirmed absent |
 
 ### Smaller, still real
 
 - **S8** — `profiles._can_see_field` returns `True` for YARD unconditionally; every current caller pre-scopes, so no live route, but one future caller reintroduces T-YARD-6.
-- **S9** — Voluntary leave does not fire the revocation handler, and pod-leaves-yard has no implementation at all, though TM-1 names both.
+- **S9** — **DONE 2026-09-19 (security-hardening PR), with issue 174's first half.** `pods.leave_pod` now locks the member row, refuses a leave that would strand somebody, and runs `revocation.revoke_for_membership_shrink` scoped to the sides actually being lost, before the membership row goes. Pod-leaves-yard and the deceased flow are still unbuilt and are named as unbuilt in TM-1 rather than described as shipped.
 - **S10** — Break-glass keys on `is_superuser`, so a *promoted* instance admin (the S-707 succession path) has no recovery path.
 - **S11** — `notify_reply` rotates the unsubscribe token on every nudge, invalidating the link in the digest already in her mailbox.
 - **S12** — `create_supervised` places the child in the **actor's** pod, not the named parent's.
 - **S13** — The bigint-cursor guard exists in one id parser and is missing from the others (`handover.int_or_404`, `pod_views._int`, `breakglass._resolve_admin`) → 500 on a 21-digit id.
 - **S14** — `can_assign_role` would permit `SUPERVISED`; unreachable today only because the view allowlists first.
 - **S15** — Session lifetime is a fixed 2-week window with no absolute cap or rotation on privilege change (TS-DJ-1 residual, disclosed).
-- **S16** — `viewers.py` omits the `hasattr(member, "elder_token")` check that `elder_views.py` applies to the same session.
-- **S17** — `transcoding.py` logs ffmpeg stderr containing the media token, on a logger not attached to the redaction filter.
-- **S18** — `domain_expiry` follows a third-party redirect with an https check but **no private-range rejection**, unlike `link_preview`. Two outbound fetchers should share one validator.
+- **S16** — **DONE 2026-09-19 (security-hardening PR).** `viewers._reader_from_elder_session` applies the same live-token check, so a deleted `ElderToken` row stops the photographs as well as the feed.
+- **S17** — **DONE 2026-09-19 (security-hardening PR).** `settings.LOGGING` declares `core` on the redacting handler, so no module under it can be a fourth unfiltered sink.
+- **S18** — **DONE 2026-09-19 (security-hardening PR).** The validator moved to `core/outbound_addresses.py` and both fetchers share it; `domain_expiry` resolves, range-checks and pins on every hop through `_ValidatedHTTPSHandler`, before the connect.
 - **S19** — Staging disk budget is per-session with no instance-wide cap, on the volume holding `/data/secret_key`.
-- **S20** — Restore trusts an unauthenticated plaintext archive when no passphrase is configured; no extraction size cap.
+- **S20** — **Extraction cap DONE 2026-09-19 (security-hardening PR):** `backups._refuse_an_oversized_extraction` refuses against the destination volume's free space, a per-member ceiling and an absolute total, loudly and before a byte is written. STILL OPEN: restore trusts an unauthenticated plaintext archive when no passphrase is configured — the module docstring's trust boundary is the only control there.
 - **S21** — `export.py` reads a whole video into memory; `/settings/export/` has no rate limit.
 - **S22** — Icons re-render with Pillow on every request, unauthenticated.
 - **S23** — `link_preview` raises an unhandled `ValueError` on a scope-qualified IPv6 from `getaddrinfo`.
@@ -165,7 +170,7 @@ unnoticed.
   sentence a prior audit caught shipping plaintext under.
 - **G9** — The backup runbook puts the migrator password on the host command line, in the same
   document that (correctly) says never to do that with the passphrase.
-- **G10** — The one-time setup secret is printed to stdout → the Docker json log.
+- **G10** — **DONE 2026-09-19 (security-hardening PR).** The secret goes to a 0600 file on the data volume (`SETUP_HANDOVER_FILE`, default `/data/first-run-secret`); only the path is printed, the file is deleted when setup completes and again on the next boot, `make setup-secret` reads it, and the CI compose probe asserts live that it is 0600 and that its value appears nowhere in the container log.
 
 ---
 

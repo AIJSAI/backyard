@@ -50,7 +50,21 @@ if [ "$ROLE" = web ]; then
       -h "${POSTGRES_HOST:-postgres}" -p "${POSTGRES_PORT:-5432}" \
       -U backyard_migrator -Fc \
       -f "/data/backups/preflight-$STAMP.dump" "${POSTGRES_DB:-backyard}" \
-      || { echo "Pre-flight backup FAILED; refusing to migrate (set BACKYARD_SKIP_PREFLIGHT_BACKUP=1 to override)."; exit 1; }
+      || { \
+        # The PARTIAL file goes with the failure. pg_dump writes as it goes, so a dump
+        # that dies part-way leaves a plaintext prefix of the family database on the data
+        # volume -- every table it had reached, in the clear, on the disk a stolen laptop
+        # or a provider snapshot carries away. That is verbatim T-BACKUP-1, arrived at
+        # through the failure path rather than the success one, and nothing else ever
+        # removes it: the retention sweep below never runs, and the encrypt branch is not
+        # reached either. Measured on production 2026-09-19: an unattended reboot raced
+        # web ahead of Postgres, pg_dump failed, the container exited 1 and restarted
+        # (correct) -- and left the file behind. It was 0 bytes that time. A dump that
+        # fails mid-stream is the same path with content in it.
+        rm -f "/data/backups/preflight-$STAMP.dump"; \
+        echo "Pre-flight backup FAILED; refusing to migrate (set BACKYARD_SKIP_PREFLIGHT_BACKUP=1 to override)."; \
+        exit 1; \
+      }
     # Encrypt it if we can. This dump is the ENTIRE family database -- every table, every
     # token hash, the whole directory and social graph -- and it was written in plaintext on
     # every single container start, three copies deep. The runbook justified that with

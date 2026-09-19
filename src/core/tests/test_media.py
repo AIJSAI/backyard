@@ -27,6 +27,7 @@ from core import digest_links, elder_tokens, media, scoping
 from core.models import (
     DigestIssue,
     DigestToken,
+    ElderToken,
     MediaAsset,
     Member,
     Pod,
@@ -282,6 +283,44 @@ def test_revoking_an_elder_kills_her_media_access_mid_session(
     elder.token_generation += 1
     elder.save(update_fields=["token_generation"])
     assert client.get(reverse("serve_media", args=[asset.token])).status_code == 404
+
+
+def test_deleting_the_elder_token_row_kills_her_media_access_too(
+    world: dict[str, object],
+) -> None:
+    """The two readers of the elder session must agree (S16).
+
+    `elder_views._elder_member` refuses a session whose member holds no ElderToken row;
+    `viewers._reader_from_elder_session` did not, and `serve_media` asks the second one.
+    So a member whose token row was deleted without a generation bump saw the bare 404
+    on her feed while every photograph on it was still being served from the same cookie.
+    Revocation registers BOTH kills for this credential on purpose — the bump and
+    `_void_elder_tokens`, which deletes the row so "a revoked member holds no token row
+    at all" — and a resolver that reads only one of them honours half the registry.
+
+    Fails without the `hasattr(member, "elder_token")` check in `viewers.py`: the fetch
+    below comes back 200.
+    """
+    post = world["post"]
+    assert isinstance(post, Post)
+    asset = media.ingest_photo(post=post, raw=_jpeg_with_exif())
+    elder = Member.objects.create(display_name="Rowless Gran")
+    PodMembership.objects.create(member=elder, pod=post.pod)
+    raw = elder_tokens.mint(elder)
+    client = Client()
+    client.get(reverse("elder_enter", args=[raw]))
+    assert client.get(reverse("serve_media", args=[asset.token])).status_code == 200
+
+    # The row alone, with no bump: exactly what revocation's registry-literal step does.
+    ElderToken.objects.filter(member=elder).delete()
+    elder.refresh_from_db()
+    # The media path FIRST, and that order is load-bearing: `elder_views._elder_member`
+    # flushes the session on its way to the 404, so asking the feed first would destroy
+    # the very credential this assertion is about and pass for the wrong reason.
+    assert client.get(reverse("serve_media", args=[asset.token])).status_code == 404
+    assert client.get(reverse("elder_feed")).status_code == 404, (
+        "the elder feed already refused this session; the media path is what disagreed"
+    )
 
 
 def _issue_for(member: Member, yard: Yard, *, days: int = 7) -> tuple[DigestIssue, str]:

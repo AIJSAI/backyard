@@ -131,6 +131,14 @@ def test_the_digest_link_is_not_shown_when_an_admin_edits_someone_else() -> None
 # the check, and the check was 1-hop and non-transitive, so a link from ANY other template
 # satisfied it — including a link from inside the same orphaned cluster. `members` was
 # linked from eight templates and every one of them was in the cluster.
+# Routes that exist only under some configuration, so `test_every_excluded_route_still_exists`
+# must not call them stale when they are absent. Merged into the exemptions above for the
+# reachability crawl, and excluded from the staleness check.
+_UNLINKED_WHEN_MOUNTED = {
+    "anymail_resend_inbound": "the inbound mail webhook, mounted only when "
+    "RESEND_INBOUND_SECRET is configured (S4) — absent on an SMTP instance and in tests",
+}
+
 _UNLINKED_BY_DESIGN = {
     # Entrances, reached from outside the product.
     "home": "the signed-out entrance; an authenticated member is redirected to the feed",
@@ -155,7 +163,6 @@ _UNLINKED_BY_DESIGN = {
     "icon_512": "a PWA icon, referenced from the manifest",
     "icon_maskable_512": "a PWA icon, referenced from the manifest",
     "serve_media": "an <img src>, not a page",
-    "anymail_resend_inbound": "the inbound mail webhook",
     # These were one entry, `"vcard"`, which is not a route — the real names are
     # `directory_vcards` and `member_vcard`. The set is only ever SUBTRACTED, so a stale or
     # misspelled key excuses nothing and says nothing; the list can rot with no signal.
@@ -416,7 +423,8 @@ def test_every_route_is_reachable_by_clicking_or_is_listed_as_deliberately_not()
         "this check cannot fail for the right reason"
     )
 
-    unreachable = sorted(_all_named_routes() - reachable - set(_UNLINKED_BY_DESIGN))
+    excused = set(_UNLINKED_BY_DESIGN) | set(_UNLINKED_WHEN_MOUNTED)
+    unreachable = sorted(_all_named_routes() - reachable - excused)
     assert not unreachable, (
         f"routed, but a signed-in instance admin cannot reach them by clicking: "
         f"{unreachable}.\n\nA member cannot type a URL they have never seen. Either link "

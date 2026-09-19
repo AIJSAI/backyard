@@ -26,14 +26,18 @@ view. A card with no fetchable/decodable image degrades to title + description +
 
 No third-party HTTP client or HTML parser is added: the stdlib gives the redirect
 and IP-pinning control these controls require and keeps the supply chain small.
+
+The address half of that gate now lives in `core.outbound_addresses` and is SHARED with
+the domain-expiry lookup (S18), which was the other outbound fetch in the product and had
+a scheme check and nothing else — while `rdap.org` is a redirector, so its hop target is
+third-party-chosen exactly like a member's pasted URL. One validator, two callers, each
+translating the one failure shape into its own vocabulary at its own boundary.
 """
 
 from __future__ import annotations
 
 import http.client
-import ipaddress
 import re
-import socket
 import ssl
 import time
 from collections.abc import Callable
@@ -41,6 +45,8 @@ from dataclasses import dataclass
 from html.parser import HTMLParser
 from typing import TYPE_CHECKING
 from urllib.parse import urljoin, urlsplit, urlunsplit
+
+from . import outbound_addresses
 
 if TYPE_CHECKING:
     from .models import LinkPreview, Post
@@ -120,100 +126,31 @@ def strip_tracking_params(url: str) -> str:
     return urlunsplit(parts._replace(query="&".join(kept)))
 
 
-# IPv6 prefixes that embed an IPv4 address in their low 32 bits. On Python 3.13
-# ip.is_global returns True for NAT64 (64:ff9b::/96) and the IPv4-compatible/SIIT
-# forms even when the embedded IPv4 is internal, so an attacker who controls DNS can
-# publish an AAAA of 64:ff9b::<metadata-v4> and, on a NAT64 network, reach the cloud
-# metadata endpoint (security review HIGH-2). Decode the embedded v4 and re-check it.
-_V4_EMBEDDING_PREFIXES = (
-    ipaddress.IPv6Network("::/96"),  # IPv4-compatible (deprecated)
-    ipaddress.IPv6Network("::ffff:0:0/96"),  # IPv4-mapped (also via .ipv4_mapped)
-    ipaddress.IPv6Network("::ffff:0:0:0/96"),  # SIIT ::ffff:0:<v4>
-    ipaddress.IPv6Network("64:ff9b::/96"),  # NAT64 well-known prefix
-    ipaddress.IPv6Network("64:ff9b:1::/48"),  # NAT64 local-use prefix
-)
-
-
-def _embedded_ipv4(ip: ipaddress.IPv6Address) -> ipaddress.IPv4Address | None:
-    """The IPv4 an IPv6 address embeds (mapped, 6to4, NAT64, IPv4-compatible/SIIT),
-    or None. These forms can route to an internal IPv4 while ip.is_global is True."""
-    if ip.ipv4_mapped is not None:
-        return ip.ipv4_mapped
-    if ip.sixtofour is not None:
-        return ip.sixtofour
-    for net in _V4_EMBEDDING_PREFIXES:
-        if ip in net:
-            return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
-    return None
-
-
 def _check_ip(raw: str) -> None:
-    """Raise PreviewUnavailable unless the address is a globally routable unicast
-    address. Rejects every non-global category (private, loopback, link-local,
-    reserved, CGNAT, unspecified, multicast) and, for IPv6, decodes any embedded
-    IPv4 (mapped, 6to4, NAT64, IPv4-compatible) and re-checks it, so an IPv6 form
-    that routes to an internal IPv4 cannot slip past is_global (HIGH-2)."""
-    ip: ipaddress.IPv4Address | ipaddress.IPv6Address = ipaddress.ip_address(raw)
-    if isinstance(ip, ipaddress.IPv6Address):
-        embedded = _embedded_ipv4(ip)
-        if embedded is not None:
-            ip = embedded
-    if (
-        ip.is_multicast
-        or ip.is_unspecified
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_reserved
-        or ip.is_private
-        or not ip.is_global
-    ):
-        raise PreviewUnavailable(f"blocked address {raw}")
+    """`outbound_addresses.check_ip` in this module's vocabulary.
+
+    The rules moved to `core.outbound_addresses` so the domain-expiry lookup could stop
+    being the one outbound fetch in the product with no private-range rejection (S18).
+    This wrapper stays because the translation to `PreviewUnavailable` belongs here: the
+    caller treats every reason as "no card", and the validator has no business knowing
+    that.
+    """
+    try:
+        outbound_addresses.check_ip(raw)
+    except outbound_addresses.BlockedAddress as exc:
+        raise PreviewUnavailable(str(exc)) from exc
 
 
 def _resolve_and_pin(host: str, port: int) -> str:
-    """Resolve the host once, reject if ANY resolved address is not globally
-    routable, and return one validated IP to pin the connection to."""
+    """`outbound_addresses.resolve_and_pin`, translated the same way."""
     try:
-        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
-    except socket.gaierror as exc:
-        raise PreviewUnavailable(f"cannot resolve {host}") from exc
-    if not infos:
-        raise PreviewUnavailable(f"cannot resolve {host}")
-    pinned: str | None = None
-    for _family, _type, _proto, _canon, sockaddr in infos:
-        ip = str(sockaddr[0])
-        _check_ip(ip)  # every resolved address must pass; one bad address rejects all
-        if pinned is None:
-            pinned = ip
-    if pinned is None:  # unreachable: infos was non-empty, but keep it explicit
-        raise PreviewUnavailable(f"cannot resolve {host}")
-    return pinned
+        return outbound_addresses.resolve_and_pin(host, port)
+    except outbound_addresses.BlockedAddress as exc:
+        raise PreviewUnavailable(str(exc)) from exc
 
 
-class _PinnedHTTPSConnection(http.client.HTTPSConnection):
-    """HTTPS to a pre-validated IP with correct SNI and certificate check for the
-    original hostname, so the TCP connect cannot be rebound to another address."""
-
-    def __init__(self, host: str, *, pinned_ip: str, **kwargs: object) -> None:
-        super().__init__(host, **kwargs)  # type: ignore[arg-type]
-        self._pinned_ip = pinned_ip
-
-    def connect(self) -> None:
-        sock = socket.create_connection((self._pinned_ip, self.port), timeout=self.timeout)
-        # self._context is the SSLContext set by HTTPSConnection.__init__; SNI and
-        # cert validation use self.host (the real hostname), the TCP peer is the IP.
-        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)  # type: ignore[attr-defined]
-
-
-class _PinnedHTTPConnection(http.client.HTTPConnection):
-    """HTTP to a pre-validated IP; the Host header stays the original hostname."""
-
-    def __init__(self, host: str, *, pinned_ip: str, **kwargs: object) -> None:
-        super().__init__(host, **kwargs)  # type: ignore[arg-type]
-        self._pinned_ip = pinned_ip
-
-    def connect(self) -> None:
-        self.sock = socket.create_connection((self._pinned_ip, self.port), timeout=self.timeout)
+_PinnedHTTPSConnection = outbound_addresses.PinnedHTTPSConnection
+_PinnedHTTPConnection = outbound_addresses.PinnedHTTPConnection
 
 
 def _validate_url(url: str) -> tuple[str, str, int, str]:

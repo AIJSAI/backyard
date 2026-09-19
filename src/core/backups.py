@@ -57,6 +57,24 @@ DB_DUMP_NAME = "database.dump"
 MEDIA_TAR_NAME = "media.tar.gz"
 BACKUP_FORMAT = "backyard-instance-backup/1"
 
+# The absolute ceiling on an extracted media tree, and the headroom kept free on the volume
+# it lands on (S20). `filter="data"` covers path traversal; it says nothing about VOLUME, so
+# a 40 GB tree inside a 40 MB gzip filled the disk of a box whose operator was already in
+# trouble — a restore is the one command somebody runs when things have gone wrong, and the
+# failure mode was a full /data with the old media tree already deleted.
+#
+# 200 GB is far above any real family archive (the small VM class this ships on tops out
+# around 40 GB, issue 176) and far below a decompression bomb, so it is the backstop for the
+# case where free space cannot be measured rather than the working limit. The working limit
+# is free space minus the reserve: the restore also needs room for the database dump beside
+# it, and a volume with literally zero bytes left is its own outage.
+MAX_RESTORED_MEDIA_BYTES = 200 * 1024**3
+RESTORE_FREE_SPACE_RESERVE_BYTES = 1024**3
+# One member's ceiling. A single file larger than this is not a family photograph or a
+# two-minute clip; it is either corruption or a bomb, and naming it separately means the
+# refusal can say WHICH file rather than only "too big in total".
+MAX_RESTORED_MEMBER_BYTES = 16 * 1024**3
+
 # A nightly, unattended dump on a single-slot worker needs a wall-clock bound. Without one
 # a hung pg_dump (a stalled connection, a partition mid-stream) holds the worker's ONE
 # concurrency slot forever, which silently stops the digest, the health email, every
@@ -237,8 +255,25 @@ def restore_backup(source: IO[bytes], *, force: bool) -> dict[str, int]:
     with _restore_workdir() as workdir:
         with tarfile.open(fileobj=source, mode="r") as archive:
             _verify_manifest(archive)
+            # The OUTER members, before either lands on disk. The media ceilings below
+            # read the media tar's own headers, which means the media tar itself — and
+            # `database.dump`, which had no ceiling at all — were already written to the
+            # staging dir on the data volume by the time anything was checked. A 200 GB
+            # dump filled the disk before the guard that exists to stop that ever ran.
+            _refuse_an_oversized_extraction(
+                [archive.getmember(DB_DUMP_NAME), archive.getmember(MEDIA_TAR_NAME)],
+                Path(workdir),
+            )
             archive.extract(DB_DUMP_NAME, path=workdir, filter="data")
             archive.extract(MEDIA_TAR_NAME, path=workdir, filter="data")
+
+        # The media ceilings are checked HERE, before pg_restore, and the order is the
+        # whole point (Copilot review of the hardening PR). `pg_restore --clean` drops and
+        # rebuilds every table, so a refusal raised from inside `_restore_media` would have
+        # come AFTER the family's database had already been replaced — while saying
+        # "Nothing has been written", which would be false at the moment it matters most.
+        # Reading the tar's headers costs nothing and answers before anything is destroyed.
+        _refuse_an_oversized_media_archive(Path(workdir) / MEDIA_TAR_NAME, Path(workdir))
 
         result = subprocess.run(  # noqa: S603  # fixed argv, never a shell
             [
@@ -335,6 +370,82 @@ def _forced_security_replay() -> dict[str, int]:
     }
 
 
+def _refuse_an_oversized_media_archive(media_tar_path: Path, destination: Path) -> None:
+    """Read the media archive's headers and refuse it if it will not fit (S20).
+
+    Split from the extraction so it can run BEFORE `pg_restore`, which is the only
+    ordering under which its refusal can honestly say nothing has been written: the
+    restore's first destructive act is `pg_restore --clean`, not the extraction.
+
+    The archive's shape is checked here too — every member must be under `media/` — so the
+    traversal refusal (#47 review HIGH) also lands before the database is touched.
+    """
+    with tarfile.open(media_tar_path, "r:gz") as media_tar:
+        members = media_tar.getmembers()
+    for member in members:
+        top = Path(member.name).parts[0] if member.name else ""
+        if top != "media":
+            raise BackupError(f"unexpected member in media archive: {member.name!r}")
+    _refuse_an_oversized_extraction(members, destination)
+
+
+def _refuse_an_oversized_extraction(members: list[tarfile.TarInfo], destination: Path) -> None:
+    """Refuse, BEFORE a byte is written, a media archive that will not fit (S20).
+
+    Three ceilings, and the loud refusal happens before `extractall` rather than after,
+    because the only thing worse than a restore that fails is one that fails halfway
+    across a volume that now holds neither the old media tree nor a whole new one.
+
+    1. FREE SPACE on the volume the tree actually lands on, minus a reserve. This is the
+       real limit: on the VM class this product ships on, the disk is the constraint long
+       before any absolute number is.
+    2. An absolute total (`MAX_RESTORED_MEDIA_BYTES`), which is the backstop for a box
+       whose free space cannot be measured at all.
+    3. A PER-MEMBER ceiling, so the refusal can name the one file that is wrong instead of
+       reporting a total that tells the operator nothing about what to look at.
+
+    `TarInfo.size` is the header's claim, not a measurement, and a crafted header could
+    understate it. That is bounded rather than trusted: the archive is the operator's own
+    (the module docstring's trust boundary — restoring one is equivalent to handing its
+    author a shell), and the free-space check means an understated header fails on write
+    with ENOSPC exactly as it would today. What this closes is the honest-header case,
+    which is the one that actually happens: a real family archive that has outgrown the
+    box it is being restored onto, and a gzip bomb, both of which announce their size.
+    """
+    total = 0
+    for member in members:
+        if not member.isreg():
+            continue
+        if member.size > MAX_RESTORED_MEMBER_BYTES:
+            raise BackupError(
+                f"refusing to restore: {member.name!r} claims "
+                f"{member.size / 1024**3:.1f} GB, over the "
+                f"{MAX_RESTORED_MEMBER_BYTES / 1024**3:.0f} GB per-file ceiling. "
+                "Nothing has been written."
+            )
+        total += member.size
+
+    if total > MAX_RESTORED_MEDIA_BYTES:
+        raise BackupError(
+            f"refusing to restore: the media archive expands to "
+            f"{total / 1024**3:.1f} GB, over the "
+            f"{MAX_RESTORED_MEDIA_BYTES / 1024**3:.0f} GB ceiling. Nothing has been written."
+        )
+
+    try:
+        usage = shutil.disk_usage(destination)
+    except OSError:  # pragma: no cover - the staging dir was just created
+        return
+    headroom = usage.free - RESTORE_FREE_SPACE_RESERVE_BYTES
+    if total > headroom:
+        raise BackupError(
+            f"refusing to restore: the media archive expands to "
+            f"{total / 1024**3:.1f} GB and only {max(headroom, 0) / 1024**3:.1f} GB is "
+            f"usable on this volume (keeping {RESTORE_FREE_SPACE_RESERVE_BYTES / 1024**3:.0f} "
+            "GB free). Nothing has been written; make room, or restore onto a bigger disk."
+        )
+
+
 def _restore_media(media_tar_path: Path, workdir: Path) -> None:
     """Replace the media tree from the backup's media.tar.gz.
 
@@ -348,11 +459,11 @@ def _restore_media(media_tar_path: Path, workdir: Path) -> None:
     media_root = Path(settings.MEDIA_ROOT)
     staging = workdir / "media_staging"
     staging.mkdir()
+    # Re-asked immediately before the extraction as well as before pg_restore. Not
+    # belt-and-braces for its own sake: this function is reachable on its own, and the
+    # check that protects the volume belongs next to the write that fills it.
+    _refuse_an_oversized_media_archive(media_tar_path, workdir)
     with tarfile.open(media_tar_path, "r:gz") as media_tar:
-        for member in media_tar.getmembers():
-            top = Path(member.name).parts[0] if member.name else ""
-            if top != "media":
-                raise BackupError(f"unexpected member in media archive: {member.name!r}")
         media_tar.extractall(path=staging, filter="data")  # destination is the throwaway staging
     restored = staging / "media"
     if not restored.exists():

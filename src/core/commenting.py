@@ -15,7 +15,7 @@ from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.utils import timezone
 
-from . import scoping
+from . import emailing, scoping
 from .models import Comment, Member, Post
 
 
@@ -36,7 +36,16 @@ def create_comment(*, author: Member, post: Post, body: str, via_email: bool = F
     """
     if not scoping.visible_posts(author).filter(id=post.id).exists():
         raise CommentNotAllowed("You can only comment on a post you can see.")
-    comment = Comment.objects.create(author=author, post=post, body=body, via_email=via_email)
+    # One strip for both routes. The inbound-email path already stripped its own body
+    # before calling here (S-502); doing it again is idempotent, and it means the WEB
+    # reply — which never was stripped — gets the same treatment without the view having
+    # to remember. A reply body renders into `email/digest.txt`, autoescape off.
+    comment = Comment.objects.create(
+        author=author,
+        post=post,
+        body=emailing.strip_control_keep_breaks(body),
+        via_email=via_email,
+    )
     # Fired here rather than at the two call sites (the web composer and the inbound-email
     # path), so the one opt-in cannot be honoured on one route and forgotten on the other,
     # and a future third route gets it for free.

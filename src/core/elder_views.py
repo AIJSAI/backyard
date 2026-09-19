@@ -51,7 +51,14 @@ _ELDER_SESSION_AGE = 60 * 60 * 24 * 180
 @require_GET
 def enter(request: HttpRequest, token: str) -> HttpResponse:
     """Exchange the token URL for a session and land on the clean feed URL.
-    Reopening the same link later works: the elder's bookmark IS the link."""
+    Reopening the same link later works: the elder's bookmark IS the link.
+
+    Throttled before it is reached, by `core.throttling.FamilyLinkThrottleMiddleware`
+    (S2): this is the one route in the product where a GET mints a session, and it was
+    reachable as fast as anyone cared to ask. The limit lives in middleware rather than
+    here because ATOMIC_REQUESTS rolls a view's counter write back whenever the view
+    raises Http404 — which is every unknown token, i.e. every request worth counting.
+    """
     try:
         elder_token = elder_tokens.resolve(token)
     except elder_tokens.ElderTokenInvalid as exc:

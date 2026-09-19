@@ -52,13 +52,44 @@ def reply_domain() -> str:
     return settings.DEFAULT_FROM_EMAIL.rsplit("@", 1)[1]
 
 
+# The zero-width joiner and non-joiner. They are FORMAT characters like the bidi
+# overrides below, and they are kept anyway, because they are how an emoji family
+# (👨‍👩‍👧) and several writing systems are spelled. Dropping every non-printable without
+# this exception turns one emoji into three in a product whose whole content is family
+# messages — a visible regression paid for no security.
+_JOINERS = "‍‌"
+# Newline and tab are the two control characters that ARE ordinary writing, so a body
+# keeps them and a single-line label does not.
+_BODY_KEPT = f"{_JOINERS}\n\t"
+
+
 def strip_control(text: str) -> str:
-    """User-authored text with every control character removed (T-EMAIL-8).
+    """User-authored text as a single-line label, with nothing invisible left in it
+    (T-EMAIL-8).
 
     Applied to anything that reaches a header position (subjects, display names in
-    address headers). Unicode category Cc covers CR, LF, NUL, and escape codes.
+    address headers) and to every stored display and kinship name (core.signals).
+
+    Tested with `str.isprintable()` rather than `unicodedata.category(ch) != "Cc"`,
+    which is what this used to do. Category Cc is CR, LF, NUL and the escape codes —
+    it does NOT include the bidi overrides and isolates (U+202A..U+202E, U+2066..U+2069),
+    which are category Cf. Those are the ones that matter most here: `email/digest.txt`
+    is a plain-text template and therefore renders with autoescape OFF, so a name
+    carrying U+202E reversed the line it sat in for every recipient of the digest, and
+    no amount of HTML escaping was ever going to touch it.
     """
-    return "".join(ch for ch in text if unicodedata.category(ch) != "Cc")
+    return "".join(ch for ch in text if ch in _JOINERS or ch.isprintable())
+
+
+def strip_control_keep_breaks(text: str) -> str:
+    """The same rule for BODY text, which keeps its newlines and tabs.
+
+    This is the rule the reply-by-email path has applied since S-502; `inbound` now
+    calls it rather than carrying a second copy. One implementation, because two
+    answers to "which characters are safe to store" is how one of them comes to be
+    wrong — and the wrong one is always the path nobody re-read.
+    """
+    return "".join(ch for ch in text if ch in _BODY_KEPT or ch.isprintable())
 
 
 def send_family_email(

@@ -130,14 +130,25 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 Four containers come up: Caddy (TLS), Postgres, the web app, and a worker. On first boot
 the entrypoint generates the secret key, runs migrations as a DDL-only role, collects
-static files, and prints a **one-time setup URL**:
+static files, and writes a **one-time setup secret** to a file on the data volume that
+only the container's own user can read. Read it with:
 
 ```bash
-docker compose logs web | grep -i "setup"
+make setup-secret
+# or, without make:
+docker compose exec web cat /data/first-run-secret
 ```
 
-Open it and create the first instance admin. That URL is single-use and dies with the
-first admin account — there is no default login to forget about.
+Open `https://your.domain/setup/`, paste it, and create the first instance admin. The
+secret is single-use, it is replaced on every boot until it is used, and both it and the
+file are deleted the moment the first admin exists — there is no default login to forget
+about.
+
+It is deliberately **not** printed to the container log. Compose uses the json-file
+logging driver, so anything printed at boot is written to disk, replayed by
+`docker compose logs`, and kept through rotation; a one-time instance-takeover credential
+does not belong there. Set `SETUP_HANDOVER_FILE` if you want it somewhere other than
+`/data/first-run-secret`.
 
 ## 4. Make it a family
 

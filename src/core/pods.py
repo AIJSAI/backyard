@@ -24,6 +24,17 @@ class PodActionNotAllowed(PermissionDenied):
     """The member may not take this action on this pod."""
 
 
+class PodLeaveRefused(Exception):
+    """The leave is allowed in principle but would strand the member.
+
+    Not `PodActionNotAllowed`, and the distinction is the same one `households`
+    draws between `HouseholdChangeRefused` and `PermissionDenied`: an authorization
+    failure has nothing to say to the person, while this is answerable ("ask an admin
+    to put you in a household first"), so it renders as a sentence on the page they
+    are already looking at rather than as a 403.
+    """
+
+
 def create_adhoc_pod(*, owner: Member, yard: Yard, name: str, house_rule: str = "") -> Pod:
     """Create an ad-hoc pod in a yard the owner belongs to, with the owner as its
     first member. Raises if the owner is not in the yard."""
@@ -71,19 +82,88 @@ def leave_pod(*, member: Member, pod: Pod) -> None:
     """Leave an ad-hoc pod silently (S-205): drop the membership and any mute, no
     broadcast. Restricted to ad-hoc pods (security review LOW-1): leaving a household
     pod would strip a member of their yards and lock them out with no self-service way
-    back, so household membership only changes through admin removal (S-702)."""
+    back, so household membership only changes through admin removal (S-702).
+
+    WHAT A LEAVE CAN SHRINK, read off the code rather than assumed (S9, issue 174):
+
+    * it can never remove a HOUSEHOLD, because of the refusal above, so it can never be
+      somebody's last household by that route;
+    * it CAN drop a whole side of the family. `scoping.member_yard_ids` is the union of
+      the sides of ALL a member's pods, ad-hoc ones included, and
+      `households.sides_lost` counts an ad-hoc pod as keeping them on a side. So a member
+      in a household on one side and an ad-hoc group on the other — the shape an admin
+      creates by taking them out of a household they also had an ad-hoc group in — loses
+      that whole side by pressing Leave;
+    * it can strand somebody who holds NO household at all, who then resolves nobody
+      through the guard, including themselves.
+
+    That makes a leave a membership SHRINK exactly like `households.remove_from_household`,
+    so it runs the same act in the same order, and the ordering is the H-1 contract: the
+    member row is locked FIRST (the same row `revocation._run_steps` locks, so a leave and
+    an admin's household change serialise against each other rather than interleaving),
+    the shrink registry runs while the membership still EXISTS (its invite step resolves
+    its scope from live memberships, so revoking after the delete would silently miss every
+    invite reaching the side just left — the T-AUTH-G3 re-entry route), and only then does
+    the row go.
+
+    The registry is the SHRINK one, never the removal one: the member is still here, so
+    their digest subscription survives and the invites that die are the ones reaching the
+    sides being lost plus the ones they minted. `revoke_for_membership_shrink` carries
+    both narrowings and the reasons.
+
+    STILL NOT BUILT, named rather than implied: a pod leaving a yard, and the deceased
+    flow (S-706). Neither has any implementation anywhere in this repo.
+    """
     if pod.kind != Pod.ADHOC:
         raise PodActionNotAllowed(
             "You can leave an ad-hoc pod; a household is managed by an admin."
         )
-    PodMembership.objects.filter(member=member, pod=pod).delete()
-    PodMute.objects.filter(member=member, pod=pod).delete()
-    # Reply capabilities for this pod's posts die with the membership (S-502:
-    # revoked on ANY membership change); the write path's audience re-check is
-    # the second lock, this keeps the row state honest.
-    from . import reply_addresses
+    # Imported here rather than at module scope: `households` imports `permissions`, which
+    # is a heavier graph than this module needs at import time, and `reply_addresses` below
+    # already established the local-import idiom in this function.
+    from . import households, reply_addresses, revocation
 
-    reply_addresses.void_for_pod_leave(member, pod)
+    with transaction.atomic():
+        # The lock first, and it is the MEMBER row, not the membership: it is the row every
+        # other membership change for this person takes, so the last-household count below
+        # is a read with something behind it. Without it, two concurrent acts (this leave
+        # and an admin removing them from their last household) each see the other's row
+        # still present under READ COMMITTED and both land.
+        Member.objects.select_for_update().get(pk=member.pk)
+        if households.is_their_last_household(member, pod):
+            # The sentence has to be true for the person reading it. The first version
+            # said "it is the only one you are in", which is false for somebody in two
+            # groups and no household — they can see one of them on the same page while
+            # being told it is their only one. What is actually missing is a HOUSEHOLD,
+            # which is also the only thing that answers it, so the sentence says that.
+            # `help_contact_name` is the footer's helper: it reads the admin's first name
+            # out of the database at render time, never out of this repository, which is
+            # public. Empty falls back to the impersonal form the footer also uses.
+            from .context_processors import help_contact_name
+
+            who = help_contact_name() or "whoever looks after your family's Backyard"
+            raise PodLeaveRefused(
+                "You are not in a household yet, and this group is the only thing "
+                "connecting you to your family. Leaving it would mean you could not see "
+                f"anyone, and nobody could see you. Ask {who} to put you in a household "
+                "first, and then you can leave this group whenever you like."
+            )
+        losing = {yard.id for yard in households.sides_lost(member, pod)}
+        if losing:
+            # A side of the family is going away for this member, which is the same
+            # transition TM-1 names — so it fires the same one revocation act, before the
+            # membership row is deleted.
+            revocation.revoke_for_membership_shrink(member, losing_yard_ids=losing)
+        PodMembership.objects.filter(member=member, pod=pod).delete()
+        PodMute.objects.filter(member=member, pod=pod).delete()
+        # Reply capabilities for this pod's posts die with the membership (S-502:
+        # revoked on ANY membership change); the write path's audience re-check is
+        # the second lock, this keeps the row state honest. Still run when no side was
+        # lost, which is the ordinary case: leaving the cousins' group inside a side you
+        # are still in narrows nothing, so nothing else should die.
+        reply_addresses.void_for_pod_leave(member, pod)
+
+        succeed_owner(pod)
 
     # Ownership follows membership. Two states this closes, both measured:
     #
@@ -97,8 +177,8 @@ def leave_pod(*, member: Member, pod: Pod) -> None:
     # frozen for good: `pod.owner_id != actor.id` is the only gate on both capabilities,
     # and `None` never equals anybody, so the house rule and the member list become
     # unreachable to every person alive. `Pod.owner` is set at creation and nowhere else,
-    # so there was no path back.
-    succeed_owner(pod)
+    # so there was no path back. Inside the transaction with everything else, so a crash
+    # between the delete and the succession cannot leave a departed owner in control.
 
 
 def set_muted(*, member: Member, pod: Pod, muted: bool) -> None:
