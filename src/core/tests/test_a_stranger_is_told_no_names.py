@@ -42,11 +42,11 @@ _FIRST = "Jim"
 # The shared footer's help line, as the copy pass of 2026-09-19 rewrote it. Its words are
 # core/_footer.html's; what this file is about is WHO is named in it.
 _HELP = f"Need help? Contact {_FIRST}."
-# The grandparent's page is standalone (S-601 gives it no href but its own, so it inherits
-# no footer) and still carries the pre-copy-pass sentence in its own markup. Named apart
-# from _HELP so the divergence is visible rather than hidden inside a shared constant —
-# both collapse back into one the day core/elder_feed.html includes core/_footer.html.
-_ELDER_HELP = f"Stuck? Ask {_FIRST}."
+# ONE CONSTANT AGAIN. The grandparent's page is standalone (S-601 gives it no href but its
+# own, so it inherits no footer) and used to hand-write its own copy of this sentence,
+# which is how it came to read "Stuck? Ask Jim." for as long as it did. It now includes
+# core/_footer.html in the `standalone=True` shape, so there is one sentence in one file
+# and this file has no second constant to keep in step.
 
 
 def _family() -> tuple[Pod, Member]:
@@ -108,8 +108,8 @@ def test_about_says_a_relative_runs_it_without_saying_which_one() -> None:
     # Whitespace-normalised: the sentence wraps across lines in the template, which is how
     # it should be written and not something a test should pin.
     html = " ".join(Client().get(reverse("about")).content.decode().split())
-    assert "A relative set this up and looks after it." in html
-    assert "ask the person who invited you" in html
+    assert "A relative set this up and runs it." in html
+    assert "Contact the person who invited you" in html
 
 
 # --- the readers who have been let in -------------------------------------------------
@@ -138,7 +138,7 @@ def test_the_grandparents_no_login_page_still_names_him() -> None:
     client = Client()
     client.get(reverse("elder_enter", args=[elder_tokens.mint(nana)]))
     html = client.get(reverse("elder_feed")).content.decode()
-    assert _ELDER_HELP in html
+    assert _HELP in html
 
 
 def test_an_invite_page_names_him() -> None:
@@ -241,9 +241,9 @@ def test_a_real_token_on_every_token_surface_does_name_them() -> None:
     PodMembership.objects.create(member=nana, pod=pod)
     elder = Client()
     elder.get(reverse("elder_enter", args=[elder_tokens.mint(nana)]))
-    assert _ELDER_HELP in elder.get(reverse("elder_feed")).content.decode()
+    assert _HELP in elder.get(reverse("elder_feed")).content.decode()
 
-    # The Family email's own confirm link — the surface the reviewer measured as wrong the
+    # The Email Updates confirm link — the surface the reviewer measured as wrong the
     # other way round, where a real holder used to get the anonymous fallback.
     subscription = DigestSubscription.objects.create(
         member=locked,

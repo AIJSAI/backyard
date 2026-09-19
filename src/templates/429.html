@@ -6,13 +6,17 @@
 
    Calm, no blame, no numbers, no technical words: whoever reads this did nothing
    wrong, and the honest instruction is "wait a minute and open your link again".
+
+   THE HEADING IS DELIBERATELY NOT "TOO MANY REQUESTS". That is allauth's bare
+   fallback, and test_bearer_surfaces_are_rate_limited.py tells the two pages apart by
+   that exact phrase; naming this page the same thing would make the guard vacuous.
 {% endcomment %}
-{% block title %}Just a moment — Backyard{% endblock %}
+{% block title %}Too Many Attempts{% endblock %}
 {% block body %}
   <div class="page-center">
-    <h1>Just a moment</h1>
-    <p class="muted">This has been opened a lot of times from your internet connection in the last few minutes, so Backyard has paused for a moment. Nothing is wrong, and nothing you did was lost.</p>
-    <p class="muted">Wait a minute, then open your link again.</p>
-    <p><a class="btn" href="/">Go to your backyard</a></p>
+    <h1>Too Many Attempts</h1>
+    <p class="muted">This link has been opened too many times from your internet
+      connection. Wait a minute, then open it again.</p>
+    <p><a class="btn" href="/">Go To Your Backyard</a></p>
   </div>
 {% endblock %}

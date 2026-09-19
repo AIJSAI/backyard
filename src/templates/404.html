@@ -2,15 +2,15 @@
 {% comment %} 404 — a NORMAL surface here: authorization denials answer 404 by
    design (TM-2), so family members will see this after a revoked or expired
    link. Calm, no blame, no technical words. {% endcomment %}
-{% block title %}Not here — Backyard{% endblock %}
+{% block title %}Page Not Found{% endblock %}
 {% block body %}
   {% comment %} `.page-center` is the design system's own rule for this shape (base.html);
      it carried three inline style attributes instead, which is the one place in the
      product a layout decision lived outside the stylesheet. {% endcomment %}
   <div class="page-center">
-    <h1>There&rsquo;s nothing at this address</h1>
-    <p class="muted">The page may have moved, or the link may have expired or been revoked — expired family links land here too.</p>
-    <p class="muted">If someone sent you this link, ask them for a fresh one.</p>
-    <p><a class="btn" href="/">Go to your backyard</a></p>
+    <h1>Page Not Found</h1>
+    <p class="muted">This page does not exist, or the link has expired. If somebody sent
+      you the link, ask them for a new one.</p>
+    <p><a class="btn" href="/">Go To Your Backyard</a></p>
   </div>
 {% endblock %}

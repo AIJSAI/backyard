@@ -34,7 +34,12 @@ def manifest(request: HttpRequest) -> JsonResponse:
     data = {
         "name": "Backyard",
         "short_name": "Backyard",
-        "description": "Your family, on your own schedule.",
+        # Read in the phone's install sheet, and the only place in the product where a
+        # sentence has to introduce Backyard to somebody who has not seen a screen of it.
+        # "Your family, on your own schedule." was the one marketing-shaped line anywhere
+        # in the product; this is the landing page's own sentence, so the install sheet
+        # and the first screen say the same thing.
+        "description": "A private, invite-only family network.",
         "start_url": "/feed/",
         "scope": "/",
         "display": "standalone",
