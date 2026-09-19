@@ -675,6 +675,13 @@ class Invite(models.Model):
     Revocation runs through the TM-1 registry (core/revocation.py): revoking a
     member voids the invites they created, and removal voids every invite that
     reaches the member's pods.
+
+    `grants_role` (T-INVITE-2) makes this link able to hand out PRIVILEGE as well as
+    membership, which is why it is the one field here with a database constraint of its
+    own. The whole of it: NULL for every ordinary invite, and `Member.YARD_ADMIN` for a
+    link whose first redeemer becomes the side admin. `Member.INSTANCE_ADMIN` is never a
+    legal value — the family admin owns every side of the family and the only way into
+    that role is a named person promoting another named person on the roster.
     """
 
     pod = models.ForeignKey(Pod, on_delete=models.CASCADE, related_name="invites")
@@ -686,13 +693,57 @@ class Invite(models.Model):
     max_uses = models.PositiveSmallIntegerField(default=8)
     use_count = models.PositiveSmallIntegerField(default=0)
     revoked_at = models.DateTimeField(null=True, blank=True)
+    # NULL is an ordinary invite and is the default, so every row that already exists and
+    # every row written by code that does not know about this field grants nothing. The
+    # role a link may carry is capped THREE times over, deliberately, because this is a
+    # bearer credential that confers authority: here by the constraint below, in
+    # `invites.mint_invite` (which refuses to write anything else), and again in
+    # `invites.redeem_invite` (which refuses to APPLY anything else, so a row edited in
+    # the database by hand still cannot make anybody a family admin).
+    #
+    # NULLABLE, against ruff's DJ001, and the exemption is argued rather than assumed.
+    # DJ001 is right about the ordinary case: two empty states for one text field (NULL and
+    # "") is a bug magnet, and every other CharField on this model is `blank=True` with no
+    # null. This column is not text a person typed — it is a three-state answer to "what
+    # authority does this link carry", and the CHECK constraint below enumerates the states
+    # it may hold. Allowing "" as well would add a second spelling of "nothing" that the
+    # constraint would then have to permit, which is the defect DJ001 is about, arrived at
+    # from the other direction.
+    grants_role = models.CharField(  # noqa: DJ001
+        max_length=16, null=True, blank=True, default=None
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            # The cap in the one place no application code can go around. `Member` is
+            # defined above, so the literal role value comes from the same constant the
+            # rest of the product reads rather than from a string typed twice.
+            models.CheckConstraint(
+                condition=models.Q(grants_role__isnull=True)
+                | models.Q(grants_role=Member.YARD_ADMIN),
+                name="invite_grants_only_the_side_admin_role",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"Invite to {self.pod} ({self.use_count}/{self.max_uses})"
+
+    @property
+    def role_grant_holder(self) -> Member | None:
+        """Who took the role this link grants, if anybody has yet.
+
+        The grant goes to the FIRST redeemer and to nobody after them, so the holder is
+        the earliest redemption. Read off `self.redemptions`, which the invite ledger
+        prefetches, so showing this on the list costs no query; sorted by pk rather than
+        by the model's own `-created_at` ordering because two redemptions inside the same
+        clock tick would otherwise be in an arbitrary order, and this answers "who".
+        """
+        if not self.grants_role:
+            return None
+        claimed = sorted(self.redemptions.all(), key=lambda redemption: redemption.pk)
+        return claimed[0].member if claimed else None
 
 
 class InviteRedemption(models.Model):

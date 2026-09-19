@@ -81,6 +81,28 @@ class FeedItem:
     is_new: bool
 
 
+def _sides_in_a_sentence(names: list[str]) -> str:
+    """Sides of the family, joined the way a person writes them (R2-8).
+
+    Seen on production: a post widened to two sides asked "Share with Mom's side, Dad's
+    side?", then "everyone in Mom's side, Dad's side", then offered a button reading "Yes,
+    share with Mom's side, Dad's side". A comma is how a list is punctuated, not how
+    anybody says a sentence out loud — and this is the one screen in the product whose
+    whole job is that the member reads it and understands who is about to see their
+    photographs.
+
+    One function because the confirmation says it three times and three hand-written joins
+    would be three chances to fix two of them. Oxford comma for three or more, which is the
+    form that cannot be misread as two items when the last one has an "and" in its own
+    name.
+    """
+    if len(names) <= 1:
+        return names[0] if names else ""
+    if len(names) == 2:
+        return f"{names[0]} and {names[1]}"
+    return f"{', '.join(names[:-1])}, and {names[-1]}"
+
+
 def _acting_member(request: HttpRequest) -> Member:
     if not request.user.is_authenticated or request.user.pk is None:
         raise Http404
@@ -398,7 +420,7 @@ def compose(request: HttpRequest) -> HttpResponse:
                 "body": body,
                 "pod": pod,
                 "audience_yards": audience_yards,
-                "audience_names": ", ".join(y.name for y in audience_yards),
+                "audience_names": _sides_in_a_sentence([y.name for y in audience_yards]),
                 "member_count": reach.count(),
                 "staged_handle": handle,
                 "staged_photo_count": len(photo_raws),

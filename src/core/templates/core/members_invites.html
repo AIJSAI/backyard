@@ -41,6 +41,39 @@ ul.invites .invite-actions form { margin: 0; }
             Works until {% when_date invite.expires_at %}, for up to {{ invite.max_uses }} people.
           {% endif %}
         </span>
+        {% comment %} R2-6. A link that hands out the side-admin role is a different
+           object from an ordinary invite, and the ledger is the only place an admin can
+           see which of the links they have handed out is which. It says both halves: that
+           the link carries the role, and whether anybody has taken it — because once
+           somebody has, the link is an ordinary invite for everybody after them and
+           revoking it takes nothing back from the person who already joined.
+           {% endcomment %}
+        {% comment %} THREE states, not two. A revoked or expired link that nobody used
+           still said "The first person to join with this link becomes the side admin"
+           directly under "This link no longer works" — a promise in the present tense
+           about a link that cannot do it, on the page an admin reads to work out whether
+           the side has actually been handed over. A link whose role WAS taken keeps naming
+           who took it whatever its state afterwards: revoking it takes nothing back from
+           the person who already joined, and that is the fact the admin most needs.
+           {% endcomment %}
+        {% if invite.grants_role %}
+          <span class="invite-state">
+            {% with holder=invite.role_grant_holder %}
+              {% if holder %}
+                <span class="flag">side admin</span> {{ holder.display_name }} joined
+                first, so they are the side admin. Anyone else using this link joins as a
+                member.
+              {% elif invite.revoked_at or invite.expires_at <= now %}
+                <span class="flag">side admin</span> This link would have made its first
+                joiner the side admin. Nobody used it and it no longer works, so it handed
+                out nothing.
+              {% else %}
+                <span class="flag">side admin</span> The first person to join with this
+                link becomes the side admin. Everyone after them joins as a member.
+              {% endif %}
+            {% endwith %}
+          </span>
+        {% endif %}
         {% with redemptions=invite.redemptions.all %}
           {% if redemptions %}
             <ul class="redeemers">

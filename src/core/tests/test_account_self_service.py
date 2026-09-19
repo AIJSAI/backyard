@@ -226,13 +226,18 @@ def test_a_newcomer_is_told_who_can_add_people_and_named_their_inviter() -> None
 
 def test_without_a_recorded_inviter_the_sentence_names_nobody_rather_than_blank() -> None:
     """A founder, an elder, or somebody whose issuer has since been removed
-    (`Invite.created_by` is SET_NULL). The sentence must still read as a sentence."""
+    (`Invite.created_by` is SET_NULL). The sentence must still read as a sentence.
+
+    Whitespace-normalised since R2-1: THIS page's fallback wraps across two lines in the
+    template, so the un-normalised form of the assertion was only ever passing on the
+    shared footer, which carries a different sentence on every page in the product.
+    """
     _, pod = _world()
     _, client = _signed_in(pod)
 
-    body = client.get(reverse("directory")).content.decode()
+    body = " ".join(client.get(reverse("directory")).content.decode().split())
     assert "Adding people is an admin" in body
-    assert "whoever in the family set this up" in body
+    assert "To add someone, ask whoever in the family set this up." in body
 
 
 def test_the_sentence_reaches_a_member_who_has_already_seen_the_welcome() -> None:

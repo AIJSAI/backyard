@@ -61,15 +61,15 @@ def _member_for(request: HttpRequest) -> Member | None:
 def help_contact_name() -> str:
     """The first name of whoever runs this Backyard, for the footer's help line.
 
-    "Stuck? Ask whoever in the family set this up." is true and impersonal, and on a
-    family's app it reads like a support page. The person is a relative and has a name,
-    so the footer says it: "Stuck? Ask Jim."
+    "Stuck? Ask the person who invited you." is true and impersonal, and on a family's
+    app it reads like a support page. The person is a relative and has a name, so the
+    footer says it: "Stuck? Ask Jim."
 
     Read from the DATABASE at render time, never hardcoded — this repository is public,
     and a relative's name does not belong in it. Empty when there is no instance admin
     with a display name (a bare instance, or an operator account created by the setup
-    wizard with a username only), and the template falls back to the old sentence, which
-    is the string WCAG SC 3.2.6 is pinned on.
+    wizard with a username only), and the template falls back to the impersonal sentence,
+    which is the string WCAG SC 3.2.6 is pinned on.
 
     One indexed query on the hottest path in the app, so it is kept to the single column
     it needs. If that ever shows up in a profile it wants caching, not removing.

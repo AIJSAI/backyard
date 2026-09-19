@@ -30,6 +30,16 @@ from .models import Invite, InviteRedemption, Member, Pod, PodMembership
 
 DEFAULT_TTL_DAYS = 7  # expire by default: days, not never (S-201 hardening)
 
+# THE ONLY ROLE A LINK MAY EVER CARRY (R2-6, T-INVITE-2). A side admin reaches one side of
+# the family; the family admin reaches all of them, and the only way into that role is one
+# named person promoting another on the roster, where somebody's face is behind the act.
+# A bearer link has no face: whoever holds it is whoever holds it.
+#
+# A frozenset of one rather than a bare constant, because the thing being expressed is
+# "the set of roles a link may grant", and the day a second one is proposed this is where
+# the argument about it has to happen.
+GRANTABLE_BY_LINK = frozenset({Member.YARD_ADMIN})
+
 
 class InviteInvalid(Exception):
     """Raised for every unusable invite, with one indistinguishable message."""
@@ -38,6 +48,17 @@ class InviteInvalid(Exception):
 
     def __init__(self) -> None:
         super().__init__(self.MESSAGE)
+
+
+class RoleNotGrantableByLink(ValueError):
+    """Refused: something asked for an invite that would hand out a role a link may not.
+
+    Deliberately NOT an `InviteInvalid`. That exception exists to be indistinguishable —
+    every unusable-invite path raises the same message so the join page cannot be used as
+    an oracle for which invites exist. This is the opposite situation: it is a programming
+    error, or a forged request on an ADMIN surface, where the person on the other end is
+    entitled to know exactly what was refused and nothing is leaked by saying so.
+    """
 
 
 def _digest(raw_token: str) -> str:
@@ -50,9 +71,23 @@ def mint_invite(
     *,
     ttl_days: int = DEFAULT_TTL_DAYS,
     max_uses: int = 8,
+    grants_role: str | None = None,
 ) -> tuple[Invite, str]:
     """Create an invite and return it with the raw token, which exists only in
-    this return value: the caller shows it once and never stores it."""
+    this return value: the caller shows it once and never stores it.
+
+    `grants_role` is None for every ordinary invite and for every call site that predates
+    it. The only other value this accepts is the side-admin role, and the refusal lives
+    here rather than only in the view because the authority a link carries must not depend
+    on which surface minted it — a management command, a future API, or a test helper
+    reaching this function gets the same cap the form gets.
+    """
+    if grants_role is not None and grants_role not in GRANTABLE_BY_LINK:
+        raise RoleNotGrantableByLink(
+            f"An invite link may grant {sorted(GRANTABLE_BY_LINK)} and nothing else, never "
+            f"{grants_role!r}. A link has no face on the other end of it; the family-admin "
+            "role is granted by one named person to another, on the roster."
+        )
     raw = secrets.token_urlsafe(32)  # 256 bits
     invite = Invite.objects.create(
         pod=pod,
@@ -60,6 +95,7 @@ def mint_invite(
         token_digest=_digest(raw),
         expires_at=timezone.now() + timedelta(days=ttl_days),
         max_uses=max_uses,
+        grants_role=grants_role,
     )
     return invite, raw
 
@@ -120,6 +156,15 @@ def redeem_invite(raw_token: str, *, display_name: str, user_id: int | None) -> 
     or one that does not exist, raises IntegrityError, not InviteInvalid. The
     S-101 signup view maps both to the same generic failure the redemption 404s
     with, so the byte-identical-404 guarantee holds on that edge too.
+
+    A ROLE-GRANTING LINK (R2-6) hands its role to the FIRST person through it and to
+    nobody after them, and that decision is made HERE, inside the same lock and off the
+    same `use_count` read the one-use cap already uses. Two phones opening the link at the
+    same instant therefore cannot both come out as the side admin: one transaction sees
+    `use_count == 0` and the other sees 1, because the increment below happens before
+    either releases the row. Deciding it anywhere else — in the view, after the member
+    exists — would be exactly the double-redeem race this function was written to close,
+    wearing a different outcome.
     """
     with transaction.atomic():
         try:
@@ -133,7 +178,14 @@ def redeem_invite(raw_token: str, *, display_name: str, user_id: int | None) -> 
         if invite.use_count >= invite.max_uses:
             raise InviteInvalid
 
-        member = Member.objects.create(display_name=display_name, user_id=user_id)
+        # The cap, applied again at the moment the role is handed over. The model's CHECK
+        # constraint and `mint_invite` both refuse to WRITE anything but the side-admin
+        # role; this refuses to APPLY anything else, so a row edited by hand at a database
+        # shell — the one route that goes around both — still cannot mint a family admin.
+        granted = invite.grants_role if invite.use_count == 0 else None
+        role = granted if granted in GRANTABLE_BY_LINK else Member.MEMBER
+
+        member = Member.objects.create(display_name=display_name, user_id=user_id, role=role)
         PodMembership.objects.create(member=member, pod=invite.pod)
         InviteRedemption.objects.create(invite=invite, member=member)
         Invite.objects.filter(pk=invite.pk).update(use_count=models.F("use_count") + 1)

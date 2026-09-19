@@ -15,6 +15,16 @@
     <p>It lets up to {{ max_uses }} people into <strong>{{ yard_name }}</strong>, and it
     stops working on {% when_date expires_at %}. Send it however you normally reach
     them.</p>
+    {% comment %} R2-6. Said again on the page that shows the link, naming the actual
+       sides this time: the person hands this link over and says out loud what it does, so
+       the sentence they will repeat has to be on the screen in front of them. Both sides
+       are named when the household bridges, because "the first person becomes the side
+       admin" is a bigger act there than the two ticked boxes may have suggested.
+       {% endcomment %}
+    {% if grants_side_admin %}
+      <p class="notice">The first person to join with this link becomes the side admin for
+        <strong>{{ yard_name }}</strong>. Everyone after them joins as a member.</p>
+    {% endif %}
     {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="Invite link" handover_share_title="Join our family on Backyard" %}
     <p class="page-action"><a href="{% url 'invite_household' %}">Invite another household</a>
       &middot; <a href="{% url 'member_invites' %}">Outstanding invites</a></p>
@@ -42,8 +52,12 @@
   <form method="post" action="{% url 'invite_household' %}">
     {% csrf_token %}
     <input type="hidden" name="intent" value="{{ intent }}">
+    {% comment %} What they typed, so a rejected form comes back filled in — the same rule
+       the join form already follows. A validation error used to hand back an empty page.
+       {% endcomment %}
     <label for="household_name">Household name</label>
     <input id="household_name" type="text" name="household_name" maxlength="100"
+           value="{{ typed_household_name|default:'' }}"
            placeholder="e.g. The Davis family" required>
     {% comment %} Checkboxes, not a single `<select>`. A household in BOTH sides is the
        bridging household — the case the isolation model is built around and the diagram
@@ -82,12 +96,43 @@
           both, and the two sides still never see each other.</p>
         {% for yard in yards %}
           <label class="inline-check">
-            <input type="checkbox" name="yard_ids" value="{{ yard.id }}">
+            <input type="checkbox" name="yard_ids" value="{{ yard.id }}"
+                   {% if yard.id in ticked_yard_ids %}checked{% endif %}>
             {{ yard.name }}
           </label>
         {% empty %}
           <p class="muted">No family sides you can invite into yet.</p>
         {% endfor %}
+      </fieldset>
+    {% endif %}
+    {% comment %} R2-6. The owner is about to hand each side of the family to one relative
+       with the words "invite people if you want". An invite carried no role, so that
+       relative would have landed as an ordinary member who cannot invite anybody — and
+       nothing would have said so until somebody noticed and promoted them by hand.
+
+       OFFERED TO THE FAMILY ADMIN ONLY (`can_mint_a_role_granting_invite`). A side admin
+       never sees this control, and the view refuses the field outright rather than
+       dropping it quietly, because the only way to submit a control that is not on the
+       screen is to have made the request by hand.
+
+       An unticked checkbox sends nothing, so the ordinary invite is what you get by not
+       thinking about it — which is the right default for the field that decides whether a
+       link hands out authority. {% endcomment %}
+    {% if can_grant_side_admin %}
+      <fieldset>
+        <legend>Hand this side over</legend>
+        {% comment %} ECHOED BACK on the error path. A validation error re-rendered this
+           box empty, so an admin who fixed the household name and submitted again handed
+           over a link that appoints nobody — the exact defect this control exists to cure,
+           reintroduced by a blank checkbox. {% endcomment %}
+        <label class="inline-check">
+          <input type="checkbox" name="grants_side_admin" value="1"
+                 {% if grants_side_admin_ticked %}checked{% endif %}>
+          The first person to join with this link becomes the side admin
+        </label>
+        <p class="hint">They will be able to add and remove people on their side of the
+          family. Everyone after them joins as a member. If this household belongs to both
+          sides, they look after both.</p>
       </fieldset>
     {% endif %}
     <button type="submit">Create the household and get the link</button>

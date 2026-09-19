@@ -47,8 +47,32 @@ def admin_client_and_user() -> tuple[Client, User]:
     return client, user
 
 
+@pytest.fixture
+def side_admin_client() -> Client:
+    """A YARD admin — the reader R2-4 is about. Their reach stops at their own side, so
+    every sentence the prompt makes about what their sign-in opens has to stop there too.
+    A second side exists, because "every side of the family" is only a false claim on an
+    instance that has more than one."""
+    theirs = Yard.objects.create(name="Their side", slug="their-side")
+    Yard.objects.create(name="The other side", slug="other-side")
+    pod = Pod.objects.create(name="A household", kind=Pod.HOUSEHOLD)
+    pod.yards.set([theirs])
+    user = get_user_model().objects.create_user(username="delegate")
+    member = Member.objects.create(display_name="The Delegate", user=user, role=Member.YARD_ADMIN)
+    PodMembership.objects.create(member=member, pod=pod)
+    client = Client()
+    client.force_login(user, backend=_BACKEND)
+    return client
+
+
 def _roster(client: Client) -> str:
     return client.get(reverse("members")).content.decode()
+
+
+def _prompt(client: Client) -> str:
+    body = _roster(client)
+    start = body.index("Add a second way to prove it")
+    return body[body.rindex("<aside", 0, start) : body.index("</aside>", start)]
 
 
 # --- the offer ------------------------------------------------------------------------
@@ -123,14 +147,60 @@ def test_the_prompt_speaks_the_familys_language(
     """Two relatives who are not technical will read this. No jargon, and nothing that
     only means something to somebody who already knows what it means."""
     client, _user = admin_client_and_user
-    body = _roster(client)
-    start = body.index("Add a second way to prove it")
-    prompt = body[start : body.index("</aside>", start)]
-    text = re.sub(r"<[^>]+>", " ", prompt).lower()
+    text = re.sub(r"<[^>]+>", " ", _prompt(client)).lower()
     words = set(re.findall(r"[a-z]+", text))
     for jargon in ("mfa", "totp", "webauthn", "authenticator", "otp", "token", "instance"):
         assert jargon not in words, f"the prompt says {jargon!r} to a relative"
     assert "fingerprint" in text or "face" in text, "say what it actually is"
+
+
+def test_a_side_admin_is_not_told_their_sign_in_opens_every_side(
+    side_admin_client: Client,
+) -> None:
+    """R2-4. The card said "You look after this Backyard, so your sign-in opens every side
+    of the family" to whoever opened the roster — and a side admin's sign-in does not.
+    `permissions.can_manage_member` stops them at their own side, and the roster itself
+    tells them so, one line under every row it will not let them touch ("Also on the
+    other side of the family, so only <name> can change this").
+
+    Overstating what a password unlocks is not harmless urgency: the two relatives this
+    is written for can see the claim is wrong from the page it is printed on, and a
+    security prompt that is visibly wrong about you is one you learn to skip.
+    """
+    prompt = _prompt(side_admin_client)
+    assert "every side of the family" not in prompt, prompt
+    assert "add and remove people on your side" in prompt, prompt
+
+
+def test_the_family_admin_is_still_told_what_their_sign_in_really_opens(
+    admin_client_and_user: tuple[Client, User],
+) -> None:
+    """The other direction, and the reason this is a per-role sentence rather than a
+    weaker sentence for everybody: for the family admin the strong claim is TRUE, and it
+    is the whole argument for spending the minute."""
+    client, _user = admin_client_and_user
+    assert "Your sign-in opens every side of the family." in _prompt(client)
+
+
+def test_the_offer_is_one_line_rather_than_a_card(
+    admin_client_and_user: tuple[Client, User],
+) -> None:
+    """R2-4's second half. It was a screen-tall block at the top of the roster — a
+    heading, three paragraphs and two buttons — standing between an admin and the list of
+    people they opened the page to read. The e-mail nudge on the feed was the same shape
+    and got the same cure (walk item 5): the offer is unchanged, its volume is not.
+
+    Asserted on the SHAPE rather than on a pixel height: no heading of its own, one
+    sentence, and "Not now" as the quiet control it always should have been.
+    """
+    client, _user = admin_client_and_user
+    prompt = _prompt(client)
+    assert "<h2" not in prompt, f"the prompt is a headed card again: {prompt}"
+    assert prompt.count("<p") == 0, f"the prompt grew paragraphs again: {prompt}"
+    assert 'class="btn-quiet"' in prompt, '"Not now" is loud again'
+    assert 'class="btn"' not in prompt, "the prompt grew a filled button again"
+    # Still an offer, and still reachable: slimming it must not cost the way in.
+    assert reverse("mfa_index") in prompt
 
 
 # --- the record -----------------------------------------------------------------------

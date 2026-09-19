@@ -266,6 +266,87 @@ def test_pod_leave_view(world: dict[str, object]) -> None:
     assert not PodMembership.objects.filter(member=mate, pod=adhoc).exists()
 
 
+def test_starting_a_group_says_it_is_ready(world: dict[str, object]) -> None:
+    """R2-2. Creating a group redirected to a page that already listed the member's
+    households and said nothing at all, so on a phone the only evidence it had worked was
+    a row somewhere down the list — and a member who did not find it pressed Create again.
+
+    Through the flash component the composer already uses, not a bespoke banner: the same
+    `role="status"` the family has learned means "that worked".
+    """
+    author = world["author"]
+    maternal = world["maternal"]
+    assert isinstance(author, Member)
+    assert isinstance(maternal, Yard)
+    client = _client_for(author)
+    response = client.post(
+        reverse("pod_create"), {"name": "Birthday planning", "yard_id": maternal.id}, follow=True
+    )
+    body = response.content.decode()
+    assert "Birthday planning is ready." in body
+    assert 'class="messages"' in body and 'role="status"' in body
+
+
+def test_starting_nothing_says_nothing(world: dict[str, object]) -> None:
+    """An empty name creates no pod, so it must not claim one. `pod_create` already
+    ignores a blank name; a flash outside that branch would announce a group that does
+    not exist."""
+    author = world["author"]
+    maternal = world["maternal"]
+    assert isinstance(author, Member)
+    assert isinstance(maternal, Yard)
+    body = (
+        _client_for(author)
+        .post(reverse("pod_create"), {"name": "   ", "yard_id": maternal.id}, follow=True)
+        .content.decode()
+    )
+    assert "is ready." not in body, body[body.find("messages") : body.find("messages") + 200]
+
+
+def test_leaving_a_group_says_so(world: dict[str, object]) -> None:
+    """R2-2, the other half, and the quieter one: a leave removes the row and that is the
+    whole of the feedback. Somebody in two groups who taps Leave on one of them sees a
+    list that still has groups in it, which is indistinguishable from a tap that did
+    nothing.
+
+    The flash is set after the session is re-issued (the leave path cycles the session
+    key and signs the member back in), so this is also the test that the message survives
+    that sequence rather than being written into a session row that is then replaced.
+    """
+    author = world["author"]
+    mate = world["mate"]
+    maternal = world["maternal"]
+    assert isinstance(author, Member)
+    assert isinstance(mate, Member)
+    assert isinstance(maternal, Yard)
+    adhoc = pods.create_adhoc_pod(owner=author, yard=maternal, name="The cousins")
+    pods.add_member_to_pod(actor=author, pod=adhoc, new_member=mate)
+
+    body = (
+        _client_for(mate).post(reverse("pod_leave", args=[adhoc.id]), follow=True).content.decode()
+    )
+    assert "You left The cousins." in body
+    assert 'class="messages"' in body and 'role="status"' in body
+
+
+def test_a_refused_leave_says_nothing_of_the_sort(world: dict[str, object]) -> None:
+    """The refusal path renders the list with its own sentence and never redirects, so a
+    "You left ..." flash there would be a lie on the screen that is explaining why they
+    did not. The only leave that refuses is one that would strand somebody, which is what
+    a member whose ONLY pod is the group is."""
+    maternal = world["maternal"]
+    assert isinstance(maternal, Yard)
+    stranded_pod = Pod.objects.create(name="Their only place")
+    stranded_pod.yards.set([maternal])
+    loner = _member_with_user(stranded_pod, "Loner")
+    adhoc = pods.create_adhoc_pod(owner=loner, yard=maternal, name="A group")
+    PodMembership.objects.filter(member=loner, pod=stranded_pod).delete()
+
+    body = _client_for(loner).post(reverse("pod_leave", args=[adhoc.id])).content.decode()
+    assert "You left" not in body, body[:400]
+    assert PodMembership.objects.filter(member=loner, pod=adhoc).exists(), "it left anyway"
+
+
 def test_non_member_cannot_reach_pod_actions(world: dict[str, object]) -> None:
     """A member not in the pod cannot mute, leave, or manage it: the guard 404s."""
     author = world["author"]

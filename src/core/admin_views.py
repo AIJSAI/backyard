@@ -596,7 +596,17 @@ def invite_household(request: HttpRequest) -> HttpResponse:
     pickable_yards = list(
         Yard.objects.all() if permissions.is_instance_admin(actor) else scoping.visible_yards(actor)
     )
-    context: dict[str, object] = {"actor": actor, "yards": pickable_yards}
+    # R2-6. Whether this admin is even offered the control that makes the link hand out
+    # the side-admin role. A side admin never sees it, and the POST branch below refuses
+    # them outright rather than quietly dropping the field: a form that ignores what was
+    # submitted teaches nothing, and the only way to send this field without the control
+    # on screen is to have made the request by hand.
+    may_grant = permissions.can_mint_a_role_granting_invite(actor)
+    context: dict[str, object] = {
+        "actor": actor,
+        "yards": pickable_yards,
+        "can_grant_side_admin": may_grant,
+    }
     errors: list[str] = []
     # Single-use intent nonce: a browser refresh replays a spent nonce and does NOT
     # create a duplicate household + invite (the same guard the elder handover uses).
@@ -648,6 +658,27 @@ def invite_household(request: HttpRequest) -> HttpResponse:
         # still the honest answer.
         if not yards and len(pickable_yards) == 1:
             yards = [pickable_yards[0]]
+        # R2-6, and REFUSED rather than ignored. The control is rendered only for a
+        # family admin, so this field arriving from anybody else was made by hand — and
+        # the honest answer to a hand-made attempt at privilege is 403, not a household
+        # that quietly comes out different from the one the request asked for.
+        #
+        # `== "1"` and not `bool(...)`: the checkbox sends the literal "1" and nothing at
+        # all when unticked, so an explicit comparison is what the control actually does.
+        # `bool()` also read "0" as ticked, which is the value a hand-made request or a
+        # future scripted caller is most likely to send for "no".
+        wants_side_admin = request.POST.get("grants_side_admin") == "1"
+        if wants_side_admin and not may_grant:
+            raise PermissionDenied
+        grants_role = Member.YARD_ADMIN if wants_side_admin else None
+        # ECHOED BACK on the error path, which is the whole point of holding it in the
+        # context. A validation error re-rendered the form with this box empty, so the
+        # admin fixed the household name, submitted again, and handed over a link that
+        # appoints nobody — the exact defect R2-6 exists to cure, reintroduced by a blank
+        # checkbox. The household name and the ticked sides get the same treatment below.
+        context["grants_side_admin_ticked"] = wants_side_admin
+        context["typed_household_name"] = request.POST.get("household_name", "").strip()
+        context["ticked_yard_ids"] = {yard.pk for yard in yards}
         name = request.POST.get("household_name", "").strip()
         if not name or len(name) > 100:
             errors.append("Give the household a name.")
@@ -662,7 +693,7 @@ def invite_household(request: HttpRequest) -> HttpResponse:
                 # yard admin; anything else is refused before a token is minted.
                 if not permissions.can_issue_invite(actor, pod):
                     raise PermissionDenied
-                invite, raw = invites.mint_invite(pod, created_by=actor)
+                invite, raw = invites.mint_invite(pod, created_by=actor, grants_role=grants_role)
             context.update(handover.link_artifacts(f"{settings.BASE_URL}/join/{raw}/"))
             context.update(
                 {
@@ -672,6 +703,12 @@ def invite_household(request: HttpRequest) -> HttpResponse:
                     "yard_name": " and ".join(sorted(y.name for y in yards)),
                     "expires_at": invite.expires_at,
                     "max_uses": invite.max_uses,
+                    # Said back on the page that shows the link, naming the actual sides:
+                    # a household on BOTH sides makes its first joiner the side admin for
+                    # both, which is a bigger act than the person ticking two boxes may
+                    # have in mind. `yard_name` above is the same join, so the sentence
+                    # and the household's sides can never disagree.
+                    "grants_side_admin": bool(invite.grants_role),
                 }
             )
     context["errors"] = errors
@@ -771,6 +808,12 @@ def resend_invite(request: HttpRequest, invite_id: int) -> HttpResponse:
     # yard's invite exists, the same parity as revoke_invite.
     if not permissions.can_issue_invite(actor, invite.pod):
         raise Http404
+    # AN ORDINARY INVITE, always, even when the link being re-handed carried the
+    # side-admin role (R2-6). "Make another link" is the control an admin taps when a
+    # household needs one more copy, and a role grant must never be re-armed by a control
+    # whose whole purpose is that it is cheap to press — a household could otherwise end
+    # up with two or three people who each joined "first" through a different link.
+    # Granting the role is a deliberate tick on the invite page, and it stays one.
     fresh, raw = invites.mint_invite(invite.pod, created_by=actor)
     response = render(
         request,

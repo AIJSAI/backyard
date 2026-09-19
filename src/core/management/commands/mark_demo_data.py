@@ -10,7 +10,16 @@ is the step that makes launch day run through the guarded path instead of a shel
     manage.py wipe_demo_data --yes
 
 `--undo` takes the marker back off, because an operator who marks the wrong yard needs a way
-back that is not another hand-written UPDATE — and needs it before the wipe, not after.
+back that is not another hand-written UPDATE — and needs it before the wipe, not after. It
+selects on the marker alone, so it clears a departed member like any other row.
+
+`--include-departed` exists because a member who was REMOVED from a fixture household keeps
+their Member row and loses every membership, so containment can never reach them while their
+posts stay inside a household being marked — and the wipe then refuses forever on "a post
+written by someone real". Three conditions, argued in `core.demo_marking`: in no household
+or group; at least one post or reply INSIDE the marked households; nothing anywhere else and
+no supervised child left behind. It deletes a person's Member row and their sign-in account,
+so the names it prints are the thing to read.
 """
 
 from __future__ import annotations
@@ -39,6 +48,18 @@ class Command(BaseCommand):
             "--marker",
             default=demo_data.SEED_MARKER,
             help=f"The marker to stamp. Default: {demo_data.SEED_MARKER!r}.",
+        )
+        parser.add_argument(
+            "--include-departed",
+            action="store_true",
+            dest="include_departed",
+            help="ALSO mark people who are now in no household or group at all AND wrote "
+            "at least one post or reply inside the households being marked AND have "
+            "nothing — no post, reply or reaction — anywhere else. Never anybody whose "
+            "supervised child is staying. Their posts are what stops `wipe_demo_data`, "
+            "which is the only reason this exists; the wipe then deletes their Member row "
+            "AND their sign-in account, so READ THE NAMES it prints. Without this flag "
+            "they are listed, with the reason, under 'Deliberately NOT marked'.",
         )
         parser.add_argument(
             "--dry-run",
@@ -71,7 +92,11 @@ class Command(BaseCommand):
                 )
                 return
 
-            selected, spared = demo_marking.plan(yard_slugs=options["yards"], marker=marker)
+            selected, spared, departed = demo_marking.plan(
+                yard_slugs=options["yards"],
+                marker=marker,
+                include_departed=options["include_departed"],
+            )
         except demo_marking.DemoMarkingError as exc:
             raise CommandError(str(exc)) from exc
 
@@ -79,6 +104,25 @@ class Command(BaseCommand):
         for model, names in selected.items():
             self.stdout.write(f"  {model} ({len(names)}):")
             for name in names:
+                self.stdout.write(f"    {name}")
+
+        if departed:
+            # Their own heading, although they are already inside the Member list above.
+            # They are the one group selected by a rule the household graph cannot show —
+            # an operator scanning "Member (9)" has no way to tell which of those nine are
+            # here because somebody removed them. This is the list they read for a name
+            # they recognise.
+            #
+            # THE HEADING NAMES THE COST, not just the reason. It used to say "everything
+            # they ever wrote is inside these sides", which is true and reads like
+            # housekeeping; what actually happens is that a person's Member row and their
+            # sign-in account are destroyed. `wipe_demo_data --dry-run` prints counts and
+            # never names, so this line is the ONLY place these names ever appear.
+            self.stdout.write(
+                "\nAlready removed, wrote only inside these sides, and blocking the wipe "
+                f"({len(departed)}) — their Member row AND their sign-in account go:"
+            )
+            for name in departed:
                 self.stdout.write(f"    {name}")
 
         if spared:
@@ -102,7 +146,11 @@ class Command(BaseCommand):
             return
 
         try:
-            stamped = demo_marking.apply(yard_slugs=options["yards"], marker=marker)
+            stamped = demo_marking.apply(
+                yard_slugs=options["yards"],
+                marker=marker,
+                include_departed=options["include_departed"],
+            )
         except demo_marking.DemoMarkingError as exc:
             raise CommandError(str(exc)) from exc
 

@@ -176,6 +176,26 @@ def can_assign_role(actor: Member, target: Member, new_role: str) -> bool:
     return True
 
 
+def can_mint_a_role_granting_invite(actor: Member) -> bool:
+    """May `actor` mint an invite whose first redeemer becomes a side admin (R2-6)?
+
+    The family admin, and nobody else. This is the same authority `can_assign_role`
+    already fences — `_GRANTABLE_ONLY_BY_INSTANCE_ADMIN` holds the side-admin role — moved
+    one step earlier, to the moment the link is made rather than the moment somebody
+    redeems it. It has to be earlier: at redeem time there is no actor to ask about, only
+    whoever is holding the link.
+
+    Named here rather than written inline in the view for the reason every predicate in
+    this module is: an authorization rule spelled in a template or a view is a rule the
+    permission tests do not read, and this one hands out administrative reach.
+
+    A side admin is refused even inside their own side. Their authority is over PEOPLE on
+    that side (`can_manage_member`), never over who else gets to administer it — a delegate
+    who can mint delegates is a delegate who can replace the family admin's roster.
+    """
+    return is_instance_admin(actor)
+
+
 def can_change_household(actor: Member, target: Member) -> bool:
     """May `actor` move `target` between households at all — the PERSON half of the act?
 

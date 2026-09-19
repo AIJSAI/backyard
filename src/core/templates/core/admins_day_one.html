@@ -8,7 +8,13 @@
    names stayed. What survives is what somebody needs at the moment they are doing it.
    Every control it names was clicked through at 390px before this shipped, and
    test_admins_day_one.py holds each one against the rendered roster.
-   docs/guide/admins-day-one.md carries the same text. {% endcomment %}
+   docs/guide/admins-day-one.md carries the same text.
+
+   R2-3: it said "No-login link on the row", "Get back in link on their row", "Change
+   household on their row". True until walk item 13 collapsed the roster — those controls
+   now sit behind a Manage disclosure, so a delegate following this page looked at a row
+   carrying a name, a role badge and the word Manage, and none of the words they had just
+   been told to tap. The route is named, not the destination renamed. {% endcomment %}
 {% block title %}A guide for the two of you{% endblock %}
 {% block body %}
   <p class="back-link"><a class="back" href="{% url 'members' %}">Back to Family members</a></p>
@@ -23,26 +29,35 @@
     of the family it belongs to, and send the link however you normally reach them.</p>
   <p class="muted">It is shown once. Lost it? Make another from
     <a href="{% url 'member_invites' %}">Outstanding invites</a>.</p>
+  {% comment %} R2-6, one sentence. It is here rather than in its own section because most
+     admins reading this will never mint one — only the family admin is offered the
+     control — but every admin reading this may have ARRIVED through one, and a link that
+     hands out authority should not be a thing the product never mentions. {% endcomment %}
+  <p class="muted">Only the family admin sees it, but if a link was made to hand over a
+    side of the family, the first person to join with it becomes that side&rsquo;s admin
+    and everyone after them joins as a member.</p>
 
   <h2>2. Give a grandparent a no-login link</h2>
   <p><strong>Post something to their side of the family first</strong>, or they will open
     the link and find an empty page. You cannot preview it for them.</p>
-  <p>Then <strong>Family members &rarr; Add a grandparent</strong> for somebody new, or
-    <strong>No-login link</strong> on the row of somebody already here.</p>
+  <p>Then <strong>Family members &rarr; Add a grandparent</strong> for somebody new, or,
+    for somebody already here, tap <strong>Manage</strong> on their row and then
+    <strong>No-login link</strong>.</p>
   <p>Hand it over in person or in a private message. Anyone holding it can read and send
     love as them. Not in a group chat.</p>
 
   <h2>3. Help someone who is locked out</h2>
   <p>If they gave an email address, <strong>Forgot your password?</strong> on the sign-in
     page does it without you.</p>
-  <p>If not, use <strong>Get back in link</strong> on their row. It works once and stops
-    working after two days.</p>
+  <p>If not, tap <strong>Manage</strong> on their row, then <strong>Get back in
+    link</strong>. It works once and stops working after two days.</p>
   <p><strong>Make sure you are really talking to them first</strong> &mdash; a call, or a
     text to the number you already have.</p>
 
   <h2>4. Move or remove someone</h2>
-  <p><strong>Change household</strong> on their row moves somebody who is already here
-    into another household, or out of one.</p>
+  <p>Both of these live under <strong>Manage</strong> on their row too.</p>
+  <p><strong>Change household</strong> moves somebody who is already here into another
+    household, or out of one.</p>
   <p><strong>Remove &hellip;</strong> asks what happens to what they wrote, and you have to
     answer: keep their posts, keep them without their name, or delete them.</p>
   <p>Deleting erases their photos from the server for good, and asks you to type their

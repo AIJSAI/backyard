@@ -134,6 +134,44 @@ def test_every_control_the_guide_names_is_one_the_admin_can_see() -> None:
     assert "Remove Cousin Reed" in roster
 
 
+def test_the_guide_sends_an_admin_through_manage_for_the_controls_that_live_there() -> None:
+    """R2-3. The guide said "No-login link on the row", "Get back in link on their row",
+    "Change household on their row" — all true until walk item 13 collapsed the roster.
+    Those four controls sit behind a Manage disclosure now, so a delegate following this
+    page looked at a row carrying a name, a role badge and the word Manage, and not one of
+    the words they had just been told to tap.
+
+    Asserted against the RENDERED roster, both halves: the guide names Manage, and Manage
+    is a control on the roster with those links inside it. A guide that named a route the
+    product does not have would be the same defect wearing a different word.
+    """
+    client, _, _ = _world(Member.YARD_ADMIN)
+    roster = client.get(reverse("members")).content.decode()
+    guide = _text(client.get(reverse("admins_day_one")).content.decode())
+
+    assert "Manage" in _text(roster), "the roster has no Manage control to send anybody to"
+    # The LIST, not the whole document: the page's own stylesheet comment quotes these
+    # control names while explaining how they are laid out.
+    rows = roster[roster.index('<ul class="members">') :]
+    disclosure = rows.index('<details class="member-manage"')
+    for behind_it in ("No-login link", "Get back in link"):
+        assert behind_it in rows[disclosure:], (
+            f"{behind_it!r} is not inside Manage, so the guide should not send an admin through it"
+        )
+        assert behind_it not in rows[:disclosure], (
+            f"{behind_it!r} is on the open row after all, so the guide should say so"
+        )
+
+    # The three sentences, each naming the route before the destination.
+    assert "tap Manage on their row and then No-login link" in guide
+    assert "tap Manage on their row, then Get back in link" in guide
+    assert "under Manage on their row" in guide
+    # And the wording it replaced is gone, in both copies, or the page contradicts itself.
+    doc = _GUIDE_DOC.read_text(encoding="utf-8")
+    for stale in ("No-login link on the row", "Get back in link on their row"):
+        assert stale not in guide and stale not in doc, f"{stale!r} survived"
+
+
 def test_the_three_removal_choices_it_describes_are_the_three_the_form_offers() -> None:
     """The guide says the question has three answers. If the form's choices changed and
     the guide did not, an admin would be promised an outcome that is not on offer."""

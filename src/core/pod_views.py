@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import cast
 
+from django.contrib import messages
 from django.contrib.auth import BACKEND_SESSION_KEY, login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
@@ -78,9 +79,15 @@ def pod_create(request: HttpRequest) -> HttpResponse:
     name = request.POST.get("name", "").strip()
     yard = scoping.require_visible_yard(member, _int(request.POST.get("yard_id", "")))
     if name:
-        pods.create_adhoc_pod(
+        created = pods.create_adhoc_pod(
             owner=member, yard=yard, name=name, house_rule=request.POST.get("house_rule", "")
         )
+        # R2-2. The same calm flash the composer uses. A new group lands part-way down a
+        # page that already listed the member's households, so on a phone the only
+        # evidence it worked was a row they had to go and find — and a member who did not
+        # find it pressed Create again. The NAME is in the sentence for that reason: it is
+        # what tells them the row they are looking at is the one they just made.
+        messages.success(request, f"{created.name} is ready.")
     return redirect("pod_list")
 
 
@@ -145,6 +152,10 @@ def pod_leave(request: HttpRequest, pod_id: int) -> HttpResponse:
     # The backend is read off the session before `login()` rewrites it, so a member who
     # signed in through allauth is re-issued through allauth rather than being silently
     # moved onto the model backend.
+    # Read before the session dance below, not after: nothing here deletes the Pod row,
+    # but the name is what the flash is about and taking it at the moment of the act is
+    # what keeps the sentence true.
+    left = pod.name
     backend = request.session.get(BACKEND_SESSION_KEY) or _MODEL_BACKEND
     # `cycle_key()` FIRST, and `login()` alone is not enough — measured. Django's `login`
     # only rotates the key when the request arrived with NO auth session; when the same
@@ -159,6 +170,11 @@ def pod_leave(request: HttpRequest, pod_id: int) -> HttpResponse:
     # `@login_required` above guarantees a real user here; the cast is for the type
     # checker, which only knows `request.user` as User | AnonymousUser.
     login(request, cast(User, request.user), backend=backend)
+    # R2-2, and said AFTER the re-login so nothing in that sequence can drop it: a leave
+    # is the quietest destructive act in the product — the row simply is not there any
+    # more — and leaving a group you are in two of looks identical to a tap that did
+    # nothing. `cycle_key` keeps the session's data, so a message set here survives.
+    messages.success(request, f"You left {left}.")
     return redirect("pod_list")
 
 

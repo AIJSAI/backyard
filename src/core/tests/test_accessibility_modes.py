@@ -97,7 +97,7 @@ def test_the_help_affordance_is_present_and_is_not_a_broken_link(client: Client)
     # `home` redirects to /setup/ until an admin exists, so use a surface that always
     # renders the shared frame.
     html = client.get(reverse("account_login")).content.decode()
-    assert "Ask whoever in the family set this up" in html, "no help affordance"
+    assert "Ask the person who invited you" in html, "no help affordance"
     footer = html[html.index("<footer") : html.index("</footer>")]
     assert "<a " not in footer, "the footer carries no links; the help affordance must not add one"
 
@@ -107,7 +107,7 @@ def test_the_help_affordance_is_in_the_same_place_on_every_surface(client: Clien
     # than per-template. Prove it reaches surfaces that do not extend one another.
     for name in ("account_login", "account_signup", "account_reset_password"):
         html = client.get(reverse(name)).content.decode()
-        assert "Ask whoever in the family set this up" in html, f"missing on {name}"
+        assert "Ask the person who invited you" in html, f"missing on {name}"
 
 
 def test_the_elder_surface_is_excluded_from_all_of_it() -> None:

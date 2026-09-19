@@ -41,6 +41,26 @@
 /* WHY A ROW HAS NOTHING ON IT (walk item 8). Quiet, one line, under the name. */
 .why-no-actions { margin: 0.1rem 0 0; font-size: 0.88rem; }
 
+/* THE SECOND-FACTOR LINE (R2-4). The same treatment the feed's e-mail nudge got in walk
+   item 5, and deliberately the same numbers: a screen-tall card at the top of the roster
+   put three paragraphs and two buttons between an admin and the list of people they came
+   to read. The sentence and the way to decline share a line when there is room and stack
+   when there is not. */
+.second-factor-prompt {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.9rem;
+  margin: 0.85rem 0 1.6rem; font-size: 0.92rem; color: var(--ink-soft);
+}
+.second-factor-prompt form { margin: 0; }
+/* Borderless, like the feed's. Everywhere else .btn-quiet sits BESIDE a primary and needs
+   a border to read as a control at all; this one sits at the end of a sentence, and a
+   bordered pill there is how "Not now" became the loudest thing on the page. It keeps the
+   44px target. */
+.second-factor-prompt .btn-quiet {
+  border-color: transparent; padding-left: 0; padding-right: 0;
+  font-size: 0.92rem; text-decoration: underline; text-underline-offset: 3px;
+}
+.second-factor-prompt .btn-quiet:hover { background: none; border-color: transparent; }
+
 /* THE WAYFINDING. Seven destinations rendered as one middot-separated paragraph
    wrapping over four lines: this is the family's whole control panel and it read as a
    run-on sentence. Two named groups, one target per line, each the height of a thumb. */
@@ -70,18 +90,33 @@
      from a server shell (S-805), which is exactly the person who has not got one. So:
      offered, explained in the words a person uses, dismissible for this sign-in, and it
      never stands between anybody and their family. {% endcomment %}
+  {% comment %} R2-4, two findings on one card.
+
+     IT SAID THE WRONG THING TO A SIDE ADMIN. "Your sign-in opens every side of the
+     family" is true of the family admin and of nobody else: a side admin's reach stops
+     at their own side (`permissions.can_manage_member`), and the card was shown to both.
+     Overstating what somebody's password unlocks is not a harmless bit of urgency — a
+     relative who reads it and knows it is wrong has been given a reason to believe the
+     rest of the page is wrong too.
+
+     AND IT WAS A CARD. A screen-tall block of chrome at the top of the roster, three
+     paragraphs and two buttons, between an admin and the list of people they came here
+     to read. The e-mail nudge on the feed was the same shape and got the same cure on
+     2026-09-19 (walk item 5): one quiet line, the offer unchanged, its volume changed.
+     The markup below is deliberately the feed's `.email-prompt`, down to the borderless
+     "Not now", so the two read as one pattern rather than two inventions. {% endcomment %}
   {% if offer_a_second_factor %}
-    <aside class="orientation" aria-labelledby="second-factor-heading">
-      <h2 id="second-factor-heading">Add a second way to prove it&rsquo;s you</h2>
-      <p>You look after this Backyard, so your sign-in opens every side of the family.
-        Right now a password is the only thing in the way.</p>
-      <p>Your phone can be the second thing: the same fingerprint or face you already use
-        to unlock it. It takes about a minute, and it means a stolen password is not enough
-        on its own.</p>
-      <p><a class="btn" href="{% url 'mfa_index' %}">Set that up</a></p>
+    {% comment %} An <aside>, not a <p>: a <form> inside a paragraph is invalid and a
+       browser hoists it out on parse, which breaks the line it is meant to sit on.
+       {% endcomment %}
+    <aside class="second-factor-prompt">
+      <span>{% if is_instance_admin %}Your sign-in opens every side of the family.{% else %}Your
+        sign-in lets you add and remove people on your side of the family.{% endif %}
+        <a href="{% url 'mfa_index' %}">Add a second way to prove it&rsquo;s you</a> &mdash;
+        the fingerprint or face you already unlock your phone with, about a minute.</span>
       <form method="post" action="{% url 'dismiss_second_factor_prompt' %}">
         {% csrf_token %}
-        <button type="submit" class="btn-secondary btn">Not now</button>
+        <button type="submit" class="btn-quiet">Not now</button>
       </form>
     </aside>
   {% endif %}
