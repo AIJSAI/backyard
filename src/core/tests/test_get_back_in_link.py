@@ -30,13 +30,11 @@ from core.models import Member, Pod, PodMembership, RecoveryToken, Yard
 pytestmark = pytest.mark.django_db
 User = get_user_model()
 _BACKEND = "django.contrib.auth.backends.ModelBackend"
-_OLD_PW = "an-Old-passphrase-9"
-_NEW_PW = "a-Brand-new-passphrase-42"
+_OLD_PW = "old-Passphrase-9"
+_NEW_PW = "correct-horse-battery-staple-42"
 
 
-def _member(
-    pods: list[Pod], *, name: str, role: str = Member.MEMBER, login: bool = True
-) -> Member:
+def _member(pods: list[Pod], *, name: str, role: str = Member.MEMBER, login: bool = True) -> Member:
     user = User.objects.create_user(username=name.lower().replace(" ", "-"), password=_OLD_PW)
     member = Member.objects.create(display_name=name, user=user if login else None, role=role)
     for pod in pods:
@@ -206,7 +204,7 @@ def test_a_link_works_once(world: World) -> None:
     url = reverse("recover", args=[raw])
     assert Client().post(url, {"password": _NEW_PW}).status_code == 302
     # Second use, with a password of its own, is refused and does not take.
-    second = "a-Third-passphrase-77"
+    second = "a-fine-passphrase-1234"
     assert Client().post(url, {"password": second}).status_code == 404
     assert world.relative.user is not None
     world.relative.user.refresh_from_db()
@@ -320,9 +318,7 @@ def test_issuing_is_rate_limited(world: World) -> None:
     for _ in range(12):
         page = client.get(_issue_url(world.relative))
         intent = page.context["intent"] if page.status_code == 200 else ""
-        statuses.append(
-            client.post(_issue_url(world.relative), {"intent": intent}).status_code
-        )
+        statuses.append(client.post(_issue_url(world.relative), {"intent": intent}).status_code)
     assert 429 in statuses
 
 
@@ -397,3 +393,38 @@ def test_the_member_page_says_whose_link_it_is(world: World) -> None:
     body = Client().get(reverse("recover", args=[raw])).content.decode()
     assert "Nana" in body
     assert "password" in body.lower()
+
+
+def test_the_recover_page_carries_the_token_surface_headers(world: World) -> None:
+    """TM-5. The token rides the URL here, so the page must be no-store and noindex — and
+    Referrer-Policy is `same-origin`, deliberately NOT `no-referrer`: this page POSTs a new
+    password back to its own URL, and under no-referrer the browser sends `Origin: null`,
+    which Django's CSRF check rejects. That is the failure handover.py documents, and it
+    stays latent in tests because the test client sends no Origin at all."""
+    raw = _mint(world.relative, by=world.boss)
+    response = Client().get(reverse("recover", args=[raw]))
+    assert response["Cache-Control"] == "no-store"
+    assert response["X-Robots-Tag"] == "noindex, nofollow"
+    assert response["Referrer-Policy"] == "same-origin"
+    # The 404 for a dead link carries the same set: a cacheable, indexable refusal still
+    # names a token-bearing URL.
+    dead = Client().get(reverse("recover", args=["never-minted"]))
+    assert dead["Cache-Control"] == "no-store"
+    assert dead["Referrer-Policy"] == "same-origin"
+
+
+def test_the_token_is_redacted_from_request_logs(world: World) -> None:
+    """TS-EDGE-LOG. A relative typing a long link out of a text message gets it wrong, the
+    404 lands in `django.request` at WARNING, and the operator reading the container log
+    would be holding a live password-setting credential for a family member."""
+    import logging
+
+    from config.log_redaction import RedactCapabilityPaths
+
+    raw = _mint(world.relative, by=world.boss)
+    record = logging.LogRecord(
+        "django.request", logging.WARNING, __file__, 1, "Not Found: /get-back-in/%s/", (raw,), None
+    )
+    RedactCapabilityPaths().filter(record)
+    assert raw not in record.getMessage()
+    assert "[redacted]" in record.getMessage()

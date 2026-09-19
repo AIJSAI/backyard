@@ -7,6 +7,56 @@ promise yet — the schema and the URLs may still move.
 **Install a tag, not `main`.** `main` is where the work happens and it changes daily; a tag is
 a point somebody deliberately stopped at, with a full green gate behind it.
 
+## [Unreleased]
+
+Day one for the two relatives about to be made yard admins: nobody gets locked out, and the
+one control that destroys something asks first.
+
+### Added
+
+- **An admin can get somebody back in.** A member who joined without an email address had no
+  password recovery at all — `Forgot your password?` resolves against an address that does not
+  exist, and the page correctly says "sent" either way, so they found out they were locked out
+  at the worst possible moment. The only real cure was `manage.py changepassword` at a server
+  shell, which is not something a relative has. An admin now mints a one-time "get back in"
+  link on the member's roster row and hands it over by text or reads it out, the same way the
+  household invite and the grandparent link already work. It is single use, dies after two
+  days, is revoked by issuing another, and ends every other session when it is redeemed. A
+  yard admin can issue one only for an ordinary member of their own side of the family.
+- **Members can reach their own account pages.** The sign-in email, the password change and
+  the passkey/one-time-code pages were routed, styled by this project's own layouts, and
+  linked from nowhere any member could stand — for months, while the join page promised "You
+  can add a passkey once you are in". They are now in Settings.
+- **A member with no email address on file is told so, once,** with a link to add one and a
+  "Not now" that means it. Members who joined before the join form had an email box are
+  exactly the people this reaches.
+- **A plain member is told who can add people.** Inviting is an admin's job in this version
+  and no page they could reach said so, so the obvious next thing to do read as broken. The
+  orientation card now names the person who invited them.
+
+### Changed
+
+- **Deleting a member's posts and photos takes a second step.** It erases photographs from
+  the server with no undo, and it sat behind one radio button and one button on a page listing
+  five other people's Remove controls. It now shows what will be destroyed — including the
+  photos other people put on replies to their posts, which go too — says that it cannot be
+  undone, and asks for the person's name to be typed. Keeping or anonymising their posts is
+  unchanged; neither erases a file.
+- **A yard admin can fix a profile on their own side.** They could remove a member outright
+  and could not correct that member's birthday, so a name typed wrong at invite time, or a
+  grandparent's details filled in for her, went back to whoever runs the server.
+- **Break-glass admin recovery works for the second admin.** It keyed on the Django superuser
+  flag, which only the very first admin has — so the relative promoted to instance admin, the
+  person the succession path exists to create, was the one admin who could not be recovered.
+
+### Fixed
+
+- **The reachability gate now covers the account pages it was blind to.** It skipped every
+  route belonging to an included URLconf, on the grounds that the library owns its own
+  reachability. Mounting those routes puts them in this product, and three of them had no
+  entrance for months. Each one is now either reachable by clicking or listed with the reason
+  it has none.
+
 ## [0.1.2] — 2026-08-07
 
 `v0.1.1` could not be installed from its own README, and several things it shipped were

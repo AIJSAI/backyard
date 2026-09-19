@@ -149,9 +149,7 @@ def redeem(raw: str, new_password: str) -> None:
         # LEFT OUTER JOIN and Postgres refuses `FOR UPDATE` on the nullable side of one
         # ("FOR UPDATE cannot be applied to the nullable side of an outer join"). The row
         # this needs locked is the token's anyway; the member and the user are read after.
-        token = (
-            RecoveryToken.objects.select_for_update().filter(token_digest=_digest(raw)).first()
-        )
+        token = RecoveryToken.objects.select_for_update().filter(token_digest=_digest(raw)).first()
         if token is None or token.used_at is not None:
             raise RecoveryInvalid
         if token.minted_generation != token.member.token_generation:

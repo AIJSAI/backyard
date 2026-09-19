@@ -498,7 +498,14 @@ def test_the_delegate_runbook_names_controls_that_exist() -> None:
         display_name="Runbook Admin", user=admin_user, role=Member.YARD_ADMIN
     )
     PodMembership.objects.create(member=admin, pod=pod)
-    PodMembership.objects.create(member=Member.objects.create(display_name="Someone"), pod=pod)
+    # WITH a login, because the runbook now names two row controls that exist only for a
+    # member who has one — `Get back in link` (BY-01) and `Edit profile` (BY-11). A
+    # user-less fixture would report those labels missing and blame the document for
+    # describing a product the fixture is not building.
+    someone = Member.objects.create(
+        display_name="Someone", user=User.objects.create_user(username="someone")
+    )
+    PodMembership.objects.create(member=someone, pod=pod)
 
     client = Client()
     client.force_login(admin_user, backend=_BACKEND)

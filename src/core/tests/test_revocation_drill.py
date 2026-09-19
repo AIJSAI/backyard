@@ -13,11 +13,11 @@ exists today. Some die by a registry row-void step (invites, digest
 subscription, digest tokens, reply addresses, elder tokens, and the admin-issued
 recovery link); two die by the generation bump alone with NO registry row (the
 elder session and the web session), so a length-of-registry pin cannot be the
-whole tripwire. The
-canonical set below is the real one, asserted by EQUALITY against what the drill
-checks. A future generation-only bearer capability (the planned W3 signed-media
-URL, digest.py notes it "carries the generation") MUST be added to this set and
-to all_dead() when it ships, or the equality assertion here fails.
+whole tripwire. The canonical set below is the real one, asserted by EQUALITY
+against what the drill checks. A future generation-only bearer capability (the
+planned W3 signed-media URL, digest.py notes it "carries the generation") MUST
+be added to this set and to all_dead() when it ships, or the equality assertion
+here fails.
 """
 
 from __future__ import annotations
@@ -146,9 +146,7 @@ class Credentials:
             "digest_unsubscribe_token": _digest_token_dead(
                 self.unsub_raw, digesting.peek_unsubscribe
             ),
-            "recovery_link": Client()
-            .get(reverse("recover", args=[self.recovery_raw]))
-            .status_code
+            "recovery_link": Client().get(reverse("recover", args=[self.recovery_raw])).status_code
             == 404,
         }
 

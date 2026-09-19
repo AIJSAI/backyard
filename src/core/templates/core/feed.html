@@ -36,9 +36,11 @@
          job. The name comes from the invite they joined on; when there is none to give
          (the founder, or an issuer since removed) the sentence names the role instead of
          rendering a blank. {% endcomment %}
-      <p>Adding people is an admin's job. {% if inviter %}To add someone, ask
-        <strong>{{ inviter.display_name }}</strong> — they can make you a link.{% else %}To
-        add someone, ask whoever in the family set this up.{% endif %}</p>
+      {% if show_invite_help %}
+        <p>Adding people is an admin's job. {% if inviter %}To add someone, ask
+          <strong>{{ inviter.display_name }}</strong> — they can make you a link.{% else %}To
+          add someone, ask whoever in the family set this up.{% endif %}</p>
+      {% endif %}
       <form method="post" action="{% url 'dismiss_orientation' %}">
         {% csrf_token %}
         <button type="submit">Got it</button>
@@ -53,7 +55,7 @@
      because it must reach the members who joined BEFORE the join form had an email box,
      and those are precisely the ones the orientation backfill already dismissed. {% endcomment %}
   {% if show_email_prompt %}
-    <aside class="orientation" aria-labelledby="email-prompt-heading">
+    <aside class="prompt" aria-labelledby="email-prompt-heading">
       <h2 id="email-prompt-heading">Add an email address?</h2>
       <p>You have not given one, so you can be signed in here without it — but if you ever
         forget your password there is no way to send you a new one.</p>

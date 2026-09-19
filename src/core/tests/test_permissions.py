@@ -263,3 +263,65 @@ def test_instance_admin_may_provision_for_anyone() -> None:
     PodMembership.objects.create(member=cousin, pod=cousins)
 
     assert permissions.can_provision_token(boss, cousin) is True
+
+
+# --- BY-11: who may fix somebody's profile -----------------------------------------
+
+
+def test_a_yard_admin_can_fix_a_profile_on_their_own_side(world: dict[str, object]) -> None:
+    """BY-11. `can_edit_profile_of` read `is_instance_admin`, so a yard admin could REMOVE
+    a member of their own side and could not correct the birthday of the same person —
+    and two of the three likeliest day-one requests (a name typed wrong at invite time, an
+    elder's details filled in for her, since she has no login by design) routed back to the
+    founder. It is now the narrower authority they already hold."""
+    admin, member_a = world["yard_a_admin"], world["member_a"]
+    assert isinstance(admin, Member) and isinstance(member_a, Member)
+    assert permissions.can_manage_member(admin, member_a), "the fixture's premise is gone"
+    assert permissions.can_edit_profile_of(admin, member_a)
+
+
+def test_the_profile_widening_inherits_every_isolation_rule(world: dict[str, object]) -> None:
+    """It is `can_manage_member`, not a new rule, so each of its refusals still binds:
+    the other side, a bridging member, a peer admin, the instance admin."""
+    admin = world["yard_a_admin"]
+    assert isinstance(admin, Member)
+    for key in ("member_b", "bridging_member", "instance_admin"):
+        target = world[key]
+        assert isinstance(target, Member)
+        assert not permissions.can_edit_profile_of(admin, target), key
+    peer = _member(world["pod_a"], "A-second-admin", Member.YARD_ADMIN)  # type: ignore[arg-type]
+    assert not permissions.can_edit_profile_of(admin, peer)
+
+
+def test_editing_your_own_profile_still_needs_no_role(world: dict[str, object]) -> None:
+    """The self branch stays first and separate. `can_manage_member` denies
+    self-administration on purpose, and editing your own name is the opposite of
+    administration — it is the thing you should never need an admin for."""
+    member_a = world["member_a"]
+    assert isinstance(member_a, Member)
+    assert not permissions.can_manage_member(member_a, member_a)
+    assert permissions.can_edit_profile_of(member_a, member_a)
+
+
+def test_a_plain_member_still_cannot_edit_anyone_else(world: dict[str, object]) -> None:
+    """The widening is to ADMINS who may manage the target, not to everybody."""
+    member_a, admin = world["member_a"], world["yard_a_admin"]
+    assert isinstance(member_a, Member) and isinstance(admin, Member)
+    other = _member(world["pod_a"], "A-cousin")  # type: ignore[arg-type]
+    assert not permissions.can_edit_profile_of(member_a, other)
+    assert not permissions.can_edit_profile_of(member_a, admin)
+
+
+def test_a_managing_parent_still_edits_their_own_child(world: dict[str, object]) -> None:
+    parent = world["member_a"]
+    assert isinstance(parent, Member)
+    child = _member(
+        world["pod_a"],  # type: ignore[arg-type]
+        "Small",
+        Member.SUPERVISED,
+        is_supervised=True,
+        managing_parent=parent,
+    )
+    assert permissions.can_edit_profile_of(parent, child)
+    stranger = _member(world["pod_a"], "A-stranger")  # type: ignore[arg-type]
+    assert not permissions.can_edit_profile_of(stranger, child)

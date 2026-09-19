@@ -350,19 +350,26 @@ nav.rail a:hover { text-decoration: underline; }
 p.page-action { margin: 1.7rem 0 0; font-size: 0.94rem; }
 p.page-action a { text-decoration: none; }
 p.page-action a:hover { text-decoration: underline; }
-/* S-906: the newcomer's orientation. Shares the date banner's quiet green wash rather
-   than inventing a new emphasis — it is complementary content that happens to appear
-   once, not an alert. Its h2 drops the section-heading top margin, since it opens the
-   block rather than dividing one. */
-aside.orientation {
+/* S-906: the newcomer's orientation, and BY-02's add-an-email prompt. Both share the
+   date banner's quiet green wash rather than inventing a new emphasis — complementary
+   content that happens to appear once, not an alert. Their h2 drops the section-heading
+   top margin, since it opens the block rather than dividing one.
+
+   Two class names for one appearance, deliberately. They are different facts with
+   different lifetimes and each is dismissed on its own, and test_orientation proves the
+   orientation is GONE by searching the rendered feed for the orientation class name — so
+   a second aside wearing it would make a passing test mean nothing. (This comment names
+   that class in prose for the same reason: it is served inline in every page, so writing
+   it out as markup here would defeat the search it is explaining.) */
+aside.orientation, aside.prompt {
   margin: 0 0 1.75rem; padding: 1.1rem 1.25rem;
   background: var(--green-tint); border: 1px solid color-mix(in srgb, var(--green) 18%, transparent);
   border-radius: var(--radius-sm); max-width: 34rem;
 }
-aside.orientation h2 { margin: 0 0 0.6rem; font-size: 1.16rem; }
-aside.orientation p { margin: 0 0 0.5rem; font-size: 0.98rem; }
-aside.orientation form { margin-top: 1rem; }
-aside.orientation button { min-height: 44px; padding: 0.45rem 1.2rem; font-size: 0.94rem; }
+aside.orientation h2, aside.prompt h2 { margin: 0 0 0.6rem; font-size: 1.16rem; }
+aside.orientation p, aside.prompt p { margin: 0 0 0.5rem; font-size: 0.98rem; }
+aside.orientation form, aside.prompt form { margin-top: 1rem; }
+aside.orientation button, aside.prompt button { min-height: 44px; padding: 0.45rem 1.2rem; font-size: 0.94rem; }
 
 /* The date banner is complementary content, not an action bar. */
 aside.date-banner {

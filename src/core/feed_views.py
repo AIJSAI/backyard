@@ -218,10 +218,12 @@ def _render_feed(
             # not a tour — three facts a newcomer would otherwise have to be told by
             # whichever relative invited them.
             "show_orientation": member.orientation_dismissed_at is None,
-            # BY-13: a fourth fact, for the people it applies to. Only admins issue
-            # invites in v1, and nothing a plain member could reach said so — so the
-            # obvious next thing to do in a family network, add somebody, looked broken
-            # rather than delegated. None for an admin, who does not need telling.
+            # BY-13: a fourth fact on the orientation card, for the people it applies to.
+            # Only admins issue invites in v1, and nothing a plain member could reach said
+            # so — the obvious next thing to do in a family network, add somebody, looked
+            # broken rather than delegated. An admin is the somebody else, so they are not
+            # told to go and ask one.
+            "show_invite_help": not permissions.is_admin(member),
             "inviter": None if permissions.is_admin(member) else invites.inviter_of(member),
             # BY-02: this member has no way to reset their own password. Shown once,
             # quietly, until they dismiss it or add an address.

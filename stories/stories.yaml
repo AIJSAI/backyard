@@ -769,6 +769,28 @@ epics:
                         # a rewrite. Proven non-vacuous by making a description lie.
     v1: false
     evidence: src/core/tests/test_role_descriptions.py + docs/receipts/2026-07-29-s906-s907-onboarding-close.md
+  - id: S-908
+    epic: E7
+    persona: yard-admin
+    story: "As a delegate handed the admin controls, I can get a relative back into their account when they have forgotten their password and never gave an email address."
+    acceptance:
+    - "An admin mints a one-time recovery link on the member's roster row and hands it over the way they already hand over an invite: by text, or read out"
+    - "Authority is the existing can_manage_member, so a yard admin issues only for an ordinary member of their own side, never for an admin, never across yards, never for themselves"
+    - "The link is single use, expires in 48 hours, is revoked by issuing another, and ends the member's other sessions when redeemed"
+    - "Issuing is rate limited, and who issued it for whom and when is recorded on the token row"
+    - "A member with no address on file is prompted once to add one, and can reach the account pages that let them"
+    status: built
+    v1: false
+    security:
+      threat_refs:
+      - TM-1
+      - TM-5
+      - T-AUTH-G1
+      - T-AUTH-G2
+      - T-RECOV-1
+      hardening: |
+        The recovery link is a bearer credential held to the TM-5 bar: 256-bit CSPRNG, SHA-256 at rest, shown once, never logged (the route joins the log-redaction set). It carries the member's token generation, so the TM-1 revocation act kills an outstanding link like every other class, and it registers a row-void step in the revocation registry. Every unusable shape (unknown, expired, spent, revoked) answers the same bare 404 as an unknown route, so the page is not an account-existence oracle. Issuing is refused for a member with no login and for a supervised account (TM-10); an ADMIN is never recoverable from inside the product, which stays break-glass and server shell (T-AUTH-G1).
+      source: docs/security/threat-model.md
 
 
 - id: E9

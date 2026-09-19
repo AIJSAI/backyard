@@ -74,6 +74,33 @@ within the admin's yard scope.
 scope, **and the two admin roles (`yard_admin`, `instance_admin`) are grantable only
 by the instance admin**. No one re-roles themselves upward.
 
+`can_edit_profile_of(actor, target)`: may the actor change the target's name, kinship
+name, dates and contact fields? Yourself always (editing your own name is the thing you
+should never need a role for, so the self branch is first and is NOT
+`can_manage_member`, which denies self-administration on purpose); a supervised child's
+managing parent; and **any admin who may already administer the target**, which is
+`can_manage_member` and therefore carries every rule in the table above. That last clause
+read `is_instance_admin` until BY-11: a yard admin could remove a member of their own side
+outright and could not correct their birthday, so a name typed wrong at invite time, or an
+elder's details filled in for her — she has no login by design (TM-10) — routed back to
+the founder.
+
+`can_provision_token(actor, target)`: may the actor mint an elder link for the target?
+Deliberately STRICTER than `can_manage_member`: the link is a working no-login credential
+for the target's **whole** scope, which the issuer can open themselves, so a yard admin
+may mint one only for a target whose pods are a subset of their own. Anything wider is the
+instance admin's.
+
+**The admin-issued recovery link (BY-01, `core/recovery.py`) is keyed on
+`can_manage_member`, not on `can_provision_token`**, and the asymmetry is the point: a
+recovery link grants ONE act — setting a password the issuer does not learn — and using it
+ends every session the member had, so an issuer who redeemed one themselves would lock the
+member out loudly rather than read their family quietly. It is refused for a member with no
+login (an elder) and for a supervised child, who is their parent's. An admin's own recovery
+is never in the product at all: that is break-glass, which needs server shell (S-805,
+T-AUTH-G1), and it is keyed on the INSTANCE_ADMIN role rather than `is_superuser` so the
+second admin the succession path creates can be recovered (S10).
+
 ## Provenance
 
 Grants are the mandatory path for these actions, the same way `scoping.py` is
