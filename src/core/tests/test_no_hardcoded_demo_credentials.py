@@ -32,6 +32,13 @@ import pathlib
 import re
 import subprocess
 import tomllib
+from typing import Any
+
+import pytest
+
+# A parsed TOML table. `tomllib` hands back arbitrarily nested data and this file only
+# walks it, so naming the shape once beats threading `Any` through three signatures.
+type _Config = dict[str, Any]
 
 # "key" is deliberately absent: it collides with dictionary-key locals and would make the
 # guard noisy enough that someone eventually allowlists their way around it.
@@ -312,8 +319,30 @@ def test_the_burned_list_and_the_gitleaks_allowlist_do_not_drift() -> None:
     )
 
 
-def _every_allowlisted_regex() -> list[str]:
-    """Every regex in EVERY `[[allowlists]]` block of `.gitleaks.toml`.
+def _allowlist_blocks(config: _Config) -> list[tuple[str, _Config]]:
+    """Every allowlist block in a parsed gitleaks config, top-level AND rule-level.
+
+    The rule-level half is issue 172. gitleaks accepts `[[rules.allowlists]]` nested under a
+    `[[rules]]` table, and such a block silences that rule just as effectively as a top-level
+    one silences all of them -- so a parser that walked only `config["allowlists"]` had the
+    same blind spot one level down that this whole family of guards exists to close. There
+    are none in the file today; the walker is written for the edit that adds the first one,
+    and `test_the_walker_sees_an_allowlist_nested_under_a_rule` proves it would be seen.
+
+    Each entry is (where it was found, the block), so a failure can name the location rather
+    than leaving somebody to grep a 200-line config for an unfamiliar regex.
+    """
+    found = [("[[allowlists]]", block) for block in config.get("allowlists", [])]
+    for rule in config.get("rules", []):
+        rule_id = rule.get("id", "<unnamed rule>")
+        found.extend(
+            (f"[[rules.allowlists]] under {rule_id}", block) for block in rule.get("allowlists", [])
+        )
+    return found
+
+
+def _every_allowlisted_regex(config: _Config | None = None) -> list[str]:
+    """Every regex in EVERY allowlist block of `.gitleaks.toml`.
 
     `_synthetic_fixture_allowlist` above reads ONE block, located by the opening sentence
     of its description. So a value exempted in any OTHER block is invisible to the drift
@@ -327,20 +356,24 @@ def _every_allowlisted_regex() -> list[str]:
     block-shaped fragment with no `regexes` list appears out of nowhere. The same class of
     quiet miss applies to bounding a regex list at the next `]`, since a regex may contain
     one (`backyard-qa-20[0-9]{2}`). gitleaks reads this file as TOML; so does this.
+
+    `config` is injectable so the walker can be proven against a shape the real file does
+    not currently have. A guard for a case that does not exist yet is a guard nobody can
+    show fires.
     """
-    config = tomllib.loads((_REPO_ROOT / ".gitleaks.toml").read_text())
-    blocks = config.get("allowlists", [])
+    if config is None:
+        config = tomllib.loads((_REPO_ROOT / ".gitleaks.toml").read_text())
+    blocks = _allowlist_blocks(config)
     assert len(blocks) > 1, (
-        ".gitleaks.toml parsed to "
-        f"{len(blocks)} [[allowlists]] block(s). This guard exists because there is more "
-        "than one, so a count of zero or one means the parser or the config changed shape "
-        "and every assertion below would pass against nothing."
+        f".gitleaks.toml parsed to {len(blocks)} allowlist block(s). This guard exists "
+        "because there is more than one, so a count of zero or one means the parser or the "
+        "config changed shape and every assertion below would pass against nothing."
     )
     found: list[str] = []
-    for block in blocks:
+    for where, block in blocks:
         regexes = block.get("regexes")
         assert regexes, (
-            "a [[allowlists]] block in .gitleaks.toml has no `regexes` list, so this "
+            f"an allowlist block in .gitleaks.toml ({where}) has no `regexes` list, so this "
             "parser cannot see what it exempts. A path- or commit-scoped allowlist is a "
             "wider exemption than a value one and needs its own reasoning here:\n"
             f"{block.get('description', block)!r:.400}"
@@ -367,11 +400,10 @@ _NON_FIXTURE_EXEMPTIONS = frozenset(
         # THE BURNED PRODUCTION PASSWORD, as a pattern. A reintroduction is caught by
         # test_no_burned_credential_reappears_in_any_tracked_file, never by gitleaks.
         "backyard-qa-20[0-9]{2}",
-        # Two passphrases that exist only in one commit of the BY-01 branch and cannot be
-        # removed without a force-push. A reintroduction into code is caught by _findings()
-        # above, which does NOT allow them.
-        "^an-Old-passphrase-9$",
-        "^a-Brand-new-passphrase-42$",
+        # The two BY-01 fixture passphrases are GONE from this list, because their allowlist
+        # block is gone from .gitleaks.toml (issue 168). The branch carrying that commit was
+        # deleted, and a fresh clone -- the only honest test, since a local worktree still
+        # reaches old commits through its own branches -- scans clean without the block.
     }
 )
 
@@ -400,19 +432,56 @@ def test_the_every_block_parser_sees_past_the_one_block_the_drift_check_reads() 
     """The denominator. A parser that returned only the fixture block would make the test
     above a restatement of the drift check, and the blind spot would still be open.
 
-    Pinned on the two-passphrase block, which is the one this branch added OUTSIDE the
-    span `_synthetic_fixture_allowlist` reads -- the first use of the blind spot.
+    Pinned on the burned-credential block's pattern. It used to be pinned on the BY-01
+    passphrase block, which was removed once its commits became unreachable (issue 168) --
+    so the pin moved to another block OUTSIDE the span `_synthetic_fixture_allowlist` reads,
+    rather than the test being deleted along with the value it happened to name.
     """
     every = _every_allowlisted_regex()
     fixture_block = _synthetic_fixture_allowlist()
-    assert "^an-Old-passphrase-9$" in every, (
-        "the every-block parser missed a block the drift check cannot see"
-    )
-    assert "^an-Old-passphrase-9$" not in fixture_block, (
+    outside = "backyard-qa-20[0-9]{2}"
+    assert outside in every, "the every-block parser missed a block the drift check cannot see"
+    assert outside not in fixture_block, (
         "that value is now inside the fixture block, so this test no longer measures the "
         "difference between the two parsers -- pick another block's value"
     )
     assert set(fixture_block) < set(every), "the every-block parser is not a superset"
+
+
+def test_the_walker_sees_an_allowlist_nested_under_a_rule() -> None:
+    """Issue 172. `[[rules.allowlists]]` silences one rule and used to be invisible here.
+
+    Proven against a synthetic config rather than the real one, because the real one has no
+    rule-level block today -- and a guard written for a case the tree does not contain is a
+    guard nobody has ever watched fire. Both halves are asserted: the nested regex is found,
+    and the nested block cannot be waved through without a `regexes` list either.
+    """
+    nested = {
+        "allowlists": [
+            {"description": "top level one", "regexes": ["^top-a$"]},
+            {"description": "top level two", "regexes": ["^top-b$"]},
+        ],
+        "rules": [
+            {
+                "id": "some-rule",
+                "allowlists": [{"description": "hidden under a rule", "regexes": ["^nested$"]}],
+            }
+        ],
+    }
+    assert "^nested$" in _every_allowlisted_regex(nested), (
+        "a regex inside `[[rules.allowlists]]` is exempt from the secret scan for that rule "
+        "and was not seen by the walker -- the blind spot issue 172 names"
+    )
+
+    blind = {
+        "allowlists": [
+            {"description": "top level one", "regexes": ["^top-a$"]},
+            {"description": "top level two", "regexes": ["^top-b$"]},
+        ],
+        "rules": [{"id": "some-rule", "allowlists": [{"description": "paths, not values"}]}],
+    }
+    with pytest.raises(AssertionError, match="rules.allowlists"):
+        _every_allowlisted_regex(blind)
 
 
 def test_the_guard_catches_a_plain_assignment() -> None:

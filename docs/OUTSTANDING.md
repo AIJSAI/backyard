@@ -97,7 +97,7 @@ written here.
 | ~~S3~~ | **DONE 2026-09-19 (security-hardening PR).** `emailing.strip_control` / `strip_control_keep_breaks` are the one rule, applied by `posting`, `commenting` and a `pre_save` receiver on `Member`; tested on printability rather than category Cc, because the bidi overrides this was about are category Cf. ~~Control characters are not stripped from post bodies or display names.~~ The inbound path strips; the web composer and profile editor do not, and `digest.txt` renders with `autoescape off`. A bidi override or ANSI escape in a name reaches the plaintext digest verbatim; a `\x00` is a 500. | `posting.py`, `commenting.py` — confirmed 0 `strip_control` calls |
 | ~~S4~~ | **DONE 2026-09-19 (security-hardening PR).** `config.urls._inbound_urlpatterns` mounts it only when `RESEND_INBOUND_SECRET` is configured, and the view's `dispatch` refuses it anyway. ~~The webhook route is mounted unconditionally~~, and the secret is only required when the Resend *send* backend is active. On the documented SMTP config, every unauthenticated POST is an unhandled 500. Fail-closed today only by an upstream library rejecting an empty secret. | `config/urls.py`, `config/email_guard.py` |
 | ~~S5~~ | **DONE 2026-09-19 (security-hardening PR).** `received_for` only, a multi-recipient delivery is refused rather than resolved to its first element, and no trustworthy address means no post — with a quarantine row so the refusal is visible. ~~`_trusted_recipient` falls back to a sender-controlled `To:` header~~ when the transport supplies no envelope recipient, and takes `[0]` of a multi-recipient list. Converts TM-4's "the address IS the credential" into "a header is the credential". Should fail closed. | `inbound_webhook.py:40-54` |
-| S6 | **Supply chain**: CI actions pinned to mutable tags (`actions/checkout@v4`, `setup-python@v5`, `setup-uv@v5`) not SHAs; Dockerfile base images float on tags while compose digest-pins; `uvx bandit`/`pip-audit` unpinned beside a checksum-verified gitleaks; no container/OS image scan; dependabot disabled. | `.github/workflows/`, `Dockerfile` — confirmed |
+| S6 | **Supply chain** — mostly CLOSED 2026-09-19. Every third-party action is pinned to a full commit SHA with its release tag in a trailing comment (`checkout` v7.0.1, `setup-python` v7.0.0, `setup-uv` v10.1.0, moved to their current majors), and `.github/dependabot.yml` now runs weekly grouped version updates for `uv`, `docker`, `docker-compose` and `github-actions`, which is what keeps a SHA pin from rotting. **"Dependabot disabled" was never true and is the part of this row to read twice**: security updates have been enabled the whole time — PR #164 and #129 are its output — and what was missing was the *version*-update config, so nothing was ever going to open a pull request for a stale action pin or a stale base-image digest. The Dockerfile base still floats, now on purpose and recorded (see the `FROM` comment and threat model TS-CO-8): it is the only cache key above the apt layer, so a digest pin would freeze the pg client and ffmpeg behind somebody remembering to bump it. **Still open**: `pip-audit` is invoked unpinned (`uv run --with pip-audit`) beside a checksum-verified gitleaks and a pinned `bandit==1.9.2`, and there is still no container/OS image scan. | `.github/workflows/`, `.github/dependabot.yml`, `Dockerfile` — re-measured |
 | S7 | **`cryptography` is undeclared.** The primitive the entire backup guarantee rests on arrives only via `django-allauth[mfa]` → `fido2`. The day that extra changes, encrypted backup breaks at import. | `pyproject.toml` — confirmed absent |
 
 ### Smaller, still real
@@ -148,10 +148,23 @@ unnoticed.
   guards exactly one file out of 60+. Two live `connection.cursor()` sites are unpoliced.
 - **G5** — `check_stories.py`'s evidence rule is a **substring test**: `evidence: trust me`
   passes. All 91 references do resolve today; nothing enforces it. ~10 lines to add.
-- **G6** — `scripts/axe_sweep.py` appears **nowhere in CI**. The accessibility backstop that
-  `test_design_system_wcag.py` defers to is a manual sweep.
-- **G7** — Caddy's security invariants (`admin off`, no `log`, no global `Referrer-Policy`) are
-  enforced by **comments**, not a guard.
+- **G6** — ~~`scripts/axe_sweep.py` appears **nowhere in CI**~~ **CLOSED 2026-09-19.** It runs
+  as a step of the existing `e2e` job — the only job that already installs Chromium, which is
+  why it costs minutes rather than a new lane: seed a throwaway instance, run a server, sweep.
+  Measured before wiring: 33 surfaces, 132 renders, 0 violations, 0 serious/critical, with
+  `DJANGO_DEBUG=0` so the branded 404 and the real static pipeline are what gets swept. The
+  script now **exits non-zero** on a serious/critical finding (a step that always exits 0 is a
+  decorative gate), and `axe.min.js` is fetched pinned and checksum-verified rather than
+  vendored. Still manual, and named rather than implied: the hover pass covers the *first*
+  primary button on a page, and `member-profile` is skipped when the viewer's directory is
+  empty — the sweep says so in its own output.
+- **G7** — ~~Caddy's security invariants are enforced by **comments**, not a guard~~
+  **CLOSED 2026-09-19.** `src/core/tests/test_caddy_security_invariants.py` parses
+  `caddy/Caddyfile.prod` with comments stripped (its own cautions quote the directives they
+  forbid) and asserts `admin off`, no `log`, no global `Referrer-Policy`, `-Server`, `-Via`,
+  `nosniff`, the aborted `:443` fallback and the internal-only `:8000` health block — plus
+  that the production overlay publishes 80 and 443 and nothing else. Seven mutation tests
+  break each invariant in the real file's text and require the matching check to go red.
 - **G8** — `backups.py`'s module docstring says *"the archive is a plain tar … nothing here
   holds a key"*. Encryption is real and default; the docstring is stale, and it is the exact
   sentence a prior audit caught shipping plaintext under.
