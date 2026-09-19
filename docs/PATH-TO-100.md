@@ -6,6 +6,11 @@ The single canonical checklist for Backyard v1.0. Rules:
 2. Items get added, never silently deleted. Superseded items are struck through with a note.
 3. 100% means the goal below is MEASURED, not vibes.
 
+> **This file tracks the v1.0 CRITERIA. It is not the backlog and it is not a task list.**
+> Open engineering work lives in **GitHub issues** (`gh issue list --state open`); an
+> unchecked box here is either a criterion waiting on the founder or a phase that is gated
+> on one, and each says which. Where a box has an issue, it names it.
+
 ## The goal (open until every criterion has receipts)
 
 **BACKYARD v1.0: LEGIT + POLISHED + FOUNDER-VERIFIED, ready to share.**
@@ -19,11 +24,21 @@ builder-first / product-market-fit-right-to-begin-with goal, not a measure-then-
 
 Closed only when ALL of:
 
-1. 100% of v1 stories at status `passing` in [stories/stories.yaml](../stories/stories.yaml), each with test evidence — **MET 2026-07-22** (39/39 v1 `passing`; evidence docs/receipts/2026-07-22-s5-tested-passing-loop.md)
+1. 100% of v1 stories at status `passing` in [stories/stories.yaml](../stories/stories.yaml), each with test evidence — ~~**MET 2026-07-22** (39/39 v1 `passing`; evidence docs/receipts/2026-07-22-s5-tested-passing-loop.md)~~ — **REOPENED 2026-09-19.** It was met against the v1 cut as it stood that day, and the cut has grown since: **S-721 (the delegate rehearsal) is `spec`**, so the criterion is not currently met. Struck rather than deleted, per rule 2, and the tally is deliberately not written down here — a count in a document is stale the moment a story lands. Derive it:
+
+       uv run --with pyyaml python -c "
+       import yaml, collections, pathlib
+       d = yaml.safe_load(pathlib.Path('stories/stories.yaml').read_text())
+       s = [x for e in d['epics'] for x in e['stories']]
+       print(collections.Counter(x['status'] for x in s))
+       v1 = [x for x in s if x.get('v1') is not False]
+       print('v1 not passing:', [(x['id'], x['status']) for x in v1 if x['status'] != 'passing'])"
+
+   What closes it is running the rehearsal, not editing the status field: the retro is explicit that the founder must not role-play the delegate, so it needs a second person walking [`setting-up-your-side.md`](runbooks/setting-up-your-side.md) cold. Until then this criterion is open and the goal above is open with it.
 2. ~~Seed pod live: at least 4 of 6 household members active in 3 of 4 consecutive weeks, unprompted (server receipts)~~ — **SUPERSEDED 2026-07-22 (founder):** adoption is measured to inform iteration, NOT a launch gate. The pod-of-6 seed happens only AFTER the product is 100% right and founder-QA'd; it is then measured and iterated, never held back on the metric.
 3. **Full design system + visual/UX pass across every surface** (feed, compose, onboarding/join, elder path, admin), mobile-first and elder-accessible (WCAG 2.1 AA completed, not just contrast + tap-target) — done via Claude's design tooling, after the flows are finished, before any deploy/share. (Added 2026-07-22.) ~~**MET 2026-07-22 with the Claude Design v2 "backyard at dusk" navy system**~~ — **REOPENED 2026-07-25: the founder rejected v2 as "not sophisticated or production enterprise grade".** **RE-MET 2026-07-26 with Claude Design v3 "Signage" + the v3.1 layout addendum.** The retry was driven by a re-authored brief (docs/design/claude-design-kickoff-v2.md) built from live-sourced research on how Claude Design responds, plus a systematic capture of **every** user-facing surface — which found that the pass was never only cosmetic: **~30 django-allauth credential surfaces (sign-in, the password-reset family, email management, the MFA/TOTP/recovery-code/WebAuthn set) were rendering the library's raw unstyled defaults** — no CSS at all, a literal `Menu:` bulleted list, and a live "Sign Up" link on an invite-only instance — and **404/500/403-CSRF did not exist** (Django's defaults; the 404 is a *normal* surface here because authorization denials answer 404 by design). All now inherit the design system. Also closed in the pass: **SC 1.4.11** (composer border 1.24:1 → 3.40:1 light / 3.64:1 dark), **SC 1.4.10** (two admin tables rendered 744 and 636 CSS px against a 390px viewport, scrolling the page sideways; both now fit exactly 390), the digest email's two most load-bearing strings (3.25:1 → 5.68:1 on the reply separator and the anti-phishing notice), **forced-colors** and **prefers-contrast** support (the repo had none, so every card boundary carried by `box-shadow` vanished in Windows High Contrast — verified live: a card now computes `box-shadow: none` AND `border: 1px solid`), **nav landmarks** (there was no `<nav>` in any of the 34 templates), and **SC 3.2.6 Consistent Help**. ~~Desktop finally has an information design: at 1440px the shell is 1280 wide with a 736px reading well and a 336px sticky rail — **~74% of the viewport in use, against 41.7% before**.~~ — **CORRECTED 2026-07-29:** that sticky rail was deleted in `fd98626` (the desktop rebuild: a two-link rail in a 19rem column left a third of the screen empty and pushed the composition off-centre), so this sentence described a layout that had not existed for three days. `grep` for `position: sticky` or `aside.rail` in `core/base.html` returns nothing. The shell is one centred well, `--shell: 52rem`, with prose capped at 34rem. Left struck through rather than deleted, per rule 2 — and recorded here because a criterion whose *evidence* has rotted is worse than an unchecked box. Six defects in the handoffs were caught by applying and rendering rather than reading, two of them HIGH and both invisible to a green suite (allauth's `extra_head`/`extra_body` seams dropped → **passkey sign-in submitted to a form that did not exist**; and the framework `messages` region missing → two auth failure paths went silent). Two CI guards were also found to be enforcing less than they appeared and were hardened, each proven non-vacuous by probe. **axe-in-browser WCAG 2 A/AA + 2.2 AA sweep, broadened from 8 surfaces to 138 renders** (35 surfaces incl. every allauth page and the error pages, desktop AND mobile, light AND dark, plus the elder path): **0 violations at any severity.** Gate: ruff + format + mypy(139) clean, pytest 565 passed, both WCAG guards pass unmodified. **DEPLOYED AND RE-VERIFIED LIVE 2026-07-26** — main `577504b` is serving at https://backyard.family; the axe sweep was re-run against the LIVE instance (138 renders, 35 surfaces, desktop + mobile, light + dark) with **0 violations at any severity**, and the self-hosted font, the branded 404, the passkey form and the help affordance were each confirmed on the deployed page. evidence: docs/receipts/2026-07-26-design-v3-signage-apply.md — **EXTENDED 2026-07-29 by the v3.2 visual pass** (#96, merged `d3f71b3`, deployed and re-verified live): type scale, density and layout craft, the layer v3.1 never had. A warm-ground experiment was **rejected by the founder and reverted in-branch**; the colour system is v3.1's, token for token. Two defects that a green suite and two clean axe sweeps had both missed: every primary button was **3.92:1 while hovered** in dark mode (an automated sweep never hovers), and five form controls shared one accessible name (axe does not flag that). Both fixed and both now guarded. The rejected-identity guard was widened past the single navy hex it named — that narrowness is what let a rejected palette reach review. axe: **136 renders / 34 surfaces local, 96 / 24 on production, 0 violations**, each render with a deliberate hover pass; centring and row alignment **measured in-browser** at 1440 and 1728 rather than eyeballed. evidence: docs/receipts/2026-07-29-design-v32-visual-pass.md
 
-4. **Founder manual, personal QA sign-off** of the whole product before the first share. (Added 2026-07-22.) **The script to walk is [docs/runbooks/founder-qa.md](runbooks/founder-qa.md)** — ~90 minutes, phone-first, ordered so the paths that were actually broken this month come first, with a sign-off block to fill in. It also carries the one instruction that must happen BEFORE testing email: register the Resend inbound webhook, or reply-by-email will appear to work while silently doing nothing.
+4. **Founder manual, personal QA sign-off** of the whole product before the first share. (Added 2026-07-22.) **The script to walk is [docs/runbooks/founder-qa.md](runbooks/founder-qa.md)** — ~90 minutes, phone-first, ordered so the paths that were actually broken come first, with a sign-off block to fill in. ~~It also carries the one instruction that must happen BEFORE testing email: register the Resend inbound webhook, or reply-by-email will appear to work while silently doing nothing.~~ — **CORRECTED 2026-09-19:** the inbound webhook is registered and enabled on this instance (read from the provider, endpoint `/anymail/resend/inbound/`, event `email.received`), so it is a thing to confirm rather than a thing to do. And the sentence over-promised in a second way that outlived it: since #101 the family email publishes **no reply address at all** and carries no `Reply-To`, so there is no emailed-reply path to walk. Section F now says so and tests the "Reply in Backyard" link the digest actually sends. Still founder-gated and still the gate.
 5. This checklist at 100% with evidence links
 6. One-command deploy verified on a clean machine (fresh VM, documented run) — **MET 2026-07-22** (S-801: a bare Ubicloud VM → one-command compose deploy → serving over TLS at backyard.family; docs/receipts/2026-07-22-s728-persistent-instance.md + docs/runbooks/live-repro.md §B)
 7. v1.0 tagged; public demo and docs site live (public/OSS launch stays gated on the founder deciding to go public — the family share comes first)
@@ -50,10 +65,15 @@ check, not by reading a status field.
 | 6 | Founder personal manual QA | — | **NOT DONE — founder-gated, and the gate** |
 
 **So the honest position is:** items 1–5 are done and verifiable; item 6 has not happened
-and cannot happen without the founder. What remains besides it is also founder-owned:
-registering the S-502 inbound webhook (until then a reply is accepted with a 250 and
-silently never arrives), the S-601 decision on whether an elder may follow a link off her
-page, and whether digest emails may embed capability-token image URLs.
+and cannot happen without the founder. What remains besides it is also founder-owned: the
+S-601 decision on whether an elder may follow a link off her page, and whether digest emails
+may embed capability-token image URLs.
+
+> ~~registering the S-502 inbound webhook (until then a reply is accepted with a 250 and
+> silently never arrives)~~ — **CLOSED 2026-09-19.** The webhook is registered and enabled
+> with the provider, and the sending domain is verified; a real message measured in a real
+> inbox passed SPF, DKIM and DMARC. Nothing in this repository can assert that, which is why
+> it is written as a measurement on a date rather than as a property.
 
 The engineering blockers from
 [the self-audit](audits/2026-07-26-honest-100-audit.md) that could be closed without the
@@ -145,15 +165,17 @@ S-502, S-903 are `tested`.** The one remaining item is a founder input, not code
    deployer docs (Phase 5). S-705 is now `tested`. The privacy posture it describes
    is already ratified and enforced in code.
 
-> **The consolidated backlog is [OUTSTANDING.md](OUTSTANDING.md).** This checklist tracks the
-> v1.0 *criteria*; OUTSTANDING tracks every open item — operator actions, founder decisions,
-> unfixed security findings, and gates that overstate — ranked, with an order to work in.
+> **Open work is in GitHub issues** (`gh issue list --state open`). This checklist tracks
+> the v1.0 *criteria*; [OUTSTANDING.md](OUTSTANDING.md) is the security-pass record and the
+> reasoning behind it, kept so the verdicts survive — it is a record, not a queue, and it
+> stopped being "the consolidated backlog" the day a re-measurement found thirty items it
+> did not contain.
 
 ## Security pass (2026-07-30)
 
 - [x] Five-angle security fan-out (secrets/history, authz/isolation, untrusted input, infrastructure/supply-chain, and the gates themselves) plus live probing of the running instance — **one CRITICAL, four HIGH and ~20 MEDIUM findings, all fixed except T-ADMIN-1 which needs a founder rollout decision.** The headline is not a bug: **three of four gates carrying a non-vacuity proof were proving the wrong class**, which is why a working production password sat in a public repo for the project's life while every gate reported green. Two findings broke the core promise: a bridging post carried the other side of the family's replies, reactor names and reply photographs, and a yard admin could mint a credential wider than their own reach. Nine further mistakes were made *inside the fixes* and caught by review or by probing; that list is in the receipt because the pattern is the finding. evidence: docs/receipts/2026-07-30-security-fan-out.md + docs/security/threat-model.md §7.8
 - [x] **T-ADMIN-1: a second factor for admin roles — RULED 2026-09-19, offered and not enforced.** The threat model claimed it was "enforced in the wizard so a password-only admin never exists" and nothing ever enforced it. The record is corrected rather than the code: requiring one means lockouts for the two non-technical relatives becoming admins here, and a locked-out admin is recovered only from a server shell they have not got. What ships is the offer — a second factor available to every account, the account-security page reachable from Settings, and one calm dismissible prompt on the member roster for an admin with nothing enrolled. Enforcement for the INSTANCE ADMIN alone is filed as issue 182 for the owner. evidence: docs/security/threat-model.md (T-ADMIN-1 and the ruling below the compliance table), src/core/tests/test_the_second_factor_is_offered_and_never_required.py
-- [ ] **Rotate the demo accounts on production.** The leaked password still authenticates. Command in docs/RESUME-HERE.md, operator action #1.
+- [x] **Rotate the demo accounts on production — DONE.** This box read `[ ]` with "the leaked password still authenticates" while [OUTSTANDING.md](OUTSTANDING.md) §0 recorded the same fact as done and verified, and the two sat at HEAD together saying opposite things about whether a password published in a public repository opened the family's photographs. Settled by measurement rather than by picking a document: one outside-in sign-in attempt against the live site on 2026-09-18 was **rejected**. OUTSTANDING was right. The seeded logins were rotated to a generated value (recorded in the password manager, never here), the literal is gone from `scripts/demo_seed.py` — which now mints and prints one per run — and the return of that whole class is guarded by an `ast` check that a comment cannot defeat. evidence: src/core/tests/test_no_hardcoded_demo_credentials.py + docs/OUTSTANDING.md §0
 
 ## Phase 3: Story loop
 
@@ -166,11 +188,15 @@ founder-QA'd (the goal above). The deploy and instrumentation stay — they are 
 pod-of-6 uses it and how we learn — but the weekly-active number is a **learning signal
 to iterate on, not a completion gate**: shipping to the pod is not held back on it.
 
-- [ ] Deployed instance (a persistent Ubicloud VM + domain + Caddy TLS) for the founding household of 6, shared only after the founder's manual QA
+- [ ] Deployed instance (a persistent VM + domain + Caddy TLS) for the founding household of 6, **shared** only after the founder's manual QA — the instance itself is deployed, serving and backed up; this box is about the *sharing*, so it stays open until criterion 4 is signed. Two capacity questions are already filed against it: media lives on the box's own disk with a small-VM ceiling (issue 176), and photo decode still happens in the web process (issue 180).
 - [x] KPI instrumented: weekly active members, unprompted, aggregates only — `rollup_metrics_task` is a registered periodic task (`@app.periodic(cron="30 6 * * 1")`, Mondays 06:30, covering the prior week and the one before so a late post's reciprocity heals); `core/metrics.rollup_week` writes per-yard `YardWeekMetrics` rows and the admin reads them at `/members/metrics/`. Verified 2026-07-29 by reading the schedule and the rollup, not the tracker. **Measuring it against the 4-of-6 target is the next box and needs the pod live** — this one is only the instrument. evidence: src/core/tasks.py + src/core/metrics.py + src/core/tests/test_metrics.py
-- [ ] Weekly-active measured and iterated on (target 4/6 in 3 of 4 weeks) — a signal, not a launch gate
+- [ ] Weekly-active measured and iterated on (target 4/6 in 3 of 4 weeks) — a signal, not a launch gate. Needs the pod live; there is nothing to build, so it carries no issue.
 
 ## Phase 5: OSS launch machinery (gated on Phase 4 passing)
+
+Every box below is gated on the founder deciding to go public, and none is filed as an
+issue on purpose: opening seven issues for work nobody has decided to do turns the tracker
+into a wish list. They become issues at the moment that decision is made.
 
 - [ ] Docs site: admin install, member guide, elder path page, PM case-study page
 - [ ] Public demo instance seeded with the fictional demo family
@@ -181,6 +207,9 @@ to iterate on, not a completion gate**: shipping to the pod is not held back on 
 - [ ] Launch posts (judge-panel approved): r/selfhosted, Show HN
 
 ## Phase 6: Extended rollout
+
+Same rule as Phase 5: gated on the founder's QA walk and on the rollout starting at all, so
+these are criteria rather than tracked work.
 
 - [ ] Pod-by-pod invites: one high-energy pod per side of the family
 - [ ] Shared backyard layer opened once 3+ pods post weekly
