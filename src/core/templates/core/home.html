@@ -5,14 +5,17 @@
      empty page, as the first thing a relative ever reads about their family's app. The old
      string was pinned by test_setup.test_home_shows_landing_to_a_logged_out_visitor, which
      now pins the landing by its shape (a heading plus the way in) rather than by one
-     sentence, so the front door can be written like a front door. {% endcomment %}
+     sentence, so the front door can be written like a front door.
+
+     The words are the owner's own (VOICE.md, the glossary row for the landing): this is
+     the one place the landing says "family", because "family network" is what the product
+     IS and the next sentence has to tell a stranger how to get in. {% endcomment %}
   <div class="page-center">
-    <h1>Welcome to the family&rsquo;s Backyard</h1>
+    <h1>Welcome To Backyard</h1>
     <p class="muted">
-      This is a private, invite-only family network. If someone in the family sent you a
-      link, open it to join. Members are taken straight to the family feed after signing in.
+      A private, invite-only family network. Open your invite link to join.
     </p>
     {% comment %} The one action on the page was the quietest thing on it. {% endcomment %}
-    <p><a class="btn" href="{% url 'account_login' %}">Sign in</a></p>
+    <p><a class="btn" href="{% url 'account_login' %}">Sign In</a></p>
   </div>
 {% endblock %}

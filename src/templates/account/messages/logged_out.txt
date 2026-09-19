@@ -1,0 +1,5 @@
+{% load i18n %}{% comment %} PROJECT OVERRIDE of django-allauth's account/messages/logged_out.txt.
+
+   The sentence after the Sign out page. That page was written for this product ("Sign out
+   of Backyard on this device?") and the sentence that answered it was the library's: "You
+   have signed out." A confirmation in this product is past tense and short. {% endcomment %}{% blocktrans %}Signed out.{% endblocktrans %}

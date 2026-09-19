@@ -131,7 +131,7 @@ def test_a_failed_join_leaves_no_orphan_card(world: World) -> None:
         {"display_name": "Second Cousin", "username": "taken", "password": _PW},
     )
     assert response.status_code == 200  # re-rendered with an error, not a redirect
-    assert "already taken" in response.content.decode()
+    assert "That username is taken." in response.content.decode()
     assert Post.objects.count() == before, "a card survived a rolled-back join"
     assert not Member.objects.filter(display_name="Second Cousin").exists()
 

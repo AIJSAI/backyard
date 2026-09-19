@@ -48,7 +48,7 @@ def email_errors(email: str) -> list[str]:
     """What is wrong with an address a member typed, in their words. Empty is fine.
 
     THE one validator for an address this product will store and send to, shared by the
-    join form and the welcome's Family-email step. It NEVER truncates: `[:254]` made the
+    join form and the welcome's Email Updates step. It NEVER truncates: `[:254]` made the
     length check below unreachable and, worse, silently stored a DIFFERENT address from
     the one typed — a 260-character address becomes a valid-looking 254-character one
     that belongs to nobody. For a field whose whole purpose is account recovery, quietly
@@ -57,32 +57,35 @@ def email_errors(email: str) -> list[str]:
     if not email:
         return []
     if len(email) > 254:
-        return ["That email address is too long (max 254 characters)."]
+        return ["Email address must be 254 characters or fewer."]
     try:
         validate_email(email)
     except ValidationError:
-        return ["That does not look like an email address."]
+        return ["Enter a valid email address."]
     return []
 
 
 def _validate(display_name: str, username: str, password: str, email: str) -> list[str]:
     errors: list[str] = []
     if not display_name:
-        errors.append("Tell us the name your family will see.")
+        errors.append("Enter your name.")
     elif len(display_name) > 100:
         # Guard length before the DB: the model field caps at 100 and an over-long
         # value would otherwise raise DataError (not IntegrityError) into a 500,
         # like the sibling setup view already guards (security review M1).
-        errors.append("That name is too long (max 100 characters).")
+        errors.append("Name must be 100 characters or fewer.")
     if not username:
-        errors.append("Pick a username to sign in with.")
+        errors.append("Choose a username.")
     elif len(username) > 150:
-        errors.append("That username is too long (max 150 characters).")
+        errors.append("Username must be 150 characters or fewer.")
     else:
         try:
             _username_validator(username)
         except ValidationError:
-            errors.append("That username uses characters that are not allowed.")
+            # The rule itself, not just its verdict: a relative who typed a space or an
+            # apostrophe cannot guess what is allowed from "uses characters that are not
+            # allowed", and the same sentence is on the setup form.
+            errors.append("Username can contain letters, numbers, and @ . + - _ only.")
     try:
         validate_password(password, User(username=username))
     except ValidationError as exc:
@@ -213,7 +216,7 @@ def join(request: HttpRequest, token: str) -> HttpResponse:
                 # The invite was consumed between the GET and now: still a 404.
                 raise Http404 from exc
             except IntegrityError:
-                errors.append("That username is already taken. Pick another.")
+                errors.append("That username is taken.")
             else:
                 login(request, member.user, backend=_MODEL_BACKEND)
                 if email:

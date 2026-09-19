@@ -1,0 +1,18 @@
+{% comment %} PROJECT OVERRIDE of django-allauth's account/snippets/already_logged_in.html.
+
+   One line, shown on the two password-reset pages when whoever is reading them is in fact
+   signed in. allauth wrote it as "<strong>Note</strong>: You are already logged in as
+   priya." — a bolded "Note" doing no work, "logged in" where this product says signed in
+   everywhere else, and the USERNAME rather than the name the family knows them by.
+
+   The name comes from the Member row, exactly as the sign-in flash does, and falls back to
+   a sentence with no name rather than to "signed in as ." for an account with no Member
+   behind it. {% endcomment %}
+{% load i18n %}
+<p class="notice">
+    {% if user.member.short_name %}
+        {% blocktrans with name=user.member.short_name %}You are already signed in as {{ name }}.{% endblocktrans %}
+    {% else %}
+        {% blocktrans %}You are already signed in.{% endblocktrans %}
+    {% endif %}
+</p>

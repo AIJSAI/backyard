@@ -8,14 +8,14 @@
    back in if you forget your password. {% endcomment %}
 {% load static allauth i18n %}
 {% block head_title %}
-    {% trans "Your sign-in email" %}
+    {% trans "Your Sign-In Email" %}
 {% endblock head_title %}
 {% block content %}
     {% element h1 %}
-        {% trans "Your sign-in email" %}
+        {% trans "Your Sign-In Email" %}
     {% endelement %}
     {% element p %}
-        {% trans "This is how you get back in if you forget your password. Nothing else is ever sent to it unless you ask." %}
+        {% trans "Used to reset your password. Nothing else is sent to it unless you turn on email updates." %}
     {% endelement %}
     {% if emailaddresses %}
         {% url 'account_email' as email_url %}
@@ -29,16 +29,16 @@
                                 {{ emailaddress.email }}
                                 {% if emailaddress.verified %}
                                     {% element badge tags="success,email,verified" %}
-                                        {% translate "confirmed" %}
+                                        {% translate "Confirmed" %}
                                     {% endelement %}
                                 {% else %}
                                     {% element badge tags="warning,email,unverified" %}
-                                        {% translate "not confirmed yet" %}
+                                        {% translate "Not Confirmed" %}
                                     {% endelement %}
                                 {% endif %}
                                 {% if emailaddress.primary %}
                                     {% element badge tags="email,primary" %}
-                                        {% translate "the one we use" %}
+                                        {% translate "Primary" %}
                                     {% endelement %}
                                 {% endif %}
                             {% endslot %}
@@ -48,13 +48,13 @@
             {% endslot %}
             {% slot actions %}
                 {% element button type="submit" name="action_primary" %}
-                    {% trans 'Use this one' %}
+                    {% trans 'Make Primary' %}
                 {% endelement %}
                 {% element button tags="secondary" type="submit" name="action_send" %}
-                    {% trans 'Send the confirmation again' %}
+                    {% trans 'Resend Confirmation' %}
                 {% endelement %}
                 {% element button tags="danger,delete" type="submit" name="action_remove" %}
-                    {% trans 'Remove it' %}
+                    {% trans 'Remove' %}
                 {% endelement %}
             {% endslot %}
         {% endelement %}
@@ -63,7 +63,7 @@
     {% endif %}
     {% if can_add_email %}
         {% element h2 %}
-            {% trans "Add an email address" %}
+            {% trans "Add An Email Address" %}
         {% endelement %}
         {% url 'account_email' as action_url %}
         {% element form form=form method="post" action=action_url tags="email,add" %}
@@ -74,12 +74,12 @@
             {% endslot %}
             {% slot actions %}
                 {% element button name="action_add" type="submit" %}
-                    {% trans "Add it" %}
+                    {% trans "Add" %}
                 {% endelement %}
             {% endslot %}
         {% endelement %}
         {% element p %}
-            {% trans "We will send one email to check the address is yours." %}
+            {% trans "A confirmation email is sent to any address you add." %}
         {% endelement %}
     {% endif %}
 {% endblock content %}

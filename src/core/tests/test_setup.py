@@ -145,7 +145,7 @@ def test_home_shows_landing_to_a_logged_out_visitor(db: None) -> None:
     # a server status message as the first thing a relative ever reads — and it was
     # frozen here, so the front door could not be written like one. What the landing
     # owes a logged-out visitor is a welcome and a way in; that is what this holds.
-    assert b"Welcome to the family" in resp.content
+    assert b"Welcome To Backyard" in resp.content
     assert reverse("account_login").encode() in resp.content
 
 

@@ -1,0 +1,5 @@
+{% load i18n %}{% comment %} PROJECT OVERRIDE of django-allauth's account/messages/cannot_delete_primary_email.txt.
+
+   Raised on "Remove it" against the address in use. The stock sentence said what was
+   refused and never what to do instead, which is the shape the voice guide rules out for
+   an error: what is wrong, and the fix. {% endcomment %}{% blocktrans %}{{ email }} is the address you sign in with. Choose a different one before removing it.{% endblocktrans %}

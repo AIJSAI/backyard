@@ -120,8 +120,8 @@ def test_a_removed_relative_is_told_in_the_products_own_words() -> None:
     html = response.content.decode()
 
     assert response.status_code == 200
-    assert "You are no longer part of this Backyard" in html
-    assert "talk to the person who invited you" in html
+    assert "No Longer A Member" in html
+    assert "contact the person who invited you" in html
     # The library's words, which is what the walk actually saw on screen.
     assert "This account is inactive." not in html
     assert "Account Inactive" not in html
@@ -204,8 +204,8 @@ def test_the_messages_region_keeps_its_list_semantics() -> None:
 # scanner. Quoting a stock label is not worth a red required check on every open PR.
 # Its sibling — core/recover.html, the no-login link an admin hands to somebody with no
 # email address — has asked the same question in the family's own words for months. And the
-# page after it said the same thing twice: allauth's "Password successfully changed." in the
-# message strip, then "Your new password is saved" underneath it.
+# page after it said the same thing twice: the framework's password-changed message in the
+# message strip, then this product's own sentence underneath it.
 #
 # These drive the REAL flow — ask for a reset, take the link out of the mail that arrives,
 # open it, set a password — rather than rendering a template with a hand-built context. The
@@ -257,16 +257,14 @@ def test_the_emailed_reset_form_asks_the_way_the_get_back_in_page_asks() -> None
     _, _, html = _walk_to_the_reset_form()
     text = " ".join(html.split())
 
-    assert "New password" in text and "New Password:" not in text
-    assert (
-        "Use something you will remember. Three or four unrelated words work well and are "
-        "easy to type on a phone." in text
-    ), "the field still gives a relative no idea what to type"
-    assert "Type it again" in text and "New Password (again)" not in text
-    assert (
-        "This link works once. A password with a typo in it would lock you out again and "
-        "you would have to ask for a new link, so we ask for it twice." in text
-    ), "the second box is still asked for without a reason"
+    assert "New Password" in text and "New Password:" not in text
+    assert "Choose a memorable password." in text, (
+        "the field still gives a relative no idea what to type"
+    )
+    assert "Confirm Password" in text and "New Password (again)" not in text
+    assert "This link works once, so a typo would lock you out again." in text, (
+        "the second box is still asked for without a reason"
+    )
     # Django's password_validators_help_text_html(), four bullets of policy read before
     # anybody has typed anything. The rules still RUN — the test below proves it.
     assert "Your password can" not in text, "the stock validator bullets are back"
@@ -281,7 +279,9 @@ def test_the_emailed_reset_form_still_submits_and_still_validates() -> None:
 
     weak = client.post(action, {"password1": "123", "password2": "123"})
     assert weak.status_code == 200, "a refused password must re-render, not redirect"
-    assert "too short" in weak.content.decode().lower(), (
+    # The sentence is this product's since the copy pass (core/password_rules.py keeps
+    # Django's check and replaces its wording); allauth's "too short" is gone.
+    assert "Password must be at least 8 characters." in weak.content.decode(), (
         "the validators are not running — the fields are no longer reaching the form"
     )
 
@@ -296,7 +296,7 @@ def test_the_emailed_reset_form_still_submits_and_still_validates() -> None:
 
 
 def test_the_page_after_the_reset_says_it_once() -> None:
-    """allauth raised its own "Password successfully changed." on the POST, and
+    """allauth raises its own password-changed message on the POST, and
     core/base.html renders the message strip ABOVE the body — so the library's sentence was
     the first thing a locked-out relative read and this product's own was the echo."""
     client, action, _ = _walk_to_the_reset_form()
@@ -305,8 +305,8 @@ def test_the_page_after_the_reset_says_it_once() -> None:
     html = done.content.decode()
 
     assert done.request["PATH_INFO"] == reverse("account_reset_password_from_key_done")
-    assert "Your new password is saved" in html  # non-vacuity: the page DID render
-    assert "Password successfully changed" not in html, "the stock sentence is back"
+    assert "Password Changed" in html  # non-vacuity: the page DID render
+    assert "Password changed." not in html, "the framework message is back"
     assert '<ul class="messages">' not in html, "the message strip is rendering an echo"
 
 
@@ -330,7 +330,7 @@ def test_the_signed_in_password_change_keeps_its_only_confirmation() -> None:
         follow=True,
     )
     assert response.status_code == 200
-    assert "Password successfully changed" in response.content.decode(), (
+    assert "Password changed." in response.content.decode(), (
         "the signed-in password change lost the only confirmation it has"
     )
 
@@ -375,6 +375,10 @@ def test_the_project_template_root_shadows_nothing_unintended() -> None:
 
     root = pathlib.Path(__file__).resolve().parents[2] / "templates"
     allowed = {
+        # The refusal page. Django's own handler403 renders `403.html` by name from this
+        # root; without the file it served its bare built-in page instead (copy pass,
+        # 2026-09-19).
+        "403.html",
         "403_csrf.html",
         "404.html",
         # The calm page a family link shows when it has been opened very many times in a
@@ -398,11 +402,40 @@ def test_the_project_template_root_shadows_nothing_unintended() -> None:
         "account/password_reset_from_key.html",
         "account/password_reset_from_key_done.html",
         "account/snippets/warn_no_email.html",
+        # Not a page: the help text allauth hangs under the sign-in page's password box.
+        # The package has no such file and falls back to a hard-coded sentence-case
+        # "Forgot your password?", which three other surfaces quote back in Title Case.
+        "account/password_reset_help_text.html",
+        # The account pages the completeness sweep found still speaking as the library:
+        # the password change a relative reaches from Settings by name, its set-password
+        # sibling, the shared "prove it is you again" shell and its password half, and
+        # what /accounts/signup/ answers on an invite-only instance ("Sign Up Closed" —
+        # "We are sorry, but the sign up is currently closed.").
+        "account/base_reauthenticate.html",
+        "account/password_change.html",
+        "account/password_set.html",
+        "account/reauthenticate.html",
+        "account/signup_closed.html",
+        # "<strong>Note</strong>: You are already logged in as priya." — a label on a
+        # sentence, the one place in the product that said "logged in", and the USERNAME
+        # where every other surface says the name the family uses.
+        "account/snippets/already_logged_in.html",
         "allauth/layouts/base.html",
         "allauth/layouts/entrance.html",
         "allauth/layouts/manage.html",
-        # The e-mails, and the flash message allauth raises on sign-in.
+        # The e-mails, and the flash messages allauth raises on this product's own screens:
+        # sign-in, sign-out, and the five that fire on "Your sign-in email". Each is copy
+        # only — the message is still raised by the same flow, from the same view.
         "account/messages/logged_in.txt",
+        "account/messages/logged_out.txt",
+        "account/messages/email_confirmed.txt",
+        "account/messages/email_confirmation_failed.txt",
+        "account/messages/email_deleted.txt",
+        "account/messages/cannot_delete_primary_email.txt",
+        "account/messages/unverified_primary_email.txt",
+        "account/messages/email_confirmation_sent.txt",
+        "account/messages/primary_email_set.txt",
+        "account/messages/password_set.txt",
         # Not copy: a SCOPED suppression. allauth raises one "password changed" message
         # from two flows, and on the emailed-reset page it printed the fact directly above
         # this product's own sentence saying it again. The file declines it for that one
@@ -417,6 +450,40 @@ def test_the_project_template_root_shadows_nothing_unintended() -> None:
         "account/email/password_reset_key_message.txt",
         "account/email/unknown_account_subject.txt",
         "account/email/unknown_account_message.txt",
+        # The passkey and two-factor set, all of it. There was NO src/templates/mfa at all
+        # before the copy pass: every one of these pages rendered django-allauth's own
+        # developer English on this product's layout, which is the worst of the two — it
+        # looks like the product and does not sound like it. Copy only, and the plumbing is
+        # noted file by file: the WebAuthn button ids, the hidden credential fields, the
+        # `js_data` blocks and the `logout-from-stage` forms are the package's, verbatim.
+        "mfa/authenticate.html",
+        "mfa/index.html",
+        "mfa/reauthenticate.html",
+        # Unreachable while MFA_TRUST_ENABLED is off, and written anyway: the flag is one
+        # line away from making it a live screen. See the note in the file.
+        "mfa/trust.html",
+        "mfa/messages/recovery_codes_generated.txt",
+        "mfa/messages/totp_activated.txt",
+        "mfa/messages/totp_deactivated.txt",
+        "mfa/messages/webauthn_added.txt",
+        "mfa/messages/webauthn_removed.txt",
+        "mfa/recovery_codes/base.html",
+        "mfa/recovery_codes/generate.html",
+        "mfa/recovery_codes/index.html",
+        "mfa/totp/activate_form.html",
+        "mfa/totp/deactivate_form.html",
+        "mfa/webauthn/add_form.html",
+        "mfa/webauthn/authenticator_confirm_delete.html",
+        "mfa/webauthn/authenticator_list.html",
+        # Carries one string and it is the document title of all four passkey pages, none
+        # of which sets one of its own.
+        "mfa/webauthn/base.html",
+        "mfa/webauthn/edit_form.html",
+        "mfa/webauthn/reauthenticate.html",
+        # The three script tags are the package's, in its order. The file exists for the
+        # <noscript> above them: "This functionality requires JavaScript." named neither
+        # the thing that would not work nor what to do instead.
+        "mfa/webauthn/snippets/scripts.html",
     }
     found = {
         str(p.relative_to(root)) for pattern in ("*.html", "*.txt") for p in root.rglob(pattern)

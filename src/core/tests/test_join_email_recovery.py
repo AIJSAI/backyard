@@ -150,7 +150,7 @@ def test_an_over_long_address_is_rejected_not_silently_truncated() -> None:
     # value here happens to be malformed too -- so a status-only assertion passes either
     # way and proves nothing. This is the discriminating signal: the first version of this
     # test passed with the bug reintroduced.
-    assert "too long" in response.content.decode().lower(), (
+    assert "254 characters or fewer" in response.content.decode(), (
         "the over-long address was refused for the wrong reason -- the length check is "
         "unreachable, which means the value is being truncated before it is validated"
     )
@@ -168,7 +168,7 @@ def test_the_join_form_says_what_skipping_the_address_costs() -> None:
     html = Client().get(reverse("join", args=[raw])).content.decode()
     assert 'name="email"' in html
     assert "optional" in html.lower(), "the field must not read as required"
-    assert "forget your password" in html.lower(), (
+    assert "ask an admin for a sign-in link" in " ".join(html.split()).lower(), (
         "the form must say what skipping the address costs; without it the member is "
         "choosing permanent lockout with no way to know"
     )

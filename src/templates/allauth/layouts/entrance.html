@@ -18,8 +18,17 @@
        is no way to make one. It used to add that "if someone in the family sent you a
        link, open it to join", which is the landing page's sentence, and this is not the
        landing page — everyone who reads this either has an account or has a link in
-       their hand already. {% endcomment %}
-    <p class="lede">Backyard is invite-only. Open your invite link to join.</p>
+       their hand already.
+
+       SIGNED OUT ONLY. This layout is also the shell for the three "Confirm It Is You"
+       screens and the two-factor sign-in step, and their reader is signed in: the page
+       told them Backyard was invite-only three lines above the heading, with Sign Out in
+       its own footer. Two lines that contradict each other is the defect the copy pass
+       was called for, and the lede cannot be dropped from a child template because it
+       sits outside `content`. {% endcomment %}
+    {% if not user.is_authenticated %}
+      <p class="lede">Backyard is invite-only. Open your invite link to join.</p>
+    {% endif %}
     {% comment %} The card is new in the v3.2 visual pass. Without it the entrance was a
        27rem column centred inside the shell while the footer sat at the shell's left
        edge, so the one screen carrying two elements had two different left margins.

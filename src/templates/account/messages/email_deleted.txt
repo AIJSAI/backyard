@@ -1,0 +1,4 @@
+{% load i18n %}{% comment %} PROJECT OVERRIDE of django-allauth's account/messages/email_deleted.txt.
+
+   Raised after "Remove it" on Your Sign-In Email. "Removed email address <address>." says
+   "email address" on a page whose every row is one. {% endcomment %}{% blocktrans %}{{ email }} removed.{% endblocktrans %}
