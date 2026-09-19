@@ -67,7 +67,7 @@
 .admin-links { display: grid; gap: 1.4rem 2rem; grid-template-columns: 1fr; }
 @media (min-width: 30rem) { .admin-links { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 /* NO text-transform, the third and last site of it in the product. The source says "Add
-   People" and "Check On Things" and the screen said ADD PEOPLE and CHECK ON THINGS; the
+   People" and "Tools" and the screen said ADD PEOPLE and TOOLS; the
    guide writes capitals in the source and never in CSS. Same cure as the table headers in
    base.html: a little larger, a lot less tracking. */
 .admin-links h2 {
@@ -154,7 +154,7 @@
         </ul>
       </div>
       <div>
-        <h2>Check On Things</h2>
+        <h2>Tools</h2>
         <ul>
           <li><a href="{% url 'admins_day_one' %}">Admin Guide</a></li>
           <li><a href="{% url 'member_digests' %}">Email Updates</a></li>

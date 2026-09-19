@@ -16,8 +16,9 @@ a point somebody deliberately stopped at, with a full green gate behind it.
 ### Changed
 
 - **Every word the product shows a person has been rewritten.** The owner read the shipped
-  copy end to end and rejected it. Nothing about what the product does has changed: no
-  route, no form field, no permission, no stored value. What changed is what it says.
+  copy end to end and rejected it. No route, no permission and no stored value changed.
+  The few behaviours that did change were defects found while judging the new words at
+  phone width, and they are listed under Fixed.
   - **A plainer voice.** The product no longer calls itself "we", "us" or "our", and no
     longer reassures, charms or explains what an adult already knows. Sentences that only
     set a mood are gone. Warnings that stop an irreversible or a security mistake all
@@ -50,6 +51,32 @@ a point somebody deliberately stopped at, with a full green gate behind it.
     are written down in [docs/design/voice.md](docs/design/voice.md).
 
 ### Fixed
+
+- **Found by reading every screen and e-mail at phone width after the rewrite**, as a
+  designer, as a first-time relative and as an editor:
+  - The weekly Email Updates mail was a fixed 600px table and clipped sentences mid-word on
+    a phone. It is fluid up to 600px now.
+  - On the share-more-widely confirmation, "Cancel" threw away the post that had just been
+    written. The button says what it does: Discard Post.
+  - The delete-a-person page kept its only Cancel a screen and a half above the delete
+    button. It sits beside it.
+  - The join form showed the browser's own grey validation bubble over the Join button.
+    The server's plain errors are the only ones now.
+  - The no-login page stopped saying whose link it was, so on a shared tablet Send Love
+    could be tapped under the wrong person's name. It says "For <first name>".
+  - An author who opened Edit Post after the fifteen-minute window was told "You Do Not
+    Have Access", which is false. They are returned to the post and told the rule. The
+    edit is still refused, on GET and on POST.
+  - The widest contact-visibility choice read "Everyone", which a first-time relative can
+    take to mean the public web. It reads "All Members" (a label only; migration `0032`
+    emits no SQL).
+  - The reply-notification mail named the wrong switch in its last line, so turning it off
+    also stopped Email Updates without saying so. Each mail now names its own switch.
+  - Three CSS rules upper-cased text the source writes in Title Case, including every
+    table label at phone width. Removed.
+  - Your Sign-In Email rendered a radio on its own line above an address run together with
+    its two statuses, and three filled buttons of equal weight. It uses the product's own
+    row, pills and quiet and danger buttons; allauth's field names are unchanged.
 
 - **The outside monitor's alarm reached nobody's inbox.** It raised the alarm by opening an
   issue that mentions the repository owner, on the assumption that the mention e-mails them.

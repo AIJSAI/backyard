@@ -19,45 +19,30 @@
     {% endelement %}
     {% if emailaddresses %}
         {% url 'account_email' as email_url %}
-        {% element form form=form action=email_url method="post" tags="email,list" %}
-            {% slot body %}
-                {% csrf_token %}
-                {% for radio in emailaddress_radios %}
-                    {% with emailaddress=radio.emailaddress %}
-                        {% element field type="radio" checked=radio.checked name="email" value=emailaddress.email id=radio.id %}
-                            {% slot label %}
-                                {{ emailaddress.email }}
-                                {% if emailaddress.verified %}
-                                    {% element badge tags="success,email,verified" %}
-                                        {% translate "Confirmed" %}
-                                    {% endelement %}
-                                {% else %}
-                                    {% element badge tags="warning,email,unverified" %}
-                                        {% translate "Not Confirmed" %}
-                                    {% endelement %}
-                                {% endif %}
-                                {% if emailaddress.primary %}
-                                    {% element badge tags="email,primary" %}
-                                        {% translate "Primary" %}
-                                    {% endelement %}
-                                {% endif %}
-                            {% endslot %}
-                        {% endelement %}
-                    {% endwith %}
-                {% endfor %}
-            {% endslot %}
-            {% slot actions %}
-                {% element button type="submit" name="action_primary" %}
-                    {% trans 'Make Primary' %}
-                {% endelement %}
-                {% element button tags="secondary" type="submit" name="action_send" %}
-                    {% trans 'Resend Confirmation' %}
-                {% endelement %}
-                {% element button tags="danger,delete" type="submit" name="action_remove" %}
-                    {% trans 'Remove' %}
-                {% endelement %}
-            {% endslot %}
-        {% endelement %}
+        {% comment %} WRITTEN BY HAND, not through allauth's elements. Their defaults render a
+           radio on its own line above a bold label, the two statuses as bare <strong> run
+           together with the address ("name@host Not Confirmed Primary"), and all three
+           actions as one filled button each, so the destructive one looked like the main
+           one. The field names (email, action_primary, action_send, action_remove) are
+           allauth's and must not change: its view reads them. {% endcomment %}
+        <form method="post" action="{{ email_url }}">
+            {% csrf_token %}
+            {% for radio in emailaddress_radios %}
+                {% with emailaddress=radio.emailaddress %}
+                    <label class="inline-check email-row" for="{{ radio.id }}">
+                        <input type="radio" name="email" id="{{ radio.id }}" value="{{ emailaddress.email }}"{% if radio.checked %} checked{% endif %}>
+                        <span>{{ emailaddress.email }}</span>
+                        {% if emailaddress.verified %}<span class="role">{% translate "Confirmed" %}</span>{% else %}<span class="flag">{% translate "Not Confirmed" %}</span>{% endif %}
+                        {% if emailaddress.primary %}<span class="role">{% translate "Primary" %}</span>{% endif %}
+                    </label>
+                {% endwith %}
+            {% endfor %}
+            <div class="email-actions">
+                <button type="submit" name="action_primary" class="btn-quiet">{% trans 'Make Primary' %}</button>
+                <button type="submit" name="action_send" class="btn-quiet">{% trans 'Resend Confirmation' %}</button>
+                <button type="submit" name="action_remove" class="danger">{% trans 'Remove' %}</button>
+            </div>
+        </form>
     {% else %}
         {% include "account/snippets/warn_no_email.html" %}
     {% endif %}

@@ -633,6 +633,9 @@ p.back-link { margin: 0 0 1rem; }
    look, not the element, is what was wrong. A row is a 44px tap target (SC 2.5.5). */
 p.settings-link { margin: 0; border-top: 1px solid var(--line); }
 p.settings-link:first-of-type { border-top: 0; }
+/* The list starts straight after the profile form: without this its first row sat
+   against the Save button. */
+form + p.settings-link { margin-top: 1.75rem; }
 p.settings-link > a {
   display: flex; align-items: center; min-height: 44px; padding: 0.15rem 0;
   text-decoration: none; font-weight: 600;
@@ -686,6 +689,8 @@ ul.errorlist li::before { content: "\26a0\00a0\00a0"; font-weight: 700; color: v
 }
 .messages .msg + .msg { margin-top: 0.6rem; }
 .messages .msg::before { content: "\2713\00a0\00a0"; font-weight: 700; color: var(--green); }
+/* An info message states a rule; it is not a success, so it carries no tick. */
+.messages .msg.info::before { content: none; }
 .messages .msg.error, .messages .msg.warning {
   border-color: color-mix(in srgb, var(--danger) 40%, transparent); background: var(--danger-tint);
 }
@@ -700,6 +705,11 @@ ul.errorlist li::before { content: "\26a0\00a0\00a0"; font-weight: 700; color: v
   letter-spacing: 0.02em; vertical-align: middle;
 }
 .role { background: var(--green-tint); color: var(--green-deep); }
+/* The sign-in email page: an address row wraps on a phone, and its three actions sit
+   on one wrapping row under the list. */
+label.inline-check.email-row { flex-wrap: wrap; }
+.email-actions { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; margin: 0.75rem 0 2rem; }
+.email-actions button { margin: 0; }
 @media (prefers-color-scheme: dark) { .role { color: var(--green); } }
 :root[data-theme="light"] .role { color: var(--green-deep); }
 :root[data-theme="dark"] .role { color: var(--green); }
@@ -762,6 +772,9 @@ ul.errorlist li::before { content: "\26a0\00a0\00a0"; font-weight: 700; color: v
    is exactly the old behaviour, and the tab order is unchanged because focus-within
    expands the moment the textarea takes focus. */
 .composer-extras { margin-top: 1rem; }
+/* A composer with no extras wrapper (the welcome step's first post) puts the picker
+   straight after the textarea, whose bottom margin is zero: the button touched the box. */
+.composer > .media-picker { margin-top: 1rem; }
 .composer:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) .composer-extras {
   display: none;
 }
