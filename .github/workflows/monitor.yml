@@ -15,12 +15,18 @@ name: monitor
 #
 # So the alarm is an ISSUE, and it is idempotent. Every run checks BOTH halves (the health
 # endpoint and the certificate) and collects what it finds. Problems open ONE issue labelled
-# `monitor-alarm` -- which e-mails the owner, once, because it mentions them -- and later
+# `monitor-alarm` -- the durable record, and the throttle -- and later
 # runs add a comment to that same issue at most once a day rather than opening another. When
 # everything is well again the issue is commented and closed, so the absence of an open
 # `monitor-alarm` issue is itself the "all clear". The job then EXITS 0: a red check run is
 # reserved for the alarm mechanism failing, because an alarm that cannot alarm is the one
 # thing nothing else would ever tell you.
+#
+# AND IT SENDS THE E-MAIL ITSELF, because the issue does not. The mention was assumed to
+# reach a mailbox and measurably does not on this repository; the e-mail leg below sends on
+# the two STATE CHANGES only -- a new alarm, and the recovery -- from outside the instance,
+# so it still speaks when the box is off. It needs three repository secrets, and without
+# them everything above is unchanged.
 #
 # KNOWN CAVEAT, in the workflow rather than only in the pull request that added it: GitHub
 # disables scheduled workflows in a PUBLIC repository after 60 days with no repository
@@ -75,8 +81,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          # Mentioning the owner is what turns the issue into an e-mail.
+          # Mentioning the owner is what turns the issue into a GitHub NOTIFICATION. Whether
+          # that notification becomes e-mail is a setting on the owner's account, which
+          # nothing in this repository can see -- and on this one it does not. See the
+          # e-mail leg below for the rehearsal that measured it.
           OWNER: ${{ github.repository_owner }}
+          ISSUES_URL: ${{ github.server_url }}/${{ github.repository }}/issues
+          # SECRETS, all three, and never variables: a repository variable is readable by
+          # anyone who can see this public repository, and two of these are mailbox
+          # addresses. With any of them unset the e-mail leg does not arm, says so once, and
+          # the issue alarm below behaves exactly as it did before it existed.
+          MONITOR_RESEND_API_KEY: ${{ secrets.MONITOR_RESEND_API_KEY }}
+          MONITOR_ALERT_TO: ${{ secrets.MONITOR_ALERT_TO }}
+          MONITOR_ALERT_FROM: ${{ secrets.MONITOR_ALERT_FROM }}
         run: |
           set -uo pipefail
           # `set +e` EXPLICITLY, and it is load-bearing: GitHub runs a step's script with
@@ -179,6 +196,68 @@ jobs:
           message() { printf '%s\n\n%s\nRun: %s\n' "$1" "$problems" "$RUN_URL"; }
           ALARM_NOTE="This issue IS the alarm. It stays open while the problem lasts: later runs comment on it at most once a day rather than opening another, and the monitor closes it when the instance is well again. Closing it by hand is fine -- if the problem is still there, the next run opens a new one."
 
+          # ------------------------------------------------------------- the e-mail leg
+          # The issue is the durable record and the once-a-day throttle, and it used to be
+          # where the alarm stopped: it mentions the owner, and the assumption was that the
+          # mention e-mails them. Rehearsed on 2026-09-19 against the live setup -- the
+          # issue opened, the monitor closed it on recovery, GitHub recorded a `mention`
+          # notification, and NO e-mail arrived, because whether a notification becomes mail
+          # is a per-account setting. "The instance is down" reached nobody's inbox, which
+          # is the one message this whole file exists to deliver. The instance's own weekly
+          # health e-mail cannot cover the case either: a box that is down sends nothing.
+          #
+          # So the monitor sends it itself, over HTTPS, from OUTSIDE the box, in this same
+          # step. One job on purpose: a runner bills per job rounded up to the minute, and
+          # this is four lines of curl, not a second check run.
+          mail_armed=1
+          if [ -z "${MONITOR_RESEND_API_KEY:-}" ] \
+             || [ -z "${MONITOR_ALERT_TO:-}" ] \
+             || [ -z "${MONITOR_ALERT_FROM:-}" ]; then
+            mail_armed=0
+            echo "the e-mail leg is not armed; set the repository secrets MONITOR_RESEND_API_KEY, MONITOR_ALERT_TO and MONITOR_ALERT_FROM to have the monitor mail the alarm itself"
+          fi
+
+          # Nothing this prints names the key, the recipient, the sender, the monitored host
+          # or Resend's answer: this log is world-readable, and Resend's response body echoes
+          # the recipient back at you. It prints a status code and nothing else.
+          #
+          # `jq -n --arg` builds the payload, so a quotation mark or a newline inside a
+          # problem line is DATA -- it cannot break the JSON or inject a field -- and the
+          # payload travels on stdin, so neither it nor the addresses reach the process
+          # table. `--fail-with-body` is exactly what is NOT wanted here: it prints the body.
+          send_alert_mail() {
+            [ "$mail_armed" -eq 1 ] || return 0
+            mail_payload=$(jq -n \
+              --arg from "$MONITOR_ALERT_FROM" \
+              --arg to "$MONITOR_ALERT_TO" \
+              --arg subject "$1" \
+              --arg text "$2" \
+              '{from: $from, to: [$to], subject: $subject, text: $text}') || {
+              fail_alarm "could not build the alert e-mail"
+              return 0
+            }
+            mail_code=$(printf '%s' "$mail_payload" \
+              | curl -sS --max-time 20 -o /dev/null -w '%{http_code}' \
+                  -X POST https://api.resend.com/emails \
+                  -H "Authorization: Bearer $MONITOR_RESEND_API_KEY" \
+                  -H "Content-Type: application/json" \
+                  --data-binary @-)
+            case "${mail_code:-000}" in
+              2??)
+                echo "alert e-mail sent (HTTP ${mail_code})"
+                ;;
+              *)
+                # The alarm reached the repository and not the mailbox, and nothing else in
+                # the world would ever tell anyone that. This is the one case a red run is
+                # right for, so it goes through the same mechanism a refusing GitHub API
+                # does -- and it runs AFTER the issue is opened or closed, so a mailbox that
+                # cannot be reached costs the e-mail and never the record.
+                echo "alert e-mail FAILED (HTTP ${mail_code:-000})"
+                fail_alarm "the alert e-mail was not accepted"
+                ;;
+            esac
+          }
+
           open_issue=$(gh issue list --label "$LABEL" --state open --limit 1 \
             --json number,updatedAt --jq '.[0] | select(.) | "\(.number) \(.updatedAt)"') \
             || { fail_alarm "could not list existing $LABEL issues"; open_issue=""; }
@@ -208,10 +287,22 @@ jobs:
               gh label create "$LABEL" --color B60205 --force \
                 --description "The outside-the-box monitor found something wrong" \
                 || fail_alarm "could not create the $LABEL label"
-              gh issue create --title "Backyard needs attention" --label "$LABEL" \
+              # The FIRST of the two state changes that e-mail: an alarm that was not there
+              # before. The issue is opened first and the e-mail is addressed from what it
+              # returns, so the record exists whether or not the mail does. The daily
+              # reminder comment above deliberately sends nothing -- once a day into an
+              # inbox is how an alarm gets muted, and the issue already says "still wrong".
+              if issue_url=$(gh issue create --title "Backyard needs attention" --label "$LABEL" \
                 --body "$(message "@${OWNER} — the monitor that runs outside the instance found a problem."
-                          printf '\n%s\n' "$ALARM_NOTE")" \
-                || fail_alarm "could not open the alarm issue"
+                          printf '\n%s\n' "$ALARM_NOTE")"); then
+                echo "opened $issue_url"
+                send_alert_mail "Backyard needs attention" \
+                  "$(printf '%s\n\n%s\nRun: %s\nIssue: %s\n' \
+                       "The monitor that runs outside the instance found a problem." \
+                       "$problems" "$RUN_URL" "$issue_url")"
+              else
+                fail_alarm "could not open the alarm issue"
+              fi
             fi
           else
             echo "everything this monitor can see is well"
@@ -222,8 +313,16 @@ jobs:
               recovered="Recovered: the health endpoint answers ok, and the certificate has more than 14 days left."
               if gh issue comment "$issue_number" \
                    --body "$(printf '%s\n\nRun: %s\n' "$recovered" "$RUN_URL")"; then
-                gh issue close "$issue_number" \
-                  || fail_alarm "could not close alarm issue #$issue_number"
+                # The SECOND and last state change that e-mails: the alarm is over. Sent
+                # after the close succeeds, so the mail only ever describes a state the
+                # repository is actually in.
+                if gh issue close "$issue_number"; then
+                  send_alert_mail "Backyard is well again" \
+                    "$(printf '%s\n\nRun: %s\nIssue: %s\n' \
+                         "$recovered" "$RUN_URL" "$ISSUES_URL/$issue_number")"
+                else
+                  fail_alarm "could not close alarm issue #$issue_number"
+                fi
               else
                 fail_alarm "could not comment the recovery on alarm issue #$issue_number"
               fi
