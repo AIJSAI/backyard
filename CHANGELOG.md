@@ -39,7 +39,51 @@ itself up and telling somebody when it cannot.
   who is locked out, remove somebody and what happens to their posts, and who to ask. It
   existed only as a file in this repository, which is nowhere for the people it is written
   for.
-
+- **There is a person behind every name.** A calm coloured circle with someone's initials
+  now sits beside their name wherever it leads something — a post, a reply, a row in the
+  directory, their own page. The colour is picked from the person, so the same relative
+  looks the same everywhere. No photo to upload and nothing to keep up to date.
+- **The directory says where people sit in the family.** Each row carries their side of
+  the family and their household under their name, and only the ones you are already in.
+- **A profile shows what that person actually wrote.** It used to be a name, one line
+  saying they had shared nothing, and a link that would have downloaded an empty contact
+  card. That link is now offered only when there is something on it to save.
+- **One control for photos and video: "Add photos or a video".** It replaces two stacked
+  "Choose Files" boxes, so a phone offers its own Photo Library / Take Photo sheet once
+  instead of asking which kind of thing you meant first. What you picked appears as
+  thumbnails before you post, each with its own Remove. Without JavaScript it is still a
+  plain working picker with the browser's own count, and the limits are written beside it.
+- **Photos taken on an iPhone now upload from any browser.** A HEIC picture was accepted
+  only from Safari, which can convert it before sending; from Chrome, Firefox or an
+  Android phone the same photograph was refused outright. It is converted on arrival now.
+  `.mov` clips were already accepted and still are.
+- **The product says when something worked.** Posting and replying now say so on the page
+  you land on. A new post sits well below the fold on a phone, so tapping Post used to
+  change nothing you could see — while the app cheerfully announced that you had signed in.
+- **An unfinished post waits for you.** Leaving the "share with a whole side of the
+  family?" question any way other than answering it used to throw the whole post away.
+  Your words are kept, with the photos you picked, until you post it or discard it.
+- **An admin can change somebody's household.** Until now a person entered a household one
+  way only — by redeeming an invite — and redeeming makes a *new* member, so anybody who
+  already had an account was stuck where they were. Nobody could be moved when they joined
+  the wrong household, when an adult child moved out, or when two households merged, and the
+  person running the instance could not put an existing member on a side of the family they
+  had just created without a shell. From a member's row on the members page, an admin can now
+  add them to a household that already exists, make a new household (name plus one or more
+  sides of the family) and put them in it, or take them out of one. Because a household
+  carries a side of the family with it, there is a second page that says in plain words which
+  sides' posts and photographs the person will start — or stop — seeing, naming them, before
+  anything happens. Taking somebody out signs them out everywhere, kills the links in the
+  weekly emails they have already had, and cancels unused invitations into the side they are
+  leaving — but not their weekly email itself, which keeps coming and simply narrows, because
+  somebody who is still here should never be cut off by an act that was only meant to move
+  them; their last household cannot be taken away, because somebody in no household can
+  neither see anyone nor be seen. A yard admin can do all of this only for an ordinary
+  member of their own side, only with households that belong entirely to sides they look
+  after, and never for themselves. The person who runs the instance can do it for
+  themselves — standing up the second side of the family and moving into a household on it
+  is the whole reason this exists — and the page still says out loud what they are about
+  to start seeing, and records that they did it.
 - **An admin can get somebody back in.** A member who joined without an email address had no
   password recovery at all — `Forgot your password?` resolves against an address that does not
   exist, and the page correctly says "sent" either way, so they found out they were locked out
@@ -137,7 +181,34 @@ itself up and telling somebody when it cannot.
   the person by the name the family gave them, the card is now the welcome, and the
   inviting sentence moved to the directory and to How this works — the two places somebody
   goes looking for it.
-
+- **A post keeps the shape it was typed in.** Line breaks were collapsed, so a recipe off
+  a card, an address or a packing list arrived as one run-on sentence. Fixed everywhere a
+  post or a reply is shown: the feed, a thread, the grandparents' page, the family email
+  and the web page that email links to. A web address in a post is tappable on the feed,
+  in a thread and on that web page. It is deliberately left as plain text in two places:
+  the grandparents' page, because nothing on it leads off it, and the family email
+  itself, where a mail client linkifies an address for you and every link we emit stays
+  on this instance.
+- **Delete is no longer sitting next to Open thread.** Three identical green links a
+  thumb's width apart meant an accidental tap could destroy a photograph. Destructive
+  actions now sit at the far end of the row, in their own colour and weight.
+- **"Send love" lands on the confirmation.** Tapping it on the grandparents' page jumped to
+  the top of the post, about sixteen hundred pixels above the heart that had just appeared,
+  so it looked as though nothing had happened.
+- **The grandparents' page uses the same typeface as the rest of the app** — the one chosen
+  for low-vision readers, which was the only place not using it — and says dates the same
+  way every other screen does.
+- **Opening a post now enlarges its photographs.** The thread page was serving the same
+  small thumbnail the feed does, so tapping a photo to see it better did nothing.
+- **The composer opens small** and grows when you start writing, instead of standing
+  between you and the first photograph in your family's feed.
+- **A wrong password looks like the app telling you something**, rather than a black bullet
+  indented off the edge of the card. The same fix reaches every form in the product.
+- **Paging back into the archive is its own page.** It kept the current feed's title and
+  composer and ended on "You are all caught up", which was the opposite of true.
+- **Bigger tap targets** on the "who can see this" checkboxes and the top navigation, and
+  one consistent, solid empty state instead of a dashed box inside a solid one.
+- **The front door says welcome.** It said "Backyard is running".
 - **Deleting a member's posts and photos takes a second step.** It erases photographs from
   the server with no undo, and it sat behind one radio button and one button on a page listing
   five other people's Remove controls. It now shows what will be destroyed — including the

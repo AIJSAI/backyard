@@ -17,10 +17,11 @@ enforcement point, the same shape as scoping's one audience query (TM-2).
 from __future__ import annotations
 
 import datetime
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from . import scoping
-from .models import Member, Yard
+from .models import Member, Pod, Yard
 
 _MONTHS = (
     "",
@@ -72,6 +73,10 @@ class ViewableProfile:
     birthday: str  # "March 5" or ""; never a year, never an age
     anniversary: str  # same contract as birthday
     contacts: list[ContactField]
+    # Where this person sits in the family — "Mom's side · Nana's house" — for the
+    # surfaces that show people to people. Empty unless the caller asked for it: the
+    # vCard exporter (S-904) has no use for it and must not pay for its queries.
+    placing: str = ""
 
 
 def _date_text(month: int | None, day: int | None) -> str:
@@ -108,8 +113,42 @@ def _can_see_field(
     return False
 
 
+def placing_text(
+    viewer: Member, member: Member, *, shared_pods: Sequence[Pod] | None = None
+) -> str:
+    """One quiet line placing a person in the family: the side(s) they are on and the
+    household(s) they are in, as "Mom's side · Nana's house".
+
+    The directory rendered as a column of names and nothing else, so the one page whose
+    job is "who is in this family" answered only "here are their names" — no household,
+    no side, no relationship.
+
+    Scoped to the VIEWER, never to the member. The pods and yards named here are exactly
+    the ones scoping.visible_pods_of / visible_yards_of_pod already permit, so a bridge
+    member's far side of the family is never named — the same traversal leak those two
+    functions exist to close. `shared_pods` lets a directory pass a prefetched, already
+    viewer-scoped list so 200 rows do not cost 400 queries; each pod in it must carry its
+    own viewer-scoped `shared_yards`, or this falls back to asking per pod.
+    """
+    pods = scoping.visible_pods_of(viewer, member) if shared_pods is None else shared_pods
+    sides: set[str] = set()
+    households: set[str] = set()
+    for pod in pods:
+        yards = getattr(pod, "shared_yards", None)
+        if yards is None:
+            yards = scoping.visible_yards_of_pod(viewer, pod)
+        sides.update(yard.name for yard in yards)
+        if pod.kind == Pod.HOUSEHOLD:
+            households.add(pod.name)
+    return " · ".join(sorted(sides) + sorted(households))
+
+
 def viewable_profile(
-    viewer: Member, member: Member, *, viewer_pod_ids: set[int] | None = None
+    viewer: Member,
+    member: Member,
+    *,
+    viewer_pod_ids: set[int] | None = None,
+    placing: str = "",
 ) -> ViewableProfile:
     """The member's profile as this viewer may see it: only the contact fields the
     viewer is scoped for, each present only if it has a value. The caller may pass the
@@ -147,6 +186,7 @@ def viewable_profile(
         birthday=birthday,
         anniversary=anniversary,
         contacts=contacts,
+        placing=placing,
     )
 
 

@@ -124,6 +124,13 @@
           {% if row.can_issue_recovery %}
             <a href="{% url 'issue_recovery' row.member.id %}">Get back in link</a>
           {% endif %}
+          {% comment %} BY-14. Before this, somebody who already had an account could only
+             enter a household by redeeming an invite — and redeeming MINTS A NEW MEMBER —
+             so a person in the wrong household, an adult child who moved out, or two
+             households merging had no answer anywhere in the product. {% endcomment %}
+          {% if row.can_change_household %}
+            <a href="{% url 'change_household' row.member.id %}">Change household</a>
+          {% endif %}
           </span>
           {% if row.manageable %}
             {% if row.assignable_roles %}

@@ -459,5 +459,20 @@ def test_anonymous_is_sent_to_sign_in(world: World) -> None:
 def test_the_directory_page_offers_the_download(world: World) -> None:
     body = _client_for(world.author).get(reverse("directory")).content.decode()
     assert reverse("directory_vcards") in body
+    # ...and the single-member download is offered exactly when there is something to
+    # save. It used to render unconditionally, so the commonest profile in the product —
+    # somebody who has shared no contact details — ended on an action that downloads an
+    # empty card.
+    Member.objects.filter(pk=world.pod_mate.pk).update(
+        phone="555-0100", phone_visibility=Member.POD
+    )
     profile = _client_for(world.author).get(reverse("member_profile", args=[world.pod_mate.id]))
     assert reverse("member_vcard", args=[world.pod_mate.id]) in profile.content.decode()
+
+
+def test_an_empty_profile_does_not_offer_an_empty_contact_card(world: World) -> None:
+    """The other half of the rule above, so neither branch can go silently green."""
+    bare = _client_for(world.author).get(reverse("member_profile", args=[world.yard_mate.id]))
+    page = bare.content.decode()
+    assert reverse("member_vcard", args=[world.yard_mate.id]) not in page
+    assert "hasn" in page and "shared any contact details" in page

@@ -109,6 +109,12 @@ class RosterRow:
     # the removed case, at the sign-in it hands them on to. That is the class
     # `test_no_link_the_product_offers_is_refused_when_you_click_it` exists to catch.
     can_issue_recovery: bool = False
+    # BY-14. `can_change_household` is `manageable` AND `is_admin`, and the second half is
+    # not redundant: `can_manage_member` is True for a managing parent of any role (TM-10),
+    # and placing somebody in a household hands over a side of the family's whole feed,
+    # which is an admin act. Read from the same predicate the page enforces, so the control
+    # is never offered where the click is refused.
+    can_change_household: bool = False
 
 
 @login_required
@@ -176,6 +182,7 @@ def members(request: HttpRequest) -> HttpResponse:
                 # never offered for somebody the next step refuses. It answers from
                 # `member.user`, joined by the select_related above, so it costs no query.
                 can_issue_recovery=manageable and recovery.is_recoverable(member),
+                can_change_household=permissions.can_change_household(actor, member),
             )
         )
     return render(

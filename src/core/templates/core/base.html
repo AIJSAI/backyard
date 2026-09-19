@@ -116,6 +116,19 @@
                   Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
+  /* Initials-avatar tones. The product had no human presence anywhere in its chrome —
+     a family archive that rendered its people as a list of green underlined links. One
+     calm tinted disc per person, picked deterministically from their id, is the smallest
+     thing that puts a face-shaped object beside a name without inventing a photo-upload
+     feature. Six, not a generated hue: every pair is a TOKEN whose contrast is proven in
+     both themes by test_design_system_wcag, which a computed hsl() could never be. */
+  --tone-1-bg: #dfeae3; --tone-1-ink: #17513c;
+  --tone-2-bg: #dbe7ea; --tone-2-ink: #12505a;
+  --tone-3-bg: #dfe4f1; --tone-3-ink: #2a4478;
+  --tone-4-bg: #e9e0ee; --tone-4-ink: #59356a;
+  --tone-5-bg: #f1e1da; --tone-5-ink: #7a3a24;
+  --tone-6-bg: #f2e9d3; --tone-6-ink: #6b4710;
+
   --measure:      40rem;
   /* The width a FORM sits at. Prose gets --measure; controls get this. Separate
      tokens because a 900px-wide text input is a different mistake from a
@@ -161,6 +174,14 @@
 
     --ring:         #e2b878;
     --shadow:       0 1px 3px rgba(0, 0, 0, 0.45);
+
+    /* The avatar tones inverted: a deep disc with a light monogram. */
+    --tone-1-bg: #1d2c25; --tone-1-ink: #8fd2ae;
+    --tone-2-bg: #1b2b2e; --tone-2-ink: #86cbd8;
+    --tone-3-bg: #1e2438; --tone-3-ink: #a8bce8;
+    --tone-4-bg: #2a2130; --tone-4-ink: #d3b2e0;
+    --tone-5-bg: #31221b; --tone-5-ink: #eaa88c;
+    --tone-6-bg: #2e2716; --tone-6-ink: #e2c179;
   }
 }
 
@@ -173,6 +194,9 @@
   --btn-bg:var(--green); --btn-bg-hover:var(--green-deep); --btn-ink:#ffffff;
   --ring:#8a5a12;
   --shadow:0 1px 3px rgba(20,40,30,0.05);
+  --tone-1-bg:#dfeae3; --tone-1-ink:#17513c; --tone-2-bg:#dbe7ea; --tone-2-ink:#12505a;
+  --tone-3-bg:#dfe4f1; --tone-3-ink:#2a4478; --tone-4-bg:#e9e0ee; --tone-4-ink:#59356a;
+  --tone-5-bg:#f1e1da; --tone-5-ink:#7a3a24; --tone-6-bg:#f2e9d3; --tone-6-ink:#6b4710;
 }
 :root[data-theme="dark"] {
   --paper:#121714; --surface:#1a211c; --surface-sunk:#0d110f;
@@ -182,6 +206,9 @@
   --btn-bg:#2c7a5c; --btn-bg-hover:#226047; --btn-ink:#ffffff;
   --ring:#e2b878;
   --shadow:0 1px 3px rgba(0,0,0,0.45);
+  --tone-1-bg:#1d2c25; --tone-1-ink:#8fd2ae; --tone-2-bg:#1b2b2e; --tone-2-ink:#86cbd8;
+  --tone-3-bg:#1e2438; --tone-3-ink:#a8bce8; --tone-4-bg:#2a2130; --tone-4-ink:#d3b2e0;
+  --tone-5-bg:#31221b; --tone-5-ink:#eaa88c; --tone-6-bg:#2e2716; --tone-6-ink:#e2c179;
 }
 
 /* ---- reset & base --------------------------------------------------------- */
@@ -271,8 +298,12 @@ header.site nav.site-nav { margin-left: auto; display: flex; flex-wrap: wrap; ga
    colour follows the brand's treatment rather than --ink. Colouring these with --ink
    put dark text on the dark-green bar: axe caught it at 3 nodes per page, light mode
    only. Same override chain as .brand so a manual theme choice still wins. */
+/* 44px, measured: the nav links were 39px tall, so the affordance every page carries was
+   the one the 2.5.5 floor missed. inline-flex + a min-height rather than more padding, so
+   the green band does not grow with them. */
 header.site nav.site-nav a { color: #ffffff; font-size: 0.95rem; font-weight: 700;
-  text-decoration: none; padding: 0.4rem 0; border-bottom: 2px solid transparent; }
+  text-decoration: none; padding: 0.55rem 0.15rem; min-height: 44px;
+  display: inline-flex; align-items: center; border-bottom: 2px solid transparent; }
 header.site nav.site-nav a:hover,
 header.site nav.site-nav a[aria-current="page"] { border-bottom-color: currentColor; }
 @media (prefers-color-scheme: dark) {
@@ -303,8 +334,11 @@ header.site nav.site-nav a[aria-current="page"] { border-bottom-color: currentCo
 :root[data-theme="dark"] .brand svg { color: var(--green); }
 
 main.wrap { flex: 1 0 auto; padding-top: 2rem; padding-bottom: 3.5rem; }
-main.wrap > p, main.wrap > h1 + p,
-.notice, .post > p, .empty { max-width: 34rem; }
+/* PROSE gets the reading measure. A banner, a notice or an empty state is an OBJECT on
+   the page, and capping objects at 34rem while the cards beside them sit at the 52rem
+   shell gave the feed two different right edges — visible at any width past the shell. */
+main.wrap > p, main.wrap > h1 + p, .post > p { max-width: 34rem; }
+aside.orientation, aside.prompt, aside.date-banner, .notice, .empty { max-width: none; }
 /* Photos on the credential-free digest surfaces. Its own rule, deliberately: folding it
    into the measure selector above severs that list and costs every body paragraph in the
    app its 34rem line length. */
@@ -364,7 +398,7 @@ p.page-action a:hover { text-decoration: underline; }
 aside.orientation, aside.prompt {
   margin: 0 0 1.75rem; padding: 1.1rem 1.25rem;
   background: var(--green-tint); border: 1px solid color-mix(in srgb, var(--green) 18%, transparent);
-  border-radius: var(--radius-sm); max-width: 34rem;
+  border-radius: var(--radius-sm);
 }
 aside.orientation h2, aside.prompt h2 { margin: 0 0 0.6rem; font-size: 1.16rem; }
 aside.orientation p, aside.prompt p { margin: 0 0 0.5rem; font-size: 0.98rem; }
@@ -385,7 +419,15 @@ label { display: block; margin: 0 0 0.35rem; font-weight: 700; color: var(--ink)
 /* align-items: CENTER, not baseline. A checkbox is a replaced element with no text
    baseline, so a browser synthesises one from its bottom margin edge — which sat the
    box 4.59px above the middle of its own label on every checkbox in the product. */
-label.inline-check { display: flex; align-items: center; gap: 0.55rem; font-weight: 400; margin: 0.5rem 0; font-size: 1rem; }
+/* Measured on the phone pass: a 19x19px box inside a 26px-tall label. On a privacy-first
+   product the audience checkbox — who sees this photograph — was the SMALLEST target on
+   the screen. The row is 44px and the box is 24px (WCAG 2.2 SC 2.5.8 wants 24; the row
+   gives the thumb the AAA 44). */
+label.inline-check { display: flex; align-items: center; gap: 0.6rem; font-weight: 400;
+  margin: 0.25rem 0; font-size: 1rem; min-height: 44px; padding: 0.25rem 0; }
+label.inline-check input[type=checkbox], label.inline-check input[type=radio] {
+  width: 24px; height: 24px; min-width: 24px; min-height: 24px; margin: 0; flex: none;
+}
 input, select, textarea {
   /* Capped, not full-bleed. A pod-name field spanning 900px reads as a mistake and
      gives the eye no anchor; forms sit at a form's measure, prose at prose's. */
@@ -468,7 +510,12 @@ fieldset .visibility { margin: 0.7rem 0 0; }
 .search-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.6rem;
   max-width: var(--field-measure); margin-bottom: 1.75rem; }
 .search-row input { flex: 1 1 12rem; margin: 0; width: auto; }
-.search-row button { flex: none; margin: 0; }
+/* Outlined, not filled. A solid green Search was the heaviest object on the directory —
+   louder than any of the people it searches. */
+.search-row button { flex: none; margin: 0;
+  background: var(--surface); color: var(--green); border-color: var(--green); }
+.search-row button:hover { background: var(--green-tint); color: var(--green-deep);
+  border-color: var(--green-deep); }
 
 /* ---- buttons ---------------------------------------------------------------- */
 button, input[type=submit], .btn {
@@ -494,6 +541,16 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 button.danger, .inline button.danger, .btn-danger {
   background: var(--surface); color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+}
+/* The quiet alternative beside a primary. Cancelling a wide send was a FILLED green
+   button identical in weight to "Yes, share with Dad's side", so on the one screen in
+   the product that asks a privacy question the two answers looked the same. A ghost:
+   no fill, quiet ink, a real border so it is still plainly a control. */
+button.btn-quiet, .btn-quiet {
+  background: none; color: var(--ink-soft); border-color: var(--line-strong); font-weight: 400;
+}
+button.btn-quiet:hover, .btn-quiet:hover {
+  background: var(--surface-sunk); color: var(--ink); border-color: var(--ink-soft);
 }
 /* A moderator's takedown control sat in a red outlined pill under EVERY post in the
    feed — for an instance admin that made the loudest thing on a page of family
@@ -540,6 +597,21 @@ p.back-link { margin: 0 0 1rem; }
    break-glass, setup and invite-redemption surfaces. The glyph lives outside any
    media block so it works in every mode. */
 .errors::before { content: "\26a0\00a0\00a0"; font-weight: 700; color: var(--danger); }
+/* THE ERROR COMPONENT THAT ACTUALLY SHIPS. `.errors` above is the app's own; django-allauth
+   and every Django form emit `<ul class="errorlist">`, which nothing here styled — so the
+   commonest failure in the product, a mistyped password, rendered as a browser-default
+   black bullet indented 40px and read as a page that had failed to load its stylesheet.
+   Same tint, same glyph, same box as `.errors`, so a form error looks the same wherever
+   it is raised. */
+ul.errorlist, ul.errorlist.nonfield {
+  list-style: none; margin: 1.25rem 0; padding: 0.85rem 1.1rem;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid color-mix(in srgb, var(--danger) 40%, transparent);
+  background: var(--danger-tint); color: var(--ink);
+}
+ul.errorlist li { margin: 0 0 0.4rem; }
+ul.errorlist li:last-child { margin: 0; }
+ul.errorlist li::before { content: "\26a0\00a0\00a0"; font-weight: 700; color: var(--danger); }
 
 /* Framework messages. django-allauth raises these on every credential change —
    password set, second factor added or REMOVED, verification link expired — and
@@ -576,6 +648,38 @@ p.back-link { margin: 0 0 1rem; }
 .flag::before { content: ""; width: 0.44em; height: 0.44em; background: currentColor; border-radius: 1px; transform: rotate(45deg); flex: none; }
 .via-email::before { content: ""; width: 0.7em; height: 0.5em; border: 1px solid currentColor; border-radius: 1px; flex: none; }
 
+/* ---- human presence: the initials avatar --------------------------------------
+   The walk's biggest DESIGN finding: a product whose whole purpose is family warmth had
+   not one face, avatar or monogram anywhere in its chrome — the directory was a list of
+   green underlined links and a profile was three lines on a blank page — so it read as a
+   database with photographs attached. One calm tinted disc carrying a person's initials,
+   its tone chosen deterministically from their member id (core/templatetags/avatars.py),
+   so the same relative is the same colour on every surface. No photo upload, no new
+   model field, no generated hue: each tone is a TOKEN pair whose contrast is proven in
+   both themes by test_design_system_wcag, which a computed hsl() never could be. */
+.avatar {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 2.4rem; height: 2.4rem; border-radius: 50%;
+  font-family: var(--font-display); font-size: 0.82rem; font-weight: 700;
+  line-height: 1; letter-spacing: 0.02em; text-transform: uppercase;
+  background: var(--tone-1-bg); color: var(--tone-1-ink);
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+}
+.avatar[data-tone="2"] { background: var(--tone-2-bg); color: var(--tone-2-ink); }
+.avatar[data-tone="3"] { background: var(--tone-3-bg); color: var(--tone-3-ink); }
+.avatar[data-tone="4"] { background: var(--tone-4-bg); color: var(--tone-4-ink); }
+.avatar[data-tone="5"] { background: var(--tone-5-bg); color: var(--tone-5-ink); }
+.avatar[data-tone="6"] { background: var(--tone-6-bg); color: var(--tone-6-ink); }
+.avatar.avatar-sm { width: 1.9rem; height: 1.9rem; font-size: 0.68rem; }
+.avatar.avatar-lg { width: 3.6rem; height: 3.6rem; font-size: 1.2rem; }
+
+/* A name that LEADS something — a post, a reply, a profile — leads it beside its avatar.
+   The name and its timestamp share a baseline row that wraps on a narrow phone rather
+   than pushing the disc around. */
+.who-row { display: flex; align-items: center; gap: 0.7rem; min-width: 0; }
+.who-row .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.5rem; min-width: 0; }
+.who-row .when, .who-row .edited { margin-left: 0; }
+
 /* ---- the feed & post cards --------------------------------------------------- */
 /* The composer used to be ~560px of form standing between the member and the first
    photograph in their family's feed: a textarea, two full-width native file pickers
@@ -587,38 +691,120 @@ p.back-link { margin: 0 0 1rem; }
   border-radius: var(--radius); box-shadow: var(--shadow);
   padding: 1.15rem 1.25rem; margin: 0 0 2rem;
 }
-.composer textarea { border-color: var(--line-strong); font-size: 1.06rem; }
+.composer textarea { border-color: var(--line-strong); font-size: 1.06rem; margin-bottom: 0; }
 .composer > label:first-of-type { margin-top: 0.75rem; }
-/* Two pickers side by side once there is room, and a compact label above each: the
-   word "(optional)" was on both, in a box where everything except the text is. */
-.composer-media, .composer-audience { display: grid; gap: 0.85rem 1.1rem; margin-bottom: 0.5rem; }
-.composer-media > *, .composer-audience > * { min-width: 0; }
-.composer-media label, .composer-audience label:not(.inline-check) { margin-top: 0; }
-.composer-media input[type=file] { margin-bottom: 0; }
+/* The composer OPENS SMALL. A relative lands on the feed to read it, and the walk
+   measured the family's first photograph ~1700px down, behind ~560px of form. Everything
+   but the box you type in and the button that posts it waits until the composer is in
+   use — focus inside it, or a body that is no longer empty. `.is-open` is the server's
+   override for a bounced compose (it carries a draft or staged photos, so it must open
+   with them showing). Pure CSS: a browser without :has() simply renders it open, which
+   is exactly the old behaviour, and the tab order is unchanged because focus-within
+   expands the moment the textarea takes focus. */
+.composer-extras { margin-top: 1rem; }
+.composer:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) .composer-extras {
+  display: none;
+}
+
+/* ONE media control (owner direction 4): "Add photos or a video", one native sheet, no
+   `capture` attribute — capture forces the camera open and hides the photo library. It
+   replaced two stacked "Choose Files / No file chosen" boxes, the most dated control in
+   the product, sitting on the two screens a family touches most. "Files" is also the
+   wrong word on a phone, where there is a photo library. */
+.media-picker > .picker-button { margin: 0 0 0.5rem; }
+.media-picker input[type=file] {
+  padding: 0; margin: 0; background: none; border: 0; min-height: 0;
+  width: auto; max-width: 100%; font-size: 0.9rem; color: var(--ink-soft);
+}
+.media-picker input[type=file]::file-selector-button {
+  font: inherit; font-weight: 700; cursor: pointer;
+  min-height: 44px; padding: 0.55rem 1.15rem; margin: 0 0.75rem 0 0;
+  color: var(--green); background: var(--surface);
+  border: 1.5px solid var(--green); border-radius: 999px;
+}
+.media-picker input[type=file]::file-selector-button:hover { background: var(--green-tint); }
+/* WITH the enhancement script (it sets `js`): the label IS the button and the real input
+   is hidden visually only — a <label for> opens a file input natively, so the control is
+   still keyboard- and screen-reader-operable and still submits. Hidden because WebKit
+   draws its own small thumbnail of the first chosen file beside the native button, which
+   put the same photograph on screen twice once our own preview strip existed.
+   WITHOUT the script, none of this applies and the native control keeps its button and
+   its own file count. */
+.media-picker.js input[type=file] {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.media-picker.js > .picker-button {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 1rem; cursor: pointer;
+  min-height: 44px; padding: 0.55rem 1.15rem; margin: 0;
+  color: var(--green); background: var(--surface);
+  border: 1.5px solid var(--green); border-radius: 999px;
+}
+.media-picker.js > .picker-button:hover { background: var(--green-tint); }
+/* The ring follows the hidden input onto the thing a person can actually see. */
+.media-picker.js:has(input[type=file]:focus-visible) > .picker-button {
+  outline: 3px solid var(--ring); outline-offset: 2px;
+}
+.media-hint { margin: 0.55rem 0 0; font-size: 0.82rem; color: var(--ink-soft); }
+/* What you picked, before you post it. The only feedback used to be a filename inside
+   the native control, so nobody could confirm they had chosen the right picture. */
+ul.media-previews { list-style: none; display: flex; flex-wrap: wrap;
+  gap: 0.75rem; margin: 0.9rem 0 0; padding: 0; }
+ul.media-previews > li { width: 6.5rem; }
+ul.media-previews img, ul.media-previews .media-kind {
+  display: block; width: 6.5rem; height: 6.5rem; object-fit: cover;
+  border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface-sunk);
+}
+ul.media-previews .media-kind { display: flex; align-items: center; justify-content: center;
+  text-align: center; padding: 0.4rem; font-size: 0.74rem; font-weight: 700; color: var(--ink-soft); }
+ul.media-previews .media-name { display: block; margin: 0.35rem 0 0; font-size: 0.72rem;
+  color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Quieter than the thumbnail it belongs to — it is an undo, not an action anybody came
+   here to take — but still a bordered control at the full 44px, because "Remove" as a
+   bare word beside a photograph reads as a caption. */
+button.thumb-remove {
+  width: 100%; min-height: 44px; margin: 0.3rem 0 0; padding: 0.3rem 0.4rem;
+  font-size: 0.82rem; font-weight: 400; border-radius: var(--radius-sm);
+  background: none; color: var(--ink-soft); border-color: var(--line);
+}
+button.thumb-remove:hover { background: var(--danger-tint); color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent); }
+
+/* One question — who can see this — asked once. It used to be split across a select
+   labelled "Post to" and a separate bordered checkbox group, two constructions with no
+   heading joining them, on the most consequential control in a privacy-first product. */
+fieldset.composer-audience { border: 0; padding: 0; margin: 1.1rem 0 0; max-width: none; }
+fieldset.composer-audience > legend { padding: 0; margin: 0 0 0.6rem; font-size: 0.9rem; }
+.audience-row { display: grid; gap: 0.85rem 1.1rem; }
 /* The two controls on this row must be the SAME BOX. They were a label-above-a-select
    beside a legend-inset-in-a-fieldset-border: two different constructions, so the boxes
-   started and ended at different heights and the row read as broken. The fieldset now
+   started and ended at different heights and the row read as broken. The inner fieldset
    drops its own border and its legend renders as a plain label, so both columns are
-   label + 48px control, tops and bottoms aligned. */
-.composer-audience > div, .composer-audience fieldset {
-  display: flex; flex-direction: column; margin: 0; padding: 0; border: 0; max-width: none;
+   label + control, tops and bottoms aligned. */
+.audience-row > div, .audience-row > fieldset {
+  display: flex; flex-direction: column; min-width: 0;
+  margin: 0; padding: 0; border: 0; max-width: none;
 }
-.composer-audience legend {
+.audience-row legend {
   display: block; float: left; width: 100%;   /* float makes a legend behave as a block */
   padding: 0; margin: 0 0 0.35rem;
   font-weight: 700; font-size: 0.9rem; color: var(--ink);
 }
-.composer-audience select { margin: 0; flex: 1 0 auto; }
+.audience-row label:not(.inline-check) { margin-top: 0; }
+.audience-row select { margin: 0; flex: 1 0 auto; }
 /* The checkbox row is the fieldset's control, so it wears the control's box. */
-.composer-audience .sides {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem 1.4rem;
-  flex: 1 0 auto; min-height: 48px; padding: 0.4rem 0.85rem;
+.audience-row .sides {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0 1.4rem;
+  flex: 1 0 auto; min-height: 48px; padding: 0.15rem 0.85rem;
   background: var(--surface);
   border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm);
 }
-.composer-audience .sides .inline-check { margin: 0; }
-.composer-submit { display: flex; justify-content: flex-end; margin-top: 1.1rem;
-  padding-top: 1rem; border-top: 1px solid var(--line); }
+.audience-row .sides .inline-check { margin: 0; }
+/* Left, like every other primary in the product — the composer held the one right-aligned
+   button in the app — and no rule above it: a line across the card put a ruled form
+   footer under a page of family photographs. */
+.composer-submit { display: flex; justify-content: flex-start; margin-top: 1.25rem; }
 .composer-submit button { margin: 0; }
 
 ul.feed, ul.comments, ul.members, ul.pods, ul.directory,
@@ -640,6 +826,12 @@ ul.feed > li, .post {
 /* The post body is the thing the member came for: a shade larger than the interface
    around it, and set at a reading line-height rather than a UI one. */
 ul.feed > li > p, .post > p, .comments p { margin: 0.55rem 0 0.9rem; font-size: 1.09rem; line-height: 1.55; }
+/* A POST IS WHAT SOMEBODY TYPED. Without this, a four-line recipe with a blank line in it
+   rendered as one run-on sentence — a recipe, an address, a packing list or a poem
+   destroyed on the way to the people it was written for. `pre-wrap` keeps their line
+   breaks and still wraps long lines; the template pairs it with `|urlize`, which
+   autoescapes, so a link in a post is tappable without opening an injection path. */
+.post-body { white-space: pre-wrap; }
 
 /* The new-since divider: a labelled sign, not an alert. */
 li.boundary {
@@ -677,11 +869,22 @@ main.wrap > p.caught-up, main.wrap > p.older { max-width: none; }
   margin: 0 auto 1.1rem; background: var(--line-strong);
 }
 p.older { margin: 2rem auto 0; text-align: center; }
+/* ONE empty state: solid, and never nested inside another bordered box. It carried the
+   only dashed edge in the product, and inside `ul.digests` / `ul.metrics` it rendered a
+   dashed box inside a solid one — the same component with three different appearances. */
 .empty {
   color: var(--ink-soft); text-align: center; padding: 1.75rem 1.25rem;
-  background: var(--surface-sunk); border-radius: var(--radius); border: 1.5px dashed var(--line-strong);
+  background: var(--surface-sunk); border-radius: var(--radius); border: 1.5px solid var(--line);
 }
-ul.feed > li.empty, .comments > li.empty { box-shadow: none; background: var(--surface-sunk); border: 1.5px dashed var(--line-strong); }
+ul.feed > li.empty, ul.comments > li.empty, ul.members > li.empty, ul.pods > li.empty,
+ul.directory > li.empty, ul.invites > li.empty, ul.digests > li.empty,
+ul.redeemers > li.empty, ul.uses > li.empty, ul.quarantine > li.empty, ul.yards > li.empty {
+  display: block; box-shadow: none; background: var(--surface-sunk);
+  border: 1.5px solid var(--line); border-radius: var(--radius);
+}
+/* A list whose ONLY child is the empty state stops drawing its own frame, so the two
+   boxes cannot stack. */
+ul.comments:has(> li.empty:only-child) { border-left: 0; padding-left: 0; margin-top: 1rem; }
 
 .date-banner {
   background: var(--green-tint); border: 1px solid color-mix(in srgb, var(--green) 18%, transparent);
@@ -706,6 +909,18 @@ ul.feed > li.empty, .comments > li.empty { box-shadow: none; background: var(--s
   min-height: 44px;                      /* was min-height:auto (~28px) */
   padding: 0.35rem 1rem; font-size: 0.84rem; border-radius: 999px;
 }
+/* A DESTRUCTIVE ACTION LEAVES THE PRIMARY ROW. `Open thread`, `Edit` and `Delete`
+   rendered as three identical bold green links 36px apart on every post its author owns,
+   so a thumb aiming at the thread could land on the one that erases a photograph. They
+   are pushed to the far end of the row, set in danger ink at regular weight, and carry
+   the same leading x every other destructive control in the product does. */
+.actions .destructive, .actions form.takedown { margin-left: auto; }
+.actions a.destructive { color: var(--danger); font-weight: 400; }
+.actions a.destructive:hover { color: var(--danger); text-decoration: underline; }
+.actions a.destructive::before { content: "\00d7\00a0"; font-weight: 700; }
+/* Two of them (an author who is also a moderator) sit together at that end rather than
+   each claiming the gap. */
+.actions .destructive ~ .destructive, .actions .destructive ~ form.takedown { margin-left: 0; }
 
 /* ---- media & link previews ---------------------------------------------------- */
 /* Galleries: fixed-aspect cells so uncropped phone photos never break the
@@ -733,10 +948,36 @@ ul.feed > li.empty, .comments > li.empty { box-shadow: none; background: var(--s
    decision to make. */
 .photos a:only-child img { width: auto; max-width: min(100%, 25rem); height: auto;
   aspect-ratio: auto; max-height: 25rem; margin-inline: auto; }
+/* Two-up is the common phone post, and a 1:1 crop took the most off it — a 4:3 or 3:4
+   camera frame loses a third of itself to a square. 4:5 keeps nearly all of a portrait
+   and most of a landscape. Three and four-up stay square: at that size they are tiles in
+   a contact sheet and an even grid is what makes them read as one set. */
+.photos:has(a:first-child:nth-last-child(2)) img { aspect-ratio: 4 / 5; }
 .photos:has(a:first-child:nth-last-child(3)) {                 /* 3: square row */
   grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .photos:has(a:first-child:nth-last-child(n+4)) {               /* 4+ and the 20-cap */
   grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); }
+/* The THREAD page's gallery, a separate component rather than a modifier because it
+   makes the opposite trade: the feed crops to keep a scrolling list's rhythm, but a
+   thread has one post and the photograph is the reason you opened it. Opening a post did
+   NOT enlarge it — three 110px squares on the phone and three 236px squares at 1280 —
+   because the template served the 400px thumbnail. This serves the full stored rendition
+   (core/media._FULL_MAX), uncropped, one to a row. */
+.photos-full { display: flex; flex-direction: column; gap: 0.7rem; margin: 0.9rem 0; }
+/* Each photograph gets a reserved box BEFORE it loads. Without one an unloaded <img> at
+   height:auto is zero pixels tall, so a twenty-photo thread stacks inside a single
+   screenful, every image counts as near the viewport, and loading="lazy" fetches all
+   twenty full renditions at once on a phone — the opposite of what it is for. `auto`
+   means the reservation is used only until the real size is known, so a short landscape
+   photo leaves no gap under it, which a fixed width/height pair could not manage across
+   photographs of different shapes. A browser without it renders exactly as before. */
+.photos-full a { display: block; text-align: center;
+  content-visibility: auto; contain-intrinsic-size: auto 22rem; }
+.photos-full img {
+  display: block; width: auto; max-width: 100%; height: auto; max-height: 36rem;
+  margin-inline: auto; border-radius: var(--radius-sm); border: 1px solid var(--line);
+  background: var(--surface-sunk); cursor: zoom-in;
+}
 .clip { width: 100%; max-width: 100%; aspect-ratio: 16 / 9; object-fit: cover;
   border-radius: 8px; border: 1px solid var(--line); background: var(--surface-sunk); }
 .clip-status {
@@ -761,7 +1002,10 @@ a.preview:hover { border-color: var(--line-strong); }
 :root[data-theme="light"] .reaction-label { color: var(--green-deep); }
 :root[data-theme="dark"] .reaction-label { color: var(--green); }
 .reactions > p { font-size: 0.92rem; margin: 0 0 0.5rem; }
-.react-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+/* A grid of equal cells, not a wrapping flex row: five chips wrapped 4 + 1 at 390px and
+   stranded the last one alone on its own line. */
+.react-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(6.4rem, 1fr));
+  gap: 0.5rem; margin-top: 0.6rem; }
 .react-buttons button {
   background: var(--surface); color: var(--ink); border-color: var(--line-strong);
   min-height: 44px; padding: 0.4rem 1.1rem; border-radius: 999px; font-weight: 700;
@@ -806,6 +1050,18 @@ ul.digests > li, ul.redeemers > li, ul.uses > li, ul.quarantine > li, ul.yards >
   display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
 }
 ul.members .inline, ul.pods .inline, ul.invites .inline { margin-left: auto; }
+/* The directory is PEOPLE, and it rendered as a list of green underlined links with
+   hairline rules — no face, no household, no side, nothing but a name. Each row is now a
+   person: their disc, their name, and one quiet line saying where they sit in the family. */
+/* flex-START, not centre: a row that grew to four lines (a birthday and a phone number)
+   left the disc floating in the middle of it, beside nothing. It belongs against the
+   name it stands for. */
+ul.directory > li { gap: 0.8rem; flex-wrap: nowrap; align-items: flex-start; }
+ul.directory > li > .avatar { margin-top: 0.1rem; }
+ul.directory .who { display: flex; flex-direction: column; min-width: 0; gap: 0.05rem; }
+ul.directory .who > a { font-size: 1.06rem; text-decoration: none; }
+ul.directory .who > a:hover { text-decoration: underline; }
+.member-meta { color: var(--ink-soft); font-weight: 400; font-size: 0.86rem; }
 ul.redeemers { flex-basis: 100%; border-left: 2px solid color-mix(in srgb, var(--green) 30%, var(--line)); padding-left: 0.9rem; margin-left: 0.2rem; }
 ul.redeemers > li { border: 0; padding: 0.15rem 0; font-size: 0.88rem; color: var(--ink-soft); }
 /* A pod's name is the row's subject; it was set at body weight beside a large
@@ -912,11 +1168,64 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
 .qr { forced-color-adjust: none; }
 .qr svg path { fill: #000000; }
 
+/* Every OTHER <details> in the product — the roster's three per member row, the profile
+   editor's — rendered the browser's raw grey triangle at body size, the last place the
+   design system stopped at the edge of the UA. One quiet chevron, at the same size and
+   ink as the furniture around it, and a real 44px target. The two disclosures that
+   already draw their own marker (the role key's ?, removal's x) are excluded by name. */
+details > summary { cursor: pointer; }
+details:not(.role-key):not(.removal-disclosure) > summary {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  list-style: none; width: fit-content; min-height: 44px; padding: 0.45rem 0;
+  font-weight: 700; font-size: 0.94rem; color: var(--green);
+}
+details:not(.role-key):not(.removal-disclosure) > summary::-webkit-details-marker { display: none; }
+details:not(.role-key):not(.removal-disclosure) > summary::before {
+  content: ""; flex: none; width: 0.4em; height: 0.4em;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+}
+details:not(.role-key):not(.removal-disclosure)[open] > summary::before { transform: rotate(45deg); }
+details:not(.role-key):not(.removal-disclosure) > summary:hover {
+  text-decoration: underline; text-underline-offset: 3px;
+}
+
 /* ---- misc surfaces ------------------------------------------------------------------ */
+/* The one deliberately centred page in the product (the 404, and the confirmation it
+   shares its shape with). It carried its centring in three inline style attributes. */
+.page-center { text-align: center; padding: 2.5rem 0 1rem; }
+.page-center p { max-width: 34rem; margin: 0 auto 0.5rem; }
+.page-center p:last-child { margin: 1.4rem auto 0; }
+/* Somebody's own words, quoted back to them before a decision about who sees them. It was
+   a bare <blockquote>: the UA's 40px indent, no edge, no ground — so the thing being
+   confirmed was the least considered object on the confirmation. */
+/* Two answers to one question, on one row, wrapping to two rows on a narrow phone rather
+   than stacking two full-width buttons with a form's margin between them. */
+.confirm-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;
+  margin: 1.5rem 0 1.75rem; }
+.confirm-actions form { margin: 0; }
+.confirm-actions button { margin: 0; }
+/* The held draft's own row, above the composer it refills. Its sentence and its way out
+   sit on one line so the way out cannot be mistaken for a way to post. */
+.draft-notice { display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: space-between; gap: 0.6rem 1rem; }
+.draft-notice p { margin: 0; }
+.draft-notice form { margin: 0; }
+.draft-notice button { margin: 0; min-height: 44px; padding: 0.4rem 1rem; font-size: 0.9rem; }
+blockquote.quoted-post {
+  white-space: pre-wrap; margin: 1.25rem 0; padding: 0.95rem 1.15rem;
+  background: var(--surface); border: 1.5px solid var(--line);
+  border-left: 4px solid color-mix(in srgb, var(--green) 45%, transparent);
+  border-radius: var(--radius-sm); font-size: 1.06rem; line-height: 1.55;
+}
 .house-rule { background: var(--green-tint); border-radius: var(--radius-sm);
   border: 1px solid color-mix(in srgb, var(--green) 18%, transparent);
   padding: 0.7rem 0.95rem; margin: 0.6rem 0; font-size: 0.96rem; }
 .contacts, .contact { color: var(--ink-soft); }
+/* A person's facts are ONE block. As separate paragraphs, with a paragraph's rhythm
+   between them, a birthday and a phone number read as unrelated statements. */
+ul.contacts { margin: 0.6rem 0 0; }
+ul.contacts > li { padding: 0.15rem 0; }
 .kinship { color: var(--ink-soft); font-weight: 400; }
 
 .visually-hidden {
@@ -1006,26 +1315,20 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
   main.wrap { padding-top: 2.5rem; }
   h1 { font-size: 2.05rem; margin-bottom: 1.6rem; }
   h2 { font-size: 1.35rem; }
-  /* The two file pickers, and the pod select beside its family-side checkboxes. */
-  .composer-media { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  /* stretch, not start: with `start` each column grew only to its own content, so the
+  /* The pod select beside its family-side checkboxes.
+     stretch, not start: with `start` each column grew only to its own content, so the
      select came out 51.5px and the checkbox box 48px and the row's bottoms disagreed by
      three and a half pixels. Stretch equalises the columns; both controls flex to fill. */
-  .composer-audience { grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); align-items: stretch; }
+  .audience-row { grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); align-items: stretch; }
   ul.directory { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.85rem; grid-auto-rows: 1fr; }
   /* grid-auto-rows: 1fr above equalises the row heights — a "(Nana)" on one card used
-     to make its whole row taller than the next. Centring keeps the short cards from
-     reading as a name stranded at the top of an empty box. */
-  ul.directory > li { display: flex; flex-direction: column; justify-content: center;
-    align-items: flex-start; gap: 0.15rem;
+     to make its whole row taller than the next. The avatar leads the card, exactly as it
+     leads the phone row, so the two widths are the same composition. */
+  ul.directory > li { display: flex; flex-direction: row; align-items: flex-start; gap: 0.8rem;
     border: 1.5px solid var(--line); border-bottom: 1.5px solid var(--line);
     border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow);
     padding: 1rem 1.1rem; }
-  /* The card is the target; an underline on every name made the grid read as a list
-     of raw links rather than a set of people. */
-  ul.directory > li > a { font-size: 1.06rem; text-decoration: none; }
-  ul.directory > li > a:hover { text-decoration: underline; }
 }
 
 /* ---- md: 64rem — the single centred well ----------------------------------- */
@@ -1042,9 +1345,9 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
   main.wrap > * { min-width: 0; }
   /* A .rail, where a template still renders one, is a normal block in flow. */
   main.wrap > .rail { display: block; }
-  /* Prose keeps its measure inside the well; feeds, galleries and tables take
+  /* Prose keeps its measure inside the well; feeds, galleries, banners and tables take
      the well's full width. */
-  main.wrap > p, main.wrap > h1 + p, .notice, .post > p, .empty { max-width: 34rem; }
+  main.wrap > p, main.wrap > h1 + p, .post > p { max-width: 34rem; }
   /* ...but not the feed's end markers, which are centred on the well. Qualified, so
      it outranks the (0,1,1) cap directly above rather than tying with it. */
   main.wrap > p.caught-up, main.wrap > p.older { max-width: none; }
@@ -1105,15 +1408,16 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
   }
   /* Heavier than a notice: in forced colours both lose their tint, and this one is the
      failure surface for break-glass, setup and invite redemption. */
-  .errors { border: 2px solid CanvasText; }
+  .errors, ul.errorlist { border: 2px solid CanvasText; }
   /* The select arrow is drawn with two gradients and disappears entirely. */
   /* The gradient arrow is erased; suppressing `appearance` too would leave the select
      with NO indicator, so hand drawing back to the UA, which draws a safe one. */
   select { background-image: none; appearance: auto; -webkit-appearance: auto;
            padding-right: 0.9rem; border: 1px solid ButtonBorder; }
   /* Tint-only pills collapse into plain text: give them an outline so the
-     distinction survives without relying on background colour. */
-  .role, .flag, .via-email { border: 1px solid CanvasText; }
+     distinction survives without relying on background colour. The avatar is a tinted
+     disc and nothing else, so without a real edge it stops being a disc at all. */
+  .role, .flag, .via-email, .avatar { border: 1px solid CanvasText; }
   /* Both dividers are painted only by color-mix() and are erased. */
   li.boundary::before, li.boundary::after { background: CanvasText; }
   .caught-up::before { background: CanvasText; }
@@ -1140,7 +1444,7 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
     --line: var(--line-strong); --ink-soft: var(--ink);
   }
   ul.feed > li, .comments > li, .composer, .handover, .preview, .empty,
-  .notice, .errors, .messages .msg, .entrance .entrance-card { border-width: 2px; }
+  .notice, .errors, ul.errorlist, .messages .msg, .entrance .entrance-card { border-width: 2px; }
   a { text-decoration-thickness: 2px; }
 }
 

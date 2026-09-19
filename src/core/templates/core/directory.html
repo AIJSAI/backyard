@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load avatars %}
 {% block title %}Family directory{% endblock %}
 {% block body %}
   <h1>Family directory</h1>
@@ -34,14 +35,24 @@
     <button type="submit">Search</button>
   </form>
 
+  {% comment %} A directory of PEOPLE. It rendered as green underlined links separated by
+     hairlines — no face, no household, no side of the family, nothing but a name, on the
+     page whose whole job is "who is in this family". Each row now leads with the person's
+     initials disc and carries one quiet line placing them: their nickname, their side,
+     their household. The placing line only ever names groups the viewer is already in
+     scope for — profile_views.directory builds it from the same visibility query the rest
+     of the page uses. {% endcomment %}
   <ul class="directory">
     {% for profile in profiles %}
       <li>
-        <a href="{% url 'member_profile' profile.member_id %}">{{ profile.display_name }}</a>
-        {% if profile.kinship_name %}<span class="kinship">({{ profile.kinship_name }})</span>{% endif %}
-        {% if profile.birthday %}<span class="birthday">Birthday: {{ profile.birthday }}</span>{% endif %}
-        {% if profile.anniversary %}<span class="anniversary">Anniversary: {{ profile.anniversary }}</span>{% endif %}
-        {% for c in profile.contacts %}<span class="contact">{{ c.label }}: {{ c.value }}</span>{% endfor %}
+        {% avatar profile.display_name profile.member_id %}
+        <span class="who">
+          <a href="{% url 'member_profile' profile.member_id %}">{{ profile.display_name }}</a>
+          {% if profile.placing %}<span class="member-meta">{{ profile.placing }}</span>{% endif %}
+          {% if profile.birthday %}<span class="member-meta">Birthday: {{ profile.birthday }}</span>{% endif %}
+          {% if profile.anniversary %}<span class="member-meta">Anniversary: {{ profile.anniversary }}</span>{% endif %}
+          {% for c in profile.contacts %}<span class="member-meta contact">{{ c.label }}: {{ c.value }}</span>{% endfor %}
+        </span>
       </li>
     {% empty %}
       <li class="empty">No one to show.</li>

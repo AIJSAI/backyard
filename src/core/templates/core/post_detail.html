@@ -1,19 +1,27 @@
 {% extends "core/base.html" %}
+{% load avatars %}
 {% block title %}A post and its replies{% endblock %}
 {% block body %}
   <p class="back-link"><a class="back" href="{% url 'feed' %}">Back to the feed</a></p>
   {% comment %} The thread page had no h1 at all: it opened on a bare link and then a
      card, so nothing named the page for a reader or a screen reader. The heading is
      the post's author, which is what a person opening a thread is looking for. {% endcomment %}
-  <h1>{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %}</h1>
+  <h1 class="who-row">
+    {% avatar post.author.display_name post.author_id "lg" %}
+    <span class="who">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %}</span>
+  </h1>
 
   <div class="post">
     {% comment %} The author is the h1 above; repeating it here read as a bug. {% endcomment %}
     <span class="when">{{ post.created_at|date:"M j, g:i a" }}</span>
     {% if post.edited_at %}<span class="edited">(edited)</span>{% endif %}
-    <p>{{ post.body }}</p>
+    <p class="post-body">{{ post.body|urlize }}</p>
     {% if media_list %}
-      <div class="photos">
+      {% comment %} `photos-full`, not the feed's `photos`: opening a post did not enlarge
+         it, because this template served the same 400px thumbnail the feed does. The
+         thread shows the full stored rendition at its own ratio, uncropped (D14, D15).
+         The <a> to the same URL stays: it is how the photo is saved or opened on its own. {% endcomment %}
+      <div class="photos-full">
         {% for m in media_list %}
           {% if m.media_kind == 'video' %}
             {% if m.transcode_status == 'done' %}
@@ -26,7 +34,15 @@
               <p class="clip-status">Processing this clip… it'll appear here shortly.</p>
             {% endif %}
           {% else %}
-            <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.thumbnail_token %}" loading="lazy" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ post.author.display_name }}{% endif %}"></a>
+            {% comment %} `lazy` + `async`, and the reserved box is in base.html: this gallery
+               serves FULL renditions, and an unloaded <img> with height:auto is zero pixels
+               tall — so twenty of them stack inside one screenful, every one counts as near
+               the viewport, and `lazy` fetches the lot at once on a phone. MediaAsset stores
+               no width or height, so real `width`/`height` attributes would need a migration
+               this PR does not carry; `contain-intrinsic-size` reserves the space instead and
+               then defers to each image's REAL size once it has been laid out, which a fixed
+               attribute pair could not do for photographs of differing shapes anyway. {% endcomment %}
+            <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.token %}" loading="lazy" decoding="async" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ post.author.display_name }}{% endif %}"></a>
           {% endif %}
         {% endfor %}
       </div>
@@ -64,9 +80,15 @@
   <ul class="comments">
     {% for comment in comments %}
       <li>
-        <span class="author">{{ comment.author.display_name }}{% if comment.author.kinship_name %} ({{ comment.author.kinship_name }}){% endif %}</span>{% if comment.via_email %} <span class="via-email">via email</span>{% endif %}
-        <span class="when">{{ comment.created_at|date:"M j, g:i a" }}</span>
-        {% if comment.body %}<p>{{ comment.body }}</p>{% endif %}
+        <div class="who-row">
+          {% avatar comment.author.display_name comment.author_id "sm" %}
+          <span class="who">
+            <span class="author">{{ comment.author.display_name }}{% if comment.author.kinship_name %} ({{ comment.author.kinship_name }}){% endif %}</span>{% if comment.via_email %} <span class="via-email">via email</span>{% endif %}
+            <span class="when">{{ comment.created_at|date:"M j, g:i a" }}</span>
+          </span>
+        </div>
+        {% comment %} A reply keeps its shape for the same reason a post does (C3). {% endcomment %}
+        {% if comment.body %}<p class="post-body">{{ comment.body|urlize }}</p>{% endif %}
         {% comment %} S-404: a reply's own photos and clips. Identical markup to a post's
            gallery, so the same CSS grid, the same square cover-crop, the same
            serve_media tokens — no second rendering path to drift. {% endcomment %}
@@ -120,18 +142,12 @@
   <form id="reply" method="post" action="{% url 'add_comment' post.id %}" class="composer"
         enctype="multipart/form-data">
     {% csrf_token %}
-    <textarea name="body" rows="2" placeholder="Write a reply, or just add photos"></textarea>
-    <div class="composer-media">
-      <div>
-        <label for="reply-photos">Photos</label>
-        <input id="reply-photos" type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
-      </div>
-      <div>
-        <label for="reply-videos">Short video clips</label>
-        <input id="reply-videos" type="file" name="videos" accept="video/mp4,video/quicktime" multiple>
-      </div>
+    <label class="visually-hidden" for="reply-body">Write a reply, or just add photos</label>
+    <textarea id="reply-body" name="body" rows="2" placeholder="Write a reply, or just add photos"></textarea>
+    <div class="composer-extras">
+      {% include "core/_media_picker.html" with picker_id="reply-media" %}
     </div>
     <div class="composer-submit"><button type="submit">Reply</button></div>
   </form>
-  {% include "core/_photo_resize.html" %}
+  {% include "core/_composer_media.html" %}
 {% endblock %}

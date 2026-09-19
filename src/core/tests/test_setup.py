@@ -141,7 +141,12 @@ def test_home_shows_landing_to_a_logged_out_visitor(db: None) -> None:
     User.objects.create_superuser(username="nana", password=_PW)
     resp = Client().get(reverse("home"))  # anonymous visitor to a set-up instance
     assert resp.status_code == 200
-    assert b"Backyard is running" in resp.content
+    # Pinned by SHAPE, not by one sentence. The old string was "Backyard is running" —
+    # a server status message as the first thing a relative ever reads — and it was
+    # frozen here, so the front door could not be written like one. What the landing
+    # owes a logged-out visitor is a welcome and a way in; that is what this holds.
+    assert b"Welcome to the family" in resp.content
+    assert reverse("account_login").encode() in resp.content
 
 
 def test_home_routes_a_signed_in_member_to_their_feed(db: None) -> None:

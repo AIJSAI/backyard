@@ -1,0 +1,5 @@
+{% comment %} One person's initials disc (core/templatetags/avatars.py).
+
+   aria-hidden: the name is always rendered as text right beside this, so a screen reader
+   that announced the monogram too would read every byline in the product twice.
+{% endcomment %}<span class="avatar{{ size_class }}" data-tone="{{ tone }}" aria-hidden="true">{{ text }}</span>

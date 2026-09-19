@@ -24,7 +24,7 @@
       {% for block in post_blocks %}
         <div style="margin: 24px 0; padding: 16px 0 0; border-top: 1px solid #dde4df;">
           <p style="margin: 0 0 6px; color: #4c5a52;">{{ block.author_line }} · {{ block.date_text }}</p>
-          <p style="font-size: 18px; margin: 0 0 8px;">{{ block.body }}</p>
+          <p style="font-size: 18px; margin: 0 0 8px; white-space: pre-wrap;">{{ block.body }}</p>
           <p style="margin: 0;">
             {% if block.photo_count %}{{ block.photo_count }} photo{{ block.photo_count|pluralize }} ·{% endif %}
             {% if block.reply_count %}{{ block.reply_count }} repl{{ block.reply_count|pluralize:"y,ies" }} ·{% endif %}

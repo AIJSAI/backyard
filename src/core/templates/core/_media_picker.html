@@ -1,0 +1,38 @@
+{% comment %} ONE media control, shared by the composer (S-401) and the reply form (S-404).
+
+   It replaces two stacked native "Choose Files / No file chosen" boxes — the most dated
+   control in the product, on the two screens a family touches most. One picker means one
+   native sheet (Photo Library / Take Photo or Video / Choose File) instead of a form that
+   asks which KIND of thing you are about to share before you have chosen it.
+
+   NO `capture` attribute, deliberately (owner direction 4): `capture` forces the camera
+   open and hides the photo library, which is the wrong default for a family posting the
+   picture they already took.
+
+   `accept` is the broad `image/*,video/*` rather than the old explicit MIME list: a phone
+   offers HEIC and .mov whatever we write here, so an explicit list only ever greyed out
+   the pictures somebody actually wanted. The real gate is the server — core/media.py
+   decodes and re-encodes every photo and validates every clip — and `feed_views._split_media`
+   routes each file to the right one of those two gates.
+
+   `picker_id` keeps the label's `for` unique when two forms share a page.
+{% endcomment %}
+<div class="media-picker" data-media-picker>
+  {% comment %} The label doubles as the button once the script is in (it adds `js` to the
+     picker): a <label for> opens a file input natively, so the control keeps working with
+     the keyboard and with assistive tech, and the input is only hidden VISUALLY.
+
+     Why hide it at all: WebKit draws its own small thumbnail of the first chosen file
+     beside "Choose Files", so with our own preview strip below, the same photograph
+     appeared twice — ours, and the browser's, in the browser's chrome. Without the script
+     nothing is hidden and the native control keeps its own button and its own "2 files"
+     count, which is the whole fallback. {% endcomment %}
+  <label class="picker-button" for="{{ picker_id }}">Add photos or a video</label>
+  <input id="{{ picker_id }}" type="file" name="media" accept="image/*,video/*" multiple>
+  <p class="media-hint">Up to {{ max_photos }} photos and {{ max_videos }} short videos at a time.</p>
+  {% comment %} Filled in by the script in core/_composer_media.html. Empty and hidden
+     without it, which is why the hint above states the limits in words: with the script
+     off the native control still shows its own "3 files" count and the post still
+     carries every file. {% endcomment %}
+  <ul class="media-previews" data-media-previews hidden></ul>
+</div>
