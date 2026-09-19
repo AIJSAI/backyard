@@ -173,7 +173,7 @@ def vocabulary_offences(text: str, allowed: Collection[str] = ()) -> list[str]:
 #
 # "The product is not a person." Never "we", "us", "our" — his question was "Who is us?
 # That doesn't make sense." And nothing shouts, dashes or trails off: the punctuation rule
-# is no exclamation marks, no em dashes, no ellipses.
+# is no exclamation marks, no em dashes, no ellipses, and straight quotes.
 
 _FIRST_PERSON = ("we", "we'll", "we've", "we're", "us", "our", "ours", "let's", "lets")
 _PUNCTUATION: dict[str, str] = {
@@ -184,6 +184,19 @@ _PUNCTUATION: dict[str, str] = {
     "…": "a full stop",  # ellipsis character
     "&hellip;": "a full stop",
     "...": "a full stop",
+    # "Straight quotes" is the guide's own punctuation rule and was the one line of it
+    # nothing enforced, so three templates kept curly ones: a birthday banner reading
+    # "Nana&rsquo;s birthday", a placeholder, and two quoted column names on the usage
+    # table. Both spellings of each, character and entity, because a template writes
+    # whichever the author's editor produced.
+    "’": "a straight apostrophe",  # right single quotation mark
+    "&rsquo;": "a straight apostrophe",
+    "‘": "a straight apostrophe",  # left single quotation mark
+    "&lsquo;": "a straight apostrophe",
+    "“": "a straight double quote",  # left double quotation mark
+    "&ldquo;": "a straight double quote",
+    "”": "a straight double quote",  # right double quotation mark
+    "&rdquo;": "a straight double quote",
 }
 
 

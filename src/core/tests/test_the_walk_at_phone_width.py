@@ -6,7 +6,7 @@ chrome was louder than the thing the person came for — and separating them int
 would hide that.
 
   ITEM 5   "Add an email address?" was a full phone screen of card ABOVE the composer,
-           saying the same thing in two paragraphs, with "Not now" as the loudest button
+           saying the same thing in two paragraphs, with "Not Now" as the loudest button
            on the page. After posting, the member's own new post was two screens down.
   ITEM 11  six nav items for an admin wrapped to two rows at 390px, so every screen they
            opened gave a whole band to chrome before the family appeared.
@@ -58,7 +58,7 @@ def test_the_email_offer_is_one_line_under_the_composer_not_a_card_above_it() ->
     client, _member, _pod, _yard = _world()
     html = client.get(reverse("feed")).content.decode()
 
-    assert "so you can reset your own password" in _flat(html)
+    assert "to reset your own password" in _flat(html)
     # It is BELOW the composer. Position is the whole item: the offer was never the
     # problem, its place and its volume were.
     assert html.index('class="composer') < html.index('class="email-prompt"'), (
@@ -77,7 +77,7 @@ def test_not_now_is_the_quietest_thing_on_the_line() -> None:
     # block this page carries, and slicing from there reads the CSS instead of the line.
     start = html.index('<div class="email-prompt">')
     prompt = html[start : html.index("</div>", start)]
-    assert "Not now" in prompt
+    assert "Not Now" in prompt
     assert "btn-quiet" in prompt, "the decline is a full-weight button again"
 
 
@@ -113,7 +113,7 @@ def test_sign_out_is_still_one_tap_away_from_anywhere() -> None:
     assert reverse("account_logout") in footer, "no way to sign out from the feed"
 
     settings_page = client.get(reverse("profile_edit")).content.decode()
-    account = settings_page[settings_page.index("Your account") :]
+    account = settings_page[settings_page.index("Your Account") :]
     assert reverse("account_logout") in account
 
 
@@ -153,7 +153,9 @@ def test_every_who_can_see_this_control_is_the_same_shape() -> None:
     assert len(labels) == 5, labels
     assert len(set(labels)) == 5, f"two controls read the same: {labels}"
     for label in labels:
-        assert label.strip().startswith("Who can see my "), label
+        # "Birthday Visibility", not "Who can see my birthday": a label is a noun, and the
+        # field's own name is what keeps the five accessible names distinct.
+        assert label.strip().endswith(" Visibility"), label
 
 
 def test_the_stacking_is_in_the_stylesheet_not_left_to_the_wrap_point() -> None:
@@ -183,11 +185,11 @@ def test_after_a_grandparents_link_is_made_the_empty_form_is_gone() -> None:
         },
     )
     html = page.content.decode()
-    assert "Link ready to hand over" in html, "the link was not minted; this proves nothing"
+    assert "Link Ready To Hand Over" in html, "the link was not minted; this proves nothing"
     assert 'name="elder_name"' not in html, (
         "the empty form is still under the link, so the next tap makes a second grandparent"
     )
-    assert "Add another grandparent" in html, "there is no way back to making another one"
+    assert "Add Another Grandparent" in html, "there is no way back to making another one"
 
 
 def test_the_form_is_there_when_there_is_no_link_yet() -> None:
@@ -195,7 +197,7 @@ def test_the_form_is_there_when_there_is_no_link_yet() -> None:
     client, _member, _pod, _yard = _world(role=Member.INSTANCE_ADMIN)
     html = client.get(reverse("new_elder")).content.decode()
     assert 'name="elder_name"' in html
-    assert "Add another grandparent" not in html
+    assert "Add Another Grandparent" not in html
 
 
 # --- item 27 --------------------------------------------------------------------------

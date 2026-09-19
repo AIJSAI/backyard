@@ -132,19 +132,19 @@ def test_the_elder_surface_is_excluded_from_all_of_it() -> None:
     The help SENTENCE is no longer on this list. It used to be — the page was the one
     surface deliberately exempt from the shared footer — and owner direction 2026-09-19
     reversed that: a grandparent is the person most likely to be stuck and least likely
-    to guess who to ring, so she gets the same line as everybody else. It is text, not an
-    anchor, so the no-dead-ends guarantee is untouched, and test_plain_pages.py asserts
-    the rendered page carries it.
+    to guess who to ring, so she gets the same line as everybody else. It reaches her
+    through core/_footer.html's `standalone` shape, which emits that sentence and nothing
+    else: no <footer>, no links, no dependency on base.html. test_plain_pages.py asserts
+    the rendered sentence, and test_elder_wcag.py asserts that every href on the rendered
+    page is still the elder feed's own, which is the S-601 guarantee itself rather than a
+    proxy for it.
     """
     elder = (_BASE.parent / "elder_feed.html").read_text()
     assert "{% extends" not in elder, "the elder page must stay standalone"
     for forbidden in ("<nav", "skip-link", 'rel="icon"'):
         assert forbidden not in elder, f"{forbidden!r} must never appear on the elder page"
-    assert "Stuck? Ask" in elder, (
+    assert 'include "core/_footer.html" with standalone=True' in elder, (
         "the grandparent's page lost its help line; she is the reader SC 3.2.6 is for"
-    )
-    assert "<a href" not in elder.split("Stuck? Ask")[1], (
-        "the help line became a link, which S-601 forbids on this surface"
     )
 
 
@@ -152,7 +152,7 @@ def test_the_rail_refactor_did_not_hoist_a_gated_link_out_of_its_condition() -> 
     """The regression a markup refactor causes and a design review never catches.
 
     The v3.1 layout wrapped each page's wayfinding in a rail element. On members.html
-    the "Family sides" link sits inside `{% if can_create_yard %}`; if the wrapper had
+    the "Sides" link sits inside `{% if can_create_yard %}`; if the wrapper had
     been opened above that conditional and closed below it, or the link nudged outside
     while moving markup, an authorization-gated action would render for everyone. The
     page would look identical either way.
@@ -165,11 +165,11 @@ def test_the_rail_refactor_did_not_hoist_a_gated_link_out_of_its_condition() -> 
 
     on = render_to_string("core/members.html", {"can_create_yard": True, "rows": []})
     off = render_to_string("core/members.html", {"can_create_yard": False, "rows": []})
-    assert "Family sides" in on, "the gated link vanished entirely"
-    assert "Family sides" not in off, "an authz-gated link now renders for everyone"
+    assert "Sides" in on, "the gated link vanished entirely"
+    assert "Sides" not in off, "an authz-gated link now renders for everyone"
     # And it is inside the rail, not hoisted above it.
     nav = on[on.index('<nav class="rail"') : on.index("</nav>")]
-    assert "Family sides" in nav
+    assert "Sides" in nav
     # Everything after the rail must be identical in both states.
     assert re.findall(r'href="([^"]+)"', on.split("</nav>")[1]) == re.findall(
         r'href="([^"]+)"', off.split("</nav>")[1]
@@ -264,4 +264,4 @@ def test_no_page_gives_two_controls_the_same_accessible_name() -> None:
         names[control_id] = name
     assert not duplicates, "two controls share an accessible name:\n" + "\n".join(duplicates)
     # Non-vacuity: the page really does render the five visibility selects this guards.
-    assert sum(1 for n in names.values() if n.startswith("Who can see")) == 5, names
+    assert sum(1 for n in names.values() if n.endswith("Visibility")) == 5, names

@@ -474,7 +474,12 @@ label + input, label + select, label + textarea { margin-top: 0; }
 /* A submit never touches the field above it — and never touches the "back" link
    BELOW it either, which is what happened on every settings page: a solid green
    button with a bold underlined link jammed four pixels under its bottom edge. */
+/* `fieldset > button` as well as the two `fieldset +` cases: core/welcome_email.html puts
+   its three frequency buttons INSIDE the fieldset that carries their one <legend>, so they
+   are not `form > button` and were losing the gap. On a narrow phone, where they wrap, that
+   left three controls touching flush. */
 form > button, form > input[type=submit], form > .btn,
+fieldset > button,
 fieldset + button, fieldset + input[type=submit] { margin-top: 0.5rem; }
 form + p, form + .rail { margin-top: 1.5rem; }
 input[type=checkbox], input[type=radio] { display: inline-block; width: auto; max-width: none;
@@ -510,15 +515,14 @@ legend { font-weight: 700; padding: 0 0.4rem; color: var(--ink); font-size: 0.9r
    templates wrote `class="hint"` and three wrote `class="field-help"`, and neither name
    matched a line of CSS, so every helper sentence in the app rendered as a full-size body
    paragraph floating under a form. That is the "unfinished" the owner was reading.
-   `.field-help` is styled identically ONLY so the three lines still carrying the old name
-   do not look broken mid-pass; it is the legacy spelling and new markup uses `.hint`.
+   `.field-help` was carried for one pass as a transitional alias and is gone: the three
+   lines in core/join.html that used it now say `hint`, and nothing else ever did.
    A hint is at most two short sentences: if it needs three, the screen is wrong. */
-.hint, .field-help { margin: -0.6rem 0 1rem; max-width: var(--field-measure);
+.hint { margin: -0.6rem 0 1rem; max-width: var(--field-measure);
   color: var(--ink-soft); font-size: 0.88rem; line-height: 1.5; }
 /* Inside a card or a fieldset the control already fills its container, so the hint does
    too — a 32rem hint inside a 40rem card leaves a band of dead space beside it. */
-.composer .hint, .card .hint, fieldset .hint,
-.composer .field-help, .card .field-help, fieldset .field-help { max-width: none; }
+.composer .hint, .card .hint, fieldset .hint { max-width: none; }
 
 /* A row of fields that describe ONE value — a birthday's month, day and year. Three
    full-width 48px boxes stacked down the page for a ten-character date was the single
@@ -581,7 +585,7 @@ button.danger, .inline button.danger, .btn-danger {
   border-color: color-mix(in srgb, var(--danger) 55%, transparent);
 }
 /* The quiet alternative beside a primary. Cancelling a wide send was a FILLED green
-   button identical in weight to "Yes, share with Dad's side", so on the one screen in
+   button identical in weight to "Share With Dad's Side", so on the one screen in
    the product that asks a privacy question the two answers looked the same. A ghost:
    no fill, quiet ink, a real border so it is still plainly a control. */
 button.btn-quiet, .btn-quiet {
@@ -619,6 +623,24 @@ a.back {
 a.back::before { content: "\2190"; font-weight: 700; }
 a.back:hover { color: var(--green); text-decoration: underline; }
 p.back-link { margin: 0 0 1rem; }
+
+/* THE SETTINGS LIST IS A LIST. `.settings-link` is written on nine rows of the Settings
+   page and matched no line of CSS anywhere — the same defect `.hint` had, and with the
+   same result: every row rendered as a body paragraph with body-paragraph spacing, so
+   nine one-word links occupied a scroll of their own. Now that the copy pass has stripped
+   each row down to nothing but its link, they want list rhythm and a rule between them.
+   Still <p> rather than <ul>: the markup is what tests and scripts select on, and the
+   look, not the element, is what was wrong. A row is a 44px tap target (SC 2.5.5). */
+p.settings-link { margin: 0; border-top: 1px solid var(--line); }
+p.settings-link:first-of-type { border-top: 0; }
+p.settings-link > a {
+  display: flex; align-items: center; min-height: 44px; padding: 0.15rem 0;
+  text-decoration: none; font-weight: 600;
+}
+p.settings-link > a:hover { color: var(--green); text-decoration: underline; }
+/* The heading that opens the second group ("Your Account") sits between two rows, so it
+   carries the gap the rows no longer do. */
+p.settings-link + h2 { margin-top: 1.6rem; }
 
 /* ---- notices, errors, flags ------------------------------------------------- */
 .notice, .errors {
@@ -784,7 +806,12 @@ ul.errorlist li::before { content: "\26a0\00a0\00a0"; font-weight: 700; color: v
 .media-picker.js:has(input[type=file]:focus-visible) > .picker-button {
   outline: 3px solid var(--ring); outline-offset: 2px;
 }
-.media-hint { margin: 0.55rem 0 0; font-size: 0.82rem; color: var(--ink-soft); }
+/* The picker's hint is helper text like every other, so it is the one size and the one
+   colour (`.hint` above). Only the margin differs, and it has to: `.hint` pulls itself up
+   0.6rem to sit tight under a FIELD, and this one sits under a button that already has its
+   own gap below it. */
+.media-hint { margin: 0.55rem 0 0; max-width: var(--field-measure);
+  color: var(--ink-soft); font-size: 0.88rem; line-height: 1.5; }
 /* What you picked, before you post it. The only feedback used to be a filename inside
    the native control, so nobody could confirm they had chosen the right picture. */
 ul.media-previews { list-style: none; display: flex; flex-wrap: wrap;
@@ -947,7 +974,7 @@ ul.comments:has(> li.empty:only-child) { border-left: 0; padding-left: 0; margin
   min-height: 44px;                      /* was min-height:auto (~28px) */
   padding: 0.35rem 1rem; font-size: 0.84rem; border-radius: 999px;
 }
-/* A DESTRUCTIVE ACTION LEAVES THE PRIMARY ROW. `Open thread`, `Edit` and `Delete`
+/* A DESTRUCTIVE ACTION LEAVES THE PRIMARY ROW. `Open Post`, `Edit` and `Delete`
    rendered as three identical bold green links 36px apart on every post its author owns,
    so a thumb aiming at the thread could land on the one that erases a photograph. They
    are pushed to the far end of the row, set in danger ink at regular weight, and carry
