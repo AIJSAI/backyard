@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
+import time
 from collections import namedtuple
 from typing import Any
 
@@ -290,6 +292,63 @@ def test_a_failure_with_no_reason_still_says_it_failed() -> None:
 
     assert field.alarming and "FAILED" in field.value
     assert "no reason" in field.value
+
+
+def test_a_fifo_in_its_place_does_not_hang_the_health_surface() -> None:
+    """#175 review: `O_NOFOLLOW` rejects a symlink and nothing else.
+
+    A FIFO at this path would park `open()` until something opened the write end — and the
+    two readers of this file are a worker periodic and an unauthenticated /healthz that an
+    outside monitor polls every half hour. A health surface that HANGS is worse than one
+    saying UNREADABLE: nothing downstream can tell a hung request from a dead box.
+
+    The clock is the assertion. Without `O_NONBLOCK` this test does not fail, it never
+    returns, so the elapsed time is what proves the fix rather than the field's value.
+    """
+    health.offbox_status_path().parent.mkdir(parents=True, exist_ok=True)
+    os.mkfifo(health.offbox_status_path())
+
+    started = time.monotonic()
+    field = _field()
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 5, "reading the status file blocked on a FIFO"
+    assert field.alarming and "UNREADABLE" in field.value
+
+
+def test_json_that_defeats_the_parser_is_a_field_not_a_traceback(monkeypatch: Any) -> None:
+    """#175 review: `RecursionError` is not a `ValueError`, so deeply nested JSON escaped
+    as a traceback in the weekly email and a 500 at /healthz.
+
+    Raised here rather than written as 2,000 nested brackets, because how deeply a 4 KB file
+    can nest before the parser gives up depends on the C stack the caller happens to have —
+    a worker thread's is smaller than the main thread's. The handler is the thing under
+    test, so the handler is what this drives.
+    """
+    _healthy_instance()
+    _write_status({"ok": True, "at": _stamp(1)})
+
+    def exhausted(*args: Any, **kwargs: Any) -> Any:
+        raise RecursionError("maximum recursion depth exceeded")
+
+    # `core.health.json` IS the process's json module, so this patch reaches the test
+    # client's own response parsing too — hence `public_status` on the measured fields
+    # rather than a request, to keep the patch around the code under test and nothing else.
+    monkeypatch.setattr("core.health.json.loads", exhausted)
+
+    field = _field()
+
+    assert field.alarming and "UNREADABLE" in field.value
+    assert health.public_status([field]) == health.DEGRADED
+
+
+def test_deeply_nested_json_degrades_without_raising() -> None:
+    """The same input as data, at the deepest nesting the size cap allows."""
+    _write_raw("[" * 2047 + "]" * 2047)
+
+    field = _field()
+
+    assert field.alarming and "UNREADABLE" in field.value
 
 
 def test_a_directory_in_its_place_is_unreadable() -> None:

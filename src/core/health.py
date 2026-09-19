@@ -28,6 +28,7 @@ import os
 import pathlib
 import re
 import shutil
+import stat
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -321,8 +322,19 @@ def _read_offbox_status() -> dict[str, object]:
     # link would turn this reader into a way to make the instance open a path of somebody
     # else's choosing — a mounted keyfile, `/proc/self/environ` — and quote what it found
     # into the operator's weekly email.
-    descriptor = os.open(offbox_status_path(), os.O_RDONLY | os.O_NOFOLLOW)
+    #
+    # O_NONBLOCK because O_NOFOLLOW rejects a symlink and nothing else (#175 review): a FIFO
+    # at this path would otherwise park `open()` until something opened the write end, and
+    # the two callers of this are a worker periodic and an unauthenticated /healthz that an
+    # outside monitor polls. A health surface that HANGS is worse than one that says
+    # UNREADABLE, because nothing downstream can tell it apart from a dead box.
+    descriptor = os.open(offbox_status_path(), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
+        # And having opened it without blocking, refuse anything that is not a regular file
+        # — a FIFO, a device, a directory. The contract is a small file the host's job
+        # wrote; nothing else at that path is a status this can read.
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError("is not a regular file")
         # One byte past the cap: a file at the cap is read whole, and an oversized one is
         # refused without ever being held. The box whose copy job is failing may be the box
         # that is out of memory or disk.
@@ -333,6 +345,12 @@ def _read_offbox_status() -> dict[str, object]:
         raise ValueError(f"is larger than {OFFBOX_MAX_BYTES} bytes")
     try:
         payload = json.loads(blob.decode("utf-8"))
+    except RecursionError as exc:
+        # NOT a ValueError, so it would have escaped as a traceback in the weekly email and
+        # a 500 at /healthz (#175 review). How deeply a 4 KB file can nest before the parser
+        # gives up depends on the C stack the CALLER happens to have — a worker thread's is
+        # smaller than the main thread's — which is a thing to catch, not to reason about.
+        raise ValueError("is nested too deeply to read") from exc
     except ValueError as exc:  # both a bad decode and bad JSON land here
         raise ValueError(f"is not valid JSON ({_one_line(str(exc), 60)})") from exc
     if not isinstance(payload, dict):

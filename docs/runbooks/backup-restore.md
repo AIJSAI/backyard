@@ -192,18 +192,28 @@ the case this exists for:
 set -u
 backups="$(docker volume inspect backyard_appdata --format '{{ .Mountpoint }}')/backups"
 status="$backups/.offbox-status.json"
-at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 if err="$(rsync -a --include='scheduled-*.bak' --exclude='*' \
             "$backups/" <your-backup-host>:/srv/backyard/ 2>&1)"; then
-  # Written to a temp file and moved into place, so the instance never reads half a file.
-  printf '{"ok": true, "at": "%s"}\n' "$at" > "$status.new"
+  ok=true; err=""
 else
-  # One line, no quotes or backslashes: this is JSON, and the reason is the operator's
-  # to read. `head -c` keeps a pathological rsync error from becoming the file.
-  reason="$(printf '%s' "$err" | tr '\n"\\' '   ' | head -c 200)"
-  printf '{"ok": false, "at": "%s", "error": "%s"}\n' "$at" "$reason" > "$status.new"
+  ok=false
 fi
+# Stamped AFTER the copy returns, because `at` is when the job FINISHED: a copy that ran
+# for three hours would otherwise hand the instance a time three hours stale on arrival.
+at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# A real JSON encoder rather than printf, because rsync's message is not yours to predict:
+# a quote, a backslash, a tab or any other control byte would make a hand-built file
+# invalid JSON, and the instance would report UNREADABLE instead of the failure you were
+# trying to tell it about. (`jq -n --arg` does the same job if you prefer it to python3.)
+# Written beside the file and moved into place, so the instance never reads half of one.
+OK="$ok" AT="$at" ERR="$err" python3 -c '
+import json, os
+out = {"ok": os.environ["OK"] == "true", "at": os.environ["AT"]}
+if not out["ok"]:
+    out["error"] = os.environ["ERR"][:200]
+print(json.dumps(out))' > "$status.new"
 mv "$status.new" "$status"
 ```
 
