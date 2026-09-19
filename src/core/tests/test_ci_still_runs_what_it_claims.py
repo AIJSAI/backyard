@@ -56,6 +56,17 @@ _LOAD_BEARING = {
         "the browser lane. It is deselected by `addopts = -m 'not e2e'`, so if this step "
         "goes, nothing anywhere runs the tests that drive a real browser"
     ),
+    "scripts/axe_sweep.py http://127.0.0.1:8765": (
+        "the accessibility sweep (G6). `test_design_system_wcag.py` computes contrast from "
+        "the token palette and defers the rest of AA to 'the browser audit (Playwright + "
+        "axe)' -- and until this step ran in CI, the browser audit was a script somebody "
+        "remembered. Deleting it leaves `e2e` green and the deferral pointing at nothing"
+    ),
+    "axe-core checksum mismatch": (
+        "the checksum on the fetched axe-core. It is third-party JavaScript pulled from a CDN "
+        "into a job that holds a database and a checkout; without the verification this step "
+        "runs whatever the CDN served that morning"
+    ),
     "manage.py check --deploy": "the production-posture check (TS-DJ-10)",
     "scripts/check_signoff.py": (
         "the DCO check on the commits a PR adds. CONTRIBUTING promises every commit is "

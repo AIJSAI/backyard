@@ -6,6 +6,11 @@ the next session — so the project's accessibility evidence was reproducible on
 principle. It is a script rather than a pytest case on purpose: it drives a real browser
 against a RUNNING instance (local or production), which is the whole point.
 
+WIRED INTO CI 2026-09-19 (G6): the `e2e` job seeds a throwaway instance, runs a server and
+calls this, because it already installs the browsers and already has a database — a sweep in
+its own job would have been the expensive way to prove the same thing. **It EXITS NON-ZERO on
+a serious or critical violation**; a CI step that always exits 0 is a decorative gate.
+
     uv run --with playwright python scripts/axe_sweep.py \
         http://127.0.0.1:8000 /tmp/axe.json <admin-user> <password> \
         [elder-token] [mfa-user] [mfa-password]
@@ -283,3 +288,23 @@ if skipped:
     print(f"SKIPPED (not reachable as {USER}): {len(skipped)} renders")
     print("  " + ", ".join(sorted({s.split(" ")[0] for s in skipped})))
 print("report ->", OUT)
+
+# EXIT CODE, added 2026-09-19 when this stopped being a thing somebody ran by hand and
+# became a CI step (G6). A step that always exits 0 is a decorative gate, which is the defect
+# class this repository keeps finding in its own gates -- and printing "!!" into a log nobody
+# reads is exactly how the 3.92:1 hover contrast survived two sweeps.
+#
+# The bar is serious/critical, not "any severity", because that is the bar the receipts were
+# always read against; a moderate finding is still in the JSON report for a human.
+# Non-vacuity is structural: the run above asserts it could log in at all, and it NAMES what
+# it skipped, so a sweep that reached nothing cannot report a clean zero.
+if total_sc:
+    offending = sorted(
+        f"{r['surface']} ({r['viewport']}/{r['theme']})" for r in results if r["serious_critical"]
+    )
+    sys.exit(
+        f"{total_sc} serious/critical accessibility violations across {len(offending)} "
+        f"renders: {', '.join(offending)}. Detail in {OUT}."
+    )
+if not results:
+    sys.exit("the sweep produced no renders at all, so a zero here means nothing")

@@ -292,8 +292,9 @@ jobs:
     # device emulation, against a live server. Its own job because it needs the Playwright
     # browsers; excluded from the unit `code` job via the `-m 'not e2e'` default.
     runs-on: ubuntu-latest
-    # Two browser engines to install and drive; about three minutes today. A browser lane
-    # that hangs hangs on a `wait_for`, and without this it would hold a runner for six hours.
+    # Two browser engines to install and drive, then the 132-render axe sweep below: roughly
+    # ten minutes today. A browser lane that hangs hangs on a `wait_for` or a `networkidle`
+    # that never settles, and without this it would hold a runner for six hours.
     timeout-minutes: 25
     services:
       postgres:
@@ -325,6 +326,59 @@ jobs:
         # -m e2e overrides the pyproject default `-m 'not e2e'`, so ONLY the e2e tests run;
         # they must actually run here (both engines), so the gate is not vacuous.
         run: uv run pytest -m e2e -v
+      - name: Accessibility sweep (axe over every surface, in this job because it already has a browser)
+        # G6: this script ran NOWHERE. `test_design_system_wcag.py` computes contrast from the
+        # token palette and defers the rest of AA to "the browser audit (Playwright + axe)" --
+        # and the browser audit was a thing somebody remembered to run. It lands HERE rather
+        # than in a job of its own because this job is the only one that already installs
+        # Chromium, and installing it twice is most of the cost.
+        #
+        # Measured before wiring: 33 surfaces, 132 renders, 0 violations, under three minutes
+        # against a seeded instance. The script EXITS NON-ZERO on a serious/critical finding.
+        env:
+          # DEBUG stays OFF: with it on, /no-such-page-here/ renders Django's technical 404
+          # instead of the branded page a relative actually sees, and the static pipeline is
+          # not the one that ships. The URL is plain http, which is what keeps settings.py's
+          # HTTPS-keyed hardening (SSL redirect, secure cookies) from fighting the sweep.
+          DJANGO_DEBUG: "0"
+          DJANGO_ALLOWED_HOSTS: 127.0.0.1,localhost
+          BACKYARD_BASE_URL: http://127.0.0.1:8765
+          MEDIA_ROOT: ${{ runner.temp }}/axe-media
+          BACKUP_ROOT: ${{ runner.temp }}/axe-backups
+          # Fixed, so the seed does not GENERATE one and print it. Throwaway CI value for a
+          # database that is destroyed with the runner.
+          BACKYARD_DEMO_PASSWORD: axe-sweep-ci-not-a-secret
+        run: |
+          set -euo pipefail
+          # axe-core is fetched, never vendored (.gitignore says so: 553KB of minified
+          # third-party JavaScript does not belong in a family app's history). Pinned and
+          # checksum-verified, exactly like the gitleaks download in `secrets` -- a swapped or
+          # truncated CDN artifact has to fail the build rather than run inside it.
+          curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 \
+            https://cdn.jsdelivr.net/npm/axe-core@4.10.2/axe.min.js -o scripts/axe.min.js
+          echo "b511cd9dec01c76f4b2ad1723b66b6db37d4c2eb4ed199076e1829d9ee7b75e3  scripts/axe.min.js" \
+            | sha256sum -c - || { echo "axe-core checksum mismatch"; exit 1; }
+          uv run python manage.py migrate --noinput
+          uv run python manage.py collectstatic --noinput --verbosity 0
+          # The seed's output goes to a FILE, not the log. It prints a live elder token, and
+          # this log is public -- the same rule the edge follows about token-carrying request
+          # paths (TS-EDGE-LOG). Only the counts are echoed.
+          uv run python manage.py shell < scripts/demo_seed.py > "$RUNNER_TEMP/seed.log"
+          grep '^SEEDED' "$RUNNER_TEMP/seed.log"
+          uv run python manage.py runserver 127.0.0.1:8765 --noreload &
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8765/accounts/login/ >/dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -sf -o /dev/null http://127.0.0.1:8765/accounts/login/
+          ELDER_TOKEN=$(sed -n 's/^ELDER_TOKEN=//p' "$RUNNER_TEMP/seed.log")
+          # Asserted, not assumed: with an empty token the sweep simply does not visit the
+          # elder feed, and an accessibility regression on the elder path is the one this
+          # project cannot afford. A silent skip there is the whole failure mode.
+          [ -n "$ELDER_TOKEN" ] || { echo "the seed minted no elder token"; exit 1; }
+          uv run python scripts/axe_sweep.py http://127.0.0.1:8765 "$RUNNER_TEMP/axe.json" \
+            operator "$BACKYARD_DEMO_PASSWORD" "$ELDER_TOKEN"
+
   secrets:
     runs-on: ubuntu-latest
     timeout-minutes: 15
