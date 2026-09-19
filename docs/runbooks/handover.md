@@ -56,9 +56,14 @@ python -c "import secrets; print(secrets.token_urlsafe(24))"   # x3
 #    last build before somebody else owns the box, so the base image — and with it the pg_dump
 #    client and ffmpeg — gets refreshed rather than served from the local cache. See the
 #    Upgrades section of self-host.md for why that layer is otherwise unreachable.
-docker compose -f docker-compose.yml -f docker-compose.prod.yml build --pull
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-curl -sSf https://YOUR-DOMAIN/manifest.webmanifest > /dev/null && echo "serving"
+#
+#    One chained command, because the old stack is still running while you paste this: on
+#    three separate lines a failed build is followed by `up -d` starting the PREVIOUS image,
+#    and `serving` prints off the containers that never left. `up --build` was at least
+#    atomic; splitting it must not cost that.
+docker compose -f docker-compose.yml -f docker-compose.prod.yml build --pull \
+  && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d \
+  && curl -sSf https://YOUR-DOMAIN/manifest.webmanifest > /dev/null && echo "serving"
 ```
 
 **The backup passphrase is different.** Changing it does **not** re-encrypt old archives:
