@@ -82,7 +82,7 @@
   <form method="post" action="{% url 'digest_settings' %}">
     {% csrf_token %}
     <label for="address">Email Address</label>
-    <input id="address" type="email" name="address" value="{{ subscription.address|default:'' }}" maxlength="254" required>
+    <input id="address" type="text" inputmode="email" autocomplete="email" name="address" value="{{ subscription.address|default:'' }}" maxlength="254" required>
     <label for="cadence">How Often</label>
     {% comment %} Daily is deliberately absent (owner direction 2). The model still accepts
        it so nobody who already chose it is broken by this, and their current setting is

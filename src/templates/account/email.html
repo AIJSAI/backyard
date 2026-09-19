@@ -40,7 +40,7 @@
             <div class="email-actions">
                 <button type="submit" name="action_primary" class="btn-quiet">{% trans 'Make Primary' %}</button>
                 <button type="submit" name="action_send" class="btn-quiet">{% trans 'Resend Confirmation' %}</button>
-                <button type="submit" name="action_remove" class="danger">{% trans 'Remove' %}</button>
+                <button type="submit" name="action_remove" class="danger">{% trans 'Remove Email Address' %}</button>
             </div>
         </form>
     {% else %}
@@ -59,7 +59,7 @@
             {% endslot %}
             {% slot actions %}
                 {% element button name="action_add" type="submit" %}
-                    {% trans "Add" %}
+                    {% trans "Add Email Address" %}
                 {% endelement %}
             {% endslot %}
         {% endelement %}

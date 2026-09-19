@@ -37,7 +37,7 @@
         {% if row.is_adhoc %}
           <form method="post" action="{% url 'pod_leave' row.pod.id %}" class="inline">
             {% csrf_token %}
-            <button type="submit">Leave</button>
+            <button type="submit">Leave Group</button>
           </form>
         {% endif %}
 

@@ -23,7 +23,7 @@
   <form method="post" action="{% url 'welcome_family_email' %}">
     {% csrf_token %}
     <label for="address">Email Address</label>
-    <input id="address" type="email" name="address" value="{{ address }}" maxlength="254"
+    <input id="address" type="text" inputmode="email" name="address" value="{{ address }}" maxlength="254"
            autocomplete="email" placeholder="you@example.com" aria-describedby="address-help">
     {% comment %} The one thing on this screen that is not obvious: choosing a frequency
        does not start anything until the address is proven. The sentence it replaces said

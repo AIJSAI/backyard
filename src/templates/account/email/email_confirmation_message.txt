@@ -21,8 +21,8 @@
    and email updates." {% endcomment %}
 {% block content %}{% autoescape off %}{% blocktrans %}Somebody added this address to a Backyard account.
 
-Confirm this address to enable password reset and email updates:{% endblocktrans %}
+Confirm this address to use it for password reset. If it is your primary address and you turned on email updates, they start too:{% endblocktrans %}
 
 {% if code %}{{ code }}{% else %}{{ activate_url }}{% endif %}
 
-{% blocktrans %}If you did not ask for this, ignore this email. Nothing else will be sent here.{% endblocktrans %}{% endautoescape %}{% endblock content %}
+{% blocktrans %}If you did not ask for this, ignore this email.{% endblocktrans %}{% endautoescape %}{% endblock content %}

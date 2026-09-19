@@ -62,7 +62,7 @@ first. Photos other people added replying to their posts go too.
 3. If no admin can sign in, the password has to be reset at the server by whoever runs this
    Backyard.
 
-Add a second sign-in step under Settings.
+Add a second sign-in step under Settings, in Passkeys And Sign-In Codes.
 
 ## 6. If You Are Stuck
 

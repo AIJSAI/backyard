@@ -11,7 +11,7 @@ Open this post: {{ block.url }}
 {% endfor %}{% if dates_block %}Coming Up In The Next Week:
 {% for entry in dates_block.entries %}  {{ entry.name_line }}'s {{ entry.kind }} ({{ entry.date_text }})
 {% endfor %}
-{% endif %}See this in your browser: {{ footer.digest_url }}
+{% endif %}View in your browser: {{ footer.digest_url }}
 
 You are receiving this because Email Updates is on. Turn it off: {{ footer.unsubscribe_url }}
 {% endautoescape %}

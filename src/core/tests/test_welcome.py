@@ -86,7 +86,7 @@ def test_the_three_screens_are_reachable_in_order(pod: Pod) -> None:
 
     two = client.get(reverse("welcome_family_email"))
     assert two.status_code == 200
-    assert "Email Updates" in two.content.decode()
+    assert "<h1>Email Updates</h1>" in two.content.decode()
 
     three = client.get(reverse("welcome_hello"))
     assert three.status_code == 200

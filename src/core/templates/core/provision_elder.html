@@ -23,7 +23,7 @@
        the screen and the line under it says what happened to the earlier link. {% endcomment %}
     <h2>{% if regenerated %}New Link Ready{% else %}Link Ready To Hand Over{% endif %}</h2>
     {% if regenerated %}<p>The earlier link has stopped working.</p>{% endif %}
-    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="No-Login Link" handover_share_title="Your Backyard" handover_note="Hand it over in person or in a private message, or print this page for the QR code. It appears only once." %}
+    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="No-Login Link" handover_share_title="Your Backyard" handover_note="Hand it over in person or in a private message, or print this page for the QR code. The link is shown once." %}
     {% if regenerated %}<p class="muted">If you created a new link because a phone or tablet was lost, check the <a href="{% url 'member_invites' %}">open invites</a> too. An invite on that device still works.</p>{% endif %}
   {% endif %}
 

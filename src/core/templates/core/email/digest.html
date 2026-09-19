@@ -12,9 +12,11 @@
       2026-09-19: the pinned card needed 632 CSS px and clipped the body text of every post
       at the right edge ("Sorry it took a fortnigh..."). This is the one surface the whole
       family receives every week, and it was the only object in the product that did not
-      fit a phone. `width="100%"` with `max-width:600px` is the mail-safe pattern every
-      major client honours; the outer cell's `align="center"` still centres it on a
-      desktop, where it is the same 600px it always was. {% endcomment %}
+      fit a phone. `width="100%"` with `max-width:600px` is honoured by every modern client;
+      Outlook's Word engine on Windows ignores `max-width`, so the MSO-only ghost table
+      below pins the card to 600px there instead of letting it stretch across a maximised
+      window. The outer cell's `align="center"` still centres it on a desktop. {% endcomment %}
+   <!--[if mso]><table role="presentation" width="600" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #dde4df;border-radius:10px;">
     <tr>
      <td style="padding:26px 30px 30px;font-family:Georgia,'Iowan Old Style',Palatino,serif;font-size:18px;line-height:1.5;color:#1c211e;">
@@ -74,7 +76,7 @@
          item 33). That route was retired for relatives when #101 stopped putting a
          per-post reply address in the message — nothing hands anybody an address any
          more, so a plain reply cannot be routed to a post and lands in the admin-only
-         "Replies we couldn't post" instead. The way to answer is "Reply In Backyard" on
+         "Held Replies" instead. The way to answer is "Reply In Backyard" on
          each post above, which opens the thread. {% endcomment %}
       <p style="font-size: 16px; color: #4c5a52; margin: 14px 0 0;">You are receiving this
         because Email Updates is on.</p>
@@ -85,6 +87,7 @@
      </td>
     </tr>
    </table>
+   <!--[if mso]></td></tr></table><![endif]-->
   </td>
  </tr>
 </table>

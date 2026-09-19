@@ -15,7 +15,7 @@
     {% if confirmation %}
         {% if can_confirm %}
             {% element p %}
-                {% blocktrans with confirmation.email_address.email as email %}Confirm {{ email }} to enable password reset and email updates.{% endblocktrans %}
+                {% if confirmation.email_address.primary %}{% blocktrans with confirmation.email_address.email as email %}Confirm {{ email }} to use it for password reset. If you turned on email updates, they start too.{% endblocktrans %}{% else %}{% blocktrans with confirmation.email_address.email as email %}Confirm {{ email }} to use it for password reset.{% endblocktrans %}{% endif %}
             {% endelement %}
             {% url 'account_confirm_email' confirmation.key as action_url %}
             {% element form method="post" action=action_url %}

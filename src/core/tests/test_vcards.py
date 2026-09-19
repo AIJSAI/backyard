@@ -495,3 +495,11 @@ def test_an_empty_profile_does_not_offer_an_empty_contact_card(world: World) -> 
     page = bare.content.decode()
     assert reverse("member_vcard", args=[world.yard_mate.id]) not in page
     assert "has not shared any contact details" in page
+
+
+def test_every_card_carries_the_grouping_category(world: World) -> None:
+    """The category is how twenty contacts that arrived together are found, or removed, as
+    a group in a phone. It reads "Backyard" since 0.1.5 (it was "Backyard family"); changing
+    it again would split the group for anybody who has already imported, so it is pinned."""
+    card = _card_for(world.author, world.pod_mate).replace("\r\n ", "")
+    assert "CATEGORIES:Backyard" in card.split("\r\n")

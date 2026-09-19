@@ -88,9 +88,13 @@ sentences:
 - **One idea per sentence, action first.** A helper is at most two short sentences. If it
   needs three, the screen is wrong.
 - **Buttons are verb plus object**: "Create Link", "Save Changes", "Send Email", "Delete
-  Post". The way out is always "Cancel".
+  Post". A single verb is right where the object is the screen itself and every mainstream
+  product writes it that way: "Post", "Reply", "Search", "Join", "Add". The way out is
+  always "Cancel".
 - **Labels are nouns**: "Name", "Email Address", "Password", "How Often". No questions as
-  labels. Placeholders only for format examples.
+  labels. Placeholders only for format examples, with two conventional exceptions: a
+  search box and a composer carry their prompt ("Search by name", "Write a post"). The
+  feed composer's is also mechanism: its collapse rule keys on `:placeholder-shown`.
 - **Options are short and parallel**: "Weekly", "Monthly", "Off". "Household",
   "\<Side name\>", "\<Group name\>".
 - **Confirmation pages**: the heading is the question ("Delete This Post?"), the body is
@@ -117,7 +121,7 @@ sentences:
 | You can change this later under Settings, and every email we send has a link at the bottom that stops them. | Change this anytime in Settings. |
 | Only if you feel like it. Your household will see this. | Optional. Visible to your household. |
 | You look after a side of the family. | You are a Side Admin. You can add and remove members on your side. |
-| Confirming means we can send you a way back in if you ever forget your password, and it starts the Family email if one has been pointed at this address. | Confirm this address to enable password reset and email updates. |
+| Confirming means we can send you a way back in if you ever forget your password, and it starts the Family email if one has been pointed at this address. | Confirm this address to use it for password reset. If it is your primary address and you turned on email updates, they start too. (Longer than the owner's draft on purpose: the link starts email updates only for a primary address, and a mail must say what its link does.) |
 | We have sent one email to that address. Tap the link in it and you are done. Check your spam folder if it is not in your inbox. | A confirmation email has been sent to \<address\>. Check your spam folder if it does not arrive. |
 | (password hint, several sentences) | Choose a memorable password. |
 | Welcome to your family's Backyard … members are taken straight to … | Welcome To Backyard / A private, invite-only family network. Open your invite link to join. |
@@ -140,7 +144,7 @@ Use exactly these words.
 | the why-you-got-this line | "You are receiving this because Email Updates is on. Turn it off: \<link\>" | |
 | roles | Member, Side Admin, Family Admin | plainly: "Side Admin: adds and removes members on one side." "Family Admin: manages everyone and both sides." Never "look after" |
 | the elder link | No-Login Link | |
-| the recovery link | Sign-In Link (admin-issued) | the admin's page is "Create Sign-In Link" |
+| the recovery link | Sign-In Link (admin-issued) | the admin's page is "Create A Sign-In Link" |
 | the password-reset control | "Forgot Your Password?" | on the sign-in page and on Change Your Password, and quoted by that name wherever a page or an error names it |
 | a WebAuthn credential | **Passkey** | never "security key". The badge beside one says what it DOES: "Signs You In On Its Own", "Second Step Only", "Not Known". The name prefilled in the Add box is "Passkey 1", not the library's "Master key" |
 | a TOTP app | **Authenticator App** | what it gives you is a "six-digit code", never a "verification code" or an "OTP" |
