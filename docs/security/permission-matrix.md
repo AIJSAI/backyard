@@ -74,6 +74,65 @@ within the admin's yard scope.
 scope, **and the two admin roles (`yard_admin`, `instance_admin`) are grantable only
 by the instance admin**. No one re-roles themselves upward.
 
+`can_edit_profile_of(actor, target)`: may the actor change the target's name, kinship
+name and dates? Yourself always (editing your own name is the thing you
+should never need a role for, so the self branch is first and is NOT
+`can_manage_member`, which denies self-administration on purpose); a supervised child's
+managing parent; and **any admin who may already administer the target**, which is
+`can_manage_member` and therefore carries every rule in the table above. That last clause
+read `is_instance_admin` until BY-11: a yard admin could remove a member of their own side
+outright and could not correct their birthday, so a name typed wrong at invite time, or an
+elder's details filled in for her — she has no login by design (TM-10) — routed back to
+the founder.
+
+The ROUTE that acts on it (`managed_profile_edit`) resolves its target through
+`permissions.administrable_members`, not through the read guard, so the roster's
+`Edit profile` link and the page it opens answer the same question. For everyone below the
+instance admin that set IS the yard-scoped visible set, so the other side of the family
+stays a byte-identical 404 (S-202/S-902). For the instance admin it is every member,
+because they own the instance and sit above yard isolation — isolation is a member-level
+promise, not an admin-level one — which is the same resolution removal, re-roling and the
+recovery link already use. Resolving it through the read guard instead is how the roster
+came to offer a link that 404d on click: the permission said yes and the page said the
+person does not exist.
+
+**The contact fields are NOT in that widening**, and the second predicate is
+`profile_views._may_edit_contact_fields`: yourself, a managing parent, the instance admin —
+the set `can_edit_profile_of` had before BY-11. The edit form renders the raw `Member` row
+rather than `profiles.viewable_profile`, so SHOWING a phone number or a home address there
+is the same disclosure as changing it, and the visibility select beside it would let an
+admin publish one to a whole side of the family with nothing telling its owner (the T-YARD-6
+shape: a second surface bypassing per-field visibility). The view refuses to write them on
+the same predicate the template hides them on, so a hand-written POST is not a way round.
+
+`can_provision_token(actor, target)`: may the actor mint an elder link for the target?
+Deliberately STRICTER than `can_manage_member`: the link is a working no-login credential
+for the target's **whole** scope, which the issuer can open themselves, so a yard admin
+may mint one only for a target whose pods are a subset of their own. Anything wider is the
+instance admin's.
+
+**The admin-issued recovery link (BY-01, `core/recovery.py`) is keyed on
+`can_manage_member`, not on `can_provision_token`**, and the asymmetry is the point: a
+recovery link grants ONE act — setting a password the issuer does not learn — and using it
+ends every session the member had, so an issuer who redeemed one themselves would sign the
+member out rather than read their family quietly. That signal is real but it is not proof:
+an issuer can redeem, read, then mint a SECOND link and hand that one over, leaving the
+member with a single unexplained sign-out. The authority is granted on the judgement that a
+yard admin who can already remove that member and delete their photographs is not held
+back by a password reset — not on the claim that impersonation is impossible. It is
+refused for a member with no login (an elder), for a supervised child, who is their
+parent's, and for a removed member, whose account is already deactivated. Those three
+refusals live in ONE predicate, `recovery.is_recoverable`, read by the roster, the issuing
+page and the service alike, so the control is never offered where the next step declines
+it. An admin's OWN
+recovery is never in the product at all: that is break-glass, which needs server shell
+(S-805, T-AUTH-G1), and it is keyed on the INSTANCE_ADMIN role rather than `is_superuser`
+so the second admin the succession path creates can be recovered (S10). Recovery FROM
+ABOVE is in the product: `can_manage_member` is True for the instance admin against a yard
+admin or a peer instance admin, so the roster offers the link on those rows. It grants
+nothing they do not already hold via remove and re-role, and it is written down here
+rather than implied away.
+
 ## Provenance
 
 Grants are the mandatory path for these actions, the same way `scoping.py` is

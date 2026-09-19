@@ -20,7 +20,7 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from . import handover, invites, permissions, removal, scoping, supervised
+from . import handover, invites, permissions, recovery, removal, scoping, supervised
 from .models import (
     DigestDelivery,
     DigestSubscription,
@@ -77,9 +77,11 @@ class RosterRow:
     member: Member
     manageable: bool
     assignable_roles: list[tuple[str, str]]
-    # Separate from `manageable` on purpose: `can_edit_profile_of` is a narrower question
-    # than `can_manage_member` and answers it differently — a yard admin may manage a
-    # member's role without being allowed to rewrite their birthday and phone number.
+    # Kept as its own field although BY-11 made it `can_manage_member` for an admin: the
+    # question is still narrower in the two branches that come first (yourself, a managing
+    # parent), and the form it opens is narrower again — a yard admin may correct a
+    # member's birthday there and may NOT see or rewrite their phone number, which
+    # profile_views._may_edit_contact_fields, not this flag, decides.
     can_edit_profile: bool = False
     # The HOUSEHOLDS this member is in — not every pod the admin can see, and not their
     # ad-hoc groups either.
@@ -100,6 +102,13 @@ class RosterRow:
     # `setting-up-your-side.md` tells them to click exactly that when a grandparent's link
     # goes to the wrong person.
     can_provision_elder: bool = False
+    # BY-01. `manageable` AND has a LIVE password to reset: an elder holds a token link
+    # instead of a login, a supervised child's account is their parent's (TM-10), and a
+    # REMOVED member keeps their `user` row with `is_active` False (removal.py step 3) — so
+    # a link minted for any of the three is a control that lies, either at the click or, in
+    # the removed case, at the sign-in it hands them on to. That is the class
+    # `test_no_link_the_product_offers_is_refused_when_you_click_it` exists to catch.
+    can_issue_recovery: bool = False
 
 
 @login_required
@@ -118,6 +127,9 @@ def members(request: HttpRequest) -> HttpResponse:
     roster = (
         permissions.administrable_members(actor)
         .order_by("display_name")
+        # `user` is joined, not fetched per row: `recovery.is_recoverable` reads
+        # `user.is_active` for every line, which is a query each without it.
+        .select_related("user")
         .prefetch_related(
             Prefetch(
                 "pods",
@@ -148,13 +160,22 @@ def members(request: HttpRequest) -> HttpResponse:
                 # invite time, or filling in an elder's details for her, since she has no
                 # login by design (TM-10). The route existed and the only `{% url %}`
                 # reference to it in the tree was its own form action, so nobody could open
-                # it. `can_edit_profile_of` is deliberately NOT `can_manage_member`: it is
-                # a narrower question and has its own answer.
+                # it. Since BY-11, `can_edit_profile_of` IS `can_manage_member` for an admin
+                # (plus self and a managing parent, which are first and separate), so this
+                # gate now moves whenever that one does — deliberately, because a yard
+                # admin who may remove a member of their own side should be able to correct
+                # that member's birthday. The contact fields are NOT part of that widening;
+                # profile_views._may_edit_contact_fields draws that line.
                 can_edit_profile=permissions.can_edit_profile_of(actor, member),
                 own_pods=list(member.households),
                 can_provision_elder=(
                     not member.is_supervised and permissions.can_provision_token(actor, member)
                 ),
+                # `recovery.is_recoverable` and not a copy of its clauses: the roster, the
+                # issuing view and the service all read that one predicate, so the link is
+                # never offered for somebody the next step refuses. It answers from
+                # `member.user`, joined by the select_related above, so it costs no query.
+                can_issue_recovery=manageable and recovery.is_recoverable(member),
             )
         )
     return render(
@@ -337,7 +358,17 @@ def create_supervised(request: HttpRequest) -> HttpResponse:
 @login_required
 def remove(request: HttpRequest, member_id: int) -> HttpResponse:
     """Remove a member (S-702 UI). Permission-gated, then wired to the atomic
-    revocation-and-teardown flow."""
+    revocation-and-teardown flow.
+
+    The DELETE choice takes a second step (NB-5). It is the single most destructive
+    control the two new yard admins will hold — it hard-purges photographs from the
+    volume with no undo — and it sat behind one POST from a radio button on a roster
+    page, three rows away from four other people's Remove buttons. So a `content=delete`
+    POST without a matching typed name renders a confirm page instead of acting: it
+    states the counts, says the photographs cannot be recovered, and asks for the
+    person's name in a box. KEEP and ANONYMIZE are unchanged one-step posts; neither
+    destroys a file.
+    """
     actor = _acting_member(request)
     if request.method != "POST":
         raise Http404
@@ -345,14 +376,42 @@ def remove(request: HttpRequest, member_id: int) -> HttpResponse:
     # (a cross-scope target is a byte-identical 404, same as one that does not exist).
     target = get_object_or_404(permissions.administrable_members(actor), pk=member_id)
     permissions.require_can_manage_member(actor, target)  # raises PermissionDenied
+    content = request.POST.get("content", "")
+    if content == removal.DELETE:
+        typed = request.POST.get("confirm_name", "")
+        if not _name_matches(typed, target.display_name):
+            return render(
+                request,
+                "core/member_remove_confirm.html",
+                {
+                    "actor": actor,
+                    "target": target,
+                    "preview": removal.preview_deletion(target),
+                    # Only after they have actually typed something: arriving at this page
+                    # for the first time is not a failed attempt, and telling somebody they
+                    # got it wrong before they have tried reads as an error they caused.
+                    "mismatch": bool(typed.strip()),
+                },
+            )
     # S-702: the admin chooses what happens to their content, explicitly. An unrecognised
     # or absent value is refused rather than defaulted — a default would silently keep
     # everything, which is the behaviour this criterion exists to replace.
     try:
-        remove_member(target, content=request.POST.get("content", ""))
+        remove_member(target, content=content)
     except removal.UnknownContentChoice as exc:
         raise BadRequest("Choose what happens to this person's posts.") from exc
     return redirect("members")
+
+
+def _name_matches(typed: str, display_name: str) -> bool:
+    """Did the admin type this person's name? Case- and whitespace-forgiving.
+
+    The confirmation is there to make an irreversible act deliberate, not to test
+    anybody's typing on a phone keyboard that capitalises the first letter for them. An
+    empty string never matches, which is what makes the first POST from the roster land
+    on the confirm page rather than deleting.
+    """
+    return bool(typed.strip()) and typed.strip().casefold() == display_name.strip().casefold()
 
 
 @login_required

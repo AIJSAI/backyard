@@ -13,6 +13,10 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
+Day one for the two relatives about to be made yard admins: nobody gets locked out, and the
+one control that destroys something asks first. Alongside it, the instance starts backing
+itself up and telling somebody when it cannot.
+
 ### Added
 
 - **There is a person behind every name.** A calm coloured circle with someone's initials
@@ -39,6 +43,27 @@ a point somebody deliberately stopped at, with a full green gate behind it.
 - **An unfinished post waits for you.** Leaving the "share with a whole side of the
   family?" question any way other than answering it used to throw the whole post away.
   Your words are kept, with the photos you picked, until you post it or discard it.
+- **An admin can get somebody back in.** A member who joined without an email address had no
+  password recovery at all — `Forgot your password?` resolves against an address that does not
+  exist, and the page correctly says "sent" either way, so they found out they were locked out
+  at the worst possible moment. The only real cure was `manage.py changepassword` at a server
+  shell, which is not something a relative has. An admin now mints a one-time "get back in"
+  link on the member's roster row and hands it over by text or reads it out, the same way the
+  household invite and the grandparent link already work. It is single use, dies after two
+  days, is revoked by issuing another, and ends every other session when it is redeemed. A
+  yard admin can issue one only for an ordinary member of their own side of the family.
+- **Members can reach their own account pages.** The sign-in email, the password change and
+  the passkey/one-time-code pages were routed, styled by this project's own layouts, and
+  linked from nowhere any member could stand — for months, while the join page promised "You
+  can add a passkey once you are in". They are now in Settings.
+- **A member with no email address on file is told so, once,** with a link to add one and a
+  "Not now" that means it. Members who joined before the join form had an email box are
+  exactly the people this reaches.
+- **A plain member is told who can add people.** Inviting is an admin's job in this version
+  and no page they could reach said so, so the obvious next thing to do read as broken. The
+  feed now names the person who invited them. It sits outside the first-visit orientation
+  card on purpose: that card is already dismissed for everybody who was here before it
+  shipped, so inside it the sentence would have reached nobody it was written for.
 - **The instance backs itself up.** `backup_instance` shipped with nothing running it, so
   an instance holding a family's photographs had a documented backup command and no
   backups. The worker now takes an encrypted archive nightly at 03:30 UTC, keeps the last
@@ -56,6 +81,21 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   recorded backup says whether the scheduler or a person took it, and only the
   scheduler's own runs can report the nightly job as working — so taking one backup by
   hand, which is the first thing the alarm makes you want to do, does not silence it.
+- **The host can now tell the instance how the off-box copy went.** Copying an archive off
+  the server stays on the host deliberately — a copy step inside the container would need
+  the destination's credential, which would then sit beside the ciphertext on the same
+  volume — so the instance could never say whether a copy happened, and a host job that
+  quietly stopped was nobody's alarm. If the job writes one small JSON file
+  (`.offbox-status.json`, beside the archives), the health email and `/healthz` report it:
+  a success inside 48 hours reads healthy, an older one or a reported failure raises the
+  line and degrades the instance, and the reason goes to the instance admin and never to
+  the public endpoint. **Writing no file changes nothing** — the line still reads NOT
+  MEASURED and the instance stays `ok`, because most self-hosters have no off-box job and
+  an instance that cried wolf about one they never set up would teach them to ignore the
+  word `degraded` everywhere else. The file is operator-written on a volume the app also
+  writes to, so it is read as hostile input: size-capped, symlinks not followed, and
+  anything malformed becomes an `UNREADABLE` line rather than a traceback in the weekly
+  email. The health field is now called "Off-box copy" rather than "Off-box backup age".
 - **Days until the TLS certificate expires**, in the health email. Renewal is automatic and
   silent, and so is its failure; an expired certificate is a full-page browser warning for
   every relative at once. A check that has never succeeded reports why, which is the
@@ -99,12 +139,45 @@ a point somebody deliberately stopped at, with a full green gate behind it.
 - **Bigger tap targets** on the "who can see this" checkboxes and the top navigation, and
   one consistent, solid empty state instead of a dashed box inside a solid one.
 - **The front door says welcome.** It said "Backyard is running".
+- **Deleting a member's posts and photos takes a second step.** It erases photographs from
+  the server with no undo, and it sat behind one radio button and one button on a page listing
+  five other people's Remove controls. It now shows what will be destroyed — including the
+  photos other people put on replies to their posts, which go too — says that it cannot be
+  undone, and asks for the person's name to be typed. It also counts the pictures that come
+  with links they shared: we keep a copy of each one so the card in the feed does not phone
+  out to somebody else's server, and those files are erased too. Keeping or anonymising
+  their posts is unchanged; neither erases a file.
+- **A yard admin can fix a profile on their own side.** They could remove a member outright
+  and could not correct that member's birthday, so a name typed wrong at invite time, or a
+  grandparent's details filled in for her, went back to whoever runs the server. The name,
+  the nickname and the two dates only: a phone number, an email address and a home address
+  stay between their owner and the people that owner chose, so an admin standing in for
+  somebody else does not see those boxes and cannot change what is in them.
+- **The "get back in" link asks for the new password twice.** It works once, and the people
+  it is for have no email address on file, so a typo they could not reproduce would lock
+  them out again and cost another phone call.
+- **Break-glass admin recovery works for the second admin.** It keyed on the Django superuser
+  flag, which only the very first admin has — so the relative promoted to instance admin, the
+  person the succession path exists to create, was the one admin who could not be recovered.
 - `/healthz` answers `ok` or `degraded` (always HTTP 200) instead of always `ok`. The
   fields behind that word are visible to a signed-in instance admin and to nobody else: at
   a public URL, disk headroom and backup age are an operations map for whoever asks first.
 
 ### Fixed
 
+- **A removed member is no longer offered a "get back in" link.** Their row stays on the
+  instance admin's list, so the control rendered — and the link worked right up to the
+  sign-in page, which can never let a removed account in. It is not offered and not minted.
+- **"Edit profile" no longer dead-ends for whoever runs the instance.** The list of family
+  members offers it on every row, and for the person who runs the whole instance that is
+  everybody on both sides — but the page itself refused anyone outside your own side, so the
+  link led to "page not found". The page now answers the same question the link does. For a
+  side's own admin nothing widens: the other side of the family is still not there at all.
+- **The reachability gate now covers the account pages it was blind to.** It skipped every
+  route belonging to an included URLconf, on the grounds that the library owns its own
+  reachability. Mounting those routes puts them in this product, and three of them had no
+  entrance for months. Each one is now either reachable by clicking or listed with the reason
+  it has none.
 - **Regenerating a grandparent's link revoked every outstanding household invite on their
   side of the family.** Inviting a household and handing out a no-login elder link are the
   two things a new admin does in the same sitting, and doing them in that order silently

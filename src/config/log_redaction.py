@@ -32,6 +32,11 @@ _CAPABILITY_ROUTES = (
     "join",
     "media",
     "break-glass",
+    # The admin-issued recovery link (BY-01). Same class as break-glass: the segment after
+    # it sets a password. A relative typing a long link out of a text message gets it
+    # wrong, the 404 lands in `django.request` at WARNING, and the operator reading the
+    # container log would be holding a live password-setting credential for a family member.
+    "get-back-in",
     # django-allauth's own credential-bearing paths, which arrive via include("allauth.urls")
     # and were absent until a resolver walk found them. A wrapped or truncated reset link
     # 404s, and `django.request` then logs the whole path at WARNING -- putting an

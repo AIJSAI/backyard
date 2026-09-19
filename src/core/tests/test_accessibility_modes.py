@@ -218,7 +218,14 @@ def test_no_page_gives_two_controls_the_same_accessible_name() -> None:
 
     html = render_to_string(
         "core/profile_edit.html",
-        {"member": Member(display_name="Priya"), "visibility_choices": [("no_one", "No one")]},
+        {
+            "member": Member(display_name="Priya"),
+            "visibility_choices": [("no_one", "No one")],
+            # The page as its OWNER sees it, which is the one with all five selects on it.
+            # The contact half is hidden from an admin editing somebody else (BY-11), and
+            # without this the non-vacuity floor below silently drops from five to two.
+            "show_contact_fields": True,
+        },
     )
     # Every <label for="..."> is the accessible name of the control it points at.
     labels = re.findall(r'<label for="([^"]+)"[^>]*>(.*?)</label>', html, re.S)

@@ -22,6 +22,9 @@ Under no-referrer the browser sends Origin: null on those POSTs and Django's CSR
 check rejects them, so the elder could never react from a real browser.
 same-origin gives /e/ the identical cross-origin guarantee (zero third-party
 Referer or Origin) while sending the same-origin Origin the CSRF check needs.
+/get-back-in/ (the BY-01 recovery link) is the case that is both at once — the
+token is in the URL and the new password posts back to it — so it takes the
+same-origin arm for the same CSRF reason.
 """
 
 from __future__ import annotations
@@ -39,8 +42,16 @@ from django.http import HttpRequest, HttpResponse
 # a token-bearing denial was cacheable and indexable. /media/ hosts no forms, so
 # no-referrer is safe here for the same reason it is on /d/ and /t/.
 _TOKEN_URL_PREFIXES = ("/d/", "/t/", "/media/")
-# Elder session surface: no token in the URL, but hosts same-origin POST forms.
-_ELDER_SURFACE_PREFIX = "/e/"
+# Same hygiene set, but Referrer-Policy: same-origin, because these surfaces host a
+# same-origin POST form. /e/ is the elder session surface (the token was already
+# exchanged for a cookie, so /e/ URLs carry none) and /get-back-in/ is the recovery link
+# (BY-01), which does carry its token in the URL AND submits a new password back to that
+# same URL. no-referrer would make the browser send Origin: null on both forms and
+# Django's CSRF check would reject them — the failure handover.py documents for the
+# hand-over pages, where curl and the test client hid it because neither sends an Origin.
+# same-origin gives the identical cross-origin guarantee (zero third-party Referer or
+# Origin) while sending the same-origin Origin the CSRF check needs.
+_SAME_ORIGIN_FORM_PREFIXES = ("/e/", "/get-back-in/")
 
 
 class TokenSurfaceHeadersMiddleware:
@@ -51,13 +62,13 @@ class TokenSurfaceHeadersMiddleware:
         response = self.get_response(request)
         path = request.path
         on_token_url = path.startswith(_TOKEN_URL_PREFIXES)
-        on_elder_surface = path.startswith(_ELDER_SURFACE_PREFIX)
-        if on_token_url or on_elder_surface:
+        on_form_surface = path.startswith(_SAME_ORIGIN_FORM_PREFIXES)
+        if on_token_url or on_form_surface:
             response["X-Robots-Tag"] = "noindex, nofollow"
             response["Cache-Control"] = "no-store"
             response["X-Content-Type-Options"] = "nosniff"
-            # no-referrer where the token is in the URL; same-origin on the elder session
-            # surface so its POST forms are not CSRF-rejected on an Origin: null.
+            # no-referrer where the token rides the URL and nothing posts back;
+            # same-origin where a form does, so its POST is not CSRF-rejected.
             response["Referrer-Policy"] = "no-referrer" if on_token_url else "same-origin"
         return response
 

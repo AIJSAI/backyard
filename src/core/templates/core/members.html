@@ -63,6 +63,16 @@
           {% if row.can_provision_elder %}
             <a href="{% url 'provision_elder' row.member.id %}">Elder link</a>
           {% endif %}
+          {% comment %} BY-01. Before this, a relative who forgot their password and had
+             never given an email address could be helped by nobody in the product: the
+             reset page says "sent" either way (ACCOUNT_PREVENT_ENUMERATION), and the only
+             real cure was `manage.py changepassword` at a server shell. The runbook's own
+             answer was "ask whoever runs the server". Same gate as the view
+             (can_manage_member, plus having a password at all), so it never 403s or 404s
+             on click. {% endcomment %}
+          {% if row.can_issue_recovery %}
+            <a href="{% url 'issue_recovery' row.member.id %}">Get back in link</a>
+          {% endif %}
           {% if row.manageable %}
             {% if row.assignable_roles %}
               <form method="post" action="{% url 'assign_role' row.member.id %}" class="inline">
@@ -101,6 +111,12 @@
                     {{ label }}
                   </label>
                 {% endfor %}
+                {% comment %} NB-5: the third choice erases photographs from the server for
+                   good. Say so beside the radio, and say that there is another step, so the
+                   button is not the last thing between an admin and an irreversible act.
+                   The step itself is enforced in the view, not here. {% endcomment %}
+                <p class="hint">Deleting erases their photos from the server for good. We
+                  will ask you to confirm first.</p>
               </fieldset>
               <button type="submit" class="danger">Remove {{ row.member.display_name }}</button>
             </form>

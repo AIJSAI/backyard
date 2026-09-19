@@ -44,6 +44,39 @@
     </aside>
   {% endif %}
 
+  {% comment %} BY-13, OUTSIDE the orientation card on purpose. Nested inside it, the
+     sentence reached only members who have not dismissed that card -- and migration 0022
+     backfilled `orientation_dismissed_at` for every member who already existed, which is
+     the whole current family, plus every newcomer the moment they click "Got it". It is
+     one standing fact about who does what, not a prompt, so it needs no dismissal and no
+     column: the same shape as base.html's "Stuck? Ask whoever in the family set this up."
+     {% endcomment %}
+  {% if show_invite_help %}
+    <p class="muted">Adding people is an admin&rsquo;s job. {% if inviter %}To add someone,
+      ask <strong>{{ inviter.display_name }}</strong> &mdash; they can make you a link.{% else %}To
+      add someone, ask whoever in the family set this up.{% endif %}</p>
+  {% endif %}
+
+  {% comment %} BY-02/BY-03. This member has no email address anywhere — not on their
+     account and not as an allauth address — so "Forgot your password?" cannot reach them,
+     and the reset page says "sent" either way (ACCOUNT_PREVENT_ENUMERATION), so they would
+     only discover it the day they are locked out. Separate from the orientation card
+     because it must reach the members who joined BEFORE the join form had an email box,
+     and those are precisely the ones the orientation backfill already dismissed. {% endcomment %}
+  {% if show_email_prompt %}
+    <aside class="prompt" aria-labelledby="email-prompt-heading">
+      <h2 id="email-prompt-heading">Add an email address?</h2>
+      <p>You have not given one, so you can be signed in here without it — but if you ever
+        forget your password there is no way to send you a new one.</p>
+      <p><a href="{% url 'account_email' %}">Add an email address</a> so you can get back in
+        if you forget your password. Nothing is ever sent to it unless you ask.</p>
+      <form method="post" action="{% url 'dismiss_email_prompt' %}">
+        {% csrf_token %}
+        <button type="submit">Not now</button>
+      </form>
+    </aside>
+  {% endif %}
+
   {% if errors %}
     <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
   {% endif %}

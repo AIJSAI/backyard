@@ -27,6 +27,7 @@ from django.views.decorators.http import require_POST
 from . import (
     commenting,
     drafts,
+    invites,
     media,
     moderation,
     notifications,
@@ -230,6 +231,16 @@ def _render_feed(
             # not a tour — three facts a newcomer would otherwise have to be told by
             # whichever relative invited them.
             "show_orientation": member.orientation_dismissed_at is None,
+            # BY-13: a fourth fact on the orientation card, for the people it applies to.
+            # Only admins issue invites in v1, and nothing a plain member could reach said
+            # so — the obvious next thing to do in a family network, add somebody, looked
+            # broken rather than delegated. An admin is the somebody else, so they are not
+            # told to go and ask one.
+            "show_invite_help": not permissions.is_admin(member),
+            "inviter": None if permissions.is_admin(member) else invites.inviter_of(member),
+            # BY-02: this member has no way to reset their own password. Shown once,
+            # quietly, until they dismiss it or add an address.
+            "show_email_prompt": _needs_an_email(member),
             "errors": errors or [],
             # The end-cap is only honest when the tail is genuinely reached; otherwise the
             # member gets a way back into the archive instead of a false "all caught up".
@@ -256,6 +267,29 @@ def _render_feed(
             "max_videos": _MAX_VIDEOS,
         },
     )
+
+
+def _needs_an_email(member: Member) -> bool:
+    """Has this member no address on file at all, and not yet waved the prompt away?
+
+    BY-02/BY-03. Email is optional at join (S-101) and members who joined before the form
+    even had the box have neither an `EmailAddress` row nor `User.email` — so
+    `Forgot your password?` cannot reach them, and `ACCOUNT_PREVENT_ENUMERATION` correctly
+    makes the reset page say "sent" either way, which means they find out they are locked
+    out at the worst possible moment.
+
+    BOTH stores are checked because allauth reads both: it resolves a reset against a
+    verified `EmailAddress` and falls back to `USER_MODEL_EMAIL_FIELD` when none matched
+    (allauth/account/utils.py), so either one being set is a recovery path and neither
+    being set is none.
+    """
+    from allauth.account.models import EmailAddress
+
+    if member.user is None or member.email_prompt_dismissed_at is not None:
+        return False
+    if member.user.email:
+        return False
+    return not EmailAddress.objects.filter(user=member.user).exists()
 
 
 @login_required
@@ -736,6 +770,22 @@ def dismiss_orientation(request: HttpRequest) -> HttpResponse:
     member = _acting_member(request)
     Member.objects.filter(pk=member.pk, orientation_dismissed_at__isnull=True).update(
         orientation_dismissed_at=timezone.now()
+    )
+    return redirect("feed")
+
+
+@login_required
+@require_POST
+def dismiss_email_prompt(request: HttpRequest) -> HttpResponse:
+    """BY-02: the member has seen the add-an-email prompt and does not want it again.
+
+    POST-only and non-re-stamping for the same reasons as dismiss_orientation above. Kept
+    on the member row rather than in the session so it stays dismissed on their phone and
+    their laptop, and after they sign out — a prompt that comes back is a nag.
+    """
+    member = _acting_member(request)
+    Member.objects.filter(pk=member.pk, email_prompt_dismissed_at__isnull=True).update(
+        email_prompt_dismissed_at=timezone.now()
     )
     return redirect("feed")
 

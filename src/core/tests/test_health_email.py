@@ -49,7 +49,7 @@ def test_every_field_appears_even_when_it_cannot_be_measured() -> None:
         "Disk headroom",
         "Domain",
         "Failed sign-ins",
-        "Off-box backup age",
+        "Off-box copy",
     ):
         assert label in text, f"{label} is missing from the health email entirely"
     # The two that genuinely cannot be answered say so, rather than being absent.
@@ -57,12 +57,19 @@ def test_every_field_appears_even_when_it_cannot_be_measured() -> None:
 
 
 def test_the_two_uninstrumented_fields_name_what_is_missing() -> None:
-    """ "NOT MEASURED" alone would leave an operator unable to act. Each says why."""
+    """ "NOT MEASURED" alone would leave an operator unable to act. Each says why.
+
+    The off-box line is only uninstrumented until an operator sets a copy job up: with no
+    status file in BACKUP_ROOT (the state of every instance that has not read the runbook's
+    optional contract) it still says the instance cannot see where a copy went, and still
+    does not alarm. The four states it takes once the file IS there live in
+    test_offbox_copy_status.py.
+    """
     fields = {f.label: f.value for f in health.measure()}
     assert "audit log" in fields["Failed sign-ins"]
     assert "T-MON-1" in fields["Failed sign-ins"]
-    assert "cannot see" in fields["Off-box backup age"]
-    assert "T-OP-G3" in fields["Off-box backup age"]
+    assert "cannot see" in fields["Off-box copy"]
+    assert "T-OP-G3" in fields["Off-box copy"]
 
 
 def test_never_backed_up_is_distinct_from_not_measured() -> None:
@@ -416,7 +423,7 @@ def test_measured_is_false_for_a_field_that_carries_its_reason() -> None:
     that did."""
     fields = {f.label: f for f in health.measure()}
     assert not fields["Failed sign-ins"].measured
-    assert not fields["Off-box backup age"].measured
+    assert not fields["Off-box copy"].measured
     assert fields["Disk headroom"].measured, "a real measurement reported itself unmeasured"
 
 

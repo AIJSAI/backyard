@@ -10,13 +10,14 @@ own completeness assertion, and this proves they all die together.
 
 Coverage honesty (#45 review): the drill checks every credential class that
 exists today. Some die by a registry row-void step (invites, digest
-subscription, digest tokens, reply addresses, elder tokens); two die by the
-generation bump alone with NO registry row (the elder session and the web
-session), so a length-of-registry pin cannot be the whole tripwire. The
-canonical set below is the real one, asserted by EQUALITY against what the drill
-checks. A future generation-only bearer capability (the planned W3 signed-media
-URL, digest.py notes it "carries the generation") MUST be added to this set and
-to all_dead() when it ships, or the equality assertion here fails.
+subscription, digest tokens, reply addresses, elder tokens, and the admin-issued
+recovery link); two die by the generation bump alone with NO registry row (the
+elder session and the web session), so a length-of-registry pin cannot be the
+whole tripwire. The canonical set below is the real one, asserted by EQUALITY
+against what the drill checks. A future generation-only bearer capability (the
+planned W3 signed-media URL, digest.py notes it "carries the generation") MUST
+be added to this set and to all_dead() when it ships, or the equality assertion
+here fails.
 """
 
 from __future__ import annotations
@@ -37,6 +38,7 @@ from core import (
     elder_tokens,
     invites,
     media,
+    recovery,
     removal,
     reply_addresses,
     revocation,
@@ -72,6 +74,7 @@ _ALL_CAPABILITY_CLASSES = frozenset(
         "reply_address",
         "digest_confirm_token",
         "digest_unsubscribe_token",
+        "recovery_link",
     }
 )
 _TEST_PW = "a-Strong-passphrase-9"
@@ -96,6 +99,11 @@ class Credentials:
         self.media_token = media.ingest_photo(post=post, raw=_jpeg()).token
         # A reply-by-email capability.
         self.reply_local = reply_addresses.mint_for_issue(issue, [post.id])[post.id]
+        # An outstanding admin-issued recovery link (BY-01): a password-setting capability
+        # sitting in somebody's text thread, which is exactly the shape a removal has to
+        # kill. Issued by the member themselves only because the drill has no second
+        # member; authorization is the view's question, not this one's.
+        self.recovery_raw = recovery.issue(member, issued_by=member)
         # The digest subscription's emailed confirm + unsubscribe bearer tokens.
         self.confirm_raw = "drill-confirm-raw-token-value-000000"
         self.unsub_raw = "drill-unsub-raw-token-value-00000000"
@@ -140,6 +148,8 @@ class Credentials:
             "digest_unsubscribe_token": _digest_token_dead(
                 self.unsub_raw, digesting.peek_unsubscribe
             ),
+            "recovery_link": Client().get(reverse("recover", args=[self.recovery_raw])).status_code
+            == 404,
         }
 
 
@@ -197,6 +207,7 @@ def test_every_credential_class_is_live_before_revocation(
     assert creds.web_client.get(reverse("feed")).status_code == 200
     assert creds.web_client.get(reverse("serve_media", args=[creds.media_token])).status_code == 200
     assert reply_addresses.resolve(creds.reply_local)  # does not raise
+    assert Client().get(reverse("recover", args=[creds.recovery_raw])).status_code == 200
 
 
 def test_regenerate_kills_every_class_on_next_request(
@@ -258,7 +269,7 @@ def test_the_drill_covers_every_registered_credential_class(
     # The registry length is a SECOND tripwire for the row-void classes: a new
     # _REVOCATION_STEPS entry forces a reviewer back to this drill. (Generation-
     # only classes are caught by the equality pin above, not this count.)
-    assert len(revocation._REVOCATION_STEPS) == 6
+    assert len(revocation._REVOCATION_STEPS) == 7
 
 
 def test_leftover_rows_are_gone_after_removal(member_with_everything: Credentials) -> None:
