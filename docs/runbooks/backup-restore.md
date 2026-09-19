@@ -150,6 +150,73 @@ docker volume inspect backyard_appdata --format '{{ .Mountpoint }}'
 # 30 9 * * * rsync -a --include='scheduled-*.bak' --exclude='*' <that path>/backups/ <your-backup-host>:/srv/backyard/
 ```
 
+#### Telling the instance how the copy went (optional)
+
+The copy runs on the host, so the instance cannot watch it. It can be **told**. If
+your job writes one small JSON file into the backups directory, a failed or stalled
+copy joins the alarms the instance already raises: the weekly health email gets an
+`[!]` line, `/healthz` answers `degraded`, and the monitor outside the box opens its
+issue. Write nothing and nothing changes — the line reads `NOT MEASURED` exactly as
+it always has, and the instance stays `ok`. Most self-hosters have no off-box job,
+and an instance that shouted about one they never set up would teach them that
+`degraded` means nothing.
+
+The file is `.offbox-status.json`, in the same directory as the archives
+(`/data/backups/` inside the container; the host path is the `docker volume inspect`
+one above). It holds exactly one of:
+
+```json
+{"ok": true,  "at": "2026-09-18T09:30:12Z", "remote_objects": 412}
+{"ok": false, "at": "2026-09-18T09:30:12Z", "error": "rclone: quota exceeded"}
+```
+
+- `at` is when the job **finished**, in UTC, ISO 8601. A success older than **48
+  hours** reads as stale and raises the line, so a nightly job stopping is visible
+  on the second missed night rather than never.
+- `remote_objects` is optional and decorative: how many files are at the destination.
+- `error` is your job's own words, shown to the instance admin only — never on the
+  public `/healthz`, which keeps saying just `ok` or `degraded`. It is quoted, flattened
+  to one line and truncated.
+- A file the instance cannot read — not JSON, no `ok`, no usable `at`, dated in the
+  future, a symlink, or larger than a few KB — reads as `UNREADABLE` and **raises the
+  line**. A status file that is present and wrong means the question can no longer be
+  answered, which is different from nobody having asked it.
+
+Write it **after** the copy, from the copy's own exit status, and write it whether the
+copy succeeded or failed — a job that only reports its successes goes quiet in exactly
+the case this exists for:
+
+```sh
+#!/bin/sh
+# On the host, run from cron instead of the bare rsync line above.
+set -u
+backups="$(docker volume inspect backyard_appdata --format '{{ .Mountpoint }}')/backups"
+status="$backups/.offbox-status.json"
+
+if err="$(rsync -a --include='scheduled-*.bak' --exclude='*' \
+            "$backups/" <your-backup-host>:/srv/backyard/ 2>&1)"; then
+  ok=true; err=""
+else
+  ok=false
+fi
+# Stamped AFTER the copy returns, because `at` is when the job FINISHED: a copy that ran
+# for three hours would otherwise hand the instance a time three hours stale on arrival.
+at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# A real JSON encoder rather than printf, because rsync's message is not yours to predict:
+# a quote, a backslash, a tab or any other control byte would make a hand-built file
+# invalid JSON, and the instance would report UNREADABLE instead of the failure you were
+# trying to tell it about. (`jq -n --arg` does the same job if you prefer it to python3.)
+# Written beside the file and moved into place, so the instance never reads half of one.
+OK="$ok" AT="$at" ERR="$err" python3 -c '
+import json, os
+out = {"ok": os.environ["OK"] == "true", "at": os.environ["AT"]}
+if not out["ok"]:
+    out["error"] = os.environ["ERR"][:200]
+print(json.dumps(out))' > "$status.new"
+mv "$status.new" "$status"
+```
+
 ### The monitor outside the box
 
 `.github/workflows/monitor.yml` runs on GitHub's infrastructure every 30 minutes and asks
@@ -175,9 +242,12 @@ repository after 60 days with no repository activity, and e-mails the owner when
 Any push, or pressing "Run workflow" on that page, resets the clock. If this repository
 goes quiet for two months, re-enable this before trusting the silence.
 
-The health email's "Off-box backup age" line still reads NOT MEASURED, and it
-should: the instance cannot see where you copied a file to, and a line claiming
-otherwise would be the more dangerous kind of wrong (T-OP-G3).
+The health email's "Off-box copy" line reads NOT MEASURED until your host job tells
+the instance how it went, and on an instance with no such job it should: the app
+cannot see where you copied a file to, and a line claiming otherwise would be the
+more dangerous kind of wrong (T-OP-G3). Once the job writes `.offbox-status.json`
+(above), that line carries the answer and a failed or stalled copy reaches this
+monitor like any other alarm.
 
 ## Back up by hand
 

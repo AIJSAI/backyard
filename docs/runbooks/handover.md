@@ -127,10 +127,11 @@ So, as the new admin:
 
 1. **Settings → Digest** and confirm your address.
 2. Check you receive the Monday health email.
-3. It should report: last backup, disk headroom, domain days-remaining. Two lines will say
-   `NOT MEASURED` — failed sign-ins and off-box backup age. That is honest, not broken: the
-   instance genuinely cannot see either one. **Off-box backup age is yours to check by
-   hand.**
+3. It should report: last backup, disk headroom, domain days-remaining. Failed sign-ins will
+   say `NOT MEASURED` — honest, not broken: there is no auth audit log yet. **Off-box copy**
+   says `NOT MEASURED` too unless a job on the host reports it (the optional
+   `.offbox-status.json` in docs/runbooks/backup-restore.md); if nothing writes that file,
+   the off-box copy is yours to check by hand.
 
 ---
 
