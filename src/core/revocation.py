@@ -2,9 +2,10 @@
 
 Every bearer capability the system mints is revoked here, in one atomic act, never
 by a checklist an admin walks by hand (threat model TM-1, ADR-003). The registry
-today holds six classes, and every one of them has shipped: server-side sessions,
-invites, digest subscriptions, per-digest tokens, reply-by-email addresses and
-elder master tokens. Every future class registers here before it ships; a
+today holds seven classes, and every one of them has shipped: server-side sessions,
+invites, digest subscriptions, per-digest tokens, reply-by-email addresses, elder
+master tokens and admin-issued recovery links. Every future class registers here
+before it ships; a
 capability type that does not appear in _REVOCATION_STEPS is the bug the
 revocation-completeness test exists to catch.
 
@@ -175,6 +176,19 @@ def _void_elder_tokens(member: Member) -> int:
     return count
 
 
+def _void_recovery_tokens(member: Member) -> int:
+    """Delete the member's outstanding admin-issued recovery link (BY-01, TM-1).
+
+    The generation check in recovery.resolve is the live kill (ADR-003 rule 3); this is
+    the registry-literal row belt, the same pairing the elder and digest tokens carry, so
+    a removed member has no password-setting capability sitting in anyone's text thread.
+    """
+    from .models import RecoveryToken
+
+    count, _ = RecoveryToken.objects.filter(member=member).delete()
+    return count
+
+
 def _bump_generation(member: Member) -> None:
     """Invalidate every generation-checked credential class at once (ADR-003)."""
     Member.objects.filter(pk=member.pk).update(token_generation=models.F("token_generation") + 1)
@@ -190,6 +204,7 @@ _REVOCATION_STEPS: tuple[RevocationStep, ...] = (
     _void_digest_tokens,
     _void_reply_addresses,
     _void_elder_tokens,
+    _void_recovery_tokens,
 )
 
 # The same registry minus the two steps that punish a member who is still here. Both were

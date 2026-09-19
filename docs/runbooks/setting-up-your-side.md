@@ -121,9 +121,15 @@ on, under `Settings`.
   people. Mint a new one — **`Members` → `Outstanding invites`** shows what is still live
   and lets you revoke anything you would rather kill.
 - **Someone joined with the wrong name.** They can fix it themselves: **`Settings`** in the
-  top nav, then change the name field and save. If they cannot do it themselves, ask whoever
-  runs the server — editing somebody else's profile needs the instance admin, and **you
-  cannot do it** even though `Edit profile` appears on your own row.
+  top nav, then change the name field and save. If they cannot do it themselves, you can do
+  it for them: **`Members` → `Edit profile`** on their row. That works for anyone on your
+  own side of the family; for somebody who belongs to both sides, or for another admin, you
+  will not see the control and it is the instance admin's job.
+
+  You will see their name, their nickname and their two dates on that page, and nothing
+  else. Their phone number, email address and home address are not shown to you and you
+  cannot change them — each of those has its own "who can see this" setting that belongs to
+  the person it is about, and standing in to fix a name is not a reason to read them.
 - **You handed a grandparent link to the wrong person.** Mint a new one for that grandparent
   immediately — find them on **`Members`** and use **`Elder link`** on their row. Minting a
   new one kills the old one straight away.
@@ -132,8 +138,23 @@ on, under `Settings`.
   deliberate: the link is a working no-login credential for everything that person can see,
   so minting one for a household you are not in would hand you its contents. If you cannot
   see the control for someone, ask whoever runs the server.
-- **Somebody forgot their password and gave no email address.** Ask whoever runs the server;
-  there is a recovery path, but it needs them.
+- **Somebody forgot their password and gave no email address.** You can get them back in
+  yourself: **`Members` → `Get back in link`** on their row. That makes a one-time link you
+  text to them or read out over the phone; they choose a new password with it and they are
+  in.
+
+  Before you make one, **make sure you are really talking to them** — a call, or a text to
+  the number you already have. Whoever holds the link can set that password. It works once,
+  it stops working after two days, and making a new one turns off any earlier one. When they
+  use it they are signed out everywhere else and sign back in with the new password.
+
+  You will only see the control for ordinary members on your own side. Another admin, or
+  somebody who belongs to both sides, is the instance admin's to recover — and an admin's
+  own recovery needs the server, by design.
+
+  **Worth doing before it happens:** ask everyone on your side to add an email address
+  (**`Settings` → `Your sign-in email`**) so they can reset their own password without
+  anybody's help.
 - **Anything else.** Ask whoever runs the server. That is a relative, not a support desk,
   and they can fix it.
 

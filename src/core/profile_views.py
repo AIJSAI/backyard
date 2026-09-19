@@ -14,7 +14,7 @@ import tempfile
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.http import FileResponse, HttpRequest, HttpResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.text import slugify
 
 from . import export, permissions, profiles, scoping, vcards
@@ -36,6 +36,28 @@ def _int_or_none(value: str | None) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _may_edit_contact_fields(actor: Member, member: Member) -> bool:
+    """Whose phone, email and address this form may SHOW and change.
+
+    BY-11 widened `can_edit_profile_of` to any admin who may manage the target, so a yard
+    admin can fix a name typed wrong at invite time and fill in a grandparent's birthday.
+    It must not also hand every yard admin a plaintext read of the contact fields: this
+    form renders the raw `Member` row, not `profiles.viewable_profile`, so a phone number
+    its owner scoped to `No one` appears in a text input — and the visibility select beside
+    it would let an admin publish an address to a whole side of the family with nothing
+    telling its owner. Showing a field here is the same disclosure as changing it.
+
+    So the contact half keeps the set `can_edit_profile_of` had before BY-11: yourself, a
+    supervised child's managing parent, and the instance admin. Name, kinship name and the
+    two dates -- the fields BY-11's evidence was actually about -- stay widened.
+    """
+    return (
+        actor.pk == member.pk
+        or (member.is_supervised and member.managing_parent_id == actor.pk)
+        or permissions.is_instance_admin(actor)
+    )
 
 
 @login_required
@@ -121,9 +143,21 @@ def profile_edit(request: HttpRequest, member_id: int | None = None) -> HttpResp
     if member_id is None:
         member = actor
     else:
-        # Resolved through the audience guard FIRST, so a member outside the actor's
-        # yards is a 404 rather than a permission error that confirms they exist.
-        member = scoping.require_visible_member(actor, member_id)
+        # Resolved through the ADMINISTRABLE set, which is what `can_edit_profile_of` is
+        # ultimately asking about, so the roster's `Edit profile` link and this route
+        # answer the same question. It used to resolve through the READ guard
+        # (scoping.require_visible_member), and BY-11's widening made the two disagree: the
+        # instance admin owns the whole instance and sits above yard isolation — the threat
+        # model says so in as many words, isolation is a member-level promise and not an
+        # admin-level one, and the role's own description is "Manages anyone, on either
+        # side" — so the roster offered them the link for a member on a side they are not
+        # in, and the click 404d. Crossing sides is a deliberate act for that one role,
+        # which is why removal, re-roling and the recovery link already resolve here.
+        #
+        # For everybody else the set IS the yard-scoped visible set, so a plain member and
+        # a yard admin still get the byte-identical 404 across a boundary (S-202/S-902),
+        # rather than a permission error that would confirm the person exists.
+        member = get_object_or_404(permissions.administrable_members(actor), pk=member_id)
         if not permissions.can_edit_profile_of(actor, member):
             raise PermissionDenied("You cannot edit this person's profile.")
     if request.method != "POST":
@@ -164,24 +198,28 @@ def profile_edit(request: HttpRequest, member_id: int | None = None) -> HttpResp
     member.anniversary_day = dates["anniversary_day"]
     member.anniversary_year = dates["anniversary_year"]
     member.anniversary_visibility = _visibility(request.POST.get("anniversary_visibility"))
-    member.phone = request.POST.get("phone", "").strip()[:40]
-    member.phone_visibility = _visibility(request.POST.get("phone_visibility"))
-    member.contact_email = request.POST.get("contact_email", "").strip()[:254]
-    member.contact_email_visibility = _visibility(request.POST.get("contact_email_visibility"))
-    member.address = request.POST.get("address", "").strip()[:255]
-    member.address_visibility = _visibility(request.POST.get("address_visibility"))
-    member.save(
-        update_fields=[
-            "display_name",
-            "kinship_name",
-            "birthday_month",
-            "birthday_day",
-            "birthday_year",
-            "birthday_visibility",
-            "anniversary_month",
-            "anniversary_day",
-            "anniversary_year",
-            "anniversary_visibility",
+    updated = [
+        "display_name",
+        "kinship_name",
+        "birthday_month",
+        "birthday_day",
+        "birthday_year",
+        "birthday_visibility",
+        "anniversary_month",
+        "anniversary_day",
+        "anniversary_year",
+        "anniversary_visibility",
+    ]
+    # The contact half only for somebody entitled to READ it. Not an `if` in the template
+    # alone: a hand-written POST must not set a field the page would not show.
+    if _may_edit_contact_fields(actor, member):
+        member.phone = request.POST.get("phone", "").strip()[:40]
+        member.phone_visibility = _visibility(request.POST.get("phone_visibility"))
+        member.contact_email = request.POST.get("contact_email", "").strip()[:254]
+        member.contact_email_visibility = _visibility(request.POST.get("contact_email_visibility"))
+        member.address = request.POST.get("address", "").strip()[:255]
+        member.address_visibility = _visibility(request.POST.get("address_visibility"))
+        updated += [
             "phone",
             "phone_visibility",
             "contact_email",
@@ -189,7 +227,7 @@ def profile_edit(request: HttpRequest, member_id: int | None = None) -> HttpResp
             "address",
             "address_visibility",
         ]
-    )
+    member.save(update_fields=updated)
     return redirect("directory")
 
 
@@ -215,6 +253,9 @@ def _edit_context(member: Member, errors: list[str], actor: Member) -> dict[str,
         # can say whose profile this is when they are not the same person.
         "actor": actor,
         "editing_other": member.pk != actor.pk,
+        # Whether to render the contact half at all. A yard admin who may fix a name is
+        # not entitled to READ a phone number its owner scoped to no one (BY-11).
+        "show_contact_fields": _may_edit_contact_fields(actor, member),
         "errors": errors,
         "visibility_choices": Member.FIELD_VISIBILITY_CHOICES,
         # A parent creating their OWN child's account.
