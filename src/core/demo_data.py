@@ -29,10 +29,13 @@ Two properties this module owes the operator, neither of which the old wipe had:
 1. **It says what it will do before it does it.** `preview()` runs Django's real deletion
    collector, so the counts are the actual closure and not a guess about which FKs cascade.
 2. **It refuses rather than guesses.** If the collected closure reaches a `Yard`, `Pod` or
-   `Member` that is NOT marked, something has linked real data to fixture data and this
-   stops. That is the same shape as `backups.restore_backup`, which refuses a database that
-   still holds members unless forced — the pattern was already in this repo, one directory
-   over, and the wipe simply never used it.
+   `Member` that is NOT marked, or a POST or REPLY a real person wrote, something has linked
+   real data to fixture data and this stops. That is the same shape as
+   `backups.restore_backup`, which refuses a database that still holds members unless
+   forced — the pattern was already in this repo, one directory over, and the wipe simply
+   never used it. A real person's REACTION on fixture content is the one deliberate
+   exception: it goes with the post it is on and is COUNTED in the preview instead
+   (`_refuse_if_it_reaches_real_data` says why, and `preview` names the line).
 """
 
 from __future__ import annotations
@@ -55,6 +58,12 @@ SEED_MARKER = "demo"
 
 # The three models that carry the marker. Everything else is reached by cascade from these.
 _MARKED_MODELS = (Yard, Pod, Member)
+
+# The one preview line that is not a model count. `_refuse_if_it_reaches_real_data` lets a
+# real person's reaction through on purpose, so the dry run has to say how many are going —
+# named here rather than spelled twice, because the refusal message points the operator at
+# this exact line and the two drifting apart is how a receipt stops being readable.
+REAL_REACTION_LABEL = "reactions by real people"
 
 
 class DemoDataError(RuntimeError):
@@ -114,12 +123,17 @@ def _collect(marker: str) -> dict[Any, list[Any]]:
         #     wipe() receipt: {core.Reaction: 1, ...}
         #     real person's reactions AFTER: 0
         #
-        # So the operator's dry run did not mention reactions, the refusal that exists to
-        # stop exactly this could not see them, and the receipt afterwards listed the row it
-        # had just destroyed. `Reaction`, `PodMembership`, `PodMute`, `LinkPreview`,
-        # `ReplyAddress`, `PodWeekMetrics` and both m2m through-tables are all fast-deleted.
-        # Materialising them is affordable at family scale and is the only way the checks
-        # below see the whole blast radius.
+        # So the operator's dry run did not mention reactions, the checks above them could
+        # not see them, and the receipt afterwards listed the row it had just destroyed.
+        # `Reaction`, `PodMembership`, `PodMute`, `LinkPreview`, `ReplyAddress`,
+        # `PodWeekMetrics` and both m2m through-tables are all fast-deleted. Materialising
+        # them is affordable at family scale and is the only way the checks below see the
+        # whole blast radius.
+        #
+        # Still load-bearing for `Reaction`, though it no longer refuses on one: the
+        # `reactions by real people` line of the preview is counted off this list, so
+        # reading `.data` alone would put the dry run back to saying nothing about a row it
+        # is about to delete — which was the half of that measurement that mattered most.
         chunks: list[tuple[Any, list[Any]]] = [
             (collected_model, list(instances))
             for collected_model, instances in collector.data.items()
@@ -134,12 +148,35 @@ def _collect(marker: str) -> dict[Any, list[Any]]:
 
 
 def _refuse_if_it_reaches_real_data(collected: dict[Any, list[Any]], marker: str) -> None:
-    """No marked root may cascade into an unmarked yard, pod or member.
+    """Refuse if the wipe reaches an unmarked root, or anything a real person WROTE.
 
+    Two halves. First: no marked root may cascade into an unmarked yard, pod or member.
     Vacuous today — selection is by marker, so the closure cannot contain an unmarked root
     unless a future ForeignKey creates a path. That is precisely when it matters, and it is
     cheap: this is the check that turns "we believe it is scoped" into "it is scoped, and
     the build says so if that stops being true".
+
+    Second: no POST and no REPLY by a real person may go with it, wherever it sits. Those
+    are somebody's words and somebody's photographs, their author can take them down from
+    the feed, and this command will not decide for you which of them were a rehearsal.
+
+    What does NOT refuse, deliberately: a real person's REACTION on fixture content. It is
+    deleted with the post it is on, and `preview()` counts it as "reactions by real people"
+    so the dry run says the number before anybody types `--yes`. Three reasons:
+
+    * It is not authorship. A reaction carries no words and no photographs — one row naming
+      a member, a post and a kind — so the test this guard applies does not reach it.
+    * It has no meaning once the fixture post is gone. There is no surviving object it could
+      be moved to, kept beside, or exported with.
+    * The refusal's own instruction could not be followed. It tells the operator to have the
+      author remove their content from the feed first; a reaction is removable only from the
+      screen of the post it is on, so once that post has been taken down there is no screen
+      left on which that person could take theirs back — and the wipe would stay blocked by
+      a row nobody can reach.
+
+    This is narrower than it was, so it is worth being plain about the consequence: a real
+    person's reaction inside the fixture family IS destroyed by this command. It is named in
+    the dry run for exactly that reason.
     """
     trespass: list[str] = []
     for model in _MARKED_MODELS:
@@ -164,11 +201,15 @@ def _refuse_if_it_reaches_real_data(collected: dict[Any, list[Any]], marker: str
     # from fixture content: `Post` has no marker of its own, and giving it one would put a
     # column on the hottest table in the schema to answer a question its author already
     # answers.
+    #
+    # `Reaction` sat in this tuple until it was measured against the thing it was for: it
+    # refused the whole wipe because somebody had tapped a heart on a FIXTURE post. It is
+    # counted rather than refused now — `_reactions_by_real_people`, and the docstring above
+    # for why a reaction is not authorship. A post and a reply are unchanged.
     doomed_members = {member.pk for member in collected.get(Member, [])}
     authored: tuple[tuple[Any, str, str], ...] = (
         (Post, "author_id", "post"),
         (Comment, "author_id", "reply"),
-        (Reaction, "member_id", "reaction"),
     )
     for authored_model, attribute, noun in authored:
         for instance in collected.get(authored_model, []):
@@ -184,7 +225,12 @@ def _refuse_if_it_reaches_real_data(collected: dict[Any, list[Any]], marker: str
             f"{', '.join(trespass[:10])}.\n\nSomething real is living inside the fixture "
             "family — most often because a person posted into a demo pod. Move or delete "
             "that content first (its author can, from the feed); this command will not "
-            "decide for you which of somebody's photographs were only a rehearsal."
+            "decide for you which of somebody's photographs were only a rehearsal.\n\n"
+            "Reactions are not on this list and never block: a real person's reaction on "
+            "fixture content is not words or photographs, it means nothing once the post it "
+            "sits on is gone, and once that post is down there is no screen left on which "
+            "they could remove it. It is deleted with the post, and the dry run reports it "
+            f"as {REAL_REACTION_LABEL!r}."
         )
 
 
@@ -253,8 +299,35 @@ def _refuse_if_it_strands_anyone(collected: dict[Any, list[Any]], marker: str) -
         )
 
 
+def _reactions_by_real_people(collected: dict[Any, list[Any]]) -> list[Any]:
+    """Reactions in the closure left by somebody this wipe is NOT deleting.
+
+    These are the rows `_refuse_if_it_reaches_real_data` deliberately does not refuse (its
+    docstring says why), which is exactly why the number has to be said out loud: they are
+    real people's rows, they are already inside the `core.Reaction` total where nothing
+    distinguishes them, and the operator is reading the preview to decide whether to type
+    `--yes`. A thing that neither blocks nor appears anywhere is how a blast radius gets
+    confirmed unseen.
+
+    The other direction is not one of these: a SEEDED member's reaction on a real person's
+    post is collected too — through `Member` rather than through `Post` — and its author is
+    going anyway, so it is fixture data leaving with the rest of the fixture data.
+    """
+    doomed_members = {member.pk for member in collected.get(Member, [])}
+    return [
+        reaction
+        for reaction in collected.get(Reaction, [])
+        if reaction.member_id not in doomed_members
+    ]
+
+
 def preview(marker: str = SEED_MARKER) -> Counter[str]:
-    """Rows that `wipe()` would delete, per model. Touches nothing."""
+    """Rows that `wipe()` would delete, per model. Touches nothing.
+
+    Plus one line a model count cannot say: `reactions by real people`, which breaks the
+    real people's reactions out of the `core.Reaction` total because they are the rows the
+    refusal lets through rather than blocks.
+    """
     marker = _require_a_real_marker(marker)
     collected = _collect(marker)
     _refuse_if_it_reaches_real_data(collected, marker)
@@ -263,6 +336,7 @@ def preview(marker: str = SEED_MARKER) -> Counter[str]:
     for model, instances in collected.items():
         counts[model._meta.label] = len(instances)
     counts["auth.User"] = _doomed_user_ids(marker).__len__()
+    counts[REAL_REACTION_LABEL] = len(_reactions_by_real_people(collected))
     return +counts  # drop zero entries
 
 

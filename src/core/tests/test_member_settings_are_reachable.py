@@ -400,6 +400,12 @@ def test_every_route_is_reachable_by_clicking_or_is_listed_as_deliberately_not()
     post = Post.objects.create(author=admin, pod=pod, body="something to act on")
     Comment.objects.create(post=post, author=other, body="a reply to act on")
     Comment.objects.create(post=post, author=admin, body="my own reply, to delete")
+    # SOMEBODY ELSE'S post, and it is load-bearing rather than decoration. Since the
+    # 2026-09-19 walk, "Take down" is never offered on your OWN post — Delete already is
+    # that, and two red controls for one outcome is a chance to pick the wrong one — so a
+    # fixture whose only post belongs to the admin reports `take_down_post` unreachable and
+    # blames the product for the fixture, which is the artefact the comment above warns of.
+    Post.objects.create(author=other, pod=pod, body="somebody else's post, to take down")
     Invite.objects.create(
         pod=pod,
         token_digest="crawl-digest",

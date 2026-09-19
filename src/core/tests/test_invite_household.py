@@ -477,3 +477,143 @@ def test_a_yard_admin_cannot_bridge_a_household_into_a_side_they_are_not_in(
         f"(status {response.status_code})"
     )
     assert Pod.objects.count() == before, "the pod was created before the refusal"
+
+
+# --- walk item 9 (2026-09-19): one side of the family is not a choice ---
+#
+# What the walk saw, on a Backyard with a single side of the family: a fieldset holding one
+# checkbox, already ticked, under the sentence "Tick both if this household belongs to both
+# sides — they will see both, and the two sides still never see each other." The checkbox
+# had two states, "the only possible answer" and "an error message", and the sentence named
+# a second side that did not exist. Every new install is in exactly this state until
+# somebody creates the other side (S-708), so it is the FIRST household-invite screen a
+# family ever sees.
+#
+# The fix moves the resolution of the single side from the browser to the view, which is a
+# security-relevant move: the tests below pin that it derives the side from the actor's own
+# pickable set, and that a POST naming a side the actor cannot see is still refused rather
+# than quietly replaced with one they can.
+
+
+@dataclass
+class OneSide:
+    side: Yard
+    pod: Pod
+    admin: Member
+
+
+@pytest.fixture
+def one_side() -> OneSide:
+    """A Backyard with exactly one side of the family — a fresh install, and the state the
+    walk was done in."""
+    side = Yard.objects.create(name="Maternal", slug="maternal")
+    pod = Pod.objects.create(name="Maternal seed", kind=Pod.HOUSEHOLD)
+    pod.yards.set([side])
+    return OneSide(side=side, pod=pod, admin=_member(pod, "Boss", role=Member.INSTANCE_ADMIN))
+
+
+def test_one_side_states_the_side_instead_of_offering_a_choice(one_side: OneSide) -> None:
+    client = _client_for(one_side.admin)
+    body = client.get(reverse("invite_household")).content.decode()
+
+    assert "This household joins" in body
+    assert one_side.side.name in body  # it says WHICH side, by name
+    assert 'type="checkbox"' not in body, "a lone checkbox is still on the page"
+    assert "Tick both" not in body, "the copy still names a second side that does not exist"
+    # ...and the intro no longer promises a choice either.
+    assert "pick which side of the family" not in body
+
+
+def test_one_side_attaches_the_household_to_that_side_with_no_field_in_the_post(
+    one_side: OneSide,
+) -> None:
+    """The browser sends no `yard_ids` at all now, because there is no control to send one.
+    The household must still land in the one side, with its invite minted."""
+    client = _client_for(one_side.admin)
+    response = client.post(
+        reverse("invite_household"),
+        {"household_name": "The Davis family", "intent": _intent(client)},
+    )
+    assert response.status_code == 200
+
+    pod = Pod.objects.get(name="The Davis family")
+    assert pod.kind == Pod.HOUSEHOLD
+    assert {yard.pk for yard in pod.yards.all()} == {one_side.side.pk}
+    invite = Invite.objects.get(pod=pod)
+    assert (
+        invites.peek_invite(_raw_token(_join_link_from(response.content.decode()))).pk == invite.pk
+    )
+
+
+def test_two_sides_are_untouched(world: World) -> None:
+    """The bridging-household control is a real choice and stays exactly as it was: two
+    checkboxes, neither pre-ticked, under the "tick both" sentence."""
+    body = _client_for(world.instance_admin).get(reverse("invite_household")).content.decode()
+    fieldset = body[body.index("<fieldset") : body.index("</fieldset>")]
+
+    assert fieldset.count('type="checkbox"') == 2
+    assert "checked" not in fieldset, "the product answered a real choice for them"
+    assert "Tick both" in body
+    assert world.maternal.name in body and world.paternal.name in body
+    assert "This household joins" not in body  # the single-side statement is not shown here
+
+
+def test_a_yard_admin_with_one_side_gets_their_own_side(world: World) -> None:
+    """A yard admin sees one side even when the Backyard has two, so they get the same
+    statement — and the side derived for them is THEIRS, not the first one in the table."""
+    client = _client_for(world.p_admin)
+    form = client.get(reverse("invite_household")).content.decode()
+    assert "This household joins" in form
+    assert world.paternal.name in form
+    assert world.maternal.name not in form
+
+    response = client.post(
+        reverse("invite_household"),
+        {"household_name": "The Fox family", "intent": _intent(client)},
+    )
+    assert response.status_code == 200
+    pod = Pod.objects.get(name="The Fox family")
+    assert {yard.pk for yard in pod.yards.all()} == {world.paternal.pk}
+
+
+def test_a_hand_made_post_naming_an_unseeable_side_is_still_refused(world: World) -> None:
+    """The security property the single-side path must not cost us.
+
+    The paternal yard admin's own screen now submits no side at all, so the view has a
+    branch that supplies one. A hand-made POST that NAMES the maternal side must not reach
+    that branch: it is refused with the same 404 as a side that does not exist (S-202
+    parity), never silently rewritten to the one side the actor happens to be allowed —
+    which would turn an attempted scope escape into a quiet success in another yard.
+    """
+    client = _client_for(world.p_admin)
+    before = Pod.objects.count()
+    response = client.post(
+        reverse("invite_household"),
+        {
+            "household_name": "The Cross family",
+            "yard_ids": [str(world.maternal.pk)],
+            "intent": _intent(client),
+        },
+    )
+    assert response.status_code == 404
+    assert Pod.objects.count() == before
+    assert not Pod.objects.filter(name="The Cross family").exists()
+    assert Invite.objects.count() == 0  # and nothing was minted on the way
+
+
+def test_no_side_at_all_still_asks_for_one(world: World) -> None:
+    """`== 1`, not `<= 1`. An admin whose household sits in no side has nothing to derive,
+    so the honest answer is still the error, not a household attached to nowhere."""
+    sideless_pod = Pod.objects.create(name="Unattached household", kind=Pod.HOUSEHOLD)
+    sideless_admin = _member(sideless_pod, "Sideless", role=Member.YARD_ADMIN)
+    client = _client_for(sideless_admin)
+    before = Pod.objects.count()
+
+    response = client.post(
+        reverse("invite_household"),
+        {"household_name": "The Ash family", "intent": _intent(client)},
+    )
+    assert response.status_code == 200
+    assert "Pick at least one side of the family." in response.content.decode()
+    assert Pod.objects.count() == before
+    assert Invite.objects.count() == 0

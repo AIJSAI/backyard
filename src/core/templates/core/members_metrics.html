@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load times %}
 {% comment %} This page opened with "Weekly aggregates per yard (docs/metrics.md). Counts
    only; the one per-person datum is a yes/no weekly presence..." — a repository file path
    printed on a screen a non-technical relative is expected to use, next to "aggregates",
@@ -19,15 +20,27 @@
      sideways — a WCAG 2.2 SC 1.4.10 failure. {% endcomment %}
   <table class="metrics">
     <thead>
-      <tr><th>Week</th><th>Side of the family</th><th>Stopped by</th><th>Posting breadth</th><th>Posts with a reply</th><th>Caught up later</th><th>Opened the email</th><th>Replied by email</th></tr>
+      {% comment %} "Posting breadth" was jargon on a page a non-technical relative is
+         expected to read. It is NOT "People who posted": the stored number is
+         `len({post.pod_id for post in posts})` (core/metrics.py), so three people in one
+         household posting in a week counts ONE, and a column headed with people would
+         print a number that is not the number. Households is what it counts, so
+         households is what it says. Ad-hoc groups count here too — the metric is distinct
+         pods, and a pod is a household or a group — which makes this label slightly
+         generous rather than wrong; docs/metrics.md carries that caveat in full.
+
+         The field, the migration and rollup_metrics still say `posting_breadth`: renaming
+         those is a migration, not a copy pass. Only what a person reads changed.
+         {% endcomment %}
+      <tr><th>Week</th><th>Side of the family</th><th>Stopped by</th><th>Households that posted</th><th>Posts with a reply</th><th>Caught up later</th><th>Opened the email</th><th>Replied by email</th></tr>
     </thead>
     <tbody>
       {% for row in rows %}
         <tr>
-          <td data-label="Week">{{ row.week_start }}</td>
+          <td data-label="Week">{% when_date row.week_start %}</td>
           <td data-label="Side of the family">{{ row.yard.name }}</td>
           <td data-label="Stopped by">{{ row.wcm }} of {{ row.member_count }}</td>
-          <td data-label="Posting breadth">{{ row.posting_breadth }}</td>
+          <td data-label="Households that posted">{{ row.posting_breadth }}</td>
           <td data-label="Posts with a reply">{{ row.posts_responded }} of {{ row.posts_in_week }}</td>
           <td data-label="Caught up later">{{ row.catch_up_members }}</td>
           <td data-label="Opened the email">{{ row.digest_opens }}</td>

@@ -72,6 +72,31 @@ def test_the_two_uninstrumented_fields_name_what_is_missing() -> None:
     assert "T-OP-G3" in fields["Off-box copy"]
 
 
+def test_an_unbuilt_field_says_so_quietly_instead_of_shouting() -> None:
+    """A thing nobody has built is not an alarm, and must not be dressed as one.
+
+    "Failed sign-ins: NOT MEASURED" sat in the weekly email and on the /healthz admin
+    detail in the same capitals as a failed registry lookup and an unreadable disk — four
+    lines that mean "go and look at this" and one that means "this feature does not exist
+    yet". A design walk read it as a fifth alarm. The capitals are right for the others,
+    which are things that SHOULD be answerable now; they were wrong here.
+
+    The negative property T-MON-1 turns on is untouched and asserted below: the field is
+    still listed, still names what is missing, and is still `measured is False`, which is
+    what keeps a softer sentence out of the public `degraded` answer.
+    """
+    field = next(f for f in health.measure() if f.label == "Failed sign-ins")
+
+    assert field.value.startswith(health.NOT_MEASURED_YET)
+    assert health.NOT_MEASURED not in field.value, "the all-caps alarm wording is back"
+    assert "audit log" in field.value and "T-MON-1" in field.value
+    assert not field.alarming
+    # The load-bearing half: quieter words, same classification.
+    assert not field.measured
+    assert health.public_status([field]) == health.OK
+    assert not health.has_anything_alarming([field])
+
+
 def test_never_backed_up_is_distinct_from_not_measured() -> None:
     """Conflating "no backup has ever run" with "cannot tell" would hide the worse case
     behind the milder word."""

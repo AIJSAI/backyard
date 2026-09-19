@@ -1,9 +1,10 @@
 {% extends "core/base.html" %}
-{% block title %}From your family email{% endblock %}
+{% load times %}
+{% block title %}From your Family email{% endblock %}
 {% block body %}
   <p class="back-link"><a class="back" href="{% url 'digest_web' token %}">Back to the rest</a></p>
   <article class="post">
-    <p class="byline">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %} · {{ post.created_at|date }}</p>
+    <p class="byline">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %} · {% when post.created_at %}</p>
     <p class="post-body">{{ post.body|urlize }}</p>
       {% comment %} Photos, reachable without a login. The digest page has no session,
          so each image re-presents the capability as ?d=<token>; serve_media resolves it
@@ -44,3 +45,4 @@
     {% endfor %}
   </section>
 {% endblock %}
+{% block extra_body %}{% include "core/_localise_times.html" %}{% endblock %}

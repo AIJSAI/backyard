@@ -66,7 +66,12 @@ def test_send_family_email_uses_fixed_sender_and_footer() -> None:
     sent = mail.outbox[-1]
     assert isinstance(sent, EmailMultiAlternatives)
     assert sent.to == ["nana@example.com"]
-    assert sent.from_email == "backyard@localhost"  # the fixed identity (T-EMAIL-G3)
+    # The fixed identity (T-EMAIL-G3), now with the display name walk item 23 added: mail
+    # arrived as a bare "digests@mail.example", or just "digests" in the clients that
+    # shorten it, which is how a family's own photographs come to look like spam. The
+    # ADDRESS is unchanged and is still the one thing reply_domain() derives from.
+    assert sent.from_email == "Backyard <backyard@localhost>"
+    assert emailing.reply_domain() == "localhost", "the reply domain lost its address"
     assert emailing.STANDING_FOOTER in sent.body  # the standing footer, every mail
     assert sent.alternatives and sent.alternatives[0][1] == "text/html"
 

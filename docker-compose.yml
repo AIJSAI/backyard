@@ -73,11 +73,20 @@ services:
       DJANGO_DEBUG: ${DJANGO_DEBUG:-0}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
       BACKYARD_BASE_URL: ${BACKYARD_BASE_URL:-http://localhost:8000}
+      # The clock the family reads (walk item 1). Compose's .env is substitution-only, so
+      # a variable that is not named here never reaches the container however carefully it
+      # is documented — the same defect the EMAIL_* block below records. BOTH services
+      # need it: web renders every page, and the worker sends the Family email, which is
+      # written in this zone because an e-mail has no browser to correct it.
+      BACKYARD_TIME_ZONE: ${BACKYARD_TIME_ZONE:-UTC}
       # Outbound + inbound email provider (wave 4). Defaults keep the console backend
       # so an unconfigured compose is unchanged; set these to switch to Anymail/Resend.
       # RESEND_INBOUND_SECRET is the webhook signing secret Anymail verifies (web only).
       EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
       DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-backyard@localhost}
+      # The name beside that address in a relative's inbox (walk item 23). Named here as
+      # well as documented, or compose's substitution-only .env leaves it inert.
+      BACKYARD_MAIL_FROM_NAME: ${BACKYARD_MAIL_FROM_NAME:-Backyard}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_INBOUND_SECRET: ${RESEND_INBOUND_SECRET:-}
       # Bring-your-own SMTP (README's promise). settings.py reads all six, but until
@@ -162,12 +171,21 @@ services:
     environment:
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
       BACKYARD_BASE_URL: ${BACKYARD_BASE_URL:-http://localhost:8000}
+      # The clock the family reads (walk item 1). Compose's .env is substitution-only, so
+      # a variable that is not named here never reaches the container however carefully it
+      # is documented — the same defect the EMAIL_* block below records. BOTH services
+      # need it: web renders every page, and the worker sends the Family email, which is
+      # written in this zone because an e-mail has no browser to correct it.
+      BACKYARD_TIME_ZONE: ${BACKYARD_TIME_ZONE:-UTC}
       # The worker runs the periodic digest send, so it needs the outbound provider.
       # The boot guard requires RESEND_INBOUND_SECRET wherever the Resend backend is
       # active (TS-PP-8), so it is a deployment-wide secret even though only web serves
       # the inbound webhook — the worker carries it to satisfy the same guard.
       EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
       DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-backyard@localhost}
+      # The name beside that address in a relative's inbox (walk item 23). Named here as
+      # well as documented, or compose's substitution-only .env leaves it inert.
+      BACKYARD_MAIL_FROM_NAME: ${BACKYARD_MAIL_FROM_NAME:-Backyard}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_INBOUND_SECRET: ${RESEND_INBOUND_SECRET:-}
       # Bring-your-own SMTP (README's promise). settings.py reads all six, but until

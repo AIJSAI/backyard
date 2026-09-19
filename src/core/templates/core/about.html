@@ -15,10 +15,17 @@
     runs it; there is no company behind it and nobody is paying for your attention.</p>
 
   <h2>Who looks after it</h2>
+  {% comment %} `help_contact` is empty for anybody who has not been let in — this page is
+     public and linked from the sign-in screen, and it printed a relative's first name
+     TWICE to a stranger who typed the domain (walk item 12). The name is not a secret;
+     volunteering it to somebody nobody invited is just not this product's manners. A
+     signed-in member, or a reader holding a link a relative sent them, still gets it,
+     because they have already been introduced. The gate is one function,
+     context_processors.may_name_the_admin. {% endcomment %}
   <p>{% if help_contact %}{{ help_contact }} set this up and looks after it. If something
-    is wrong, or you would rather not be here at all, ask {{ help_contact }}.{% else %}Whoever
-    in the family set this up looks after it. If something is wrong, or you would rather
-    not be here at all, ask them.{% endif %}</p>
+    is wrong, or you would rather not be here at all, ask {{ help_contact }}.{% else %}A
+    relative set this up and looks after it. If something is wrong, or you would rather
+    not be here at all, ask the person who invited you.{% endif %}</p>
   <p><a href="{% url 'how_it_works' %}">How this works</a> answers what a relative usually
     wants to know: who sees what you post, what the Family email is, and what this place
     keeps about you.</p>

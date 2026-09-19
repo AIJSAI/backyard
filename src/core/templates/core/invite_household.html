@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load times %}
 {% block title %}Invite a household{% endblock %}
 {% block body %}
   <h1>Invite a household</h1>
@@ -12,16 +13,29 @@
        link at the end. {% endcomment %}
     <h2>Here is the link for {{ household_name }}</h2>
     <p>It lets up to {{ max_uses }} people into <strong>{{ yard_name }}</strong>, and it
-    stops working on {{ expires_at|date:"M j, Y" }}. Send it however you normally reach
+    stops working on {% when_date expires_at %}. Send it however you normally reach
     them.</p>
     {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="Invite link" handover_share_title="Join our family on Backyard" %}
     <p class="page-action"><a href="{% url 'invite_household' %}">Invite another household</a>
       &middot; <a href="{% url 'member_invites' %}">Outstanding invites</a></p>
   {% else %}
 
-  <p class="notice">Name the household and pick which side of the family it joins. This creates the
-  household and a one-time link you hand over. Whoever opens the link just picks a name and a
-  password and lands straight in the family feed, with no setup screens.</p>
+  {% comment %} Two corrections from the 2026-09-19 walk, both in one sentence.
+
+     "pick which side of the family it joins" promised a choice that is not on the screen
+     when only one side exists — the same defect as the lone pre-ticked checkbox below, one
+     sentence higher up, and the first thing read on the page. With one side the clause is
+     simply absent; the statement below names the side instead.
+
+     "lands straight in the family feed, with no setup screens" was written when that was
+     true: join dropped the newcomer on the feed under a green orientation card. Three
+     welcome screens have existed since (core/welcome_views.py — what this is, the Family
+     email, say hello), so the admin was being told something the person they are inviting
+     will not experience. The admin repeats this sentence out loud when they hand the link
+     over, which is why a stale promise here costs more than it looks. {% endcomment %}
+  <p class="notice">Name the household{% if yards|length != 1 %} and pick which side of the family
+  it joins{% endif %}. This creates the household and a one-time link you hand over. Whoever opens
+  the link just picks a name and a password, then a short welcome, then the family feed.</p>
 
   {% if errors %}<div class="errors">{% for e in errors %}<p>{{ e }}</p>{% endfor %}</div>{% endif %}
 
@@ -40,22 +54,45 @@
        mounted. A multi-select would have worked too; checkboxes are chosen because the
        person doing this is a relative, not an operator, and multi-select is the control
        people most reliably get wrong on a phone. {% endcomment %}
-    <fieldset>
-      <legend>Which side of the family</legend>
-      <p class="muted">Tick both if this household belongs to both sides — they will see
-        both, and the two sides still never see each other.</p>
+    {% comment %} ONE side is not a choice (walk item 9, 2026-09-19). A brand-new Backyard
+       has exactly one side of the family until somebody creates the second, and this
+       screen rendered a single checkbox, pre-ticked, under a sentence that read "Tick both
+       if this household belongs to both sides" — naming a second side that does not exist,
+       beside a control whose only two states were "the only possible answer" and "an error
+       message". The pre-tick was the tell: a control that must not be changed is a
+       statement, so it is written as one.
+
+       The statement is rendered from the same `yards` list the checkboxes come from, not
+       from a separate variable, so the side named here can never disagree with the side
+       the form would submit. It carries NO hidden field: the view derives the one side
+       from the actor's own pickable set when the POST names none (see admin_views), which
+       is a fact the server already holds and a hand-made POST cannot widen.
+
+       Two or more sides is untouched — the checkboxes, the legend, and the "tick both"
+       sentence are the bridging-household control described just above, and it is a real
+       choice there. {% endcomment %}
+    {% if yards|length == 1 %}
       {% for yard in yards %}
-        <label class="inline-check">
-          <input type="checkbox" name="yard_ids" value="{{ yard.id }}"
-                 {% if yards|length == 1 %}checked{% endif %}>
-          {{ yard.name }}
-        </label>
-      {% empty %}
-        <p class="muted">No family sides you can invite into yet.</p>
+        <p class="notice">This household joins <strong>{{ yard.name }}</strong>.</p>
       {% endfor %}
-    </fieldset>
+    {% else %}
+      <fieldset>
+        <legend>Which side of the family</legend>
+        <p class="muted">Tick both if this household belongs to both sides — they will see
+          both, and the two sides still never see each other.</p>
+        {% for yard in yards %}
+          <label class="inline-check">
+            <input type="checkbox" name="yard_ids" value="{{ yard.id }}">
+            {{ yard.name }}
+          </label>
+        {% empty %}
+          <p class="muted">No family sides you can invite into yet.</p>
+        {% endfor %}
+      </fieldset>
+    {% endif %}
     <button type="submit">Create the household and get the link</button>
   </form>
   <p class="page-action"><a href="{% url 'member_invites' %}">Outstanding invites</a></p>
   {% endif %}
 {% endblock %}
+{% block extra_body %}{% include "core/_localise_times.html" %}{% endblock %}

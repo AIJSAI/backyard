@@ -10,6 +10,11 @@ MEASURED, never omitted.** An email that quietly drops a signal it cannot comput
 feature. Two of the five fields T-MON-1 lists genuinely cannot be answered by the app
 today, and they say so on every send.
 
+How LOUDLY it says so is a separate question from whether it says so at all, and the two
+got conflated: a field that is merely unbuilt was shouting in the same capitals as a
+lookup that had failed. See NOT_MEASURED and NOT_MEASURED_YET below — the field is still
+reported, still marked, and still incapable of degrading /healthz either way.
+
 Nothing here is per-person activity. It is instance health, not surveillance: no member
 names, no counts of who did what (P1, and the calm-surfaces rule in the threat model's
 tension list).
@@ -40,6 +45,25 @@ from .models import BackupFailure, BackupRun, CertificateStatus, DomainStatus
 # What a field looks like when the app cannot answer it. Deliberately loud: an operator
 # skimming on a phone must be able to tell "healthy" from "unknown" at a glance.
 NOT_MEASURED = "NOT MEASURED"
+
+# The same fact, said quietly, for the one field that is not a failure.
+#
+# Every OTHER unmeasured line here is a thing that SHOULD be answerable right now — a
+# registry lookup that failed, a certificate this box cannot reach, a disk that would not
+# read — and shouting at an operator is right for those, which is what the constant above
+# is for. "Failed sign-ins" is not one of them: there is no auth audit log because nobody
+# has built one, and there is nothing to go and check. Printed in capitals beside four
+# genuine alarms it read as a fifth, which is how a design walk of /healthz and of the
+# weekly email saw it.
+#
+# It stays the same PHRASE on purpose, so `Field.measured` can treat both as the one
+# sentinel and a quieter line still cannot degrade /healthz.
+NOT_MEASURED_YET = "not measured yet"
+
+# The prefixes that mean "the app did not produce a number here". A tuple rather than a
+# lower-cased comparison so a third phrasing is one edit in one place, and so the check
+# never silently starts matching a real value that happens to begin with these words.
+_UNMEASURED_PREFIXES = (NOT_MEASURED, NOT_MEASURED_YET)
 
 # The whole of what an unauthenticated caller is told. Two words, no fields: /healthz is a
 # public URL on a private family instance, and disk free space, backup age and certificate
@@ -104,8 +128,13 @@ class Field:
         every one of them as measured. Reviewer catch on #102, and a latent trap rather
         than a visible bug — nothing depended on it yet, which is exactly how it would
         have survived to the first caller that did.
+
+        Both spellings of the sentinel, because the Failed sign-ins line says it quietly
+        (see NOT_MEASURED_YET). Softening that field's WORDS must not change what the
+        field IS: `public_status` gates on `alarming and measured`, so a value this
+        property stopped recognising would quietly become eligible to degrade /healthz.
         """
-        return not self.value.startswith(NOT_MEASURED)
+        return not self.value.startswith(_UNMEASURED_PREFIXES)
 
 
 def instance_domain() -> str:
@@ -457,7 +486,7 @@ def measure(now: datetime.datetime | None = None) -> list[Field]:
         # are still true.
         Field(
             "Failed sign-ins",
-            f"{NOT_MEASURED} — no auth audit log exists yet (T-MON-1)",
+            f"{NOT_MEASURED_YET} — no auth audit log exists (T-MON-1)",
         ),
         _offbox_field(now),
     ]

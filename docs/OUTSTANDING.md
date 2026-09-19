@@ -341,7 +341,12 @@ found by adversarial review of that fix, each verified before being fixed:
 
 - **The refusal checked the three marked models while the deletion travelled through four
   others.** `Post.pod`, `Comment.post`, `Reaction.post`, `MediaAsset.post` carry no marker
-  and were never inspected, so the check could not fire. A real relative's post, photograph
+  and were never inspected, so the check could not fire. *(`Reaction` was deliberately
+  taken back OFF the refusing set on 2026-09-19, walk item 30: a heart is not somebody's
+  writing, it has no meaning once the fixture post is gone, and if that post was taken
+  down there is no screen left on which its owner could remove it — so it blocked the
+  whole wipe with no way out. It is counted in the dry run instead. Post and Comment are
+  unchanged.)* A real relative's post, photograph
   and comment inside a fixture pod were deleted with no refusal: `wipe refused? False`.
 - **One removed member blocked every future wipe, permanently.** `set() <= doomed_pods` is
   `True`, and `removal.remove_member` keeps the Member row by design.

@@ -1,0 +1,40 @@
+{% extends "account/base_entrance.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's account/account_inactive.html.
+
+   Removal deactivates the account and leaves the password alone (core/removal.py step 3,
+   and nothing in the revocation registry touches it), so a removed relative who types
+   their old password still gets it right — and landed here, on the library's page:
+   "Account Inactive" as the heading and "This account is inactive." as the entire
+   explanation. That is a database state read aloud. It does not say what happened, it
+   does not say a person decided it, and it gives somebody's grandmother a sentence about
+   an account when what she wants to know is whether she did something wrong.
+
+   NO NAME ON THIS PAGE. It is reachable by anyone who is not signed in — /accounts/inactive/
+   is a plain URL, and the sign-in form that redirects here answers to a guessed password
+   as readily as to a real one — so it says "the person who invited you" rather than
+   naming them. The person who removed somebody already knows who to talk to; a stranger
+   who reaches this page learns nobody's name from it.
+
+   No "Back to sign in" link, unlike the other entrance overrides. Those are for somebody
+   who can still get in and needs a way back to the form; this reader cannot, and a link
+   straight back to the thing that just refused them is an invitation to keep trying. The
+   entrance layout still offers How this works and About this Backyard underneath, which
+   are the two pages that answer "what was this".
+
+   Copy only otherwise: same layout, same blocks, same `{% element %}` tags as the
+   package's version, so an allauth upgrade changes this page the way it changes the
+   others. The set of files under this template root is pinned by
+   test_auth_surfaces.py. {% endcomment %}
+{% load i18n %}
+{% load allauth %}
+{% block head_title %}
+    {% trans "No longer a member" %}
+{% endblock head_title %}
+{% block content %}
+    {% element h1 %}
+        {% trans "You are no longer part of this Backyard" %}
+    {% endelement %}
+    {% element p %}
+        {% trans "If that is a surprise, talk to the person who invited you." %}
+    {% endelement %}
+{% endblock content %}

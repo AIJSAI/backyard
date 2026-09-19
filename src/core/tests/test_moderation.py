@@ -145,12 +145,25 @@ def test_a_plain_member_cannot_take_down(world: World) -> None:
     assert world.m_post.deleted_at is None
 
 
-def test_takedown_is_post_only(world: World) -> None:
+def test_a_get_confirms_and_never_removes(world: World) -> None:
+    """This used to assert GET was a 404, because takedown was POST-only and fired on one
+    tap. Since the 2026-09-19 walk a GET renders the confirm page instead (walk item 29,
+    `test_a_takedown_is_never_one_tap.py`) — but the invariant underneath it is the same
+    one and is what is asserted here: reading the URL must never destroy anything. A
+    method that is neither is still a 404.
+    """
     client = _client_for(world.m_admin)
-    assert client.get(reverse("take_down_post", args=[world.m_post.id])).status_code == 404
-    assert client.get(reverse("take_down_comment", args=[world.m_comment.id])).status_code == 404
+    assert client.get(reverse("take_down_post", args=[world.m_post.id])).status_code == 200
+    assert client.get(reverse("take_down_comment", args=[world.m_comment.id])).status_code == 200
     world.m_post.refresh_from_db()
+    world.m_comment.refresh_from_db()
     assert world.m_post.deleted_at is None  # a GET never removes
+    assert world.m_comment.deleted_at is None
+    # Nothing else is a route into it.
+    assert client.put(reverse("take_down_post", args=[world.m_post.id])).status_code == 404
+    assert client.delete(reverse("take_down_post", args=[world.m_post.id])).status_code == 404
+    world.m_post.refresh_from_db()
+    assert world.m_post.deleted_at is None
 
 
 def test_takedown_is_idempotent_and_preserves_an_author_self_delete(world: World) -> None:

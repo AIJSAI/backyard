@@ -167,6 +167,14 @@ def resolve(raw: str) -> RecoveryToken:
     return token
 
 
+# The session key `recovery_views.recover` writes after a successful redeem and
+# `core.forms.LoginForm` pops on the next render of the sign-in page (walk item 2). It
+# lives HERE, in the service both sides already depend on, rather than in either of them:
+# the form importing a views module is a cycle waiting to happen, and two spellings of one
+# key is how a prefill quietly stops working while the page still looks fine.
+RECOVERED_USERNAME_KEY = "recovered_username"
+
+
 def redeem(raw: str, new_password: str) -> None:
     """Set the member's password from a live recovery link, atomically, once.
 

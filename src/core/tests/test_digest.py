@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 from django.utils import timezone
 
-from core import digest, media
+from core import digest, emailing, media
 from core.models import DigestIssue, Member, Pod, PodMembership, Post, Yard
 
 pytestmark = pytest.mark.django_db
@@ -387,3 +387,52 @@ def test_confinement_guard_catches_traversal_and_multi_name_import(tmp_path: Pat
             check=False,
         )
         assert tripped.returncode == 1, poison_line
+
+
+# --- what a first-time relative needs the message to say (walk item 32) ---------------
+
+
+def test_the_email_says_why_it_arrived(world: World) -> None:
+    """Read as a relative who had forgotten they opted in, 2026-09-19. The message named
+    the side of the family and the week, and never once said who had signed them up for it
+    or why it had turned up — which is the first question anybody asks of an e-mail they
+    were not expecting, and the one that decides whether it gets reported as spam."""
+    _post(world.maternal_cousin, world.m_pod, "A quiet week.")
+    built = _build(world, world.maternal_cousin, world.maternal)
+
+    for part, name in ((built.text, "text part"), (built.html, "HTML part")):
+        flat = " ".join(part.split())
+        assert "You are getting this because you asked for the Family email." in flat, name
+
+
+def test_it_offers_reply_by_email_only_where_replies_are_actually_received(
+    world: World,
+) -> None:
+    """The headline feature of this message is that you can answer it by hitting reply,
+    and it was visible only as the machine-looking separator at the top of the page.
+
+    But it is NOT always true: reply-by-email needs an inbound provider and one manual
+    step with it, and without them a reply is accepted and silently dropped — which the
+    README and the self-host guide both say plainly. So the sentence is keyed to whether
+    this issue actually minted a reply address, and an instance that cannot take a reply
+    does not promise one. A false promise here costs somebody the message they typed.
+    """
+    post = _post(world.maternal_cousin, world.m_pod, "A quiet week.")
+    issue = _issue(world, world.maternal_cousin, world.maternal)
+
+    without = digest.build_digest(issue, digest_token="digest-raw", unsubscribe_token="unsub-raw")
+    for part in (without.text, without.html):
+        assert "replying to this message" not in part, (
+            "the email promises a reply route this instance has not got"
+        )
+
+    domain = emailing.reply_domain()
+    with_replies = digest.build_digest(
+        issue,
+        digest_token="digest-raw",
+        unsubscribe_token="unsub-raw",
+        reply_addresses={post.id: f"reply+abc@{domain}"},
+    )
+    for part, name in ((with_replies.text, "text part"), (with_replies.html, "HTML part")):
+        flat = " ".join(part.split())
+        assert "You can answer it by replying to this message" in flat, name

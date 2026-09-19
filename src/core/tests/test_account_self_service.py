@@ -120,9 +120,16 @@ def test_a_member_with_no_address_anywhere_is_prompted() -> None:
     assert member.user is not None and not member.user.email
     assert not EmailAddress.objects.filter(user=member.user).exists()
 
-    body = client.get(reverse("feed")).content.decode()
-    assert "forget your password" in body
+    # Whitespace-normalised: the sentence wraps in the template, which is how it should be
+    # written and not something a test should pin.
+    body = " ".join(client.get(reverse("feed")).content.decode().split())
+    # The sentence changed on 2026-09-19 (walk item 5): this was a screen-tall card ABOVE
+    # the composer that said the same thing in two paragraphs, with "Not now" as its
+    # loudest button. It is one line under the composer now. What is asserted is the same
+    # property — the member is told, and the way to act on it is a tap away.
+    assert "so you can reset your own password" in body
     assert reverse("account_email") in _hrefs(body)
+    assert reverse("dismiss_email_prompt") in body, "no quiet way to decline"
 
 
 @pytest.mark.parametrize("store", ["user_email", "email_address_row"])
@@ -186,8 +193,8 @@ def test_the_prompt_is_independent_of_the_welcome_having_been_seen() -> None:
     member, client = _signed_in(pod)
     Member.objects.filter(pk=member.pk).update(orientation_dismissed_at=timezone.now())
 
-    body = client.get(reverse("feed")).content.decode()
-    assert "forget your password" in body
+    body = " ".join(client.get(reverse("feed")).content.decode().split())
+    assert "so you can reset your own password" in body  # reworded, walk item 5
 
 
 # --- BY-13: whose job inviting is ---------------------------------------------------

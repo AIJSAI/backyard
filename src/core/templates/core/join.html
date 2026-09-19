@@ -2,9 +2,26 @@
 {% block title %}Join your family on Backyard{% endblock %}
 {% block body %}
   <h1>Join your family</h1>
+  {% comment %} The household is NAMED here, and it was not before: the page said "You were
+     invited" and then asked for a name, a username and a password without ever saying what
+     was being joined. Somebody who opens a link a relative texted them has no other way to
+     find out, and the admin who minted it has always been told — core/handover_link.html
+     names the household on the screen where the link is generated — while the person
+     actually arriving was told none of it (design walk 2026-09-19, item 21).
+
+     The NAME and nothing else. Anybody holding the link can open this page without having
+     been let in, so it never prints who is IN the household — the same rule
+     test_a_stranger_is_told_no_names.py pins for the public surfaces. Guarded on truthiness
+     because a household with an empty name would otherwise render "You're joining .", which
+     reads as a broken page rather than a missing one.
+
+     The sentence that used to close this paragraph, "You can add a passkey once you are in",
+     went with the same walk. "Passkey" is the product's own jargon, it was the third thing a
+     relative ever read here, and it describes something they cannot do on this screen — they
+     meet the control later, in settings, where it is explained. {% endcomment %}
   <p class="muted">
-    You were invited. Pick the name your family will see and a way to sign back in.
-    You can add a passkey once you are in.
+    {% if household %}You're joining <strong>{{ household }}</strong>. {% endif %}Pick the
+    name your family will see and a way to sign back in.
   </p>
 
   {% if errors %}
@@ -25,21 +42,87 @@
     <input type="text" id="display_name" name="display_name" autocomplete="name"
            value="{{ typed.display_name }}" required>
 
+    {% comment %} "Username" arrived with no hint at all, on the one screen where the word is
+       a decision and not a fact: a relative who has never chosen one does not know whether
+       it is an address, a nickname, or something the family will see. It is neither — it is
+       the thing they will type into the sign-in box — and their first name is a perfectly
+       good answer, which is worth saying out loud because the box looks like it wants
+       something more official. {% endcomment %}
     <label for="username">Username</label>
     <input type="text" id="username" name="username" autocomplete="username"
-           value="{{ typed.username }}" required>
+           value="{{ typed.username }}" aria-describedby="username-help" required>
+    <p class="field-help" id="username-help">
+      What you type to sign in. Your first name is fine.
+    </p>
 
+    {% comment %} The password had no guidance either, so the only advice this product ever
+       gave about choosing one arrived AFTER it was rejected, as a Django validator error.
+       These are the get-back-in page's words, deliberately word for word (core/recover.html):
+       a relative who joins today and is walked through recovery in two years should read one
+       sentence, not two that disagree.
+
+       The Show control is built by the script at the foot of this page rather than shipped
+       in this markup. See the comment there. {% endcomment %}
     <label for="password">Password</label>
-    <input type="password" id="password" name="password" autocomplete="new-password" required>
+    <input type="password" id="password" name="password" autocomplete="new-password"
+           aria-describedby="password-help" required>
+    <p class="field-help" id="password-help">
+      Use something you will remember. Three or four unrelated words work well and are
+      easy to type on a phone.
+    </p>
 
     <label for="email">Email <span class="optional">(optional)</span></label>
     <input type="email" id="email" name="email" autocomplete="email" maxlength="254"
            value="{{ typed.email }}" aria-describedby="email-help">
     <p class="field-help" id="email-help">
       The only way to get back in on your own if you forget your password. We will ask
-      next whether you want a family email; this is where it would go.
+      next whether you want the Family email; this is where it would go.
     </p>
 
     <button type="submit">Join</button>
   </form>
+
+  {% comment %} The Show control: pure progressive enhancement over the field above.
+
+     BUILT HERE, not shipped hidden in the markup. The obvious shape — ship
+     `<button hidden>` and let the script unhide it — does not work in this product: the
+     design system sets `button { display: inline-flex }` (core/base.html, the buttons
+     block), and an author rule beats the user agent's `[hidden] { display: none }`, so the
+     button would render for everyone, including a browser with no JavaScript, where tapping
+     it does nothing. Ship it with `style="display:none"` instead and the markup carries a
+     second, contradicting source of truth for whether the control exists. Building it in the
+     script is the pattern this product already uses for exactly this reason — the composer's
+     per-file Remove buttons are created the same way (core/_composer_media.html) — and it
+     makes "no JavaScript, no button" true by construction rather than by a CSS rule holding.
+
+     Inline with the per-request nonce, because that is the only way a script runs here: the
+     policy is `script-src 'self' 'nonce-<per-request>'` with no 'unsafe-inline'
+     (core/middleware.py, S-724). An external file would be a second thing to cache-bust for
+     eleven lines; a nonce-less tag would simply not execute.
+
+     type="button", never "submit": the control sits inside the join form, and a default
+     submit here would post a half-filled form the moment somebody tried to read what they
+     had typed. The LABEL carries the state — "Show password" becomes "Hide password" — so a
+     screen reader hears the next action rather than a bare "button", and what is announced
+     is what is printed on it (SC 2.5.3). Focus deliberately stays on the control after a
+     tap: moving it back to the field would leave somebody who cannot see the field with no
+     announcement that anything happened. {% endcomment %}
+  <script nonce="{{ request.csp_nonce }}">
+    (function () {
+      var field = document.getElementById("password");
+      var hint = document.getElementById("password-help");
+      if (!field || !hint) { return; }
+      var toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "btn-quiet";
+      toggle.setAttribute("aria-controls", "password");
+      toggle.textContent = "Show password";
+      toggle.addEventListener("click", function () {
+        var showing = field.type === "text";
+        field.type = showing ? "password" : "text";
+        toggle.textContent = showing ? "Show password" : "Hide password";
+      });
+      hint.insertAdjacentElement("afterend", toggle);
+    })();
+  </script>
 {% endblock %}

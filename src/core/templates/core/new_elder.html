@@ -13,12 +13,18 @@
 
   {% if errors %}<div class="errors">{% for e in errors %}<p>{{ e }}</p>{% endfor %}</div>{% endif %}
 
+  {% comment %} ONE THING ON THE PAGE AT A TIME (walk item 18). After the link was made
+     the empty form was still sitting under it, pre-filled with nothing and captioned
+     "Create their household and get the link" — so the obvious next tap on a phone, where
+     the link card pushes the form to where the form used to be, created a SECOND
+     grandparent and a second household by accident. The link is the answer to what the
+     admin came here to do; the form comes back when they say they want another one. {% endcomment %}
   {% if minted_link %}
     <h2>Link ready to hand over</h2>
     <p>For <strong>{{ elder_name }}</strong> in <strong>{{ yard_name }}</strong>.</p>
     {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="No-login link" handover_share_title="Your family on Backyard" handover_note="Hand it over in person or by a private message, or print this page for the QR. It appears only once." %}
-  {% endif %}
-
+    <p class="settings-link"><a href="{% url 'new_elder' %}">Add another grandparent</a></p>
+  {% else %}
   <form method="post" action="{% url 'new_elder' %}">
     {% csrf_token %}
     <input type="hidden" name="intent" value="{{ intent }}">
@@ -40,4 +46,5 @@
     </select>
     <button type="submit">Create their household and get the link</button>
   </form>
+  {% endif %}
 {% endblock %}

@@ -15,6 +15,7 @@ pass on `DELETE FROM everything`, which is exactly the bug.
 from __future__ import annotations
 
 import io
+import re
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
@@ -512,48 +513,194 @@ def test_a_real_household_left_with_no_yard_stops_the_wipe() -> None:
     assert scoping.member_yard_ids(reed), "the Reed was stranded despite the refusal"
 
 
+def _a_real_person_inside_the_fixture_pod(two_families: dict[str, Family]) -> tuple[Member, Post]:
+    """A real relative invited into the fixture household, and a fixture post to act on.
+
+    `can_issue_invite` allows exactly this, and they keep their own household, so the
+    stranding check cannot fire and whatever refuses (or does not) is the real-content
+    guard and nothing else.
+    """
+    real = two_families["real"]
+    demo = two_families["demo"]
+    PodMembership.objects.create(member=real.author, pod=demo.pod)
+    demo_post = Post.objects.create(author=demo.author, pod=demo.pod, body="the fixture post")
+    return real.author, demo_post
+
+
 @pytest.mark.django_db
-def test_a_reaction_by_someone_real_stops_the_wipe(two_families: dict[str, Family]) -> None:
-    """The half of the previous test that could not fire, because Django never built the rows.
+def test_a_reaction_by_someone_real_no_longer_stops_the_wipe(
+    two_families: dict[str, Family],
+) -> None:
+    """A tap on a heart is not somebody's writing, and it was blocking the entire wipe.
 
-    `Collector` splits deletion in two: rows it instantiates into `.data`, and rows it
-    removes with one bulk statement — `fast_deletes` — which never appear in `.data` at all.
-    `_collect` read only `.data`, so `Reaction`, `PodMembership`, `PodMute`, `LinkPreview`,
-    `ReplyAddress`, `PodWeekMetrics` and both m2m through-tables were invisible to the
-    preview AND to the refusal above it.
-
-    So the fix for "real content inside a fixture pod" covered posts and comments and left
-    reactions exactly as they were. Measured before this fix, with the real relative safely
-    in their own household so nothing else could fire:
+    The history is kept because the row is still load-bearing, for the PREVIEW now rather
+    than for the refusal. `Collector` splits deletion in two: rows it instantiates into
+    `.data`, and rows it removes with one bulk statement — `fast_deletes` — which never
+    appear in `.data` at all. `_collect` read only `.data`, so `Reaction`, `PodMembership`,
+    `PodMute`, `LinkPreview`, `ReplyAddress`, `PodWeekMetrics` and both m2m through-tables
+    were invisible to the preview AND to the refusal above it. Measured then, with the real
+    relative safely in their own household so nothing else could fire:
 
         preview() returned, NO refusal: {Yard: 1, Pod: 1, Post: 1, Member: 1}
         Reaction counted in preview: False
         wipe() receipt: {core.Reaction: 1, ...}
         real person's reactions AFTER: 0
 
-    The dry run did not mention it, the guard could not see it, and the receipt afterwards
-    listed the row it had just destroyed.
+    Materialising the fast deletes cured the blindness — and the cure then made a reaction a
+    REFUSAL, which is too strict (walk item 30). A reaction is not authorship: no words and
+    no photographs, one row naming a member, a post and a kind. It means nothing once the
+    fixture post it sits on is gone. And it is removable only from that post's own screen,
+    so the refusal's own instruction — have its author take their content down first — could
+    not be followed once the post was down: the wipe would be blocked forever by a row
+    nobody could reach.
 
-    A reaction is small, and that is the point: it is somebody saying they saw their
-    grandchild's photograph, and it is the cheapest thing in the schema to lose silently.
+    So it is deleted with the post, and COUNTED in the dry run
+    (`test_the_dry_run_counts_the_reactions_by_real_people_it_will_delete`), which is what
+    the fast-delete fix is holding up now. A post or a reply still refuses, unchanged.
     """
+    real_person, demo_post = _a_real_person_inside_the_fixture_pod(two_families)
+    their_reaction = Reaction.objects.create(
+        post=demo_post, member=real_person, kind=Reaction.HEART
+    )
+
+    # The dry run has to agree with the wipe, or the operator reads one thing and confirms
+    # another. It refused too, before.
+    assert demo_data.preview(MARKER), "preview refused, or reported nothing to delete"
+    removed = demo_data.wipe(MARKER)
+
+    assert removed, "the wipe deleted nothing, so nothing below is proven"
+    assert not Reaction.objects.filter(pk=their_reaction.pk).exists(), (
+        "the reaction outlived the post it was on, which is a row pointing at nothing"
+    )
     real = two_families["real"]
-    demo = two_families["demo"]
-    PodMembership.objects.create(member=real.author, pod=demo.pod)
-    demo_post = Post.objects.create(author=demo.author, pod=demo.pod, body="the fixture post")
-    Reaction.objects.create(post=demo_post, member=real.author, kind="love")
+    assert Member.objects.filter(pk=real_person.pk).exists(), "the reactor was deleted"
+    assert Post.objects.filter(pk=real.post.pk).exists(), "their own post was deleted"
+    assert Pod.objects.filter(pk=real.pod.pk).exists(), "their own household was deleted"
 
-    preview_failed = False
-    try:
-        demo_data.preview(MARKER)
-    except demo_data.DemoDataError:
-        preview_failed = True
-    assert preview_failed, "preview must refuse too — a dry run that says OK is the receipt"
 
-    with pytest.raises(demo_data.DemoDataError, match="reaction written by someone real"):
+@pytest.mark.django_db
+def test_the_dry_run_counts_the_reactions_by_real_people_it_will_delete(
+    two_families: dict[str, Family],
+) -> None:
+    """What the guard stops refusing, the preview has to start saying out loud.
+
+    A row that neither blocks nor appears anywhere is the exact failure this repo keeps
+    writing tests about: the operator confirms a blast radius they were never shown. These
+    reactions are already inside the `core.Reaction` total, where nothing distinguishes a
+    real person's from a fixture one's — so the dry run names them on their own line.
+
+    The fixture family made a reaction of its own (`_family` has the elder react to the
+    family post), so a count of 1 here is also the proof that the line counts REAL people's
+    reactions rather than every reaction in the closure.
+    """
+    real_person, demo_post = _a_real_person_inside_the_fixture_pod(two_families)
+    Reaction.objects.create(post=demo_post, member=real_person, kind=Reaction.HEART)
+
+    planned = demo_data.preview(MARKER)
+    assert planned["reactions by real people"] == 1, (
+        "the preview should count the ONE reaction left by a real person, not every "
+        f"reaction in the closure: {dict(planned)}"
+    )
+
+    out = io.StringIO()
+    call_command("wipe_demo_data", "--dry-run", stdout=out)
+    printed = out.getvalue()
+    assert re.search(r"^\s+1\s{2}reactions by real people$", printed, re.MULTILINE), (
+        "the dry run does not name the reactions it is about to delete, in the same shape "
+        f"as every other line it prints:\n{printed}"
+    )
+    assert Reaction.objects.filter(member=real_person).exists(), "the dry run deleted it"
+
+
+@pytest.mark.django_db
+def test_a_post_by_someone_real_in_a_fixture_pod_still_stops_the_wipe(
+    two_families: dict[str, Family],
+) -> None:
+    """Authorship still refuses. This is the half of the guard that must not move.
+
+    Measured before the guard existed at all, with a real relative in a fixture pod AND
+    their own household (so the stranding guard passed too): "wipe refused? False · their
+    POST survives: False · photo rows: 0 · comments: 0". Somebody's holiday photographs,
+    from a command whose entire job is not to do that.
+
+    Stated on its own, with no reply and no photograph beside it, so that a change to the
+    comment path cannot be what keeps this passing.
+    """
+    real_person, _ = _a_real_person_inside_the_fixture_pod(two_families)
+    their_post = Post.objects.create(
+        author=real_person, pod=two_families["demo"].pod, body="our holiday photographs"
+    )
+
+    with pytest.raises(demo_data.DemoDataError, match="post written by someone real"):
         demo_data.wipe(MARKER)
 
-    assert Reaction.objects.filter(member=real.author).exists(), "it deleted despite refusing"
+    assert Post.objects.filter(pk=their_post.pk).exists(), "it deleted despite refusing"
+    assert Pod.objects.filter(pk=two_families["demo"].pod.pk).exists(), "it deleted anyway"
+
+
+@pytest.mark.django_db
+def test_a_reply_by_someone_real_on_a_fixture_post_still_stops_the_wipe(
+    two_families: dict[str, Family],
+) -> None:
+    """A reply is writing, so it refuses — even though it is the same size as a reaction.
+
+    The distinction the wipe now draws is authorship, not importance: a reply is words
+    somebody wrote, it survives its thread in an export, and its author has a delete control
+    on it. Stated against a FIXTURE post, so what is being tested is the reply's own author
+    and not the post's.
+    """
+    real_person, demo_post = _a_real_person_inside_the_fixture_pod(two_families)
+    their_reply = Comment.objects.create(
+        post=demo_post, author=real_person, body="look at her face"
+    )
+
+    with pytest.raises(demo_data.DemoDataError, match="reply written by someone real"):
+        demo_data.wipe(MARKER)
+
+    assert Comment.objects.filter(pk=their_reply.pk).exists(), "it deleted despite refusing"
+    assert Pod.objects.filter(pk=two_families["demo"].pod.pk).exists(), "it deleted anyway"
+
+
+@pytest.mark.django_db
+def test_the_reaction_exemption_did_not_disarm_the_rest_of_the_guard(
+    two_families: dict[str, Family],
+) -> None:
+    """Non-vacuity. A guard that can no longer refuse would report a clean instance forever.
+
+    Both rows sit in ONE closure: a real person's reaction, which must pass, and their post,
+    which must refuse. A predicate broken open by the exemption — dropping the authorship
+    loop, or exempting everything unmarked — passes every "this no longer blocks" test in
+    this file and fails only here.
+
+    It also pins the refusal's TEXT: naming the reaction as a trespass would be the docstring
+    lying in the other direction, telling an operator to go and clear a row that is not what
+    stopped them.
+    """
+    real_person, demo_post = _a_real_person_inside_the_fixture_pod(two_families)
+    their_reaction = Reaction.objects.create(
+        post=demo_post, member=real_person, kind=Reaction.HEART
+    )
+    their_post = Post.objects.create(
+        author=real_person, pod=two_families["demo"].pod, body="our holiday photographs"
+    )
+
+    with pytest.raises(demo_data.DemoDataError) as refused:
+        demo_data.wipe(MARKER)
+    message = str(refused.value)
+    assert "post written by someone real" in message, message
+    assert "reaction written by someone real" not in message, (
+        f"the refusal still names the reaction as a trespass: {message}"
+    )
+    assert Post.objects.filter(pk=their_post.pk).exists(), "it deleted despite refusing"
+
+    # Take down the POST only. The reaction stays exactly where it was, and the same wipe
+    # proceeds — so the refusal is a condition on the data that an operator can actually
+    # clear, and the exemption is not doing the clearing.
+    their_post.delete()
+    demo_data.wipe(MARKER)
+    assert not Pod.objects.filter(pk=two_families["demo"].pod.pk).exists()
+    assert not Reaction.objects.filter(pk=their_reaction.pk).exists()
+    assert Member.objects.filter(pk=real_person.pk).exists(), "the reactor was deleted"
 
 
 @pytest.mark.django_db

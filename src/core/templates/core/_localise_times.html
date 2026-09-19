@@ -1,0 +1,45 @@
+{% comment %} Rewrite every `<time data-when>` on the page into the READER's own zone.
+
+   The server already rendered each one correctly in this Backyard's own zone
+   (BACKYARD_TIME_ZONE), which is the zone the household lives in and the only zone an
+   e-mail can be written in. This is the other half: a family spread over three zones is
+   the normal case for the thing this product is for, and a cousin who moved away should
+   read her own wall clock rather than her mother's.
+
+   It is additive by construction. With no JavaScript, a slow load, or a parse error,
+   what shows is the server's own text — which is why `{% templatetag openblock %} when
+   {% templatetag closeblock %}` renders the text fully formed rather than leaving an
+   empty element for this to fill. The formats are reproduced by hand to match Django's
+   "M j, g:i a" and "M j, Y" exactly (core/templatetags/times.py), so a reader in the
+   instance's own zone sees no change at all.
+
+   Inline with the response nonce, like the service-worker and media-picker scripts: the
+   policy is script-src 'self' 'nonce-...' with no 'unsafe-inline', and nothing here
+   loosens it. {% endcomment %}
+<script nonce="{{ request.csp_nonce }}">
+  (function () {
+    var stamps = document.querySelectorAll('time[data-when]');
+    if (!stamps.length) { return; }
+    var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    function day(d) { return MONTHS[d.getMonth()] + ' ' + d.getDate(); }
+    function asDate(d) { return day(d) + ', ' + d.getFullYear(); }
+    function asDateTime(d) {
+      var hour = d.getHours();
+      var suffix = hour < 12 ? 'a.m.' : 'p.m.';
+      hour = hour % 12;
+      if (hour === 0) { hour = 12; }
+      var minute = d.getMinutes();
+      return day(d) + ', ' + hour + ':' + (minute < 10 ? '0' : '') + minute + ' ' + suffix;
+    }
+    Array.prototype.forEach.call(stamps, function (stamp) {
+      var when = new Date(stamp.getAttribute('datetime'));
+      // An unparseable attribute gives Invalid Date, whose getTime() is NaN. Leaving the
+      // server's own text alone is the honest answer there; "NaN NaN, NaN" is not.
+      if (isNaN(when.getTime())) { return; }
+      stamp.textContent = stamp.getAttribute('data-when') === 'date'
+        ? asDate(when)
+        : asDateTime(when);
+    });
+  })();
+</script>

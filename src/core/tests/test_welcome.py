@@ -86,7 +86,7 @@ def test_the_three_screens_are_reachable_in_order(pod: Pod) -> None:
 
     two = client.get(reverse("welcome_family_email"))
     assert two.status_code == 200
-    assert "Want a family email?" in two.content.decode()
+    assert "Want the Family email?" in two.content.decode()
 
     three = client.get(reverse("welcome_hello"))
     assert three.status_code == 200
@@ -150,10 +150,19 @@ def test_the_address_is_already_filled_in_from_the_join_form(pod: Pod) -> None:
     assert 'value="cousin@example.com"' in body, "they had to type it again"
 
 
-def test_choosing_weekly_enrolls_and_still_confirms_the_address(pod: Pod) -> None:
-    """The welcome is not a second enrolment path: it goes through the ordinary opt-in,
-    so the address gets its one content-free confirmation and nothing from the family
-    flows until it is acknowledged (T-EMAIL-6)."""
+def test_choosing_weekly_at_the_join_address_sends_no_second_mail(pod: Pod) -> None:
+    """The welcome is not a second enrolment path, and since walk item 24 it is not a
+    second MAIL either.
+
+    This test used to assert the opposite — one confirmation here, on top of the one join
+    had already sent to the same address a minute earlier. Walked on 2026-09-19: the two
+    arrive with the identical subject, from the same sender, threaded together by the mail
+    client into what looks like one message sent twice, and neither says which is which.
+
+    What has NOT changed is the property that mattered: `confirmed_at` is still None, so
+    nothing from the family flows until the address is acknowledged (T-EMAIL-6). The
+    acknowledgement is now the tap they were already going to make.
+    """
     client, member = _join(pod, email="cousin@example.com")
     mail.outbox.clear()
 
@@ -166,9 +175,25 @@ def test_choosing_weekly_enrolls_and_still_confirms_the_address(pod: Pod) -> Non
     subscription = DigestSubscription.objects.get(member=member)
     assert subscription.cadence == DigestSubscription.WEEKLY
     assert subscription.confirmed_at is None, "family content would flow unconfirmed"
+    assert mail.outbox == [], [m.subject for m in mail.outbox]
+
+
+def test_choosing_weekly_at_a_DIFFERENT_address_still_confirms_it(pod: Pod) -> None:
+    """The other side of item 24, and the reason it is safe: a second mailbox is a second
+    fact, and it is proven where it was mailed."""
+    client, member = _join(pod, email="cousin@example.com")
+    mail.outbox.clear()
+
+    client.post(
+        reverse("welcome_family_email"),
+        {"choice": "weekly", "address": "the-other-one@example.com"},
+    )
+
+    subscription = DigestSubscription.objects.get(member=member)
+    assert subscription.confirmed_at is None
     assert len(mail.outbox) == 1
     assert mail.outbox[0].subject == "Is this your email address?"
-    assert mail.outbox[0].to == ["cousin@example.com"]
+    assert mail.outbox[0].to == ["the-other-one@example.com"]
 
 
 def test_choosing_monthly_is_offered_and_daily_is_not(pod: Pod) -> None:
@@ -355,3 +380,48 @@ def test_the_backfill_does_not_re_stamp_someone_who_already_dismissed(pod: Pod) 
 
     already.refresh_from_db()
     assert already.orientation_dismissed_at == moment
+
+
+# --- screen three says what screen two did (walk item 22) ------------------------------
+
+
+def test_screen_three_says_the_confirmation_is_waiting(pod: Pod) -> None:
+    """Picking "weekly" leaves one step outstanding — a link in an inbox — and this page
+    said nothing about it, so the relative found out a week later by not getting one."""
+    client, _member = _join(pod, email="cousin@example.com")
+    client.post(
+        reverse("welcome_family_email"),
+        {"choice": "weekly", "address": "cousin@example.com"},
+    )
+
+    body = " ".join(client.get(reverse("welcome_hello")).content.decode().split())
+    assert "We sent one email to cousin@example.com." in body
+    assert "Tap the link in it and the Family email starts." in body
+
+
+def test_screen_three_does_not_promise_a_mail_that_was_never_sent(pod: Pod) -> None:
+    """The item-24 case: the address was already their proven sign-in address, so nothing
+    was sent and nothing needs tapping. "We sent one email" would be a plain untruth."""
+    from allauth.account.models import EmailAddress
+
+    client, member = _join(pod, email="cousin@example.com")
+    EmailAddress.objects.filter(user=member.user).update(verified=True)
+    client.post(
+        reverse("welcome_family_email"),
+        {"choice": "weekly", "address": "cousin@example.com"},
+    )
+
+    body = " ".join(client.get(reverse("welcome_hello")).content.decode().split())
+    assert "We sent one email" not in body
+    assert "The Family email is on. It goes to cousin@example.com." in body
+
+
+def test_screen_three_says_nothing_when_they_said_no_thanks(pod: Pod) -> None:
+    """Non-vacuity, and a nag check: somebody who declined must not be told about a
+    Family email they did not ask for."""
+    client, _member = _join(pod, email="cousin@example.com")
+    client.post(reverse("welcome_family_email"), {"choice": "none"})
+
+    body = " ".join(client.get(reverse("welcome_hello")).content.decode().split())
+    assert "We sent one email" not in body
+    assert "The Family email is on" not in body

@@ -122,6 +122,33 @@ BACKYARD_BACKUP_PASSPHRASE=...      # see Backups; there is no key escrow
 You never set `DJANGO_SECRET_KEY`. The container generates one on first boot and persists
 it on the data volume.
 
+### Your time zone
+
+```bash
+BACKYARD_TIME_ZONE=America/Chicago   # an IANA name; the default is UTC
+```
+
+**Set this.** It is the clock your family reads. Left unset, every date and time in the
+product — the feed, a thread, an invite's last day, the Family email — is stated in UTC,
+which for most families is several hours wrong and says so with no hedge. A post written
+at 4:28 in the morning read "9:28 a.m." on a real instance before this setting existed.
+
+Use an IANA name (`America/Chicago`, `Europe/London`, `Australia/Sydney`). A typo refuses
+to boot with a message naming the variable, rather than booting and printing wrong times:
+a wrong zone is a wrong fact on every screen. The full list your machine knows:
+
+```bash
+python3 -c 'import zoneinfo; print(sorted(zoneinfo.available_timezones()))'
+```
+
+Signed-in relatives in a *different* zone do not need anything: each page also carries the
+instant in the markup, and their own browser re-renders it into their own zone. This
+setting is what an e-mail uses, because an e-mail is written here and read hours later
+with no browser to correct it — so it should be the zone the household lives in.
+
+Changing it later is safe: nothing is stored in local time (every timestamp is stored in
+UTC), so this only changes how they are shown. Restart the containers to pick it up.
+
 ## 3. Start it
 
 ```bash
@@ -226,6 +253,18 @@ Family email to Gmail addresses from a new domain lands in spam until the domain
 reputation. Set SPF, DKIM and DMARC. Ask the first few people to mark it "not spam".
 
 ---
+
+### The name on your mail
+
+```bash
+BACKYARD_MAIL_FROM_NAME=Backyard        # or your family's name
+```
+
+Every message this instance sends carries it, including the address confirmation — often
+the first thing the software ever sends anybody. Without it, mail arrives as
+`digests@mail.example`, or as just `digests` in the clients that shorten it, which is how
+a family's own photographs come to look like something a spam filter should eat. The
+ADDRESS is still `DEFAULT_FROM_EMAIL`; this is only the name beside it.
 
 ## Backups
 

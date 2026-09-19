@@ -12,6 +12,12 @@ pin the three things that has to be true of:
             used to be rejected outright from any browser that could not convert it in
             JavaScript first, which is every browser except Safari (BY-14).
   LIMITS    the size and count ceilings are unchanged and are still said in plain words.
+  PICKING   what the enhancement script needs in order to ADD a second pick to the first
+            rather than replace it, and to put words where a preview cannot be drawn. The
+            script itself never runs under pytest, so what is held here is the contract
+            between the server and it: the ceilings reaching the DOM it reads them from,
+            the sentences it says being the server's own, and the picker still degrading
+            to a plain working input when none of it runs.
 
 The `capture` attribute is asserted ABSENT: it forces the camera open and hides the photo
 library, which is the wrong default for a family posting the picture they already took,
@@ -32,7 +38,7 @@ from django.test import Client
 from django.urls import reverse
 from PIL import Image
 
-from core.feed_views import _MAX_PHOTO_BYTES, _MAX_PHOTOS, _split_media
+from core.feed_views import _MAX_PHOTO_BYTES, _MAX_PHOTOS, _MAX_VIDEOS, _split_media
 from core.models import MediaAsset, Member, Pod, PodMembership, Post, Yard
 
 pytestmark = pytest.mark.django_db
@@ -117,6 +123,106 @@ def _page(world: dict[str, object], url: str) -> str:
     client = world["client"]
     assert isinstance(client, Client)
     return client.get(url).content.decode()
+
+
+def _picker_script(page: str) -> str:
+    """The composer's enhancement script, exactly as the browser receives it.
+
+    The script is inline and nonce'd (the CSP is `script-src 'self' 'nonce-...'` with no
+    unsafe-inline and no external file), so the only way to assert anything about it is to
+    read it back out of the delivered page. Pulled by what it operates on rather than by
+    position, so adding another inline script to the feed does not quietly redirect these
+    assertions onto it.
+    """
+    bodies: list[str] = re.findall(r"<script[^>]*>(.*?)</script>", page, re.S)
+    ours = [body for body in bodies if "data-media-previews" in body]
+    assert len(ours) == 1, f"expected one media script on the page, found {len(ours)}"
+    return ours[0]
+
+
+def test_the_limits_reach_the_dom_where_the_script_reads_them(world: dict[str, object]) -> None:
+    """The walk: pick three photos, tap "Add photos or a video" again to add two more, and
+    the first three are gone — a native file input REPLACES its selection, so a family
+    posting a birthday in batches loses the earlier batch with no message and no thumbnail.
+    The script now merges the new pick into the old one, which means the script is a place
+    where the two ceilings are enforced, which means it needs the ceilings.
+
+    It must not carry its own 20 and 4. Those live in `feed_views._MAX_PHOTOS` /
+    `_MAX_VIDEOS` and are already said in words in the hint; a third copy inside an inline
+    script is the copy nobody would think to change when a constant moved, and the way it
+    would fail is by silently refusing a photograph the server would have accepted. So the
+    server renders them onto the picker and the script reads them back from the DOM — and
+    this pins both halves of that journey, on both surfaces that carry the control.
+    """
+    for url in (reverse("feed"), _a_thread(world)):
+        page = _page(world, url)
+        # AFTER `data-media-picker`: the degradation test string-matches that literal.
+        assert (
+            f'class="media-picker" data-media-picker '
+            f'data-max-photos="{_MAX_PHOTOS}" data-max-videos="{_MAX_VIDEOS}"'
+        ) in page, "the server's ceilings are not on the picker the script binds to"
+        script = _picker_script(page)
+        assert "data-max-photos" in script and "data-max-videos" in script, (
+            "the script does not read the limits from the DOM, so it has its own copy"
+        )
+
+
+def test_a_pick_that_runs_past_a_limit_is_said_in_the_servers_own_words(
+    world: dict[str, object],
+) -> None:
+    """Accumulating means a pick can now fill the selection up and leave files behind, and
+    a file left behind in silence is the failure `_read_photos` was rewritten to stop doing
+    on the server — the member taps Post, the post appears, and some of the photographs
+    were never there.
+
+    The sentence is the server's, to the word: a member who meets the ceiling in the
+    composer and a member who meets it on the way in read one sentence, not two. (The
+    server half is pinned by `test_the_count_ceiling_is_unchanged_and_spoken_plainly`.)
+    It lands in the `.notice` box below, which ships empty and hidden so a browser without
+    the script never shows an empty green box.
+    """
+    page = _page(world, reverse("feed"))
+    assert '<div class="notice" data-media-notice role="status" hidden></div>' in page, (
+        "nowhere for the over-limit sentence to land, or it does not ship hidden and empty"
+    )
+    script = _picker_script(page)
+    assert "could not be added — " in script and " is the limit for one post." in script, (
+        "the client says something other than what the server says"
+    )
+    # Calm, warm, short: the tone ruled for every surface a relative reads. The template
+    # guard in test_one_word_per_concept strips <script> bodies, so this copy is only
+    # covered here.
+    for sentence in ("could not be added", "is the limit for one post"):
+        assert "!" not in sentence
+
+
+def test_a_photo_the_browser_cannot_draw_gets_words_not_a_broken_icon(
+    world: dict[str, object],
+) -> None:
+    """The walk, item 4: an iPhone HEIC in the composer showed the browser's broken-image
+    icon on Chrome, Android and the desktop. Nothing was broken — the upload works and the
+    server decodes it (pillow-heif, BY-14) — only the PREVIEW cannot decode, because no
+    browser but Safari draws HEIC. A broken icon says "this did not work" about a file that
+    worked, and the member's next move is to take their photograph back out.
+
+    The cure is the tile the non-image branch already builds, so the two stand-ins are the
+    same shape and no new CSS exists to drift: `div.media-kind`, with words in it.
+    """
+    script = _picker_script(_page(world, reverse("feed")))
+    assert "Preview not available. It will still be posted." in script
+    assert 'addEventListener("error"' in script, (
+        "the tile is not bound to the decode failure, so it is decoration, not a fallback"
+    )
+    assert script.count('"media-kind"') == 1, (
+        "the fallback tile does not reuse the one the video branch builds"
+    )
+
+
+def _a_thread(world: dict[str, object]) -> str:
+    pod, member = world["pod"], world["member"]
+    assert isinstance(pod, Pod) and isinstance(member, Member)
+    post = Post.objects.create(author=member, pod=pod, body="a thread")
+    return reverse("post_detail", args=[post.id])
 
 
 # --- routing ---------------------------------------------------------------------

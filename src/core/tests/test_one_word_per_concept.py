@@ -200,6 +200,59 @@ def test_every_allowlist_entry_still_points_at_a_real_file_and_a_real_word() -> 
         )
 
 
+# --- the model choice labels ----------------------------------------------------------
+#
+# A template scan cannot see these either. `{{ member.get_role_display }}` renders a
+# string that lives in models.py, so the roster badge, the role select and "What the roles
+# mean" all read "Yard admin" and "Instance admin" while the guard above reported a clean
+# product — the template says `{{ ... }}` and `_visible_text` strips it, correctly, because
+# the word is not IN the template. Found on the 2026-09-19 walk, on the one screen where a
+# relative is handed the admin controls.
+#
+# The VALUES are not covered and must not be: `yard_admin` and `instance_admin` are what
+# the database stores and what every permission predicate compares against, and renaming
+# them would be a migration of live rows, not a copy pass. Only the second element of each
+# pair — the label a person reads — is scanned.
+
+
+def _choice_labels() -> list[tuple[str, str]]:
+    """Every (where, label) pair a person can be shown, from every model field that has
+    choices. Computed by walking the app's models rather than naming the fields, so a
+    field added later is covered without anybody remembering to add it here."""
+    from django.apps import apps
+
+    pairs: list[tuple[str, str]] = []
+    for model in apps.get_app_config("core").get_models():
+        for field in model._meta.get_fields():
+            for _value, label in getattr(field, "choices", None) or ():
+                pairs.append((f"{model.__name__}.{field.name}", str(label)))
+    return pairs
+
+
+def test_no_model_choice_label_shows_a_banned_word_to_a_person() -> None:
+    offenders = [
+        f"{where}: {label!r} — {', '.join(hits)}"
+        for where, label in _choice_labels()
+        if (hits := _offences(label, set()))
+    ]
+    assert not offenders, (
+        "a choice LABEL carries one of the product's internal nouns. These render straight "
+        "at a relative through get_FOO_display, so a clean template scan proves nothing "
+        "about them. Rename the label, never the stored value:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_the_choice_sweep_actually_sees_the_product() -> None:
+    """Guard the guard. A wrong app label or a `choices` attribute that no longer exists
+    would scan an empty list and pass forever."""
+    pairs = _choice_labels()
+    assert len(pairs) > 5, f"only {len(pairs)} choice labels found; the sweep is wrong"
+    where = {w for w, _ in pairs}
+    assert "Member.role" in where, "the roles were not scanned, and they are the reason"
+    labels = {label for w, label in pairs if w == "Member.role"}
+    assert {"Side admin", "Family admin"} <= labels, labels
+
+
 # --- the e-mails --------------------------------------------------------------------
 #
 # A template scan cannot see a subject line assembled in Python, and the digest's subject

@@ -12,6 +12,7 @@ their own rhythm over a simulated multi-week run.
 from __future__ import annotations
 
 import datetime
+import re
 from dataclasses import dataclass
 
 import pytest
@@ -358,3 +359,62 @@ def test_the_off_switch_only_touches_the_email(world: World) -> None:
 
     assert set(world.nana.pods.values_list("id", flat=True)) == pods_before
     assert Member.objects.filter(pk=world.nana.pk).exists()
+
+
+# --- the confirmed page is a place to leave from (walk item 25, 2026-09-19) ---
+
+
+def test_the_confirmed_page_offers_a_way_on_and_the_question_does_not(world: World) -> None:
+    """ "You are all set" was a dead end.
+
+    Tapping the link in the address-confirmation mail landed on a page that said the
+    address was confirmed and then offered nothing at all: no link, and no header nav
+    either, because this surface is reached signed out and the nav only renders for a
+    signed-in reader. The person had just done what the product asked them to do, and the
+    product had no further use for them — on the one screen whose entire job is to earn
+    trust with an address.
+
+    The way on belongs to the confirmed state ONLY. The pre-confirm screen is a question
+    ("Is this your address?"), and a link off it is a way to leave without answering.
+    """
+    digesting.subscribe(world.nana, address="nana@example.com", cadence="weekly")
+    url = reverse("digest_confirm", args=[_confirm_link_token()])
+    client = Client()  # no login: the link came out of an inbox, possibly on another device
+
+    asking = client.get(url).content.decode()
+    assert "Is this your address?" in asking  # non-vacuity: this really is the question
+    assert "Go to the family" not in asking
+
+    confirmed = client.post(url).content.decode()
+    assert "You are all set" in confirmed
+    assert "Go to the family" in confirmed
+    assert f'href="{reverse("feed")}"' in confirmed
+
+
+def test_the_way_on_does_not_dead_end_a_signed_out_reader(world: World) -> None:
+    """Why the feed and not the sign-in page: it works for both readers.
+
+    Signed out — the likely case, since the link came from an inbox — login_required sends
+    them to sign-in carrying the feed in `next`, so one sign-in lands them where the link
+    said. Signed in, on the phone they joined on, they go straight there. Either way it is
+    a screen with something on it, which is what "not a dead end" means.
+    """
+    digesting.subscribe(world.nana, address="nana@example.com", cadence="weekly")
+    url = reverse("digest_confirm", args=[_confirm_link_token()])
+    client = Client()
+    confirmed = client.post(url).content.decode()
+
+    # Walk it as the reader does: take the href off the page rather than naming a route
+    # here, so this follows whatever the page actually offers.
+    match = re.search(r'href="([^"]+)"[^>]*>Go to the family<', confirmed)
+    assert match, "the confirmed page offers no way on"
+
+    landing = client.get(match.group(1), follow=True)
+    assert landing.status_code == 200, "the way on leads nowhere for a signed-out reader"
+    assert landing.redirect_chain, "the feed let a signed-out reader through"
+    final_url = landing.redirect_chain[-1][0]
+    assert reverse("account_login") in final_url
+    assert reverse("feed") in final_url, f"the destination was lost on the way: {final_url}"
+
+    # And the reader who IS signed in — the phone they joined on — simply arrives.
+    assert _client_for(world.nana).get(match.group(1)).status_code == 200

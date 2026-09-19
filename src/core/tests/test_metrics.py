@@ -250,6 +250,32 @@ def test_metrics_panel_is_instance_admin_only(world: World) -> None:
     assert "How the family is using it" in body and "Maternal" in body
 
 
+def test_the_breadth_column_is_named_for_what_it_counts_in_both_places(world: World) -> None:
+    """One label, two renderings, and it has to be TRUE.
+
+    "Posting breadth" was jargon on a page a non-technical relative reads. "People who
+    posted" would have been worse than jargon: the stored number is distinct pods
+    (`len({post.pod_id for post in posts})`), so the two members below post from the same
+    household and the column reads 1, not 2. A column headed with people would have
+    printed a number that is not the number.
+
+    Both places are asserted because below 40rem the table collapses to stacked cards and
+    `data-label` is the only thing naming each value — a header renamed on its own leaves
+    the narrow layout, which is where most of this family reads it, saying the old word.
+    """
+    Post.objects.create(author=world.poster, pod=world.m_pod, body="one")
+    Post.objects.create(author=world.lurker, pod=world.m_pod, body="another, same household")
+    row = metrics.rollup_week(world.maternal, world.week_start)
+    assert row.posting_breadth == 1, "two members of one pod are one household"
+
+    instance_admin = _member_with_user(world.m_pod, "Iadmin", role=Member.INSTANCE_ADMIN)
+    body = _client_for(instance_admin).get(reverse("member_metrics")).content.decode()
+
+    assert "<th>Households that posted</th>" in body
+    assert 'data-label="Households that posted"' in body
+    assert "Posting breadth" not in body
+
+
 # --- folds from the #40 security review ---
 
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import tempfile
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db.models import Prefetch
@@ -289,6 +290,15 @@ def profile_edit(request: HttpRequest, member_id: int | None = None) -> HttpResp
             "address_visibility",
         ]
     member.save(update_fields=updated)
+    # Saving landed on the directory with nothing said (walk item 27). The member's own
+    # card is somewhere down a list of everyone, so on a phone the screen simply changed
+    # and the only honest reading was "did that save?". Same calm flash the composer uses.
+    # Named, because an admin can be here editing SOMEBODY ELSE's profile and "Saved."
+    # alone would not say whose.
+    messages.success(
+        request,
+        "Saved." if member.pk == actor.pk else f"Saved {member.display_name}'s profile.",
+    )
     return redirect("directory")
 
 

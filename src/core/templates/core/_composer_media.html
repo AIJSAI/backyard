@@ -3,7 +3,8 @@
    exactly where a fix for "12 photos uploaded full size" would fail to land.
 
    Two jobs, both pure progressive enhancement over core/_media_picker.html:
-     1. THUMBNAILS of what was picked, with a Remove on each, before posting.
+     1. THUMBNAILS of what was picked, with a Remove on each, before posting — and a
+        second pick that ADDS to the first instead of replacing it.
      2. the pre-upload resize (and the Safari/iOS HEIC -> JPEG conversion).
    With the script off, blocked by the CSP, or unsupported, the native control still
    reports its own count and every chosen file still posts.
@@ -21,7 +22,37 @@
       // still strictly better than a filename.
       var canRewrite = typeof DataTransfer === "function";
 
-      function render(input, list) {
+      // Photos and videos have SEPARATE ceilings on the server, so everything that counts
+      // has to agree on which a file is. This is the test the thumbnails already render
+      // by — anything that does not DECLARE itself an image gets the video tile — and it
+      // stays one function so a drift between the count and the picture is impossible.
+      // A phone that hands us a HEIC with an empty type is counted as a clip, which is
+      // wrong by one and always in the member's favour: the server does the real split
+      // (feed_views._split_media, which also reads the file name).
+      function kindOf(file) {
+        return file.type.indexOf("image/") === 0 ? "photo" : "video";
+      }
+
+      // Two picks can hand us the same file — a member who taps the button again and
+      // re-selects the whole set is the common way. Added twice it is POSTED twice, and
+      // the member sees their photograph on the post two times with no way to tell which
+      // Remove drops which. Name, size and modification time are what a FileList gives us
+      // without reading a byte. The "f:" prefix keeps a file called `__proto__` from
+      // landing on a property every object already has.
+      function fileKey(file) {
+        return "f:" + file.name + "/" + file.size + "/" + file.lastModified;
+      }
+
+      // The square that stands in for a picture we cannot draw: a video, or a still the
+      // browser will not decode (see the `error` handler below).
+      function kindTile(text) {
+        var tile = document.createElement("div");
+        tile.className = "media-kind";
+        tile.textContent = text;
+        return tile;
+      }
+
+      function render(input, list, state) {
         // Revoke the previous round's object URLs before dropping the nodes, or a member
         // who re-picks a few times leaks every blob they ever previewed.
         Array.prototype.forEach.call(list.querySelectorAll("img[src^='blob:']"), function (img) {
@@ -30,22 +61,45 @@
         list.textContent = "";
         var files = input.files ? Array.prototype.slice.call(input.files) : [];
         list.hidden = files.length === 0;
+        // The one record of what is currently chosen, refreshed on EVERY render. The
+        // accumulator below needs the previous selection, and by the time `change` fires
+        // the browser has already overwritten input.files with the new pick alone. A
+        // Remove is a render too — without that, a file taken back would walk straight
+        // back in on the next pick.
+        state.kept = files;
         // Once WE are showing what was picked, the native control's own "2 files" is a
         // second, worse answer to the same question sitting beside the thumbnails. It
         // stays visible whenever there is nothing to show, which is also the state a
         // browser without this script is permanently in.
         files.forEach(function (file, index) {
           var item = document.createElement("li");
-          if (file.type.indexOf("image/") === 0) {
+          if (kindOf(file) === "photo") {
             var img = document.createElement("img");
-            img.src = URL.createObjectURL(file);
             img.alt = "";              // decorative: the filename is written out below it
+            // An iPhone still is a HEIC, and no browser but Safari can DRAW one — so the
+            // walk found a broken-image icon sitting where a grandchild's photograph
+            // should be, on a file that uploads and posts perfectly well (the server
+            // decodes HEIC with pillow-heif and re-encodes to JPEG, BY-14). A broken
+            // icon reads as "this did not work", which is the opposite of the truth, and
+            // the member's next move is to take the photograph back out.
+            //
+            // Bound BEFORE the src, or a decode that fails immediately could beat the
+            // listener. The blob is revoked here because this node is about to leave the
+            // list and the sweep at the top of render only reaches images that are still
+            // in it. The parentNode guard is for the error that arrives after a
+            // re-render has already dropped this node.
+            img.addEventListener("error", function () {
+              URL.revokeObjectURL(img.src);
+              if (img.parentNode) {
+                img.parentNode.replaceChild(
+                  kindTile("Preview not available. It will still be posted."), img
+                );
+              }
+            });
+            img.src = URL.createObjectURL(file);
             item.appendChild(img);
           } else {
-            var tile = document.createElement("div");
-            tile.className = "media-kind";
-            tile.textContent = "Video";
-            item.appendChild(tile);
+            item.appendChild(kindTile("Video"));
           }
           var name = document.createElement("span");
           name.className = "media-name";
@@ -64,13 +118,98 @@
               var dt = new DataTransfer();
               files.forEach(function (f, i) { if (i !== index) dt.items.add(f); });
               input.files = dt.files;
-              render(input, list);
+              render(input, list, state);
+              // Taking one back makes room, so any "could not be added" sentence from an
+              // earlier pick is now about a state that no longer exists.
+              say(state, "");
               input.focus();           // keep the keyboard where the member was working
             });
             item.appendChild(remove);
           }
           list.appendChild(item);
         });
+      }
+
+      // ---- 1b. a second pick ADDS to the first ---------------------------------
+      //
+      // A native <input type=file> REPLACES its selection every time the sheet closes.
+      // The walk found what that costs: attach three photographs, tap "Add photos or a
+      // video" again to add two more, and the first three are gone — no message, no
+      // thumbnail, nothing to notice unless you count the strip. A family posting a
+      // birthday picks in batches, so this is the ordinary path, not an edge, and the
+      // loss is silent right up until the post appears without them.
+      //
+      // Rewriting a FileList needs DataTransfer, so where that is missing nothing here
+      // runs and the native replace stays — worse, but honest, and the member can still
+      // see in the strip what is actually attached.
+      function say(state, message) {
+        if (!state.notice) { return; }
+        if (!message) { state.notice.hidden = true; state.notice.textContent = ""; return; }
+        // Unhidden BEFORE the words are written: a live region that is display:none while
+        // its text changes is announced to nobody, and this sentence is the only account
+        // a member gets of a photograph the selection could not take.
+        state.notice.hidden = false;
+        state.notice.textContent = message;
+      }
+
+      // The server's words for the same event (feed_views._read_photos), so a member who
+      // meets the ceiling here and a member who meets it on the way in read one sentence
+      // and not two. Calm, plain, and it names the number.
+      function couldNotAdd(count, word, max) {
+        return count + " " + word + (count === 1 ? "" : "s") + " could not be added — " +
+          max + " is the limit for one post.";
+      }
+
+      // A pick can run past both ceilings at once (photos and a clip in one sheet), so
+      // both sentences are said rather than only the first.
+      function overLimitSentence(over, limits) {
+        var said = [];
+        if (over.photo) { said.push(couldNotAdd(over.photo, "photo", limits.photo)); }
+        if (over.video) { said.push(couldNotAdd(over.video, "video", limits.video)); }
+        return said.join(" ");
+      }
+
+      // Merge the new pick into what was already chosen, keeping what fits, and return
+      // what has to be said about the rest.
+      function accumulate(input, kept, limits) {
+        var picked = input.files ? Array.prototype.slice.call(input.files) : [];
+        var merged = kept.slice();
+        var seen = {};
+        var counts = { photo: 0, video: 0 };
+        merged.forEach(function (file) {
+          seen[fileKey(file)] = true;
+          counts[kindOf(file)] += 1;
+        });
+        var over = { photo: 0, video: 0 };
+        picked.forEach(function (file) {
+          var key = fileKey(file);
+          if (seen[key]) { return; }   // already chosen: adding it again would post it twice
+          var kind = kindOf(file);
+          // Kept in the order they were picked, and the ones past the ceiling are the
+          // ones dropped — the same rule the server applies (files[:_MAX_PHOTOS]), so a
+          // member who somehow gets past this strip is not told a different story there.
+          if (counts[kind] >= limits[kind]) { over[kind] += 1; return; }
+          seen[key] = true;
+          counts[kind] += 1;
+          merged.push(file);
+        });
+        var dt = new DataTransfer();
+        merged.forEach(function (file) { dt.items.add(file); });
+        // Assigning .files does not fire `change`, so this cannot re-enter the handler
+        // that called it. It is also the SECOND writer of input.files in this script —
+        // the submit-time resize below is the other — and they cannot collide: that one
+        // runs once, on the way out, and re-reads whatever is in the input at that moment.
+        input.files = dt.files;
+        return overLimitSentence(over, limits);
+      }
+
+      // The ceilings are the server's (feed_views._MAX_PHOTOS / _MAX_VIDEOS) and they
+      // arrive on the picker element. Not stated, or not a number, turns accumulation OFF
+      // rather than capping at zero: replacing the selection is the old wrong behaviour,
+      // refusing every photograph would be a new and much worse one.
+      function limitOf(picker, name) {
+        var stated = parseInt(picker.getAttribute(name), 10);
+        return stated > 0 ? stated : 0;
       }
 
       // Bound by NAME, not by a hardcoded id: the composer and the reply form both carry
@@ -80,12 +219,30 @@
       Array.prototype.forEach.call(inputs, function (input) {
         var picker = input.closest("[data-media-picker]");
         var list = picker ? picker.querySelector("[data-media-previews]") : null;
+        // Everything this control remembers, in one object per picker so the composer and
+        // the reply form on the same page cannot read each other's selection.
+        var state = {
+          kept: [],
+          notice: picker ? picker.querySelector("[data-media-notice]") : null
+        };
         if (picker && list) {
           // Claimed only once the previews are genuinely wired: the class is what swaps
           // the native control for our label-button, so setting it before that point
           // would hide the working control and leave nothing in its place.
           picker.classList.add("js");
-          input.addEventListener("change", function () { render(input, list); });
+          var limits = {
+            photo: limitOf(picker, "data-max-photos"),
+            video: limitOf(picker, "data-max-videos")
+          };
+          var accumulates = canRewrite && limits.photo > 0 && limits.video > 0;
+          input.addEventListener("change", function () {
+            // Order matters: merge first (it rewrites input.files), then render from the
+            // input, then say what did not fit — render does not touch the notice, so the
+            // sentence survives the redraw it describes.
+            var message = accumulates ? accumulate(input, state.kept, limits) : "";
+            render(input, list, state);
+            say(state, message);
+          });
         }
 
         // ---- 2. pre-upload resize -----------------------------------------------
@@ -133,10 +290,18 @@
           if (busy || !input.files || input.files.length === 0) return;
           ev.preventDefault();
           busy = true;
+          // Reads whatever is in the input at this moment, which after a second pick is
+          // the ACCUMULATED set — the merge above is the only thing that put it there, so
+          // the two writers of input.files agree by construction rather than by timing.
           Promise.all(Array.prototype.map.call(input.files, resizeOne)).then(function (files) {
             var dt = new DataTransfer();
             files.forEach(function (f) { dt.items.add(f); });
             input.files = dt.files;
+            // A resized file is a new File with a new name and time, so the record of
+            // what is chosen has to follow it. Nothing reads this on the way out — the
+            // form submits on the next line — but leaving a stale set behind is the kind
+            // of thing that comes true the day someone cancels a submit.
+            state.kept = files;
             form.submit();
           }).catch(function () { busy = false; form.submit(); });  // any failure: send originals
         });

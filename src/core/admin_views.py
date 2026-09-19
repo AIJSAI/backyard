@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import BadRequest, PermissionDenied
 from django.db import transaction
@@ -34,6 +35,18 @@ from .models import (
 )
 from .removal import remove_member
 from .views import _unique_yard_slug
+
+# The second sentence of the "someone was removed" flash. The admin has just chosen what
+# happens to that person's writing from three radio buttons on the roster, and it is the
+# half of the decision they will second-guess — so the confirmation repeats it back in
+# plain words rather than making them remember which button they pressed. Keyed on
+# removal's own constants, so a fourth choice added there fails loudly here (KeyError in a
+# test) instead of silently printing nothing.
+_WHAT_HAPPENED_TO_THEIR_POSTS = {
+    removal.KEEP: "Their posts stay.",
+    removal.ANONYMIZE: "Their posts stay, with their name off them.",
+    removal.DELETE: "Their posts and photos are gone.",
+}
 
 # Session key for "I have seen the second-factor prompt this time". The SESSION, not a
 # column: the record it makes true (T-ADMIN-1) is that a second factor is offered and
@@ -144,6 +157,52 @@ class RosterRow:
     # which is an admin act. Read from the same predicate the page enforces, so the control
     # is never offered where the click is refused.
     can_change_household: bool = False
+    # WHY this row has no controls on it. The walk on 2026-09-19 found rows that simply
+    # ended after the name and the badge — no actions, and nothing saying why — so a side
+    # admin looking at their sister's household could not tell whether the product was
+    # broken, whether they had done something wrong, or whether this was deliberate. It is
+    # deliberate every time, and there are only three reasons, so the row says which.
+    #
+    # A KEY, not a sentence: the sentence names the family admin, and that name is resolved
+    # at render time from the database by the `help_contact` context processor rather than
+    # queried again here.
+    no_actions_reason: str = ""
+
+    @property
+    def has_actions(self) -> bool:
+        """Is there anything behind Manage? Computed rather than stored, so a control
+        added to the row later cannot leave this out of date and hide itself."""
+        return bool(
+            self.can_edit_profile
+            or self.can_provision_elder
+            or self.can_issue_recovery
+            or self.can_change_household
+            or self.assignable_roles
+            or self.manageable
+        )
+
+
+def _no_actions_reason(actor: Member, member: Member, *, has_actions: bool) -> str:
+    """Which of the three reasons this row is read-only, or "" if it is not.
+
+    Ordered most-specific first, and each arm is a fact about THIS pair rather than a
+    guess: a wrong explanation here is worse than none, because the admin would act on it.
+    """
+    if has_actions:
+        return ""
+    if member.pk == actor.pk:
+        return "you"
+    if member.role in (Member.YARD_ADMIN, Member.INSTANCE_ADMIN):
+        return "admin"
+    # The bridging case, and the one the walk actually hit: this person belongs to a
+    # household on a side of the family the actor does not administer, so S-202 puts them
+    # out of reach however ordinary their role is. Read from the same visibility the guard
+    # enforces rather than re-deriving it.
+    reachable = set(scoping.visible_yards(actor).values_list("pk", flat=True))
+    theirs = set(Yard.objects.filter(pods__members=member).values_list("pk", flat=True))
+    if not theirs <= reachable:
+        return "other-side"
+    return "other"
 
 
 @login_required
@@ -213,6 +272,9 @@ def members(request: HttpRequest) -> HttpResponse:
                 can_issue_recovery=manageable and recovery.is_recoverable(member),
                 can_change_household=permissions.can_change_household(actor, member),
             )
+        )
+        rows[-1].no_actions_reason = _no_actions_reason(
+            actor, member, has_actions=rows[-1].has_actions
         )
     return render(
         request,
@@ -293,6 +355,17 @@ def assign_role(request: HttpRequest, member_id: int) -> HttpResponse:
         raise PermissionDenied
     if new_role != target.role:
         Member.objects.filter(pk=target.pk).update(role=new_role)
+        # The roster simply re-rendered with a different badge, three rows down a long
+        # page — on a phone the admin could not see the row they had just changed, so the
+        # only honest reading was "did that work?". The same calm flash the composer uses.
+        # The label is the one the roster shows, lower-cased into the sentence, so this can
+        # never disagree with the badge beside it.
+        label = dict(Member.ROLE_CHOICES)[new_role]
+        article = "an" if label[:1].lower() in "aeiou" else "a"
+        messages.success(
+            request,
+            f"{target.display_name} is now {article} {label[:1].lower() + label[1:]}.",
+        )
     return redirect("members")
 
 
@@ -409,11 +482,22 @@ def create_supervised(request: HttpRequest) -> HttpResponse:
     display_name = request.POST.get("display_name", "").strip()
     if display_name and len(display_name) <= 100:
         try:
-            supervised.create_supervised_member(parent=parent, display_name=display_name, pod=pod)
+            child = supervised.create_supervised_member(
+                parent=parent, display_name=display_name, pod=pod
+            )
         except ValueError as exc:
             # The parent is not in that household. Neither control can express this, so a
             # request that does is hand-made — answered as a refusal rather than a 500.
             raise PermissionDenied(str(exc)) from exc
+        # Creating an account for your own child gave no word that it had worked and no
+        # next step: the page reloaded, the disclosure closed, and the new row was
+        # somewhere below the fold. Say it worked, say what it means, and offer the one
+        # thing they will want next — the profile, which is the only screen where the
+        # child's name, birthday and photo can be filled in.
+        messages.success(
+            request,
+            f"{child.display_name} is in. You look after their account.",
+        )
     # Back to wherever the control lives: the roster for an admin, your own settings for a
     # parent making their own child's account, who cannot open the roster at all.
     return redirect("members" if permissions.is_admin(actor) else "profile_edit")
@@ -460,10 +544,15 @@ def remove(request: HttpRequest, member_id: int) -> HttpResponse:
     # S-702: the admin chooses what happens to their content, explicitly. An unrecognised
     # or absent value is refused rather than defaulted — a default would silently keep
     # everything, which is the behaviour this criterion exists to replace.
+    name = target.display_name
     try:
         remove_member(target, content=content)
     except removal.UnknownContentChoice as exc:
         raise BadRequest("Choose what happens to this person's posts.") from exc
+    # The most consequential thing on this page, and it said nothing: the roster came back
+    # one row shorter. Name the person AND what happened to their writing, because that is
+    # the choice the admin just made and the one they will second-guess.
+    messages.success(request, f"{name} was removed. {_WHAT_HAPPENED_TO_THEIR_POSTS[content]}")
     return redirect("members")
 
 
@@ -493,10 +582,10 @@ def invite_household(request: HttpRequest) -> HttpResponse:
     # yard, including a just-created empty family side they are not yet a member of (S-708
     # rollout: create the other side, then invite its first household). A yard admin is
     # confined to their own yards (T-AUTH-G2), matching can_issue_invite exactly.
-    pickable_yards = (
+    pickable_yards = list(
         Yard.objects.all() if permissions.is_instance_admin(actor) else scoping.visible_yards(actor)
     )
-    context: dict[str, object] = {"actor": actor, "yards": list(pickable_yards)}
+    context: dict[str, object] = {"actor": actor, "yards": pickable_yards}
     errors: list[str] = []
     # Single-use intent nonce: a browser refresh replays a spent nonce and does NOT
     # create a duplicate household + invite (the same guard the elder handover uses).
@@ -526,6 +615,28 @@ def invite_household(request: HttpRequest) -> HttpResponse:
             else scoping.require_visible_yard(actor, yard_id)
             for yard_id in yard_ids
         ]
+        # ONE side of the family is not a choice, so the form no longer renders a control
+        # for it (walk item 9, 2026-09-19): a lone pre-ticked checkbox under "tick both if
+        # this household belongs to both sides" named a second side that does not exist on
+        # a new Backyard. With no checkbox there is no `yard_ids` in the POST, so the side
+        # is resolved HERE instead.
+        #
+        # It is derived from `pickable_yards` — the actor's own scope, computed above from
+        # their role — and NOT from a hidden field. A hidden field is a value the browser
+        # hands back, so it has to be re-checked to be trusted; this is a fact the server
+        # already holds, and there is nothing for a hand-made POST to widen. The single
+        # side is by definition one the actor may invite into: for a yard admin it came out
+        # of `visible_yards`, which is the same queryset `require_visible_yard` filters on,
+        # and an instance admin may issue anywhere (can_issue_invite). The transaction's
+        # can_issue_invite check below still runs, unchanged, on this path too.
+        #
+        # Strictly a fallback for a POST that names NO side, never a correction of one that
+        # does: a POST naming a side the actor cannot see still 404s in the resolution
+        # above, and is never quietly swapped for the actor's own side. And strictly
+        # `== 1` — with no pickable side at all, "Pick at least one side of the family" is
+        # still the honest answer.
+        if not yards and len(pickable_yards) == 1:
+            yards = [pickable_yards[0]]
         name = request.POST.get("household_name", "").strip()
         if not name or len(name) > 100:
             errors.append("Give the household a name.")

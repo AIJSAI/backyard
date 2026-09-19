@@ -51,6 +51,23 @@ def _instance_admin(pod: Pod, display_name: str = "Jim Whitfield") -> Member:
     return admin
 
 
+def _a_relative_signed_in(pod: Pod, username: str = "cousin") -> Client:
+    """Somebody who has been let in.
+
+    Since walk item 12 the admin's first name is printed only for a reader the family has
+    already introduced them to — a signed-in member, or somebody holding a link a relative
+    sent them. So every test about what the help line SAYS needs a reader, where it used
+    to be able to use the sign-in page. `test_a_stranger_is_never_told_a_relatives_name`
+    in test_a_stranger_is_told_no_names.py is the other direction.
+    """
+    user = User.objects.create_user(username=username)
+    member = Member.objects.create(display_name="Cousin Reed", user=user)
+    PodMembership.objects.create(member=member, pod=pod)
+    client = Client()
+    client.force_login(user, backend=_BACKEND)
+    return client
+
+
 # --- how this works -------------------------------------------------------------------
 
 
@@ -100,7 +117,9 @@ def test_it_carries_the_privacy_disclosure_the_threat_model_promises() -> None:
 def test_it_names_the_person_to_ask_when_there_is_one() -> None:
     pod = _family()
     _instance_admin(pod, "Jim Whitfield")
-    body = Client().get(reverse("how_it_works")).content.decode()
+    # Signed in: /how-this-works/ is public, and since walk item 12 a public page names
+    # nobody. What is asserted here is the naming path itself, which is unchanged.
+    body = _a_relative_signed_in(pod).get(reverse("how_it_works")).content.decode()
     assert "ask Jim." in body or "Ask Jim." in body, "the page does not name who to ask"
     assert "Whitfield" not in body, "the help line uses the first name only"
 
@@ -120,10 +139,16 @@ def test_the_footer_names_the_person_who_runs_this_backyard() -> None:
     name is never written into it; the test proves the path by creating one."""
     pod = _family()
     _instance_admin(pod, "Jim Whitfield")
-    html = Client().get(reverse("account_login")).content.decode()
+    html = _a_relative_signed_in(pod).get(reverse("feed")).content.decode()
     footer = html[html.index("<footer") : html.index("</footer>")]
     assert "Stuck? Ask Jim." in footer
-    assert "<a " not in footer, "the footer carries no links; SC 3.2.6 depends on it"
+    # The HELP AFFORDANCE is never a link — that is the SC 3.2.6 invariant, and it used to
+    # be stated as "the footer has no links" because the footer held nothing else. Sign out
+    # joined it for signed-in readers on 2026-09-19 (walk item 11), AFTER the help line, so
+    # the help mechanism keeps its position on every surface. A signed-out footer still has
+    # no links at all, which the test below asserts.
+    help_line = footer[footer.index('class="help"') : footer.index("</span>")]
+    assert "<a " not in help_line, "the help affordance became a link; SC 3.2.6 depends on it"
 
 
 def test_the_grandparents_page_carries_the_same_help_line() -> None:
@@ -148,7 +173,7 @@ def test_the_help_line_survives_an_admin_with_a_one_word_name() -> None:
     would be how this ends up rendering "Stuck? Ask ."."""
     pod = _family()
     _instance_admin(pod, "Nana")
-    html = Client().get(reverse("account_login")).content.decode()
+    html = _a_relative_signed_in(pod).get(reverse("feed")).content.decode()
     assert "Stuck? Ask Nana." in html
 
 
@@ -264,17 +289,18 @@ def test_a_removed_instance_admin_is_never_the_person_to_ask() -> None:
     )
     PodMembership.objects.create(member=successor, pod=pod)
 
+    # Signed in, because a public page names nobody at all since walk item 12 — which
+    # would make every assertion below pass for the wrong reason.
+    reader = _a_relative_signed_in(pod)
+
     # Denominator: the first admin by pk is the one named while they are still here.
-    assert "Stuck? Ask Jim." in Client().get(reverse("account_login")).content.decode()
+    assert "Stuck? Ask Jim." in reader.get(reverse("feed")).content.decode()
 
     removal.remove_member(admin, content=removal.KEEP)
 
-    html = Client().get(reverse("account_login")).content.decode()
+    html = reader.get(reverse("feed")).content.decode()
     assert "Stuck? Ask Jim." not in html, "the footer still names a removed admin"
     assert "Stuck? Ask Ada." in html
 
     removal.remove_member(successor, content=removal.KEEP)
-    assert (
-        "whoever in the family set this up"
-        in Client().get(reverse("account_login")).content.decode()
-    )
+    assert "whoever in the family set this up" in reader.get(reverse("feed")).content.decode()

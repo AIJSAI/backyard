@@ -16,8 +16,18 @@
    routes each file to the right one of those two gates.
 
    `picker_id` keeps the label's `for` unique when two forms share a page.
+
+   The two ceilings are attributes as well as words. The enhancement script caps what a
+   SECOND pick may add (core/_composer_media.html), and a 20 and a 4 written into that
+   script would be a third copy of a number that already lives in `feed_views._MAX_PHOTOS`
+   / `_MAX_VIDEOS` and in the sentence below — the copy nobody would think to change when
+   the constant moved, and the one that silently drops a photograph when it disagrees. The
+   server stays the single source; these attributes are how it reaches the script. They go
+   on the PICKER rather than into the script because that script is one shared copy bound
+   by field name across the composer and the reply form (S-404): the limits belong to the
+   control, so they travel with the control's markup.
 {% endcomment %}
-<div class="media-picker" data-media-picker>
+<div class="media-picker" data-media-picker data-max-photos="{{ max_photos }}" data-max-videos="{{ max_videos }}">
   {% comment %} The label doubles as the button once the script is in (it adds `js` to the
      picker): a <label for> opens a file input natively, so the control keeps working with
      the keyboard and with assistive tech, and the input is only hidden VISUALLY.
@@ -30,6 +40,19 @@
   <label class="picker-button" for="{{ picker_id }}">Add photos or a video</label>
   <input id="{{ picker_id }}" type="file" name="media" accept="image/*,video/*" multiple>
   <p class="media-hint">Up to {{ max_photos }} photos and {{ max_videos }} short videos at a time.</p>
+  {% comment %} Where the script says what a pick could not take. Picking again ADDS to
+     what is already chosen, so a pick can now run past a ceiling with files still in the
+     sheet — and the one thing worse than dropping them is dropping them in silence, which
+     is the same failure `_read_photos` was rewritten to stop doing on the server.
+
+     `.notice`, the product's existing neutral box, not `.errors`: nothing has gone wrong
+     and nothing is lost from a post — the selection simply filled up. `role="status"` so
+     the sentence is spoken rather than only drawn; the script unhides the box BEFORE it
+     writes the words, because a live region that is display:none while its text changes
+     is announced to nobody. Empty and hidden without the script, which is the state a
+     browser with no DataTransfer stays in: there, a second pick still replaces the first
+     (the native behaviour) and there is nothing to report. {% endcomment %}
+  <div class="notice" data-media-notice role="status" hidden></div>
   {% comment %} Filled in by the script in core/_composer_media.html. Empty and hidden
      without it, which is why the hint above states the limits in words: with the script
      off the native control still shows its own "3 files" count and the post still

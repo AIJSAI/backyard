@@ -15,12 +15,13 @@ So these tests WALK to it rather than grepping for a string:
 
 * a signed-out stranger — the commonest network user — is offered a route from sign-in;
 * a signed-in member is offered a route from Settings;
-* and the two surfaces that cannot link anywhere still carry the offer in their own text.
+* and the one surface that cannot link anywhere still carries the offer in its own text.
 
-The elder page is one of those two and is asserted separately and deliberately.
-`elder_feed.html` is STANDALONE by design (it does not extend `base.html`, so it carries no
-session-bearing chrome), and S-601 gives it no way off itself — every href on it must be the
-elder feed. It cannot link to /about/, so it says the offer itself.
+The grandparent's no-login page is the ruled EXCEPTION, and it has its own test asserting
+the absence. It carried the offer until 2026-09-19 because it is standalone and S-601 gives
+it no href but its own — but /about/ is public and unauthenticated, so the offer is reachable
+by anyone who wants it, and printing a licence name and a GitHub URL on a page of family
+photographs was never what section 13 asked for. See walk item 20.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ from django.urls import reverse
 
 from core import elder_tokens
 from core.models import Member, Pod, PodMembership, Yard
+from core.tests.comment_stripping import without_comments
 
 _REPO = "github.com/AIJSAI/backyard"
 _BACKEND = "django.contrib.auth.backends.ModelBackend"
@@ -103,9 +105,24 @@ def test_a_signed_in_member_is_offered_a_route_to_the_source() -> None:
 
 
 @pytest.mark.django_db
-def test_the_elder_surface_offers_the_source_in_its_own_text() -> None:
-    """The one that would have been missed: standalone template, no base.html, and S-601
-    forbids it any href but its own — so it cannot use the route the other two use."""
+def test_the_no_login_surface_no_longer_prints_the_licence_at_a_grandparent() -> None:
+    """The inverse of what this file used to assert here, and the walk's item 20.
+
+    The offer was kept on this one page while it came off every other, on the reasoning
+    that this surface can link nowhere (S-601) and so could reach /about/ by no route.
+    The 2026-09-19 walk overruled that: she is not a network user shopping for source
+    code, she is a grandmother looking at photographs, and the licence of the software
+    was the second-loudest sentence on her page.
+
+    Section 13 is satisfied by /about/, which is PUBLIC and unauthenticated — the
+    stranger test above walks a signed-out visitor to it from the sign-in page, and
+    anybody who wants the source, including whoever set her link up, has that route. The
+    obligation is to offer the source to a network user; it is not to print the offer
+    under every photograph.
+
+    The help line stays. It is asserted here too, so removing the licence line can never
+    take the one sentence on this page she might actually need along with it.
+    """
     _, pod = _family()
     member = Member.objects.create(display_name="Nana")
     PodMembership.objects.create(member=member, pod=pod)
@@ -115,33 +132,32 @@ def test_the_elder_surface_offers_the_source_in_its_own_text() -> None:
     client.get(reverse("elder_enter", args=[raw]))  # exchanges the token for a cookie
     page = client.get(reverse("elder_feed"))
     assert page.status_code == 200, page.status_code
-    html = page.content.decode()
+    html = without_comments(page.content.decode())
 
-    assert _REPO in html, (
-        "the no-login surface renders no source offer. It does not extend base.html and it "
-        "may not link anywhere, so it is the one page that must carry the offer itself — "
-        "and she is exactly the network user AGPL section 13 exists for."
+    assert _REPO not in html, "the grandparent's page is printing a source-code URL at her"
+    assert "AGPL" not in html, "the grandparent's page is printing a licence name at her"
+    assert "Stuck? Ask" in html, (
+        "the help line went with the licence line. It is the one thing on this page she "
+        "might need, and it has no route to a help page (S-601), so it lives here."
     )
-    assert "AGPL" in html
 
 
 def test_every_link_less_standalone_page_carries_the_offer_itself() -> None:
     """Denominator, on the template sources.
 
     A standalone page — a full HTML document that `{% extends %}` nothing — inherits no
-    footer and no chrome, so it has to make the offer itself or find a link. Two of the
-    three cannot link: the elder feed is forbidden any href but its own (S-601), and
-    500.html is rendered when the app is broken enough that resolving a URL may not work.
-    `base.html` is the third, and it is the one that CAN: every page built on it reaches
-    /about/ from Settings, which the walked tests above prove rather than assume.
+    footer and no chrome, so it has to make the offer itself or find a link. 500.html
+    cannot link: it is rendered when the app is broken enough that resolving a URL may
+    not work, so it says the offer in its own text. `base.html` can: every page built on
+    it reaches /about/ from Settings, which the walked tests above prove rather than
+    assume. `elder_feed.html` is the third, and it is the deliberate hole — the test
+    above it asserts the offer is NOT there and says why.
 
     Computed rather than declared. The list was once ("base.html", "elder_feed.html") and
     a THIRD standalone page existed — src/templates/500.html — which two named templates
     could not notice.
     """
     from pathlib import Path
-
-    from core.tests.comment_stripping import without_comments
 
     core_templates = Path(__file__).resolve().parents[1] / "templates" / "core"
     project_templates = Path(__file__).resolve().parents[2] / "templates"
@@ -159,12 +175,16 @@ def test_every_link_less_standalone_page_carries_the_offer_itself() -> None:
         "the globs are wrong, so this check is inspecting almost nothing"
     )
     # base.html is the shared frame; it reaches the offer by link, and the two walked
-    # tests above are what hold that. Named here so the exemption is visible rather than
-    # implied by an absence.
-    links_to_about = {"base.html"}
+    # tests above are what hold that. elder_feed.html is the ruled exception (walk item
+    # 20, 2026-09-19): the offer is reachable at /about/ without signing in, and printing
+    # it on a grandmother's photo album is not what section 13 asks for. Both are named
+    # here so each exemption is visible rather than implied by an absence — and neither is
+    # unguarded: `test_the_no_login_surface_no_longer_prints_the_licence_at_a_grandparent`
+    # asserts the elder page's side of it in both directions.
+    exempt = {"base.html", "elder_feed.html"}
     for path in standalone:
         name = path.name
-        if name in links_to_about:
+        if name in exempt:
             continue
         # ALL comment syntaxes, via the shared helper. This test originally stripped only
         # `{% comment %}` -- the identical hole that had already been fixed twice, and both

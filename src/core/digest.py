@@ -217,6 +217,17 @@ def build_digest(
         "post_blocks": post_blocks,
         "dates_block": next((b for b in blocks if isinstance(b, UpcomingDatesBlock)), None),
         "footer": blocks[-1],
+        # WHETHER TO PROMISE REPLY-BY-EMAIL, read from the data rather than asserted.
+        #
+        # Reviewed as a relative would, 2026-09-19: the headline feature of this message
+        # is that you can answer it by hitting reply, and the message never said so. The
+        # only hint was the machine-looking separator at the top. But it is NOT always
+        # true — reply-by-email needs an inbound provider and one manual step with it, and
+        # the README and the self-host guide both say plainly that without them replies
+        # are accepted and silently dropped. `mint_for_issue` produces no address in that
+        # case, so an empty map is exactly "this instance cannot take replies", and the
+        # sentence appears only where it is a fact.
+        "can_reply_by_email": any(block.reply_address for block in post_blocks),
     }
     return DigestEmail(
         # Belt (#37 review LOW-4): DigestEmail is header-safe as a VALUE, not

@@ -14,6 +14,8 @@ from typing import Any
 
 from allauth.account.adapter import DefaultAccountAdapter
 
+from core import emailing
+
 
 class AccountAdapter(DefaultAccountAdapter):  # type: ignore[misc]  # allauth is untyped
     # The words a relative reads when something goes wrong. allauth's own are written for
@@ -43,3 +45,17 @@ class AccountAdapter(DefaultAccountAdapter):  # type: ignore[misc]  # allauth is
 
     def is_open_for_signup(self, request: Any) -> bool:  # noqa: ARG002
         return False
+
+    def get_from_email(self) -> str:
+        """The same From identity the rest of the product sends under (walk item 23).
+
+        allauth composes its own mail — the address confirmation at join, the password
+        reset — and does NOT go through core.emailing.send_family_email, so these two were
+        the only messages a family receives that arrived with a bare address and no name.
+        The first of them is often the very first thing this product ever sends anybody.
+
+        One line, delegating to the one function that builds the header, rather than
+        reading the settings again here: a second place that assembles a From address is
+        a second place for the two to disagree.
+        """
+        return emailing.from_address()

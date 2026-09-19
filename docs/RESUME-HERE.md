@@ -73,7 +73,11 @@ The defects that would have reached the family, each measured not reasoned:
 
 * **The wipe's refusal was blind to `Collector.fast_deletes`** — including `Reaction`, a
   model named in the tuple it iterates. A real relative's reaction was deleted with no
-  refusal, absent from the preview, and listed in the receipt afterwards.
+  refusal, absent from the preview, and listed in the receipt afterwards. *(The cure
+  changed on 2026-09-19, walk item 30: a reaction is not authorship and no longer BLOCKS
+  the wipe — it goes with the post it sits on, and the dry run counts it as "reactions by
+  real people". A real person's post or reply still refuses. The half that was the actual
+  defect — the preview and the receipt disagreeing with what was destroyed — is fixed.)*
 * **The seed minted an `INSTANCE_ADMIN` on anyone else's box**, keyed to the literal
   username `james`, unmarked so no wipe removes it, with its password printed.
 * **An ad-hoc pod froze permanently** when its owner left, was removed (S-702), or was

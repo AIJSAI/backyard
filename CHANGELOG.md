@@ -155,6 +155,61 @@ itself up and telling somebody when it cannot.
 
 ### Changed
 
+- **The family reads their own clock.** Every date and time in the product was stated in
+  UTC, with no hedge, because nothing had ever offered to change it — a post written at
+  4:28 in the morning read "9:28 a.m." on the family's own feed. The instance now has a
+  time zone (`BACKYARD_TIME_ZONE`, an IANA name, validated at boot so a typo refuses to
+  start rather than printing wrong times on every screen), and on top of that each page
+  carries the instant in its markup so a relative in another zone sees their own wall
+  clock. E-mail uses the instance's zone, because an e-mail has no browser to correct it.
+  The grandparent's page still shows dates only.
+- **Taking somebody's post down asks first.** It was one tap: gone at once, the
+  photographs purged for good, no message and no undo, while the day-one guide two taps
+  away promised that nothing here is a one-tap disaster. Both a post and a reply now go
+  through a confirm page shaped like the author's own delete page — whose it is, what it
+  erases, and that the person is not told — and it is never offered on your own post,
+  where Delete already is. Deleting a post, changing a role, removing a member, creating
+  a child account and saving a profile all say so afterwards.
+- **The roster is a list of people again.** Every control for every relative used to be
+  open at once — a role select, a remove form and an add-a-child form for each person, so
+  a six-person family filled about five phone screens, four-fifths of it destruction. One
+  line per person now, with the actions behind a single "Manage". A row you cannot act on
+  says which rule put it out of reach and who to ask.
+- **"Side admin" and "Family admin"**, on the roster badge, in the role picker and in what
+  the roles mean. They were "Yard admin" and "Instance admin" — this project's own nouns
+  wearing a capital letter, on the one screen where a relative is handed the controls.
+  Nothing stored changed; the guard that keeps one word per concept now reads these too.
+- **A stranger is told nobody's name.** "Stuck? Ask <first name>." sat in the footer of
+  every page this product serves, including the sign-in screen, both password-reset pages,
+  About and every 404. Signed-in members and anyone holding a link a relative sent them
+  still get the name; a stranger who typed the domain gets the same help in other words.
+- **Mail has a name on it.** Messages arrived as a bare address — or as just "digests" in
+  the clients that shorten it — which is how a family's own photographs come to look like
+  spam. Every message now carries a display name (`BACKYARD_MAIL_FROM_NAME`), including
+  allauth's own, and the Family email says why it arrived and, where the instance can
+  actually receive one, that you can answer by replying.
+- **One address needs one proof.** A relative who gave an e-mail at join and then chose
+  "weekly" got two messages a minute apart with the identical subject, threaded together
+  into what looked like one message sent twice. When the Family email address is the
+  member's own sign-in address, one mail is sent and one tap confirms both.
+- **Getting back in ends somewhere.** The get-back-in link saved the password and dropped
+  the person on a blank sign-in form with an empty username box — and this link exists for
+  the relatives who have no e-mail on file, half of whom do not know what username an
+  admin typed for them. It now lands saying "Your new password is saved. Sign in as
+  <username>.", once, with the box already filled.
+- **The join page and the emailed reset page ask the same way the get-back-in page does**:
+  which household you are joining, what a username is for, the same advice about three or
+  four unrelated words, and a way to see what you typed.
+- **Smaller things the walk caught.** Five nav items fit one line on the narrowest phone
+  (Sign out moved to Settings and the footer); the "add an email address" card became one
+  quiet line under the composer; the photo picker adds to your selection instead of
+  replacing it, and a photo the browser cannot draw gets words instead of a broken icon;
+  the "Who can see my ..." controls all stack at one width; adding a grandparent shows the
+  link instead of the empty form that made a second one by accident; inviting a household
+  into the only side there is states it rather than offering a checkbox with no choice in
+  it; the "you are all set" page has a way on; and a removed relative gets our own words
+  rather than the framework's "Account Inactive".
+
 - **One word per concept, everywhere a relative reads.** The product used three words for a
   household (pod, household, house), two for a side of the family (yard, side of the
   family) and three for the weekly email (digest, weekly email, Digest delivery), and put
@@ -234,6 +289,15 @@ itself up and telling somebody when it cannot.
   a public URL, disk headroom and backup age are an operations map for whoever asks first.
 
 ### Fixed
+
+- **The licence stopped being the second-loudest line on a grandmother's photo album.** It
+  had been kept on the no-login page on the reasoning that the page can link nowhere; the
+  offer is on `/about/`, which is public and reachable without signing in, and printing it
+  under her grandchildren's photographs was never what the licence asked for.
+- **A real person's reaction no longer blocks the demo wipe.** One relative tapping a heart
+  on a fixture post refused the whole wipe, with no screen left on which they could undo it
+  once that post was down. A heart is not somebody's writing: it goes with the post it sits
+  on and is counted in the dry run. A real person's post or reply still refuses, unchanged.
 
 - **A quiet week sends no email.** A confirmed subscription produced a Family email every
   period whether or not anyone had posted — a greeting, a date line and a footer with no

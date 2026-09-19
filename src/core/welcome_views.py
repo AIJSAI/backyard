@@ -153,6 +153,17 @@ def welcome_hello(request: HttpRequest) -> HttpResponse:
     """
     member = _acting_member(request)
     _mark_welcomed(member)
+    # WHAT SCREEN TWO ACTUALLY DID, said on screen three (walk item 22). A relative picked
+    # "weekly", tapped through, and this page said nothing about it — so the one thing
+    # standing between them and the Family email, a link sitting unread in their inbox,
+    # was never mentioned anywhere in the product. They would find out in a week, by not
+    # getting one.
+    #
+    # Read back from the row rather than remembered from the POST: what to say depends on
+    # whether the address still needs proving, and since walk item 24 that can already be
+    # settled by the time they get here (the address was their sign-in address and was
+    # verified before, so no mail was sent and none is owed).
+    subscription = DigestSubscription.objects.filter(member=member, enabled=True).first()
     households = list(scoping.visible_pods(member).filter(kind=Pod.HOUSEHOLD))
     if not households:
         # A member with no household pod yet (an unusual hand-made setup). Offer whatever
@@ -170,5 +181,7 @@ def welcome_hello(request: HttpRequest) -> HttpResponse:
             # rather than copied, or this screen would promise a different ceiling.
             "max_photos": feed_views._MAX_PHOTOS,
             "max_videos": feed_views._MAX_VIDEOS,
+            "family_email_address": subscription.address if subscription else "",
+            "family_email_confirmed": bool(subscription and subscription.confirmed_at),
         },
     )

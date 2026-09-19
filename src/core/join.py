@@ -164,9 +164,21 @@ def join(request: HttpRequest, token: str) -> HttpResponse:
 
     # Property 2: a non-redeemable invite is a 404, identical to an unknown route.
     try:
-        invites.peek_invite(token)
+        invite = invites.peek_invite(token)
     except invites.InviteInvalid as exc:
         raise Http404 from exc
+    # The household this link joins them TO. The peek above already held it and the return
+    # value was thrown away, so the page could not say where the person was going: somebody
+    # opened a link a relative had texted them and was asked for a name, a username and a
+    # password by a page that named nothing at all (design walk 2026-09-19, item 21). Read
+    # off the invite rather than looked up again -- the invite is the only source that
+    # cannot be wrong about which household it belongs to, and it is the same read
+    # _create_account does when it files the arrival card.
+    #
+    # The NAME and nothing else. Anybody holding the link reaches this page without having
+    # been let in, so it must not print WHO is in that household -- the rule
+    # test_a_stranger_is_told_no_names.py pins for every surface a stranger can open.
+    household = invite.pod.name
 
     errors: list[str] = []
     # What they typed, so a rejected form comes back filled in. Everything except the
@@ -217,4 +229,6 @@ def join(request: HttpRequest, token: str) -> HttpResponse:
     # validators are the common trip ("this password is too common", "too similar to your
     # username"), so the likeliest first experience was retyping a name, a username and an
     # email address to fix a mistake in none of them.
-    return render(request, "core/join.html", {"errors": errors, "typed": typed})
+    return render(
+        request, "core/join.html", {"errors": errors, "typed": typed, "household": household}
+    )
