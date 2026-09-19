@@ -25,7 +25,7 @@
   {% if minted_link %}
     <h2>Link Ready To Hand Over</h2>
     <p>For <strong>{{ elder_name }}</strong> in <strong>{{ yard_name }}</strong>.</p>
-    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="No-Login Link" handover_share_title="Your Backyard" handover_note="Hand it over in person or in a private message, or print this page for the QR code. It appears only once." %}
+    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="No-Login Link" handover_share_title="Your Backyard" handover_note="Hand it over in person or in a private message, or print this page for the QR code. The link is shown once." %}
     <p class="settings-link"><a href="{% url 'new_elder' %}">Add Another Grandparent</a></p>
   {% else %}
   <form method="post" action="{% url 'new_elder' %}">
@@ -44,7 +44,7 @@
       {% for yard in yards %}
         <option value="{{ yard.id }}">{{ yard.name }}</option>
       {% empty %}
-        <option disabled>No sides you can add to yet</option>
+        <option disabled>No Sides You Can Add To Yet</option>
       {% endfor %}
     </select>
     <button type="submit">Create No-Login Link</button>

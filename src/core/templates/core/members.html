@@ -66,7 +66,8 @@
    run-on sentence. Two named groups, one target per line, each the height of a thumb. */
 .admin-links { display: grid; gap: 1.4rem 2rem; grid-template-columns: 1fr; }
 @media (min-width: 30rem) { .admin-links { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-/* NO text-transform, the third and last site of it in the product. The source says "Add
+/* NO text-transform, the third and last site of it on WORDS in the product (`.avatar`
+   still upper-cases initials, which are letters rather than copy). The source says "Add
    People" and "Tools" and the screen said ADD PEOPLE and TOOLS; the
    guide writes capitals in the source and never in CSS. Same cure as the table headers in
    base.html: a little larger, a lot less tracking. */
@@ -259,7 +260,7 @@
                      and still distinguishes six of them on one page. {% endcomment %}
                   <label class="visually-hidden" for="role-{{ row.member.id }}">Role For {{ row.member.display_name }}</label>
                   <select id="role-{{ row.member.id }}" name="role">
-                    <option value="" selected>{{ row.member.get_role_display }} (no change)</option>
+                    <option value="" selected>{{ row.member.get_role_display }} (No Change)</option>
                     {% for value, label in row.assignable_roles %}
                       <option value="{{ value }}">{{ label }}</option>
                     {% endfor %}

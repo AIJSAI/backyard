@@ -34,7 +34,7 @@
              "side". Families name a side with the word already in it — "Mom's side" —
              so appending it rendered "Mom's side side" on the live instance, on every
              screen that did this. {% endcomment %}
-          <option value="{{ pod.id }}">{{ pod.name }} ({% for side in sides %}{{ side.name }}{% if not forloop.last %} and {% endif %}{% endfor %})</option>
+          <option value="{{ pod.id }}">{{ pod.name }} ({% for side in sides %}{{ side.name }}{% if not forloop.last %}, {% endif %}{% endfor %})</option>
         {% endfor %}
       </select>
       {% comment %} Verb plus object, which is what the guide says a button is — and it is

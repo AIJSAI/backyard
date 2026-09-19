@@ -191,11 +191,22 @@ def _choice_labels() -> list[tuple[str, str]]:
     field added later is covered without anybody remembering to add it here."""
     from django.apps import apps
 
+    from core import admin_views, removal
+
     pairs: list[tuple[str, str]] = []
     for model in apps.get_app_config("core").get_models():
         for field in model._meta.get_fields():
             for _value, label in getattr(field, "choices", None) or ():
                 pairs.append((f"{model.__name__}.{field.name}", str(label)))
+    # NOT model fields, and read by an admin beside three radio buttons on the most
+    # destructive act in the product: what happens to a removed member's writing, and the
+    # sentence that confirms it. `{{ label }}` in members.html is invisible to the template
+    # sweep for the same reason get_FOO_display is.
+    pairs.extend(("removal.CONTENT_CHOICES", label) for _value, label in removal.CONTENT_CHOICES)
+    pairs.extend(
+        ("admin_views._WHAT_HAPPENED_TO_THEIR_POSTS", text)
+        for text in admin_views._WHAT_HAPPENED_TO_THEIR_POSTS.values()
+    )
     return pairs
 
 

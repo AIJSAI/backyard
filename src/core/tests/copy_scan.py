@@ -368,6 +368,20 @@ _ANCHOR = re.compile(r"<a\b[^>]*>(.*?)</a>", re.S | re.I)
 _BUTTON_ANCHOR = re.compile(
     r"""<a\b[^>]*class=["'][^"']*\bbtn\b[^"']*["'][^>]*>(.*?)</a>""", re.S | re.I
 )
+# django-allauth writes its headings and submits as `{% element h1 %}` / `{% element button %}`,
+# a template TAG and therefore invisible to the markup sweep above. Measured 2026-09-19:
+# five account templates yielded zero targets, including the sign-in page's three "Sign In"
+# strings. The tag's own body is the copy, so it is read like the element it becomes.
+_ELEMENT = re.compile(
+    r"\{%\s*element\s+(h1|h2|h3|h4|button|legend|label|th|summary)\b[^%]*%\}(.*?)\{%\s*endelement\s*%\}",
+    re.S | re.I,
+)
+# A badge is copy the guide names ("badge text"), and an <option> is a label a person
+# picks from; nothing read either.
+_BADGE = re.compile(
+    r"""<span\b[^>]*class=["'][^"']*\b(?:role|flag)\b[^"']*["'][^>]*>(.*?)</span>""", re.S | re.I
+)
+_OPTION = re.compile(r"<option\b[^>]*>(.*?)</option>", re.S | re.I)
 # A word is a whitespace-delimited token with its bordering punctuation taken off. The
 # leading/trailing set is deliberately wide: a heading can be wrapped in quotes, end in a
 # question mark, or sit inside brackets, and none of that is a word.
@@ -384,8 +398,13 @@ def _element_text(inner: str) -> str:
 
 def title_case_targets(source: str) -> list[tuple[str, str]]:
     """(where, text) for every string the capitalisation rule covers in one template."""
+    # The allauth element tags are read from the source BEFORE template syntax is stripped,
+    # because stripping is what made them invisible.
+    targets: list[tuple[str, str]] = [
+        (f"{{% element {element.lower()} %}}", _element_text(inner))
+        for element, inner in _ELEMENT.findall(without_comments(source))
+    ]
     text = without_noise(source)
-    targets: list[tuple[str, str]] = []
     for element in _TITLE_CASE_ELEMENTS:
         pattern = re.compile(rf"<{element}\b[^>]*>(.*?)</{element}>", re.S | re.I)
         for inner in pattern.findall(text):
@@ -395,6 +414,10 @@ def title_case_targets(source: str) -> list[tuple[str, str]]:
             targets.append(("nav link", _element_text(inner)))
     for inner in _BUTTON_ANCHOR.findall(text):
         targets.append(("link styled as a button", _element_text(inner)))
+    for inner in _BADGE.findall(text):
+        targets.append(("badge", _element_text(inner)))
+    for inner in _OPTION.findall(text):
+        targets.append(("<option>", _element_text(inner)))
     return [(where, words) for where, words in targets if words]
 
 
