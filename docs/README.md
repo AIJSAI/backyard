@@ -150,7 +150,8 @@ field the viewer is not scoped for.
 
 **Runbooks — operating a real instance**
 [self-host](runbooks/self-host.md) · [backup-restore](runbooks/backup-restore.md) ·
-[the succession sheet](runbooks/backup-recovery-sheet.md) · [handover](runbooks/handover.md) ·
+[the succession sheet](runbooks/backup-recovery-sheet.md) ·
+[moving to a new server](runbooks/move-to-a-new-server.md) · [handover](runbooks/handover.md) ·
 [shutdown](runbooks/shutdown.md) · [setting up your side](runbooks/setting-up-your-side.md) ·
 [founder QA script](runbooks/founder-qa.md) · [live repro](runbooks/live-repro.md) ·
 [transcode measurement](runbooks/measure-transcode.md)
