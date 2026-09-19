@@ -7,6 +7,34 @@ promise yet — the schema and the URLs may still move.
 **Install a tag, not `main`.** `main` is where the work happens and it changes daily; a tag is
 a point somebody deliberately stopped at, with a full green gate behind it.
 
+## [Unreleased]
+
+<!-- Bracketed, because `_release_in_flight` in test_documented_version_resolves.py reads a
+     BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
+     link at the foot of the file: there is no tag to compare against yet. -->
+
+### Security
+
+- **Django 5.2.17 and sqlparse 0.6.0.** Ten advisories across the two, and the `deps` gate —
+  the required check that scans the resolved lock on every pull request — had been failing on
+  all ten. Neither is reachable in this app (the Django one is GeoDjango, which is not
+  installed; sqlparse is only called by the SQLite and MySQL backends and by the test
+  runner's `--debug-sql`, and Postgres overrides the one shared call site), so the reason to
+  take them is that a scanner does not do reachability analysis and a red required check
+  blocks every other fix behind it.
+- **The Postgres image moves from 18.4 to 18.6**, which closes 27 upstream CVEs, six of them
+  core-server arbitrary code execution. Reaching any of them needs an authenticated database
+  role, and the database publishes no port and shares no network with the edge — so this is
+  the layer under the app, not a door onto it. A minor Postgres upgrade needs no dump and
+  restore; the new digest is pulled on the next `up -d`.
+- **The Caddy image is refreshed** to a current Alpine base. Same Caddy v2.11.4 binary.
+- **The documented upgrade now builds with `--pull`.** The app image installs `pg_dump` and
+  `ffmpeg` in a layer above the application code, so nothing an upgrade changes could reach
+  it: both binaries stayed at their first-build versions for the life of an instance, on the
+  process that decodes uploaded video and the one that takes your pre-flight backup. The
+  Upgrades section of the self-host guide now says why, and the handover runbook does the
+  same for the last build before somebody else owns the box.
+
 ## [0.1.2] — 2026-08-07
 
 `v0.1.1` could not be installed from its own README, and several things it shipped were
