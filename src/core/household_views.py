@@ -7,7 +7,10 @@ One route, three states, because they are one act being made deliberate:
 * POST — CONFIRM. What was chosen, said back in plain words, naming the sides of the family
   whose posts, people and photographs this person will start or stop seeing. Nothing has
   happened yet. One act per submit, so the page never has to describe two.
-* POST carrying the confirm page's nonce — the act, then back to the members list.
+* POST carrying the confirm page's nonce AND matching the fingerprint of what that page
+  said — the act, then back to the members list. Both, because the nonce is keyed on the
+  person and would otherwise be a permission to change this person's households rather
+  than a confirmation of the one change the admin actually read.
 
 Why a confirm step at all, when removal's only got one after a design walk: adding somebody
 to a household in a side they were not in HANDS THEM THAT SIDE. It is the only control in
@@ -24,6 +27,7 @@ resolved through `permissions.administrable_members` exactly as `remove`, `assig
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 
 from django.contrib.auth.decorators import login_required
@@ -39,6 +43,9 @@ ADD = "add"
 CREATE = "create"
 REMOVE = "remove"
 _ACTS = frozenset({ADD, CREATE, REMOVE})
+# A family has two sides, or a few. This is not a business rule, it is a bound on how much
+# work one POST can ask for: every id past it would be another query for the same answer.
+_MAX_SIDES = 20
 
 
 @dataclass(frozen=True)
@@ -81,7 +88,17 @@ def change_household(request: HttpRequest, member_id: int) -> HttpResponse:
 
     proposal = _proposal(request, actor, target)
     intent_key = f"household_intent:{target.id}"
-    if handover.consume_intent(request, intent_key, request.POST.get("intent")):
+    shown_key = f"household_shown:{target.id}"
+    # The nonce proves a confirm page was rendered; the FINGERPRINT proves it was rendered
+    # for THIS act. Keyed on the target alone, the nonce was a permission to change this
+    # person's households rather than a confirmation of one change: the sentence the admin
+    # read named a household and the sides it carries, and the submit that followed was
+    # re-derived from its own POST body and never compared with it. Both have to match, and
+    # the fingerprint is checked first so a mismatch does not spend the nonce.
+    if request.session.get(shown_key) == _fingerprint(proposal) and handover.consume_intent(
+        request, intent_key, request.POST.get("intent")
+    ):
+        request.session.pop(shown_key, None)
         try:
             _carry_out(actor, target, proposal)
         except households.HouseholdChangeRefused as refusal:
@@ -96,7 +113,7 @@ def change_household(request: HttpRequest, member_id: int) -> HttpResponse:
         _check(target, proposal)
     except households.HouseholdChangeRefused as refusal:
         return render(request, "core/change_household.html", _choices(actor, target, [refusal]))
-    return render(
+    response = render(
         request,
         "core/change_household_confirm.html",
         {
@@ -106,10 +123,14 @@ def change_household(request: HttpRequest, member_id: int) -> HttpResponse:
             # The nonce for THIS confirmation, minted only now: a replayed submit (the back
             # button, a double tap on a slow phone) finds it spent and lands back here
             # instead of acting twice.
-            "intent": handover.fresh_intent(request, intent_key),
+            "intent": _mint_confirmation(request, intent_key, shown_key, proposal),
             "elder": target.user_id is None and ElderToken.objects.filter(member=target).exists(),
         },
     )
+    # The same hygiene the sibling admin hand-over pages carry: this page holds a
+    # single-use nonce and a list of the family's household names, and a bfcache restore of
+    # a walked-away-from admin screen should not bring either back.
+    return handover.apply_token_body_headers(response)
 
 
 def _proposal(request: HttpRequest, actor: Member, target: Member) -> _Proposal:
@@ -124,7 +145,11 @@ def _proposal(request: HttpRequest, actor: Member, target: Member) -> _Proposal:
         # the instance admin (they own the instance and stand up new sides, S-708), and
         # require_visible_yard for a yard admin, which 404s a side they are not in. The
         # authorization on the finished pod is re-asked inside the service.
-        yard_ids = [handover.int_or_404(raw) for raw in request.POST.getlist("yard_ids")]
+        # Capped: each id costs a query, and an instance has a handful of sides, not
+        # thousands. An admin posting ten thousand of them is ten thousand queries.
+        yard_ids = [
+            handover.int_or_404(raw) for raw in request.POST.getlist("yard_ids")[:_MAX_SIDES]
+        ]
         yards = [
             get_object_or_404(Yard, pk=yard_id)
             if permissions.is_instance_admin(actor)
@@ -143,6 +168,33 @@ def _proposal(request: HttpRequest, actor: Member, target: Member) -> _Proposal:
     if act == ADD:
         return _Proposal(act=ADD, pod=pod, gained=households.sides_gained(target, pod))
     return _Proposal(act=REMOVE, pod=pod, lost=households.sides_lost(target, pod))
+
+
+def _fingerprint(proposal: _Proposal) -> str:
+    """What the confirm page SAID, in one stable string.
+
+    The sides are in it as well as the household, so a pod whose sides changed between the
+    two requests lands the admin back on a fresh confirm page naming the new ones, instead
+    of handing somebody a side no page ever mentioned.
+    """
+    parts = (
+        proposal.act,
+        str(proposal.pod.id) if proposal.pod is not None else "",
+        proposal.name,
+        ",".join(str(yard.id) for yard in proposal.yards),
+        ",".join(str(yard.id) for yard in proposal.gained),
+        ",".join(str(yard.id) for yard in proposal.lost),
+    )
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()
+
+
+def _mint_confirmation(
+    request: HttpRequest, intent_key: str, shown_key: str, proposal: _Proposal
+) -> str:
+    """Mint the nonce for THIS confirmation and record what it confirms. Set AFTER any
+    consume, so it never clobbers the one just submitted."""
+    request.session[shown_key] = _fingerprint(proposal)
+    return handover.fresh_intent(request, intent_key)
 
 
 def _check(target: Member, proposal: _Proposal) -> None:

@@ -137,33 +137,56 @@ rather than implied away.
 pod)`: may the actor put this person into a household, or take them out of one (BY-14)?
 
 Two halves, because the act has two subjects. **The person** is `is_admin` **and**
-`can_manage_member`, so every rule in the table above applies unchanged — a yard admin acts
-only on a plain member of their own side, never on a peer admin, never on a bridging member,
-never on themselves. `is_admin` is not redundant beside `can_manage_member`: that predicate
-is True for a managing parent of *any* role (TM-10), which is right for editing their child's
-profile and wrong here, because placing somebody in a household hands over a whole side of
-the family's feed. **The household** is `can_issue_invite`, which is the same authority asked
+`can_manage_member` **and** — below the instance admin — the yard-subset rule re-asked
+here rather than inherited. It is re-asked because `can_manage_member`'s custody branch
+returns True for a managing parent BEFORE the subset test runs (TM-10): right for editing
+a child's profile, wrong for this act, because a yard-A admin whose own supervised child
+also belongs to a household in yard B could take that child out of a yard-A household, and
+the shrink's revocation resolves its scope from the child's LIVE memberships — reaching
+into yard B. With it re-asked, a yard admin acts only on a plain member of their own side,
+never on a peer admin, never on a bridging member, never on themselves. `is_admin` is not
+redundant beside `can_manage_member` either: that predicate is True for a managing parent
+of *any* role, so without it a plain-member parent could move their own child between
+households. **The household** is `can_issue_invite`, which is the same authority asked
 in the same direction — may this admin put a person into this pod — and already carries the
 non-vacuous subset rule (every one of the household's sides inside the actor's own; a pod in
 no side is nobody's to fill). Households only: an ad-hoc group is its members' own (S-204).
 
 **This is the surface where isolation is granted, not just enforced**, which is why the route
 has a confirm step that names the sides of the family the person will start or stop seeing,
-in those words, before anything happens.
+in those words, before anything happens — and says, even when no new side is gained, that a
+household also hands over the posts it kept to itself (S-204) and the details its members,
+children included, scoped to "just our household" (S-903, T-MINOR-6).
 
-**No self-administration, and it costs something.** `can_manage_member` denies
-`actor.pk == target.pk` for everybody, so on a single-admin instance the founder cannot place
-*himself* into a household on a side he has just created — the cure is the succession path
-(appoint a second instance admin, who can). The alternative would be a control that lets one
-person hand themselves a seat in the other side of the family's private feed with one tap and
-no second party, which is the thing yard isolation exists to prevent. Written down here
-rather than implied away.
+**Self: the instance admin may, a yard admin may not.** The self branch is FIRST in
+`can_change_household` and tests `is_instance_admin`, never `is_admin`. The lone owner of a
+self-hosted instance standing up the second side of the family and moving into a household
+on it is the ordinary case: they already hold every side through `can_issue_invite`, already
+administer every member through `administrable_members`, and could already mint a household
+there and redeem their own invite into it, so refusing bought a shell session and not a
+boundary — and T-OP-G1 already discloses that the instance admin sits above yard isolation,
+which is a member-level promise. A yard admin's authority is *bounded by* their sides, so a
+self-seat is exactly the widening T-AUTH-G2 forbids, and they are still refused. The branch
+is local to this predicate: `can_manage_member` keeps denying self for everybody, so
+self-removal and self-re-roling stay closed. The act stays deliberate — the confirm step
+names the sides, and the `HouseholdChange` row records `changed_by == member` — and it is
+reversible by the actor, whose powers follow their ROLE and not their membership. The one
+irreversible state, being in no household at all, is refused for them like anyone else.
 
-**Taking somebody out is a membership SHRINK**, so it fires the full TM-1 revocation act
-(`revocation.revoke_member_credentials`) *before* the membership row is deleted — the H-1
-ordering contract, because the invite scope is resolved from live memberships. The blast
-radius is stated on the confirm page rather than hidden: signed out everywhere, the weekly
-email off until they switch it back on, and unused invitations into that side voided.
+**Taking somebody out is a membership SHRINK**, so it fires
+`revocation.revoke_for_membership_shrink` *before* the membership row is deleted — the H-1
+ordering contract, because the invite scope is resolved from live memberships — with the
+member row locked first, so two admins removing two different households at the same instant
+cannot both pass the last-household check. It is the SHRINK registry, not the removal one:
+the person is still here. Invites die for the sides being **lost** (a live invite there is
+the T-AUTH-G3 re-entry route) plus the ones the member minted; invites into the side they
+keep are the invited household's credential and survive. The digest **subscription**
+survives too — `enabled` is a preference, `digest_settings` is login-only and self-only, and
+an elder has no login by design (TM-10), so cancelling it would end her only content channel
+with no route back for any person on the instance (the silent severing S-501 and T-EMAIL-6
+forbid). Only its emailed links die, and the next digest narrows by itself because the send
+path re-resolves audience (TM-2). Everything the member HOLDS still dies: sessions, digest
+tokens, reply addresses, the elder token, recovery links, and the generation bump.
 **The last household is never removable**: a member in no household resolves nobody through
 the guard, including themselves, so the page says so instead of offering a control that
 refuses. Somebody who is really leaving goes through removal (S-702).

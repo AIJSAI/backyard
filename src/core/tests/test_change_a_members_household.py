@@ -25,12 +25,13 @@ from datetime import timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
 
-from core import posting, supervised
+from core import households, posting, supervised
 from core.models import (
     DigestSubscription,
     HouseholdChange,
@@ -225,24 +226,75 @@ def test_a_plain_member_cannot_open_the_page_or_act_through_it(
     assert not PodMembership.objects.filter(member=owner, pod=second).exists()
 
 
-@pytest.mark.parametrize("who", ["owner", "side_admin"])
-def test_nobody_changes_their_own_household(
-    world: dict[str, Member | Pod | Yard], who: str
+def test_a_yard_admin_never_changes_their_own_household(
+    world: dict[str, Member | Pod | Yard],
 ) -> None:
-    """No self-administration, for either admin role (`permissions.can_manage_member`).
-
-    This is the one refusal that costs something real: on a single-admin instance the
-    founder cannot place HIMSELF on a side he has just created, and the cure is the
-    succession path — appoint a second instance admin, who can. The alternative is a
-    surface where one person hands themselves a seat in the other side of the family's
-    private feed with one tap and no second party, which is the thing yard isolation is for.
-    """
-    actor, second = _who(world, who), _pod(world, "second")
+    """A yard admin's authority is BOUNDED BY their own sides, so a seat they hand
+    themselves is the widening T-AUTH-G2 exists to forbid — one person, one tap, no second
+    party. The predicate tests `is_instance_admin` and not `is_admin` for exactly this row,
+    so this test is what stops that from eroding into "any admin"."""
+    actor, second = _who(world, "side_admin"), _pod(world, "second")
     client = _client_for(actor)
 
     assert client.get(_url(actor)).status_code == 403
     assert _propose(client, actor, act="add", pod_id=second.id).status_code == 403
     assert not PodMembership.objects.filter(member=actor, pod=second).exists()
+
+
+def test_the_instance_admin_can_put_themselves_on_a_side_they_have_just_made(
+    world: dict[str, Member | Pod | Yard],
+) -> None:
+    """The self-host case the whole feature is for: one person owns the instance, creates
+    the second side of the family, and has to be in a household on it. They already hold
+    every side through `can_issue_invite` and could already redeem their own invite into
+    it, so refusing the one-tap version bought a shell session and not a boundary — and the
+    act is still said back in full first, and still recorded against them."""
+    owner, paternal = _who(world, "owner"), _yard(world, "paternal")
+
+    shown = _propose(
+        _client_for(owner),
+        owner,
+        act="create",
+        household_name="The owner's other place",
+        yard_ids=[paternal.id],
+    )
+    assert "Paternal" in _block(shown.content.decode(), "sides-gained"), (
+        "self-service does not skip the step that names the side"
+    )
+
+    done = _carry_out(
+        _client_for(owner),
+        owner,
+        act="create",
+        household_name="The owner's other place",
+        yard_ids=[paternal.id],
+    )
+
+    assert done.status_code == 302, done.status_code
+    made = Pod.objects.get(name="The owner's other place")
+    assert PodMembership.objects.filter(member=owner, pod=made).exists()
+    record = HouseholdChange.objects.get(member=owner, pod=made)
+    assert record.changed_by_id == owner.id, "the record says who did it, even to themselves"
+    assert record.action == HouseholdChange.ADDED
+
+
+def test_the_instance_admin_cannot_take_away_their_own_last_household(
+    world: dict[str, Member | Pod | Yard],
+) -> None:
+    """The one state self-service must never reach. An instance admin keeps every power
+    through their ROLE, not their membership, so moving themselves is reversible by
+    themselves — except this: a member in no household resolves nobody through the guard,
+    including themselves, and the sole owner of a self-hosted instance would be locking
+    himself out of his own family with one tap. `check_remove` is target-agnostic, and this
+    is the assertion that says so on the row where it matters most."""
+    owner, first = _who(world, "owner"), _pod(world, "first")
+
+    response = _propose(_client_for(owner), owner, act="remove", pod_id=first.id)
+
+    assert response.status_code == 200, response.status_code
+    assert "only household" in response.content.decode()
+    assert PodMembership.objects.filter(member=owner, pod=first).exists()
+    assert not HouseholdChange.objects.exists()
 
 
 def test_a_yard_admin_cannot_change_another_admins_household(
@@ -580,15 +632,35 @@ def test_the_owner_can_put_an_existing_member_into_a_brand_new_household(
 def test_a_removal_revokes_the_credentials_that_reached_that_side(
     world: dict[str, Member | Pod | Yard],
 ) -> None:
-    """A membership SHRINK fires the ONE revocation act (TM-1), while the member's remaining
-    memberships stay untouched. Without it the person keeps a live session, a live invite
-    into the side they just left, and an emailed digest of it."""
+    """A membership SHRINK fires its OWN revocation registry (TM-1), scoped to the side
+    being lost.
+
+    Three things at once, and the last two are what make it a shrink rather than a removal:
+    everything the member HOLDS dies (the generation bump), the invite reaching the side
+    they just left dies because it is a re-entry route (T-AUTH-G3) — and the invite into the
+    side they KEEP survives, because that one is the invited household's credential and not
+    theirs, while the digest SUBSCRIPTION survives because they are still here and an elder
+    has no login to turn it back on with (S-501, T-EMAIL-6).
+    """
     bridging, far, first = _who(world, "bridging"), _pod(world, "far"), _pod(world, "first")
     before_generation = bridging.token_generation
-    DigestSubscription.objects.create(member=bridging, address="someone@example.com", enabled=True)
+    DigestSubscription.objects.create(
+        member=bridging,
+        address="someone@example.com",
+        enabled=True,
+        # Non-empty, or the "emailed capabilities die" assertion below would pass on a
+        # field that was blank to begin with.
+        confirm_token_digest="a" * 64,
+        unsubscribe_token_digest="b" * 64,
+    )
     invite = Invite.objects.create(
         pod=far,
         token_digest="a-digest-reaching-the-side-they-are-leaving",
+        expires_at=timezone.now() + timedelta(days=7),
+    )
+    kept_side_invite = Invite.objects.create(
+        pod=first,
+        token_digest="a-digest-reaching-the-side-they-keep",
         expires_at=timezone.now() + timedelta(days=7),
     )
 
@@ -597,9 +669,17 @@ def test_a_removal_revokes_the_credentials_that_reached_that_side(
     assert moved.status_code == 302, moved.status_code
     bridging.refresh_from_db()
     invite.refresh_from_db()
+    kept_side_invite.refresh_from_db()
     assert bridging.token_generation > before_generation, "every carried credential must die"
     assert invite.revoked_at is not None, "a live invite into that side is a way back in"
-    assert not DigestSubscription.objects.get(member=bridging).enabled
+    assert kept_side_invite.revoked_at is None, (
+        "another household's hand-over link, on the side this person KEEPS, was cancelled "
+        "by an act that was only meant to move them"
+    )
+    subscription = DigestSubscription.objects.get(member=bridging)
+    assert subscription.enabled, "a shrink is not a removal: the preference survives (S-501)"
+    assert subscription.confirm_token_digest == "", "the emailed capabilities still die"
+    assert subscription.unsubscribe_token_digest == ""
     assert _households(bridging) == {first.id}
 
 
@@ -622,12 +702,16 @@ def test_every_act_leaves_a_record_of_who_did_it(world: dict[str, Member | Pod |
 def test_the_roster_offers_the_link_exactly_where_it_works(
     world: dict[str, Member | Pod | Yard],
 ) -> None:
-    """A link that 403s is a link that lies: the roster control is gated on the same
-    predicate the page is, so it never appears on the actor's own row or on an admin's."""
-    admin, cousin, peer = (
+    """A link that 403s is a link that lies, and a capability with no control is a
+    capability nobody has: the roster reads the same predicate the page enforces, so it
+    never appears on a yard admin's own row or on an admin they may not administer — and it
+    DOES appear on the instance admin's own row, which is the one place the predicate now
+    says yes to self."""
+    admin, cousin, peer, owner = (
         _who(world, "side_admin"),
         _who(world, "cousin"),
         _who(world, "peer_admin"),
+        _who(world, "owner"),
     )
 
     body = _client_for(admin).get(reverse("members")).content.decode()
@@ -635,3 +719,192 @@ def test_the_roster_offers_the_link_exactly_where_it_works(
     assert _url(cousin) in body
     assert _url(admin) not in body
     assert _url(peer) not in body
+
+    # The instance admin's roster, where the self row is the point of the whole decision.
+    owners_view = _client_for(owner).get(reverse("members")).content.decode()
+    assert _url(owner) in owners_view, (
+        "the owner can change their own household and the roster did not offer it, so the "
+        "capability exists and nobody can reach it"
+    )
+    assert _url(admin) in owners_view  # and everyone else's, on either side
+
+
+def test_a_yard_admin_cannot_reach_a_household_that_bridges_the_two_sides(
+    world: dict[str, Member | Pod | Yard],
+) -> None:
+    """The subset rule with the case the whole isolation model is built around. `world` has
+    a bridging MEMBER and no bridging POD, and a household in reach is one whose sides are
+    ALL inside the actor's own — so without this the rule that separates
+    `filter(yards__in=mine)` from `filter(...).exclude(yards__in=theirs)` has no test, and
+    the failure it would let through is a yard admin handing one of their own members a seat
+    in the far side's living room."""
+    side_admin, cousin = _who(world, "side_admin"), _who(world, "cousin")
+    bridge = Pod.objects.create(name="The bridging household")
+    bridge.yards.set([_yard(world, "maternal"), _yard(world, "paternal")])
+    client = _client_for(side_admin)
+
+    assert "The bridging household" not in client.get(_url(cousin)).content.decode()
+    assert _propose(client, cousin, act="add", pod_id=bridge.id).status_code == 404
+    assert not PodMembership.objects.filter(member=cousin, pod=bridge).exists()
+
+
+def test_a_plain_member_parent_cannot_move_their_own_supervised_child(
+    world: dict[str, Member | Pod | Yard],
+) -> None:
+    """`can_manage_member` is True for a managing parent of ANY role (TM-10). That is right
+    for editing their child's profile and wrong here, because a household hands over a side
+    of the family's whole feed — so `can_change_household` asks `is_admin` as well. Neither
+    the predicate's half nor the view's gate had a test; both could be deleted and this file
+    stayed green."""
+    cousin, first, second = _who(world, "cousin"), _pod(world, "first"), _pod(world, "second")
+    child = supervised.create_supervised_member(parent=cousin, display_name="A Child", pod=first)
+    client = _client_for(cousin)
+
+    assert client.get(_url(child)).status_code == 403
+    assert _propose(client, child, act="add", pod_id=second.id).status_code == 403
+    assert not PodMembership.objects.filter(member=child, pod=second).exists()
+
+
+def test_a_yard_admin_cannot_reach_their_own_supervised_child_who_bridges_both_sides(
+    world: dict[str, Member | Pod | Yard],
+) -> None:
+    """The custody branch of `can_manage_member` returns True for a managing parent BEFORE
+    the yard-subset test runs (TM-10), so a yard admin whose own supervised child also
+    belongs to a household on the other side would have reached this act on a bridging
+    target — and the shrink's revocation resolves its scope from that child's LIVE
+    memberships, reaching a side the admin administers none of. The subset rule is re-asked
+    in `can_change_household` for exactly this row."""
+    side_admin, first, far = _who(world, "side_admin"), _pod(world, "first"), _pod(world, "far")
+    child = supervised.create_supervised_member(
+        parent=side_admin, display_name="A Bridging Child", pod=first
+    )
+    PodMembership.objects.create(member=child, pod=far)  # also on the other side
+    client = _client_for(side_admin)
+
+    assert client.get(_url(child)).status_code == 403
+    assert _propose(client, child, act="remove", pod_id=first.id).status_code == 403
+    assert PodMembership.objects.filter(member=child, pod=first).exists()
+
+    # Denominator: the same parent, the same act, on a child who is NOT bridging, works.
+    in_scope = supervised.create_supervised_member(
+        parent=side_admin, display_name="An In Scope Child", pod=first
+    )
+    assert client.get(_url(in_scope)).status_code == 200
+
+
+def test_the_services_re_ask_authorization_inside_their_own_transaction(
+    world: dict[str, Member | Pod | Yard],
+) -> None:
+    """Defence in depth is a claim, and an unasserted claim is a comment. Called directly —
+    the way a future caller reaches these — each service refuses on its own."""
+    side_admin, bridging, far = (
+        _who(world, "side_admin"),
+        _who(world, "bridging"),
+        _pod(world, "far"),
+    )
+    cousin, maternal = _who(world, "cousin"), _yard(world, "maternal")
+
+    with pytest.raises(PermissionDenied):
+        households.add_to_household(actor=side_admin, member=cousin, pod=far)
+    with pytest.raises(PermissionDenied):
+        households.remove_from_household(actor=side_admin, member=bridging, pod=far)
+    with pytest.raises(PermissionDenied):
+        households.create_household_and_add(
+            actor=cousin,
+            member=bridging,
+            name="Not theirs to make",
+            yards=[maternal],
+        )
+    assert not Pod.objects.filter(name="Not theirs to make").exists()
+    assert not PodMembership.objects.filter(member=cousin, pod=far).exists()
+
+
+def test_a_confirmation_cannot_be_spent_on_a_different_act(
+    world: dict[str, Member | Pod | Yard],
+) -> None:
+    """The nonce is keyed on the PERSON, so on its own it is a permission to change this
+    person's households rather than a confirmation of the one change the admin read. A
+    confirm page rendered for a household on their own side must not be submittable as the
+    household on the other side — the sides gained were never named on any page."""
+    cousin, second, far = _who(world, "cousin"), _pod(world, "second"), _pod(world, "far")
+    client = _client_for(_who(world, "owner"))
+    shown = client.post(_url(cousin), {"act": "add", "pod_id": second.id})
+    match = _INTENT.search(shown.content.decode())
+    assert match is not None
+
+    swapped = client.post(_url(cousin), {"act": "add", "pod_id": far.id, "intent": match.group(1)})
+
+    assert swapped.status_code == 200, "the swapped act must not be carried out"
+    assert not PodMembership.objects.filter(member=cousin, pod=far).exists()
+    assert not HouseholdChange.objects.exists()
+    # What comes back is a confirm page for what was ACTUALLY submitted, naming the side
+    # that act would hand over — so the next tap confirms the change being really made,
+    # which is the whole point of binding the confirmation to the proposal.
+    assert "Paternal" in _block(swapped.content.decode(), "sides-gained")
+
+
+def test_the_confirm_page_says_a_household_carries_its_own_private_posts(
+    world: dict[str, Member | Pod | Yard],
+) -> None:
+    """An add that gains no SIDE still hands over the household's pod-only posts (S-204) and
+    whatever its members — the children included — scoped to "just our household" (S-903).
+    The page used to say, in as many words, that nothing changed."""
+    cousin, second = _who(world, "cousin"), _pod(world, "second")
+
+    body = _propose(
+        _client_for(_who(world, "owner")), cousin, act="add", pod_id=second.id
+    ).content.decode()
+
+    assert _block(body, "sides-gained") == ""  # same side: no new side is gained
+    assert "kept to itself" in body
+    assert "just our household" in body
+    assert "does not change which sides of the family" not in body
+
+
+@pytest.mark.django_db(transaction=True)
+def test_two_concurrent_removals_cannot_strand_a_member(
+    world: dict[str, Member | Pod | Yard],
+) -> None:
+    """The stranding refusal has to hold against a RACE, not only against a second click.
+
+    Two admins take a member out of her two remaining households at the same instant. Under
+    READ COMMITTED each sees the other's membership row still present, so each passes
+    `check_remove` — and both deletes land, leaving her in no household at all, resolving
+    nobody through the guard including herself. The member row lock is what serialises them.
+
+    Driven on two real connections with a barrier between the check and the write, which is
+    the only way this failure mode is reachable; `transaction=True` gives each thread its
+    own committed view.
+    """
+    import threading
+
+    from django.db import connections
+
+    cousin, first, second = _who(world, "cousin"), _pod(world, "first"), _pod(world, "second")
+    owner = _who(world, "owner")
+    PodMembership.objects.create(member=cousin, pod=second)  # two households, both removable
+    at_the_same_moment = threading.Barrier(2, timeout=10)
+    errors: list[Exception] = []
+
+    def take_out(pod: Pod) -> None:
+        try:
+            at_the_same_moment.wait()
+            households.remove_from_household(actor=owner, member=cousin, pod=pod)
+        except Exception as exc:  # noqa: BLE001 — collected and asserted on below
+            errors.append(exc)
+        finally:
+            connections.close_all()
+
+    threads = [threading.Thread(target=take_out, args=(pod,)) for pod in (first, second)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=20)
+
+    assert _households(cousin), (
+        "both removals landed and the member is in no household at all — the one state this "
+        f"refusal exists to prevent (errors={errors})"
+    )
+    assert len(errors) == 1 and isinstance(errors[0], households.HouseholdChangeRefused), (
+        f"exactly one of the two must be refused, not {errors}"
+    )

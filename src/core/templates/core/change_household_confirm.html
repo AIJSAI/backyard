@@ -25,9 +25,22 @@
     <ul class="sides-gained">
       {% for side in proposal.gained %}<li>The {{ side.name }} side</li>{% endfor %}
     </ul>
-  {% elif proposal.act != "remove" %}
-    <p>This does not change which sides of the family {{ target.display_name }} can see.
-    They are already on the side this household belongs to.</p>
+  {% endif %}
+  {% if proposal.act != "remove" %}
+    {% comment %} A household is a read surface of its own, not only a door into a side:
+       its pod-only posts never reach the wider yard feed (S-204), and the profile fields
+       anybody in it set to "just our household" open to every member of it — which is
+       where a supervised child's birthday sits BY DEFAULT (S-903, T-MINOR-6). So an add
+       that gains no SIDE still widens what this person can read, and this page used to say
+       the opposite in as many words. {% endcomment %}
+    <h2>What else {{ target.display_name }} will start seeing</h2>
+    <p>Everything this household has kept to itself — the posts it has not shared with the
+    wider family, the photographs on them, and the birthdays and contact details anybody in
+    it has set to "just our household", the children's included.</p>
+    {% if not proposal.gained %}
+      <p>This does not add a new side of the family: they are already on the side this
+      household belongs to.</p>
+    {% endif %}
   {% endif %}
 
   {% if proposal.lost %}
@@ -48,8 +61,9 @@
     <h2>What else happens</h2>
     <ul>
       <li>{{ target.display_name }} is signed out everywhere and signs in again next time.</li>
-      <li>Their weekly email stops until they turn it back on in their own settings.</li>
-      <li>Any invitation to that side of the family that nobody has used yet stops working.
+      <li>The links in their old weekly emails stop working. The weekly email itself keeps
+        coming, and from now on it only carries what they can still see.</li>
+      <li>Any unused invitation into the side of the family they are leaving stops working.
         You can send those again from <em>Outstanding invites</em>.</li>
       {% if elder %}
         <li>The no-login link they use to read the family stops working. Make a new one on

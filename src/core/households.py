@@ -26,16 +26,15 @@ here rather than in the view:
    goes through removal (S-702), which is a different, deliberate act.
 
 3. REVOCATION. A removal here is a membership SHRINK, and TM-1 names the shrink
-   transitions ("removal, voluntary leave, a pod leaving a yard") as firing the one
-   revocation act. `revocation.regenerate_member_credentials` says in as many words that it
-   is NOT for a shrink, because there the yard-wide invite scope is load-bearing: a live
-   invite into the side somebody has just been taken out of is a way back in (T-AUTH-G3),
-   and it is not theirs to keep. So the shrink runs the full registry
-   (`revoke_member_credentials`) BEFORE the membership row goes, which is the H-1 ordering
-   contract — `_void_invites` resolves the side scope from live memberships, so revoking
-   after teardown would silently miss them. The blast radius is real and is stated on the
-   confirm page rather than hidden: they are signed out everywhere, their weekly email
-   stops until they switch it back on, and unused invitations into that side are voided.
+   transitions as firing the one revocation act. It runs `revocation.
+   revoke_for_membership_shrink` BEFORE the membership row goes, which is the H-1 ordering
+   contract — the invite step resolves its scope from live memberships, so revoking after
+   teardown would silently miss them. It is the shrink registry, NOT the removal one: the
+   person is still here, so the invites that die are the ones reaching the sides being LOST
+   (a live invite there is a re-entry route, T-AUTH-G3) plus the ones they minted, and the
+   digest SUBSCRIPTION survives — killing it would end an elder's only content channel with
+   no route back for anybody on the instance, which is the silent severing S-501 forbids.
+   The blast radius is stated on the confirm page rather than hidden.
 
 An ADD is a widen: it strands nothing and revokes nothing, so it does not touch the
 registry. The generation bump exists to kill credentials that outlived a scope, and after
@@ -50,7 +49,7 @@ from django.db.models import QuerySet
 
 from . import permissions, scoping
 from .models import HouseholdChange, Member, Pod, Yard
-from .revocation import revoke_member_credentials
+from .revocation import revoke_for_membership_shrink
 
 
 class HouseholdChangeRefused(Exception):
@@ -163,8 +162,16 @@ def check_create(name: str, yards: list[Yard]) -> None:
 
 
 def add_to_household(*, actor: Member, member: Member, pod: Pod) -> HouseholdChange:
-    """Put an existing member into an existing household, and record who did it."""
+    """Put an existing member into an existing household, and record who did it.
+
+    The member row is locked first, the same row every other household change for this
+    person locks, so they serialise. Without it two admins adding the same person at the
+    same instant both pass `check_add` and the loser hits the `unique_member_pod`
+    constraint — a 500 on a family-facing admin screen instead of the plain "already in"
+    sentence this module promises.
+    """
     with transaction.atomic():
+        Member.objects.select_for_update().get(pk=member.pk)
         _require_may(actor, member, pod)
         check_add(member, pod)
         pod.memberships.create(member=member)
@@ -185,6 +192,7 @@ def create_household_and_add(
     """
     check_create(name, yards)
     with transaction.atomic():
+        Member.objects.select_for_update().get(pk=member.pk)
         pod = Pod.objects.create(name=name, kind=Pod.HOUSEHOLD)
         pod.yards.set(yards)
         _require_may(actor, member, pod)
@@ -196,20 +204,31 @@ def create_household_and_add(
 
 
 def remove_from_household(*, actor: Member, member: Member, pod: Pod) -> HouseholdChange:
-    """Take a member out of one household: revoke first, then detach, then record.
+    """Take a member out of one household: lock, revoke, detach, record.
 
     The order is the H-1 ordering contract, and it is why this is not two lines in a view:
-    `revocation._void_invites` resolves the side scope from LIVE memberships, so revoking
-    after the row is gone would silently miss every invite reaching the side the member has
-    just left — the T-AUTH-G3 re-entry route, and the exact half of TM-1's shrink promise
-    that issue 174 records as unbuilt.
+    the shrink registry resolves its side scope from LIVE memberships, so revoking after the
+    row is gone would silently miss every invite reaching the side the member has just left
+    — the T-AUTH-G3 re-entry route, and the exact half of TM-1's shrink promise that issue
+    174 records as unbuilt.
+
+    The MEMBER ROW IS LOCKED FIRST, and it is the same row `revocation._run_steps` locks,
+    so every household change for one person serialises on it. Without the lock the
+    last-household count is a read with nothing behind it: two admins taking somebody out of
+    their two remaining households at the same instant each see the other's row still
+    present under READ COMMITTED, each pass `check_remove`, and both deletes land — leaving
+    a member in no household at all, who then resolves nobody through the guard including
+    themselves. That is the one state this function exists to refuse, so the refusal has to
+    hold against a race and not only against a second click.
     """
     with transaction.atomic():
+        Member.objects.select_for_update().get(pk=member.pk)
         _require_may(actor, member, pod)
         check_remove(member, pod)
         # 1. Revoke while the membership still exists (H-1), because the invite scope is
-        #    resolved from it.
-        revoke_member_credentials(member)
+        #    resolved from it, and scope the shrink to the sides actually being lost.
+        losing = {yard.id for yard in sides_lost(member, pod)}
+        revoke_for_membership_shrink(member, losing_yard_ids=losing)
         # 2. Then detach.
         pod.memberships.filter(member=member).delete()
         return HouseholdChange.objects.create(

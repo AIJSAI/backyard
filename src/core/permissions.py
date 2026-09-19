@@ -179,19 +179,43 @@ def can_assign_role(actor: Member, target: Member, new_role: str) -> bool:
 def can_change_household(actor: Member, target: Member) -> bool:
     """May `actor` move `target` between households at all — the PERSON half of the act?
 
-    `can_manage_member` plus `is_admin`, and neither half is redundant. `can_manage_member`
-    alone is True for a managing parent of ANY role (TM-10), which is right for editing
-    their child's profile and wrong here: placing somebody in a household grants a side of
-    the family's whole feed, directory and photographs, and that is an admin act. So a
-    plain-member parent still creates and edits their own child's account and does not move
-    anyone between households.
+    SELF IS THE FIRST BRANCH, and only for the instance admin. The lone owner of a
+    self-hosted instance standing up the second side of the family and putting himself in
+    it is the ORDINARY case, not the attack: he already holds every side through
+    `can_issue_invite`, already administers every member through `administrable_members`,
+    and could already mint a household there and redeem his own invite into it — so the
+    refusal bought a shell session, not a boundary. Yard isolation is a MEMBER-level
+    promise, and T-OP-G1 already discloses that the instance admin sits above it rather
+    than pretending otherwise. The act stays deliberate and accountable either way: the
+    confirm step names the sides he is about to start seeing, and the `HouseholdChange` row
+    records that he did it to himself.
 
-    Everything else this needs, `can_manage_member` already carries and is the only copy
-    of: no self-administration (which costs something real here — see the docs), a yard
-    admin only inside their own yards and never over a bridging member (T-AUTH-G2), no
-    privilege inversion, and the supervised-custody rule.
+    A yard admin is a different person in this threat model and still may not act on
+    themselves. Their authority is BOUNDED BY their own sides, so a self-seat is exactly
+    the widening T-AUTH-G2 forbids — and the branch tests `is_instance_admin`, not
+    `is_admin`, so that distinction cannot erode.
+
+    The branch is local to this predicate on purpose. `can_manage_member` keeps denying
+    self for everybody, because removal and re-roling are a different authority and must
+    keep coming from above.
+
+    Everything else is `can_manage_member` plus `is_admin`, and neither half is redundant:
+    `can_manage_member` alone is True for a managing parent of ANY role (TM-10), which is
+    right for editing their child's profile and wrong here, because placing somebody in a
+    household grants a side of the family's whole feed, directory and photographs.
+
+    The yard-subset rule is RE-ASKED here rather than inherited, because that same custody
+    branch returns True for a managing parent before the subset test runs. A yard-A admin
+    whose own supervised child also belongs to a household in yard B could otherwise take
+    that child out of a yard-A household, and the shrink's revocation resolves its scope
+    from the child's LIVE memberships — reaching into yard B. Below the instance admin,
+    every target of this act is inside the actor's own yards.
     """
-    return is_admin(actor) and can_manage_member(actor, target)
+    if actor.pk == target.pk:
+        return is_instance_admin(actor)
+    if not (is_admin(actor) and can_manage_member(actor, target)):
+        return False
+    return is_instance_admin(actor) or _target_within_actor_scope(actor, target)
 
 
 def can_change_household_membership(actor: Member, target: Member, pod: Pod) -> bool:
