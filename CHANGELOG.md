@@ -54,6 +54,36 @@ a point somebody deliberately stopped at, with a full green gate behind it.
     parametrised per file, and a failure prints the pasteable fix. The rules they enforce
     are written down in [docs/design/voice.md](docs/design/voice.md).
 
+### Security
+
+- **Account recovery follows a confirmed address, and only the account's own session can
+  confirm one.** Joining stores the address a relative types as unconfirmed, so that a typo
+  cannot hand recovery of the account to whoever owns the mistyped mailbox. Two behaviours
+  of django-allauth undid that. Its reset form prefers a confirmed address and falls back to
+  an unconfirmed one; and its confirmation page needs no sign-in, so the owner of the
+  mistyped mailbox, who receives the confirmation mail, could confirm the address himself.
+  Both are closed:
+  - A password reset link is mailed only to users holding a confirmed row for the exact
+    address typed. The page answers identically for a confirmed, an unconfirmed and an
+    unknown address, as before.
+  - Confirming an address requires a session signed in as that address's own account.
+    Anybody else is sent to sign in and lands back on the link. The same tap used to start
+    Email Updates to that address, which it can no longer do for a stranger. The mail and
+    the page say that a sign-in may be asked for.
+  - An address kept only on the user row (`auth_user.email`, no `account_emailaddress` row)
+    is no longer a recovery path, because nobody proved it. Joining writes both, so only an
+    account made at a shell or restored from a much older version is affected. To list
+    accounts that now need an admin's Sign-In Link or a confirmation:
+    `SELECT u.username FROM auth_user u LEFT JOIN account_emailaddress e ON e.user_id = u.id
+    AND e.verified WHERE u.is_active AND e.id IS NULL;`
+  - A member whose only address is unconfirmed asks an admin for a Sign-In Link: Your
+    Sign-In Email can send the confirmation again, but only to somebody who can still sign
+    in. The feed now prompts "Confirm your email address" as well as "Add an email
+    address", and the join form, the reset pages, Your Sign-In Email, How It Works, the "no
+    such account" mail and the admin guide all say "confirmed".
+  - `ACCOUNT_LOGIN_BY_CODE_ENABLED` and `ACCOUNT_PASSWORD_RESET_BY_CODE_ENABLED` must stay
+    off: both confirm an address without the check above. A test holds them off.
+
 ### Fixed
 
 - **Found by reading every screen and e-mail at phone width after the rewrite**, as a
@@ -91,10 +121,9 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   - "Backyard is invite-only. Open your invite link to join." printed on every signed-out
     page in the sign-in layout, including the second sign-in step and the emailed address
     confirmation, whose readers are already members. It is on the sign-in page only.
-  - The address-confirmation mail and page said confirming enables password reset and email
-    updates. Email updates start only for a primary address that has them turned on at that
-    address, and they say so now. They no longer promise password reset, which
-    django-allauth already sends to an unconfirmed address.
+  - The address-confirmation mail and page said confirming enables email updates. They
+    start only for a primary address that has them turned on at that address, and the mail
+    and the page say so now.
   - The Email Updates settings page accepted any text with an "@" in it and cut a long
     address at 254 characters. It uses the same validator as joining: a malformed address
     is refused and nothing is stored or mailed.

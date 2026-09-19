@@ -10,6 +10,6 @@
    here uses the address. {% endcomment %}
 {% block content %}{% autoescape off %}{% blocktrans %}Somebody asked to reset a Backyard password using this address.
 
-No account here uses this address, so there is nothing to reset. If this was you, try the address you sign in with, or ask the person who invited you.
+No account here has confirmed this address, so there is nothing to reset. If this was you, try another address, or ask the person who invited you for a Sign-In Link.
 
 If you did not ask for this, ignore this email.{% endblocktrans %}{% endautoescape %}{% endblock content %}

@@ -36,10 +36,10 @@ private message, never in a group chat.
 
 ## 3. When Someone Is Locked Out
 
-1. If they have an email address, **Forgot Your Password?** on the sign-in page does it
-   without you.
-2. If not, tap **Manage** on their row, then **Sign-In Link**. It works once and expires
-   after two days.
+1. Ask them to try **Forgot Your Password?** on the sign-in page. It works only for an email
+   address they have confirmed.
+2. If no email arrives, tap **Manage** on their row, then **Sign-In Link**. It works once and
+   expires after two days.
 
 **Make sure you are really talking to them first.** Call or text the number you already
 have.
@@ -57,7 +57,7 @@ first. Photos other people added replying to their posts go too.
 
 ## 5. If You Are Locked Out
 
-1. With an email address on file, use **Forgot Your Password?**
+1. With a confirmed email address, use **Forgot Your Password?**
 2. Without one, ask whoever set this Backyard up for a **Sign-In Link**.
 3. If no admin can sign in, the password has to be reset at the server by whoever runs this
    Backyard.

@@ -19,9 +19,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from allauth.account.adapter import get_adapter
 from allauth.account.forms import AddEmailForm as AllauthAddEmailForm
 from allauth.account.forms import LoginForm as AllauthLoginForm
 from allauth.account.forms import ResetPasswordForm as AllauthResetPasswordForm
+from allauth.account.models import EmailAddress
 
 from core.recovery import take_the_recovered_username
 
@@ -94,11 +96,52 @@ class AddEmailForm(AllauthAddEmailForm):  # type: ignore[misc]  # allauth is unt
 
 
 class ResetPasswordForm(AllauthResetPasswordForm):  # type: ignore[misc]  # allauth is untyped
-    """allauth's "forgot your password" form, with a label and no colon.
+    """allauth's "forgot your password" form, with a label, no colon, and one rule.
 
-    The field stays `email` and the enumeration-safe behaviour is untouched: this
-    changes what the label says and nothing about what the form does.
+    THE RULE: a reset link is mailed only to an address its owner has CONFIRMED.
+
+    allauth looks the typed address up with `prefer_verified=True`, which prefers a
+    confirmed row and falls back to an unconfirmed one. core/join.py stores the address a
+    relative types at join as `verified=False` "so a typo cannot silently hand recovery of
+    this account to whoever owns the address that was actually typed", and the fallback
+    undid exactly that: the stranger who owns the mistyped mailbox first receives the
+    confirmation mail, which names this site, and could then ask for a reset of an account
+    that is not theirs and be sent one. Measured on 2026-09-19 during the review of #209.
+
+    So the users allauth found are narrowed to those holding a confirmed EmailAddress row
+    for this exact address. Nothing else moves, and the page cannot tell the two cases
+    apart: with no user left, allauth sends its "unknown account" mail to the typed
+    address and redirects to the same "sent" page, which is what ACCOUNT_PREVENT_ENUMERATION
+    is for. A member whose only address is unconfirmed cannot resend the confirmation
+    themselves, because Your Sign-In Email is behind the sign-in they have just lost, so
+    their path is the admin's Sign-In Link, which is what the reset page tells them.
+
+    WHAT "CONFIRMED" RESTS ON: core.adapters.AccountAdapter.confirm_email lets only a
+    session signed in as the address's own user confirm it. Without that, the stranger
+    could set the flag this form trusts from the one mail he already receives.
     """
+
+    def clean_email(self) -> str:
+        value: str = super().clean_email()
+        # THE SAME KEY ALLAUTH JUST LOOKED UP, not a second derivation of it. allauth's
+        # EmailField.clean lowercases and strips, then its clean_email passes the result
+        # through the adapter before querying. Re-deriving the key here would agree with
+        # that only by luck, and a disagreement is silent by construction, because the page
+        # says "sent" either way. `iexact` rather than `=` only so that a row stored in
+        # another letter case can never be dropped: an identical string always matches it.
+        key = get_adapter().clean_email(value)
+        confirmed = set(
+            EmailAddress.objects.filter(email__iexact=key, verified=True).values_list(
+                "user_id", flat=True
+            )
+        )
+        # NOT a getattr with a default. allauth's clean_email sets `users`, and an allauth
+        # that stops doing so must fail loudly here: an empty default would silently stop
+        # every password reset in the product, behind a page that says "sent" either way.
+        # The annotation is for mypy only: allauth is untyped.
+        found: list[Any] = list(self.__dict__["users"])
+        self.users = [user for user in found if user.pk in confirmed]
+        return value
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         kwargs.setdefault("label_suffix", "")
