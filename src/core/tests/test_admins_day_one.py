@@ -222,9 +222,9 @@ def test_the_repo_copy_says_the_same_thing_as_the_page() -> None:
 def test_the_guide_uses_no_word_the_product_has_banned() -> None:
     """It is the most jargon-prone page in the product — it is about administration — so
     it gets the vocabulary guard pointed at it directly, page and repo copy both."""
-    from core.tests.test_one_word_per_concept import _offences, _visible_text
+    from core.tests.copy_scan import visible_text, vocabulary_offences
 
     client, _, _ = _world()
     page = client.get(reverse("admins_day_one")).content.decode()
-    assert not _offences(_visible_text(page), set())
-    assert not _offences(_GUIDE_DOC.read_text(encoding="utf-8"), set())
+    assert not vocabulary_offences(visible_text(page))
+    assert not vocabulary_offences(_GUIDE_DOC.read_text(encoding="utf-8"))
