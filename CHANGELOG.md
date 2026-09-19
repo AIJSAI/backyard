@@ -15,6 +15,30 @@ a point somebody deliberately stopped at, with a full green gate behind it.
 
 ### Added
 
+- **There is a person behind every name.** A calm coloured circle with someone's initials
+  now sits beside their name wherever it leads something — a post, a reply, a row in the
+  directory, their own page. The colour is picked from the person, so the same relative
+  looks the same everywhere. No photo to upload and nothing to keep up to date.
+- **The directory says where people sit in the family.** Each row carries their side of
+  the family and their household under their name, and only the ones you are already in.
+- **A profile shows what that person actually wrote.** It used to be a name, one line
+  saying they had shared nothing, and a link that would have downloaded an empty contact
+  card. That link is now offered only when there is something on it to save.
+- **One control for photos and video: "Add photos or a video".** It replaces two stacked
+  "Choose Files" boxes, so a phone offers its own Photo Library / Take Photo sheet once
+  instead of asking which kind of thing you meant first. What you picked appears as
+  thumbnails before you post, each with its own Remove. Without JavaScript it is still a
+  plain working picker with the browser's own count, and the limits are written beside it.
+- **Photos taken on an iPhone now upload from any browser.** A HEIC picture was accepted
+  only from Safari, which can convert it before sending; from Chrome, Firefox or an
+  Android phone the same photograph was refused outright. It is converted on arrival now.
+  `.mov` clips were already accepted and still are.
+- **The product says when something worked.** Posting and replying now say so on the page
+  you land on. A new post sits well below the fold on a phone, so tapping Post used to
+  change nothing you could see — while the app cheerfully announced that you had signed in.
+- **An unfinished post waits for you.** Leaving the "share with a whole side of the
+  family?" question any way other than answering it used to throw the whole post away.
+  Your words are kept, with the photos you picked, until you post it or discard it.
 - **The instance backs itself up.** `backup_instance` shipped with nothing running it, so
   an instance holding a family's photographs had a documented backup command and no
   backups. The worker now takes an encrypted archive nightly at 03:30 UTC, keeps the last
@@ -50,6 +74,31 @@ a point somebody deliberately stopped at, with a full green gate behind it.
 
 ### Changed
 
+- **A post keeps the shape it was typed in.** Line breaks were collapsed, so a recipe off
+  a card, an address or a packing list arrived as one run-on sentence, and a web address
+  in a post was not tappable. Fixed on the feed, in a thread, on the grandparents' page
+  and in the family email and its web view. (The grandparents' page keeps the address as
+  readable text rather than a link, deliberately: nothing on that page leads off it.)
+- **Delete is no longer sitting next to Open thread.** Three identical green links a
+  thumb's width apart meant an accidental tap could destroy a photograph. Destructive
+  actions now sit at the far end of the row, in their own colour and weight.
+- **"Send love" lands on the confirmation.** Tapping it on the grandparents' page jumped to
+  the top of the post, about sixteen hundred pixels above the heart that had just appeared,
+  so it looked as though nothing had happened.
+- **The grandparents' page uses the same typeface as the rest of the app** — the one chosen
+  for low-vision readers, which was the only place not using it — and says dates the same
+  way every other screen does.
+- **Opening a post now enlarges its photographs.** The thread page was serving the same
+  small thumbnail the feed does, so tapping a photo to see it better did nothing.
+- **The composer opens small** and grows when you start writing, instead of standing
+  between you and the first photograph in your family's feed.
+- **A wrong password looks like the app telling you something**, rather than a black bullet
+  indented off the edge of the card. The same fix reaches every form in the product.
+- **Paging back into the archive is its own page.** It kept the current feed's title and
+  composer and ended on "You are all caught up", which was the opposite of true.
+- **Bigger tap targets** on the "who can see this" checkboxes and the top navigation, and
+  one consistent, solid empty state instead of a dashed box inside a solid one.
+- **The front door says welcome.** It said "Backyard is running".
 - `/healthz` answers `ok` or `degraded` (always HTTP 200) instead of always `ok`. The
   fields behind that word are visible to a signed-in instance admin and to nobody else: at
   a public URL, disk headroom and backup age are an operations map for whoever asks first.

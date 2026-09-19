@@ -15,12 +15,17 @@
     </span>
   </h1>
   {% if profile.placing %}<p class="member-meta">{{ profile.placing }}</p>{% endif %}
-  {% if profile.birthday %}<p>Birthday: {{ profile.birthday }}</p>{% endif %}
-  {% if profile.anniversary %}<p>Anniversary: {{ profile.anniversary }}</p>{% endif %}
-  {% if profile.contacts %}
+  {% comment %} One block, not four paragraphs: a birthday, an anniversary and a phone
+     number are the same KIND of fact about one person, and set as separate <p>s with a
+     paragraph's rhythm between them they read as four unrelated statements. {% endcomment %}
+  {% if profile.birthday or profile.anniversary or profile.contacts %}
     <ul class="contacts">
+      {% if profile.birthday %}<li>Birthday: {{ profile.birthday }}</li>{% endif %}
+      {% if profile.anniversary %}<li>Anniversary: {{ profile.anniversary }}</li>{% endif %}
       {% for c in profile.contacts %}<li>{{ c.label }}: {{ c.value }}</li>{% endfor %}
     </ul>
+  {% endif %}
+  {% if profile.contacts %}
     {% comment %} Offered only when there is something to save. It used to render
        unconditionally, so the commonest profile in the product — somebody who has shared
        no contact details — ended on an action that downloads an empty card. {% endcomment %}

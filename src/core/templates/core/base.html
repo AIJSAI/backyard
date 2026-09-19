@@ -704,7 +704,7 @@ ul.errorlist li::before { content: "\26a0\00a0\00a0"; font-weight: 700; color: v
    replaced two stacked "Choose Files / No file chosen" boxes, the most dated control in
    the product, sitting on the two screens a family touches most. "Files" is also the
    wrong word on a phone, where there is a photo library. */
-.media-picker > label { margin: 0 0 0.5rem; }
+.media-picker > .picker-button { margin: 0 0 0.5rem; }
 .media-picker input[type=file] {
   padding: 0; margin: 0; background: none; border: 0; min-height: 0;
   width: auto; max-width: 100%; font-size: 0.9rem; color: var(--ink-soft);
@@ -716,6 +716,29 @@ ul.errorlist li::before { content: "\26a0\00a0\00a0"; font-weight: 700; color: v
   border: 1.5px solid var(--green); border-radius: 999px;
 }
 .media-picker input[type=file]::file-selector-button:hover { background: var(--green-tint); }
+/* WITH the enhancement script (it sets `js`): the label IS the button and the real input
+   is hidden visually only — a <label for> opens a file input natively, so the control is
+   still keyboard- and screen-reader-operable and still submits. Hidden because WebKit
+   draws its own small thumbnail of the first chosen file beside the native button, which
+   put the same photograph on screen twice once our own preview strip existed.
+   WITHOUT the script, none of this applies and the native control keeps its button and
+   its own file count. */
+.media-picker.js input[type=file] {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.media-picker.js > .picker-button {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 1rem; cursor: pointer;
+  min-height: 44px; padding: 0.55rem 1.15rem; margin: 0;
+  color: var(--green); background: var(--surface);
+  border: 1.5px solid var(--green); border-radius: 999px;
+}
+.media-picker.js > .picker-button:hover { background: var(--green-tint); }
+/* The ring follows the hidden input onto the thing a person can actually see. */
+.media-picker.js:has(input[type=file]:focus-visible) > .picker-button {
+  outline: 3px solid var(--ring); outline-offset: 2px;
+}
 .media-hint { margin: 0.55rem 0 0; font-size: 0.82rem; color: var(--ink-soft); }
 /* What you picked, before you post it. The only feedback used to be a filename inside
    the native control, so nobody could confirm they had chosen the right picture. */
@@ -730,10 +753,13 @@ ul.media-previews .media-kind { display: flex; align-items: center; justify-cont
   text-align: center; padding: 0.4rem; font-size: 0.74rem; font-weight: 700; color: var(--ink-soft); }
 ul.media-previews .media-name { display: block; margin: 0.35rem 0 0; font-size: 0.72rem;
   color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Quieter than the thumbnail it belongs to — it is an undo, not an action anybody came
+   here to take — but still a bordered control at the full 44px, because "Remove" as a
+   bare word beside a photograph reads as a caption. */
 button.thumb-remove {
   width: 100%; min-height: 44px; margin: 0.3rem 0 0; padding: 0.3rem 0.4rem;
   font-size: 0.82rem; font-weight: 400; border-radius: var(--radius-sm);
-  background: none; color: var(--ink-soft); border-color: var(--line-strong);
+  background: none; color: var(--ink-soft); border-color: var(--line);
 }
 button.thumb-remove:hover { background: var(--danger-tint); color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 55%, transparent); }
@@ -1012,7 +1038,11 @@ ul.members .inline, ul.pods .inline, ul.invites .inline { margin-left: auto; }
 /* The directory is PEOPLE, and it rendered as a list of green underlined links with
    hairline rules — no face, no household, no side, nothing but a name. Each row is now a
    person: their disc, their name, and one quiet line saying where they sit in the family. */
-ul.directory > li { gap: 0.8rem; flex-wrap: nowrap; }
+/* flex-START, not centre: a row that grew to four lines (a birthday and a phone number)
+   left the disc floating in the middle of it, beside nothing. It belongs against the
+   name it stands for. */
+ul.directory > li { gap: 0.8rem; flex-wrap: nowrap; align-items: flex-start; }
+ul.directory > li > .avatar { margin-top: 0.1rem; }
 ul.directory .who { display: flex; flex-direction: column; min-width: 0; gap: 0.05rem; }
 ul.directory .who > a { font-size: 1.06rem; text-decoration: none; }
 ul.directory .who > a:hover { text-decoration: underline; }
@@ -1177,6 +1207,10 @@ blockquote.quoted-post {
   border: 1px solid color-mix(in srgb, var(--green) 18%, transparent);
   padding: 0.7rem 0.95rem; margin: 0.6rem 0; font-size: 0.96rem; }
 .contacts, .contact { color: var(--ink-soft); }
+/* A person's facts are ONE block. As separate paragraphs, with a paragraph's rhythm
+   between them, a birthday and a phone number read as unrelated statements. */
+ul.contacts { margin: 0.6rem 0 0; }
+ul.contacts > li { padding: 0.15rem 0; }
 .kinship { color: var(--ink-soft); font-weight: 400; }
 
 .visually-hidden {
@@ -1276,7 +1310,7 @@ blockquote.quoted-post {
   /* grid-auto-rows: 1fr above equalises the row heights — a "(Nana)" on one card used
      to make its whole row taller than the next. The avatar leads the card, exactly as it
      leads the phone row, so the two widths are the same composition. */
-  ul.directory > li { display: flex; flex-direction: row; align-items: center; gap: 0.8rem;
+  ul.directory > li { display: flex; flex-direction: row; align-items: flex-start; gap: 0.8rem;
     border: 1.5px solid var(--line); border-bottom: 1.5px solid var(--line);
     border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow);
     padding: 1rem 1.1rem; }

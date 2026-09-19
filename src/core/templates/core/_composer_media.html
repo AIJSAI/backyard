@@ -30,6 +30,10 @@
         list.textContent = "";
         var files = input.files ? Array.prototype.slice.call(input.files) : [];
         list.hidden = files.length === 0;
+        // Once WE are showing what was picked, the native control's own "2 files" is a
+        // second, worse answer to the same question sitting beside the thumbnails. It
+        // stays visible whenever there is nothing to show, which is also the state a
+        // browser without this script is permanently in.
         files.forEach(function (file, index) {
           var item = document.createElement("li");
           if (file.type.indexOf("image/") === 0) {
@@ -76,7 +80,11 @@
       Array.prototype.forEach.call(inputs, function (input) {
         var picker = input.closest("[data-media-picker]");
         var list = picker ? picker.querySelector("[data-media-previews]") : null;
-        if (list) {
+        if (picker && list) {
+          // Claimed only once the previews are genuinely wired: the class is what swaps
+          // the native control for our label-button, so setting it before that point
+          // would hide the working control and leave nothing in its place.
+          picker.classList.add("js");
           input.addEventListener("change", function () { render(input, list); });
         }
 

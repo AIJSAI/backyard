@@ -100,7 +100,14 @@ def _policy(nonce: str) -> str:
             "default-src 'self'",
             f"script-src 'self' 'nonce-{nonce}'",
             "style-src 'self' 'unsafe-inline'",
-            "img-src 'self'",
+            # `blob:` is for the composer's own thumbnails: the picker renders what the
+            # member just chose via URL.createObjectURL, and under a bare 'self' the
+            # browser refused every one of them, so the preview strip was a row of empty
+            # boxes. A blob: URL names an object THIS page created in memory and is
+            # unreachable from any other origin, so this admits no remote bytes — the
+            # distinction the directive exists to draw. `data:` is deliberately NOT added:
+            # that one WOULD let injected markup carry its own payload inline.
+            "img-src 'self' blob:",
             "object-src 'none'",
             "frame-src 'none'",  # the app embeds no iframes; an injected same-origin frame is inert
             "base-uri 'self'",

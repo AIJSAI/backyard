@@ -21,6 +21,7 @@ and it is the one thing in the design report the owner explicitly rejected.
 from __future__ import annotations
 
 import io
+import re
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -85,6 +86,21 @@ def test_the_reply_form_offers_the_same_one_control(world: dict[str, object]) ->
     page = _page(world, reverse("post_detail", args=[post.id]))
     assert page.count('type="file"') == 1
     assert 'accept="image/*,video/*"' in page and "capture=" not in page
+
+
+def test_it_degrades_to_a_plain_working_picker(world: dict[str, object]) -> None:
+    """The thumbnails are an enhancement, so the page has to be right BEFORE the script
+    runs: a real file input with its own native button and its own count, a label bound to
+    it, and the limits in words. The `js` class that swaps in our label-button is set by
+    the script and must not be in the served HTML."""
+    page = _page(world, reverse("feed"))
+    assert 'class="media-picker" data-media-picker' in page, "not enhanced until the script says"
+    assert '<label class="picker-button" for="media">Add photos or a video</label>' in page
+    assert '<ul class="media-previews" data-media-previews hidden>' in page
+    # The script is same-origin inline and carries the request's CSP nonce, or the browser
+    # refuses it and the fallback above is what everybody gets.
+    assert "<script nonce=" in page
+    assert re.search(r"<script(?![^>]*\bnonce=)[^>]*>", page) is None
 
 
 def test_the_limits_are_said_in_words_beside_the_control(world: dict[str, object]) -> None:

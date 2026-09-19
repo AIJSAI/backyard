@@ -54,7 +54,11 @@
        HTML forms do not nest. Cancelling here releases the staged photographs too, which
        is why it POSTs to the same route the confirmation's Cancel does. {% endcomment %}
     <div class="notice draft-notice">
-      <p>Your unfinished post is still here.</p>
+      {% comment %} Name the photos when there are photos: they are held server-side
+         (core/staged_uploads.py) and so cannot be shown back in the picker, and a member
+         who cannot see them has no way to know they survived. {% endcomment %}
+      <p>Your unfinished post is still here{% if staged_handle %}, with the photos you
+        picked{% endif %}.</p>
       <form method="post" action="{% url 'compose_cancel' %}">
         {% csrf_token %}
         {% if staged_handle %}<input type="hidden" name="staged_uploads" value="{{ staged_handle }}">{% endif %}
