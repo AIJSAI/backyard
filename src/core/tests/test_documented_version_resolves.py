@@ -35,6 +35,13 @@ Three checks were added after this file was measured and found to be doing nothi
   superseded release indefinitely, in the two files a stranger reads to decide what is safe
   to install. Both did.
 * **`pyproject.toml` had drifted two releases behind**, because nothing read it.
+
+A fourth, found by review rather than by measurement: adding an `## [Unreleased]` heading
+made the second half of `test_a_withdrawn_release_keeps_the_shape_that_marks_it`
+unfalsifiable, because the newest heading that is not withdrawn stopped being a RELEASE
+heading. `_live_release_headings` is the fix and
+`test_the_release_shape_rule_can_actually_fail` is the proof. The pattern across all four is
+one thing: a check whose input set silently changed under it.
 """
 
 from __future__ import annotations
@@ -144,6 +151,28 @@ def _is_withdrawn(version: str) -> bool:
         re.search(rf"^##\s*\[?{re.escape(version)}\]?.*\(withdrawn\)", body, re.M | re.I)
         is not None
     )
+
+
+def _live_release_headings(headings: list[str]) -> list[str]:
+    """The `##` headings that NAME A RELEASE and are not marked withdrawn, newest first.
+
+    Only headings naming a version count, and that is the whole point of the function. A
+    heading like `## [Unreleased]` is bracketed but is not a release: `_release_in_flight`
+    matches `## [x.y.z]` and walks straight past it. Letting it into this list makes
+    `live[0].startswith("[")` true forever, whatever shape the newest REAL release heading
+    has — measured on the current file, rewriting `## [0.1.2] — 2026-08-07` to
+    `## 0.1.2 — 2026-08-07 (withdrawn)` still passed.
+
+    A named function rather than a comprehension inside the test, so the rule has exactly one
+    implementation and `test_the_release_shape_rule_can_actually_fail` can drive it with
+    synthetic headings. A self-test that re-implements the rule drifts toward passing; the
+    same note is on `problems_with` in `scripts/check_compose_overlay.py`.
+    """
+    return [
+        heading
+        for heading in headings
+        if "(withdrawn)" not in heading.casefold() and re.search(r"\d+\.\d+\.\d+", heading)
+    ]
 
 
 def test_the_reader_facing_documents_actually_name_a_version() -> None:
@@ -315,10 +344,46 @@ def test_a_withdrawn_release_keeps_the_shape_that_marks_it() -> None:
         )
 
     # And the other half: the newest live entry must be bracketed, or nothing is ever
-    # exempt and a real in-flight release fails the build.
-    live = [h for h in headings if "(withdrawn)" not in h.casefold()]
+    # exempt and a real in-flight release fails the build. `_live_release_headings` drops the
+    # headings that name no version — see its docstring for why that filter is the check.
+    live = _live_release_headings(headings)
     assert live and live[0].startswith("["), (
-        f"the newest CHANGELOG entry `## {live[0] if live else '(none)'}` is not bracketed, "
-        "so `_release_in_flight` sees no release in flight and the documents cannot name a "
-        "version between merging the release notes and cutting the tag"
+        f"the newest CHANGELOG release entry `## {live[0] if live else '(none)'}` is not "
+        "bracketed, so `_release_in_flight` sees no release in flight and the documents "
+        "cannot name a version between merging the release notes and cutting the tag"
     )
+
+
+def test_the_release_shape_rule_can_actually_fail() -> None:
+    """Non-vacuity for the assertion above, driven with `## [Unreleased]` present — which is
+    the exact shape that silenced it.
+
+    The check went quiet the day an `## [Unreleased]` heading was added: `live[0]` became
+    `"[Unreleased]"` permanently, so `startswith("[")` held no matter what the newest real
+    release heading looked like. It is asserted from both sides here because a filter that
+    starts returning everything, or nothing, fails this test rather than reporting green.
+    """
+    unreleased = "[Unreleased]"
+    assert not _live_release_headings([unreleased]), (
+        "`## [Unreleased]` names no version, so it cannot stand in for the newest release. "
+        "Counting it is what made the assertion above unfalsifiable."
+    )
+
+    withdrawn_newest = _live_release_headings(
+        [unreleased, "0.1.2 — 2026-08-07 (withdrawn)", "[0.1.1] — 2026-07-30"]
+    )
+    assert withdrawn_newest == ["[0.1.1] — 2026-07-30"], (
+        "a withdrawn heading must be skipped, and the next real release read instead"
+    )
+
+    unbracketed_newest = _live_release_headings(
+        [unreleased, "0.1.2 — 2026-08-07", "[0.1.1] — 2026-07-30"]
+    )
+    assert unbracketed_newest and not unbracketed_newest[0].startswith("["), (
+        "an unbracketed newest release must still be REPORTED when `## [Unreleased]` sits "
+        "above it — otherwise `_release_in_flight` can see no release in flight while this "
+        "guard, written to catch exactly that, reports green"
+    )
+
+    good = _live_release_headings([unreleased, "[0.1.2] — 2026-08-07", "0.1.0 (withdrawn)"])
+    assert good and good[0].startswith("["), "a bracketed newest release must be accepted"
