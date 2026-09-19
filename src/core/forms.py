@@ -19,7 +19,7 @@ from typing import Any
 from allauth.account.forms import LoginForm as AllauthLoginForm
 from allauth.account.forms import ResetPasswordForm as AllauthResetPasswordForm
 
-from core.recovery import RECOVERED_USERNAME_KEY
+from core.recovery import take_the_recovered_username
 
 
 class LoginForm(AllauthLoginForm):  # type: ignore[misc]  # allauth is untyped
@@ -48,13 +48,14 @@ class LoginForm(AllauthLoginForm):  # type: ignore[misc]  # allauth is untyped
             # unexpired link. An invalid or replayed link 404s before that line, so this
             # cannot be made to reveal a username for a token that was not just used.
             #
-            # POPPED, not read: it prefills exactly one render. Leaving it in the session
-            # would put somebody's username into the box on every visit to the sign-in
-            # page from that browser, including a visit by whoever borrows the phone.
+            # POPPED, not read, and honoured for ten minutes only: it prefills exactly one
+            # render, and a stale stamp is dropped rather than used. Leaving it in the
+            # session would put somebody's username into the box on every later visit from
+            # that browser, including a visit by whoever borrows the tablet.
             request = getattr(self, "request", None)
             session = getattr(request, "session", None)
             if session is not None:
-                recovered = session.pop(RECOVERED_USERNAME_KEY, "")
+                recovered = take_the_recovered_username(session)
                 if recovered:
                     self.fields["login"].initial = recovered
         if "password" in self.fields:

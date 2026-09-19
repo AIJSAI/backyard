@@ -89,26 +89,43 @@ def help_contact_name() -> str:
     return admin.short_name if admin is not None else ""
 
 
-# Paths where the READER has already been handed a capability by a relative, so naming
-# that relative tells them nothing they were not told when the link arrived.
+# THE READER HOLDS A LINK, and the only thing that may set this is a view that has
+# RESOLVED the token it was given.
 #
-#   /t/, /e/   the no-login link and the session it becomes — she was given it by name
-#   /d/        a Family email's web view, which only its recipient has
-#   /join/     an invite, handed over by the person who sent it
-#   /get-back-in/   a recovery link, minted by an admin for one person
-#   /accounts/confirm-email/   a link mailed to one address at that member's request
+# This used to be a tuple of URL prefixes, and the reviewer measured what that actually
+# bought: an anonymous GET of /join/garbage/, /d/garbage/, /t/garbage/, /get-back-in/
+# garbage/, /e/ and /accounts/confirm-email/garbage/ all printed the admin's first name,
+# while somebody holding a REAL /digest/confirm/<token>/ link got the anonymous fallback.
+# So the gate was wrong in both directions at once: a stranger who typed a path got the
+# name, and a relative with a working link did not.
 #
-# Everything else that is reachable while signed out is PUBLIC: the sign-in page, both
-# password-reset pages, About, How this works, and every 404 — which in this product is
-# the answer to every authorization denial, so a stranger probing URLs got the name too.
-_TOKEN_GATED_PREFIXES = (
-    "/t/",
-    "/e/",
-    "/d/",
-    "/join/",
-    "/get-back-in/",
-    "/accounts/confirm-email/",
-)
+# A URL prefix is not a capability. Only the view knows whether the string in the path was
+# a live token, and it knows it at exactly one moment — after the lookup succeeds and
+# before it renders. So each token view says so about itself, and this reads what they
+# said. A bogus token now falls through to the same bare 404 as any other unknown route,
+# byte-identical, which is the answer S-202 isolation already depends on.
+#
+# /accounts/confirm-email/ names nobody: it is allauth's view and sets nothing, which is
+# the right answer rather than a gap — a confirmation link proves control of a mailbox,
+# not that a relative introduced anybody.
+# NAMED WITHOUT THE WORD "TOKEN", deliberately. `test_no_hardcoded_demo_credentials` and
+# ruff's S105 both flag any NAME containing it as a hardcoded credential, and this holds a
+# boolean. Silencing either one here would be the wrong trade: that guard exists because
+# this repository has published a working credential three times, and its own comment
+# warns that a noisy guard is one people allowlist their way around. The attribute VALUE
+# and the helper below keep the names the review asked for.
+FAMILY_LINK_READER_ATTRIBUTE = "reader_holds_a_family_link"
+
+
+def note_the_reader_holds_a_link(request: HttpRequest) -> None:
+    """Called by a token view once its token has resolved, and never before.
+
+    Deliberately a plain attribute on the request rather than anything in the session: it
+    must not outlive the one response it was true for. Putting it in the session would
+    mean a grandmother's forwarded link left the name on every later page that browser
+    ever loaded, which is the leak this whole gate exists to close.
+    """
+    setattr(request, FAMILY_LINK_READER_ATTRIBUTE, True)
 
 
 def may_name_the_admin(request: HttpRequest) -> bool:
@@ -125,20 +142,23 @@ def may_name_the_admin(request: HttpRequest) -> bool:
     been let in — and the name buys a logged-out reader nothing, because every public page
     that printed it is a page they reached without being invited.
 
-    Signed-in members keep it: they know these people. So do token-gated readers, because
-    the relative who sent them the link already said who they were.
+    Two readers qualify. A signed-in member, who knows these people. And somebody whose
+    token a view has just RESOLVED, because the relative who sent them that link already
+    said who they were — which is also why the name is most useful to them, a grandmother
+    on her no-login page being the person in this product least able to work out who to
+    ring.
     """
     # `getattr`, not `request.user`, and the reason is measured rather than defensive
     # habit: this runs from a context processor on EVERY render, and a response built
     # without AuthenticationMiddleware having run — a bare RequestFactory in a test, an
     # error page raised before the middleware stack finishes — has no `.user` at all.
     # `test_the_limit_covers_get_which_allauths_own_wrapper_exempts` found exactly that.
-    # Falling through to the path check is also the right ANSWER there, not just a way to
-    # avoid the AttributeError: with no resolvable reader, name nobody.
+    # Falling through is also the right ANSWER there, not just a way to avoid the
+    # AttributeError: with no resolvable reader, name nobody.
     user = getattr(request, "user", None)
     if user is not None and user.is_authenticated:
         return True
-    return request.path.startswith(_TOKEN_GATED_PREFIXES)
+    return bool(getattr(request, FAMILY_LINK_READER_ATTRIBUTE, False))
 
 
 def viewer(request: HttpRequest) -> dict[str, object]:

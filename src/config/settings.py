@@ -194,6 +194,16 @@ DATABASES = {
 # switch to signed-cookie sessions (which cannot be revoked) is a deliberate, visible change.
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
+# Flash messages live in the SESSION, not in a cookie. Django's default is FallbackStorage,
+# which writes a message into a signed cookie and only spills to the session when it will
+# not fit — and since walk item 2 one of these messages carries a member's USERNAME ("Your
+# new password is saved. Sign in as <username>."), set on the one request where somebody
+# has just proved they are locked out of that account. Signed is not encrypted: a cookie is
+# readable by anyone holding the device or watching a plaintext hop, and it persists in the
+# jar after the page that consumed it is gone. The session backend above is server-side and
+# individually revocable, so the username never leaves this machine.
+MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},

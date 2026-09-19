@@ -28,6 +28,9 @@ import pytest
 from allauth.account.models import EmailAddress
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.test import Client
+from django.urls import reverse
+from django.utils import timezone
 
 from core import digesting
 from core.models import DigestSubscription, Member, Pod, PodMembership, Yard
@@ -237,3 +240,214 @@ def test_the_receiver_is_silent_rather_than_explosive_on_a_stranger(pod: Pod) ->
 
     confirm_the_family_email_at_the_same_address(sender=EmailAddress, email_address=row)
     confirm_the_family_email_at_the_same_address(sender=EmailAddress, email_address=None)
+
+
+# --- the page must not name an e-mail that does not exist -----------------------------
+#
+# The HIGH finding of the review round. `subscribe` sends no mail on the same-address
+# branch, but `digest_settings` decided "sent" from `confirmed_at is None` — which is also
+# true on that branch — so the page said "Check <address> for one email" when none had
+# been sent, and re-submitting the form took the same branch and sent nothing again. A
+# member whose join confirmation failed (`join._send_confirmation` swallows every
+# exception) or expired after allauth's three days could never start the Family email, and
+# every screen told them to go and look for a message that did not exist.
+
+
+def _signed_in(member: Member) -> Client:
+    client = Client()
+    assert member.user is not None
+    client.force_login(member.user, backend="django.contrib.auth.backends.ModelBackend")
+    return client
+
+
+def test_the_settings_page_says_which_email_to_look_for_when_it_sent_none(pod: Pod) -> None:
+    member = _member("cousin", "Cousin Reed", pod=pod)
+    EmailAddress.objects.create(
+        user=member.user, email="cousin@example.com", primary=True, verified=False
+    )
+    mail.outbox.clear()
+
+    page = _signed_in(member).post(
+        reverse("digest_settings"), {"address": "cousin@example.com", "cadence": "weekly"}
+    )
+    body = " ".join(page.content.decode().split())
+
+    assert mail.outbox == []  # non-vacuity: this is the branch that sends nothing
+    assert "Check cousin@example.com for one email" not in body, (
+        "the page sends the member looking for an email it never sent"
+    )
+    assert "This is your sign-in address, and it is not confirmed yet." in body
+    assert "One tap answers both" in body
+    # ...and a way to get another one, which is the only route forward if the join mail
+    # failed or has expired.
+    assert reverse("account_email") in body
+
+
+def test_the_settings_page_still_says_check_your_inbox_when_it_did_send(pod: Pod) -> None:
+    """Non-vacuity for the test above, on the path that really does send."""
+    member = _member("cousin", "Cousin Reed", pod=pod)
+    EmailAddress.objects.create(
+        user=member.user, email="cousin@example.com", primary=True, verified=True
+    )
+    mail.outbox.clear()
+
+    page = _signed_in(member).post(
+        reverse("digest_settings"),
+        {"address": "somewhere-else@example.com", "cadence": "weekly"},
+    )
+    body = " ".join(page.content.decode().split())
+
+    assert len(mail.outbox) == 1
+    assert "Check somewhere-else@example.com for one email" in body
+    assert "This is your sign-in address" not in body
+
+
+def test_a_cadence_tweak_on_a_confirmed_address_says_only_saved(pod: Pod) -> None:
+    """The third state, and the one that was already right: nothing was sent and nothing
+    is owed, so the page must claim neither."""
+    member = _member("cousin", "Cousin Reed", pod=pod)
+    EmailAddress.objects.create(
+        user=member.user, email="cousin@example.com", primary=True, verified=True
+    )
+    digesting.subscribe(member, address="cousin@example.com", cadence="weekly")
+    mail.outbox.clear()
+
+    page = _signed_in(member).post(
+        reverse("digest_settings"), {"address": "cousin@example.com", "cadence": "monthly"}
+    )
+    body = " ".join(page.content.decode().split())
+
+    assert mail.outbox == []
+    assert "Saved." in body
+    assert "Check cousin@example.com for one email" not in body
+    assert "This is your sign-in address" not in body
+
+
+# --- store what was PROVEN, and never un-confirm it ------------------------------------
+
+
+def test_the_subscription_stores_the_proven_spelling_not_the_typed_one(pod: Pod) -> None:
+    """A member who signs in as `rose@` and types `ROSE@` has given the product one
+    mailbox. Storing the typed string would point the subscription at a spelling nothing
+    ever confirmed."""
+    member = _member("rose", "Rose Reed", pod=pod)
+    EmailAddress.objects.create(
+        user=member.user, email="rose@example.com", primary=True, verified=True
+    )
+
+    subscription = digesting.subscribe(member, address="ROSE@example.com", cadence="weekly")
+    assert subscription.address == "rose@example.com"
+    assert subscription.confirmed_at is not None
+
+
+def test_re_pointing_away_and_back_does_not_stop_the_family_email(pod: Pod) -> None:
+    """`update_or_create` wrote `confirmed_at` unconditionally, so a member who changed
+    their mind twice — or simply re-saved the form — had a working subscription silently
+    set back to unconfirmed, with no token minted and therefore no way to confirm it
+    again. Control of this mailbox by this member does not stop being proven because a
+    form was submitted twice."""
+    member = _member("cousin", "Cousin Reed", pod=pod)
+    row = EmailAddress.objects.create(
+        user=member.user, email="cousin@example.com", primary=True, verified=False
+    )
+    digesting.subscribe(member, address="cousin@example.com", cadence="weekly")
+    _confirm_the_signin_address(row)
+    assert DigestSubscription.objects.get(member=member).confirmed_at is not None
+
+    # Away to a different mailbox (which needs its own proof), then back.
+    digesting.subscribe(member, address="elsewhere@example.com", cadence="weekly")
+    assert DigestSubscription.objects.get(member=member).confirmed_at is None
+    digesting.subscribe(member, address="cousin@example.com", cadence="weekly")
+
+    back = DigestSubscription.objects.get(member=member)
+    assert back.address == "cousin@example.com"
+    assert back.confirmed_at is not None, (
+        "coming back to a mailbox this member already proved turned the Family email off "
+        "with no way to turn it on again"
+    )
+
+
+# --- consent: a SECONDARY address is not collapsed ------------------------------------
+
+
+def test_a_secondary_address_gets_its_own_content_free_confirmation(pod: Pod) -> None:
+    """Collapsing the two confirmations is fair for the address a member signs in with and
+    was told about at join. It is not fair for one they added later: the account mail for
+    it would be the only thing they ever tapped, and nothing would have asked whether
+    family content should start flowing there."""
+    member = _member("cousin", "Cousin Reed", pod=pod)
+    EmailAddress.objects.create(
+        user=member.user, email="cousin@example.com", primary=True, verified=True
+    )
+    EmailAddress.objects.create(
+        user=member.user, email="second@example.com", primary=False, verified=True
+    )
+    mail.outbox.clear()
+
+    subscription = digesting.subscribe(member, address="second@example.com", cadence="weekly")
+
+    assert len(mail.outbox) == 1, [m.subject for m in mail.outbox]
+    assert mail.outbox[0].to == ["second@example.com"]
+    assert subscription.confirmed_at is None, (
+        "a secondary address started the Family email without anybody being asked"
+    )
+
+
+def test_confirming_a_secondary_account_address_starts_nothing(pod: Pod) -> None:
+    member = _member("cousin", "Cousin Reed", pod=pod)
+    EmailAddress.objects.create(
+        user=member.user, email="cousin@example.com", primary=True, verified=True
+    )
+    second = EmailAddress.objects.create(
+        user=member.user, email="second@example.com", primary=False, verified=False
+    )
+    digesting.subscribe(member, address="second@example.com", cadence="weekly")
+
+    _confirm_the_signin_address(second)
+
+    assert DigestSubscription.objects.get(member=member).confirmed_at is None, (
+        "tapping the ACCOUNT link for a secondary address started the Family email"
+    )
+
+
+def test_the_account_mail_says_what_its_link_actually_does(pod: Pod) -> None:
+    """A mail that understates what its own link does is a consent defect nobody notices
+    until content arrives somewhere it was not expected."""
+    from django.template.loader import render_to_string
+
+    body = render_to_string(
+        "account/email/email_confirmation_message.txt",
+        {"activate_url": "https://example.test/confirm/x/", "current_site": None},
+    )
+    flat = " ".join(body.split())
+    assert "it starts the Family email if one has been pointed at this address" in flat
+    assert "Nothing else is sent to this address unless you ask for it" not in flat
+
+
+def test_re_saving_an_already_confirmed_unverified_mailbox_keeps_it_on(pod: Pod) -> None:
+    """The clause `own.verified` cannot cover. A subscription can be confirmed while the
+    sign-in row is still unverified — it was confirmed by the digest's own token, minted
+    before that row existed. Re-saving the settings form then takes the same-address
+    branch, which mints no token, so an unconditional write would have turned the Family
+    email off with nothing left to turn it back on."""
+    member = _member("cousin", "Cousin Reed", pod=pod)
+    subscription = DigestSubscription.objects.create(
+        member=member,
+        address="cousin@example.com",
+        cadence=DigestSubscription.WEEKLY,
+        enabled=True,
+        confirmed_at=timezone.now(),
+        confirm_token_digest="",  # nosec B105 - already burnt by confirming
+        unsubscribe_token_digest=digesting._digest("raw-unsub"),
+    )
+    EmailAddress.objects.create(
+        user=member.user, email="cousin@example.com", primary=True, verified=False
+    )
+    mail.outbox.clear()
+
+    again = digesting.subscribe(member, address="cousin@example.com", cadence="monthly")
+
+    assert mail.outbox == []
+    assert again.pk == subscription.pk
+    assert again.cadence == DigestSubscription.MONTHLY
+    assert again.confirmed_at is not None, "re-saving the form turned the Family email off"

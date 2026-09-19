@@ -182,7 +182,9 @@ class RosterRow:
         )
 
 
-def _no_actions_reason(actor: Member, member: Member, *, has_actions: bool) -> str:
+def _no_actions_reason(
+    actor: Member, member: Member, *, has_actions: bool, reachable_yard_ids: set[int]
+) -> str:
     """Which of the three reasons this row is read-only, or "" if it is not.
 
     Ordered most-specific first, and each arm is a fact about THIS pair rather than a
@@ -198,9 +200,12 @@ def _no_actions_reason(actor: Member, member: Member, *, has_actions: bool) -> s
     # household on a side of the family the actor does not administer, so S-202 puts them
     # out of reach however ordinary their role is. Read from the same visibility the guard
     # enforces rather than re-deriving it.
-    reachable = set(scoping.visible_yards(actor).values_list("pk", flat=True))
+    #
+    # `reachable_yard_ids` is PASSED IN, not computed here. It is a property of the ACTOR
+    # and does not change between rows, so resolving it inside this function ran one query
+    # per person on the roster — the N+1 Copilot flagged. The caller resolves it once.
     theirs = set(Yard.objects.filter(pods__members=member).values_list("pk", flat=True))
-    if not theirs <= reachable:
+    if not theirs <= reachable_yard_ids:
         return "other-side"
     return "other"
 
@@ -232,6 +237,9 @@ def members(request: HttpRequest) -> HttpResponse:
             )
         )
     )
+    # Once, before the loop: the actor's own reach does not change from row to row, and
+    # resolving it per row was a query per person (Copilot thread 1).
+    reachable_yard_ids = set(scoping.visible_yards(actor).values_list("pk", flat=True))
     for member in roster:
         manageable = permissions.can_manage_member(actor, member)
         # Only offer roles the actor is authorized to grant this target, excluding the
@@ -274,7 +282,10 @@ def members(request: HttpRequest) -> HttpResponse:
             )
         )
         rows[-1].no_actions_reason = _no_actions_reason(
-            actor, member, has_actions=rows[-1].has_actions
+            actor,
+            member,
+            has_actions=rows[-1].has_actions,
+            reachable_yard_ids=reachable_yard_ids,
         )
     return render(
         request,

@@ -21,6 +21,7 @@ from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
 from . import digest_links, scoping
+from .context_processors import note_the_reader_holds_a_link
 from .models import DigestToken, MediaAsset
 
 # A digest page truncating an absurd week beats an unbounded render on an
@@ -62,6 +63,9 @@ def digest_view(request: HttpRequest, token: str) -> HttpResponse:
     resolved = _resolve_or_respond(request, token)
     if isinstance(resolved, HttpResponse):
         return resolved
+    # A live digest link, mailed to one member, so the help line may name the relative who
+    # runs this. An expired or unknown one returned above.
+    note_the_reader_holds_a_link(request)
     posts = (
         digest_links.issue_posts(resolved.issue)
         .select_related("author", "pod")
@@ -87,6 +91,7 @@ def digest_post_view(request: HttpRequest, token: str, post_id: int) -> HttpResp
     resolved = _resolve_or_respond(request, token)
     if isinstance(resolved, HttpResponse):
         return resolved
+    note_the_reader_holds_a_link(request)
     post = scoping.require_visible_post(resolved.member, post_id)
     # Same gallery contract as the feed and the digest index, so a deep link from the
     # email shows the photos the email said were there. Prefetched onto the object the

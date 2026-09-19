@@ -133,9 +133,20 @@ product — the feed, a thread, an invite's last day, the Family email — is st
 which for most families is several hours wrong and says so with no hedge. A post written
 at 4:28 in the morning read "9:28 a.m." on a real instance before this setting existed.
 
-Use an IANA name (`America/Chicago`, `Europe/London`, `Australia/Sydney`). A typo refuses
-to boot with a message naming the variable, rather than booting and printing wrong times:
-a wrong zone is a wrong fact on every screen. The full list your machine knows:
+Use an IANA name (`America/Chicago`, `Europe/London`, `Australia/Sydney`) - a country or
+a city on its own is not one, so `America/Omaha` and `CST` are both typos.
+
+**A bad value is a boot failure, by design.** The app refuses to start, with a message
+naming this variable, rather than booting and printing wrong times: a wrong zone is a
+wrong fact on every screen, and a container that will not come up is the cheaper failure.
+So check it before `docker compose up`, not after:
+
+```bash
+python3 -c 'import zoneinfo; zoneinfo.ZoneInfo("America/Chicago")'
+```
+
+Silence means the zone is good; a `ZoneInfoNotFoundError` means fix `.env` first. The full
+list your machine knows:
 
 ```bash
 python3 -c 'import zoneinfo; print(sorted(zoneinfo.available_timezones()))'

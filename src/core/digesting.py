@@ -70,10 +70,21 @@ def _own_signin_address(member: Member, address: str) -> EmailAddress | None:
     can only ever return a row that already belongs to this member, so nothing downstream
     of it can reach another person's address or another person's subscription. A member
     with no login (an elder, a supervised child) has no sign-in address and gets None.
+
+    PRIMARY ONLY, and this is a consent boundary rather than a tidy-up. Collapsing the two
+    confirmations means a tap on the ACCOUNT confirmation starts the Family email — which
+    is a fair reading of one tap when the address in question is the one the member signs
+    in with and was told about at join. It is not fair for a SECONDARY address they added
+    later: the account mail for it says only that confirming proves the address, and
+    nothing would have asked them whether family content should start flowing there. A
+    secondary address therefore falls through to the ordinary path and gets its own
+    content-free confirmation, which is the screen that asks that question.
     """
     if member.user_id is None:
         return None
-    return EmailAddress.objects.filter(user_id=member.user_id, email__iexact=address).first()
+    return EmailAddress.objects.filter(
+        user_id=member.user_id, email__iexact=address, primary=True
+    ).first()
 
 
 def subscribe(member: Member, *, address: str, cadence: str) -> DigestSubscription:
@@ -121,17 +132,41 @@ def subscribe(member: Member, *, address: str, cadence: str) -> DigestSubscripti
         # produce one confirmed row and one mail.
         own = _own_signin_address(member, address)
         if own is not None:
+            # THE PROVEN SPELLING, not the typed one. A member who signs in as `rose@` and
+            # types `ROSE@` here has given the product one mailbox, and the row that
+            # records what was proven is `own`. Storing the typed string would leave the
+            # subscription pointing at a spelling nothing ever confirmed, and the
+            # `email_confirmed` receiver would then have to match it back case-insensitively
+            # forever to keep working.
+            proven = own.email
+            # NEVER UN-CONFIRM A MAILBOX THIS MEMBER ALREADY CONFIRMED. `update_or_create`
+            # writes `confirmed_at` unconditionally, so a member who re-points their Family
+            # email away and back — or who simply re-saves the settings form — had their
+            # working subscription silently set back to unconfirmed and, with no token
+            # minted here, no way at all to confirm it again. Control of THIS mailbox by
+            # THIS member does not stop being proven because a form was submitted twice.
+            same_mailbox_already_confirmed = (
+                existing is not None
+                and existing.confirmed_at is not None
+                and existing.address.lower() == proven.lower()
+            )
+            confirmed_at: datetime.datetime | None
+            if own.verified:
+                # Verified means control is already proven FOR THIS MEMBER and FOR THIS
+                # ADDRESS — exactly what an EmailAddress row with verified=True records,
+                # and the same fact this confirmation exists to establish.
+                confirmed_at = timezone.now()
+            elif same_mailbox_already_confirmed and existing is not None:
+                confirmed_at = existing.confirmed_at
+            else:
+                confirmed_at = None
             subscription, _created = DigestSubscription.objects.update_or_create(
                 member=member,
                 defaults={
-                    "address": address,
+                    "address": proven,
                     "cadence": cadence,
                     "enabled": True,
-                    # Verified means control is already proven FOR THIS MEMBER and FOR
-                    # THIS ADDRESS — that is exactly what an EmailAddress row with
-                    # verified=True records, and it is the same fact this confirmation
-                    # exists to establish. Unverified stays None and waits for the tap.
-                    "confirmed_at": timezone.now() if own.verified else None,
+                    "confirmed_at": confirmed_at,
                     # No confirm token either way: there is no second link to mint,
                     # because there is no second mail. An empty digest is unmatchable
                     # (_by_token refuses an empty raw token before it queries).

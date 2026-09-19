@@ -160,6 +160,15 @@ def _refuse_if_it_reaches_real_data(collected: dict[Any, list[Any]], marker: str
     are somebody's words and somebody's photographs, their author can take them down from
     the feed, and this command will not decide for you which of them were a rehearsal.
 
+    WHAT PROTECTS THE PHOTOGRAPHS, and it is worth naming because this guard never looks
+    at a MediaAsset. It leans entirely on the S-404 constraint that an asset hangs off
+    exactly one post or one comment — never free-standing, never shared between two — so a
+    real person's photograph is always reachable through the post or the reply that
+    carries it, and both of those ARE checked above. That is why removing `Reaction` from
+    the authored tuple could not widen the blast radius to anybody's pictures: a reaction
+    has no asset hanging off it. If that constraint ever loosens, this guard needs its own
+    arm for MediaAsset, and this paragraph is the tripwire for whoever loosens it.
+
     What does NOT refuse, deliberately: a real person's REACTION on fixture content. It is
     deleted with the post it is on, and `preview()` counts it as "reactions by real people"
     so the dry run says the number before anybody types `--yes`. Three reasons:

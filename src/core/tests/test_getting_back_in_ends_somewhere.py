@@ -21,7 +21,10 @@ guessed link would be an account-existence oracle handed to anybody with a URL b
 
 from __future__ import annotations
 
+import contextlib
 import datetime
+from collections.abc import Iterator
+from unittest import mock
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -45,6 +48,19 @@ User = get_user_model()
 # inline `password="..."` reads as a credential assignment to the pre-commit scanner.
 _NEW_PW = "correct-horse-battery-staple-42"
 _OLD_PW = "old-Passphrase-9"
+
+
+@contextlib.contextmanager
+def freeze_the_clock(*, minutes: int) -> Iterator[None]:
+    """Run the block as if `minutes` had passed, by moving `timezone.now` forward.
+
+    Patched rather than sleeping, and patched on `core.recovery` because that is the
+    module whose `now` decides whether the stamp is stale.
+    """
+    real_now = timezone.now
+    shifted = real_now() + datetime.timedelta(minutes=minutes)
+    with mock.patch("core.recovery.timezone.now", return_value=shifted):
+        yield
 
 
 def _locked_out() -> tuple[Member, Member, str]:
@@ -221,3 +237,76 @@ def test_the_username_belongs_to_the_link_that_was_used() -> None:
     assert raw not in body
     # And the first relative's own link is untouched by somebody else redeeming theirs.
     assert member.user is not None
+
+
+# --- the ten-minute window (review finding 9) -----------------------------------------
+#
+# The session key is written the moment a link is redeemed and popped when the sign-in
+# form next renders — but nothing guarantees that render happens. Somebody who saves a new
+# password and closes the tab leaves their username in the session of a browser that, on
+# the shared family tablet this product is partly for, the next person picks up.
+#
+# NOT `session.set_expiry`, which was the obvious reach and is wrong: `login()` cycles the
+# session key but KEEPS its data, so a short expiry would follow them past the sign-in and
+# log them out minutes after they finally got back in. The stamp is checked by hand.
+
+
+def test_the_username_is_prefilled_inside_the_ten_minutes() -> None:
+    _member, _admin, raw = _locked_out()
+    client = Client()
+    client.post(
+        reverse("recover", args=[raw]),
+        {"password": _NEW_PW, "password_again": _NEW_PW},
+    )
+    with freeze_the_clock(minutes=9):
+        body = client.get(reverse("account_login")).content.decode()
+    assert 'value="nana"' in body
+
+
+def test_the_username_is_dropped_after_the_ten_minutes() -> None:
+    _member, _admin, raw = _locked_out()
+    client = Client()
+    client.post(
+        reverse("recover", args=[raw]),
+        {"password": _NEW_PW, "password_again": _NEW_PW},
+    )
+    with freeze_the_clock(minutes=11):
+        body = client.get(reverse("account_login")).content.decode()
+    assert 'value="nana"' not in body, (
+        "a stale username is still being typed into the box for whoever picks the device up"
+    )
+
+
+def test_a_stale_value_is_removed_rather_than_left_for_the_next_render() -> None:
+    """Popped regardless of the answer: a stamp too old is a value that should not be
+    sitting there at all, and leaving it would give the next render another go."""
+    _member, _admin, raw = _locked_out()
+    client = Client()
+    client.post(
+        reverse("recover", args=[raw]),
+        {"password": _NEW_PW, "password_again": _NEW_PW},
+    )
+    with freeze_the_clock(minutes=11):
+        client.get(reverse("account_login"))
+    assert client.session.get(recovery.RECOVERED_USERNAME_KEY) is None
+
+
+def test_signing_in_is_not_cut_short_by_the_window() -> None:
+    """The reason this is a stamp and not `set_expiry`. `login()` cycles the session key
+    and keeps its data, so an expiry set here would outlive the prefill it was for and
+    sign the person out minutes after they got back in."""
+    member, _admin, raw = _locked_out()
+    client = Client()
+    client.post(
+        reverse("recover", args=[raw]),
+        {"password": _NEW_PW, "password_again": _NEW_PW},
+    )
+    assert member.user is not None
+    client.get(reverse("account_login"))
+    client.post(
+        reverse("account_login"),
+        {"login": "nana", "password": _NEW_PW},
+    )
+    with freeze_the_clock(minutes=30):
+        feed = client.get(reverse("feed"))
+    assert feed.status_code == 200, "the session expired while they were using it"

@@ -195,8 +195,7 @@ itself up and telling somebody when it cannot.
 - **Mail has a name on it.** Messages arrived as a bare address — or as just "digests" in
   the clients that shorten it — which is how a family's own photographs come to look like
   spam. Every message now carries a display name (`BACKYARD_MAIL_FROM_NAME`), including
-  allauth's own, and the Family email says why it arrived and, where the instance can
-  actually receive one, that you can answer by replying.
+  allauth's own, and the Family email says why it arrived.
 - **One address needs one proof.** A relative who gave an e-mail at join and then chose
   "weekly" got two messages a minute apart with the identical subject, threaded together
   into what looked like one message sent twice. When the Family email address is the

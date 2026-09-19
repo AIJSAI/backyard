@@ -103,10 +103,20 @@ def welcome_family_email(request: HttpRequest) -> HttpResponse:
     """Screen two: the Family email, offered once, at the only moment anyone is thinking
     about it.
 
-    Choosing weekly or monthly enrolls through the ordinary opt-in path, so the address
-    still gets its one content-free confirmation email and nothing from the family flows
-    until they tap it (T-EMAIL-6). Choosing "No thanks" writes nothing at all and is
-    never raised again; Settings can turn it on later.
+    Choosing weekly or monthly enrolls through the ordinary opt-in path. Choosing
+    "No thanks" writes nothing at all and is never raised again; Settings can turn it on
+    later.
+
+    THE CONTENT-FREE CONFIRMATION IS NOW TRUE OF A DIFFERENT ADDRESS ONLY. This docstring
+    used to say the address "still gets its one content-free confirmation email" without
+    qualification, and since walk item 24 that is false for the commonest case on this
+    screen: the address is prefilled from the join form, so it is usually the member's own
+    sign-in address, and for that one `subscribe` sends nothing and lets the account
+    confirmation already in their inbox confirm both. A DIFFERENT address still gets its
+    own mail.
+
+    What is unchanged either way is the property T-EMAIL-6 is about: nothing from the
+    family flows to an address until somebody has proven they hold it.
     """
     member = _acting_member(request)
     context: dict[str, object] = {"member": member, "address": _known_address(member)}
@@ -183,5 +193,12 @@ def welcome_hello(request: HttpRequest) -> HttpResponse:
             "max_videos": feed_views._MAX_VIDEOS,
             "family_email_address": subscription.address if subscription else "",
             "family_email_confirmed": bool(subscription and subscription.confirmed_at),
+            # SAME TRUTH AS THE SETTINGS PAGE: a live confirm token is the only evidence
+            # that a mail was actually sent from here. Without this the screen said "We
+            # sent one email to <address>" on the same-address path (walk item 24), where
+            # this product sends nothing — the tap that starts the Family email is the
+            # account confirmation already in their inbox from joining a minute earlier.
+            # Naming the wrong e-mail sends a relative looking for one that never arrives.
+            "family_email_mail_sent": bool(subscription and subscription.confirm_token_digest),
         },
     )

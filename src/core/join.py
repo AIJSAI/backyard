@@ -35,6 +35,7 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 
 from . import invites, posting
+from .context_processors import note_the_reader_holds_a_link
 from .models import Member
 
 logger = logging.getLogger(__name__)
@@ -167,6 +168,10 @@ def join(request: HttpRequest, token: str) -> HttpResponse:
         invite = invites.peek_invite(token)
     except invites.InviteInvalid as exc:
         raise Http404 from exc
+    # The token resolved, so this reader was handed this link by a relative and the help
+    # line may name them (walk item 12). Said HERE and not by a URL prefix: /join/garbage/
+    # is a stranger typing, and it 404s above.
+    note_the_reader_holds_a_link(request)
     # The household this link joins them TO. The peek above already held it and the return
     # value was thrown away, so the page could not say where the person was going: somebody
     # opened a link a relative had texted them and was asked for a name, a username and a

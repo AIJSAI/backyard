@@ -129,6 +129,17 @@ def confirm_the_family_email_at_the_same_address(
     """
     if email_address is None or getattr(email_address, "user_id", None) is None:
         return
+    # PRIMARY ONLY, the same consent boundary `digesting._own_signin_address` draws on the
+    # other side of this. A member's primary sign-in address is the one they were told
+    # about at join and the one the Family email screens default to, so one tap covering
+    # both is a fair reading of what they asked for. A SECONDARY address they added later
+    # is not: nothing would have asked whether family content should start flowing there,
+    # and `subscribe` deliberately leaves that address on the ordinary path so the digest's
+    # own content-free confirmation is the screen that asks. Without this clause the two
+    # halves disagreed — subscribe sent the second mail, and this receiver started the
+    # Family email anyway the moment the ACCOUNT link was tapped.
+    if not getattr(email_address, "primary", False):
+        return
     from django.utils import timezone
 
     from .models import DigestSubscription, Member

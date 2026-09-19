@@ -31,8 +31,8 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 
-from core import elder_tokens, invites, recovery
-from core.models import Member, Pod, PodMembership, Yard
+from core import digesting, elder_tokens, invites, recovery
+from core.models import DigestSubscription, Member, Pod, PodMembership, Yard
 
 pytestmark = pytest.mark.django_db
 User = get_user_model()
@@ -155,37 +155,130 @@ def test_a_get_back_in_link_names_him() -> None:
     assert f"Stuck? Ask {_FIRST}." in html
 
 
-def test_the_gate_is_a_prefix_match_on_the_real_token_routes() -> None:
-    """Guard the guard: a path that merely STARTS LIKE a token route must not qualify, and
-    the list must not have rotted into matching nothing."""
+def test_a_bogus_token_on_every_token_surface_names_nobody() -> None:
+    """THE PROPERTY, not the URL shape — and this test is the inverse of the one it
+    replaces.
+
+    That one pinned the old implementation: a tuple of URL PREFIXES, with
+    `('/join/abc/', True)` asserting that anything under /join/ counted as a reader who
+    had been introduced. The reviewer measured what that bought and it was wrong in both
+    directions at once: an anonymous GET of /join/garbage/, /d/garbage/, /t/garbage/,
+    /get-back-in/garbage/, /e/ and /accounts/confirm-email/garbage/ all printed the
+    admin's first name, while somebody holding a REAL /digest/confirm/<token>/ link got
+    the anonymous fallback because that route was not in the tuple.
+
+    A URL prefix is not a capability. Only the view knows whether the string in the path
+    was a live token. So: garbage names nobody anywhere, and the answer stays the bare
+    byte-identical 404 that S-202 isolation depends on.
+    """
+    _family()
+    client = Client()
+    bodies = set()
+    for path in (
+        "/join/garbage/",
+        "/d/garbage/",
+        "/t/garbage/",
+        "/get-back-in/garbage/",
+        "/digest/confirm/garbage/",
+        "/digest/unsubscribe/garbage/",
+    ):
+        page = client.get(path)
+        assert page.status_code == 404, (path, page.status_code)
+        assert _FIRST not in page.content.decode(), f"{path} named a relative to a stranger"
+        bodies.add(page.content)
+
+    # ...and every one of them is the SAME 404, indistinguishable from an unknown route.
+    unknown = client.get("/no-such-route-at-all/")
+    assert unknown.status_code == 404
+    bodies.add(unknown.content)
+    assert len(bodies) == 1, "the dead token surfaces no longer answer identically"
+
+
+def test_the_elder_surface_with_no_session_names_nobody() -> None:
+    """/e/ has no token IN the path — it reads a session minted at /t/. Typing it names
+    nobody, which the prefix version got wrong."""
+    _family()
+    page = Client().get(reverse("elder_feed"))
+    assert page.status_code == 404
+    assert _FIRST not in page.content.decode()
+
+
+def test_an_account_confirmation_link_names_nobody() -> None:
+    """allauth's own view, which sets nothing — and that is the right answer rather than a
+    gap. A confirmation link proves control of a mailbox; it does not mean a relative
+    introduced anybody."""
+    _family()
+    page = Client().get("/accounts/confirm-email/garbage/")
+    assert _FIRST not in page.content.decode()
+
+
+def test_a_real_token_on_every_token_surface_does_name_them() -> None:
+    """The other direction, walked with LIVE tokens on each surface. Without this the
+    whole gate could be satisfied by naming nobody ever, which would take the help line
+    away from the readers it was added for."""
+    pod, admin = _family()
+
+    # An invite.
+    _invite, invite_raw = invites.mint_invite(pod, admin)
+    assert (
+        f"Stuck? Ask {_FIRST}." in Client().get(reverse("join", args=[invite_raw])).content.decode()
+    )
+
+    # A get-back-in link.
+    locked = Member.objects.create(
+        display_name="Sam Reed", user=User.objects.create_user(username="sam")
+    )
+    PodMembership.objects.create(member=locked, pod=pod)
+    recovery_raw = recovery.issue(locked, issued_by=admin)
+    assert (
+        f"Stuck? Ask {_FIRST}."
+        in Client().get(reverse("recover", args=[recovery_raw])).content.decode()
+    )
+
+    # The no-login link, and the session it becomes.
+    nana = Member.objects.create(display_name="Nana")
+    PodMembership.objects.create(member=nana, pod=pod)
+    elder = Client()
+    elder.get(reverse("elder_enter", args=[elder_tokens.mint(nana)]))
+    assert f"Stuck? Ask {_FIRST}." in elder.get(reverse("elder_feed")).content.decode()
+
+    # The Family email's own confirm link — the surface the reviewer measured as wrong the
+    # other way round, where a real holder used to get the anonymous fallback.
+    subscription = DigestSubscription.objects.create(
+        member=locked,
+        address="sam@example.com",
+        cadence=DigestSubscription.WEEKLY,
+        enabled=True,
+        confirm_token_digest=digesting._digest("raw-confirm"),
+        unsubscribe_token_digest=digesting._digest("raw-unsub"),
+    )
+    assert subscription.pk
+    confirm = Client().get(reverse("digest_confirm", args=["raw-confirm"]))
+    assert confirm.status_code == 200
+    assert f"Stuck? Ask {_FIRST}." in confirm.content.decode()
+
+    unsub = Client().get(reverse("digest_unsubscribe", args=["raw-unsub"]))
+    assert unsub.status_code == 200
+    assert f"Stuck? Ask {_FIRST}." in unsub.content.decode()
+
+
+def test_the_flag_is_off_until_a_view_sets_it() -> None:
+    """Guard the guard. A request that never went through AuthenticationMiddleware has no
+    `.user` at all — a bare RequestFactory here, an error page raised before the stack
+    finishes there — and this runs from a context processor on every render, so it must
+    answer rather than raise."""
     from django.contrib.auth.models import AnonymousUser
     from django.test import RequestFactory
 
-    from core.context_processors import may_name_the_admin
+    from core.context_processors import may_name_the_admin, note_the_reader_holds_a_link
 
     factory = RequestFactory()
-
-    # A request that never went through AuthenticationMiddleware has no `.user` at all —
-    # a bare RequestFactory here, an error page raised before the stack finishes there.
-    # This runs from a context processor on every render, so it must answer rather than
-    # raise; naming nobody is the right answer when there is no resolvable reader.
-    bare = factory.get("/about/")
+    bare = factory.get("/join/abc/")
     assert not hasattr(bare, "user")
-    assert may_name_the_admin(bare) is False
+    assert may_name_the_admin(bare) is False, "a URL path alone still qualifies"
 
-    for path, expected in (
-        ("/t/abc/", True),
-        ("/e/", True),
-        ("/d/abc/", True),
-        ("/join/abc/", True),
-        ("/get-back-in/abc/", True),
-        ("/accounts/confirm-email/abc/", True),
-        ("/", False),
-        ("/about/", False),
-        ("/accounts/login/", False),
-        ("/accounts/password/reset/", False),
-        ("/feed/", False),  # login_required anyway, but the PATH alone must not qualify
-    ):
-        request = factory.get(path)
-        request.user = AnonymousUser()
-        assert may_name_the_admin(request) is expected, path
+    anon = factory.get("/join/abc/")
+    anon.user = AnonymousUser()
+    assert may_name_the_admin(anon) is False
+    note_the_reader_holds_a_link(anon)
+    assert may_name_the_admin(anon) is True

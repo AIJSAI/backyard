@@ -271,8 +271,8 @@ def test_the_breadth_column_is_named_for_what_it_counts_in_both_places(world: Wo
     instance_admin = _member_with_user(world.m_pod, "Iadmin", role=Member.INSTANCE_ADMIN)
     body = _client_for(instance_admin).get(reverse("member_metrics")).content.decode()
 
-    assert "<th>Households that posted</th>" in body
-    assert 'data-label="Households that posted"' in body
+    assert "<th>Households and groups that posted</th>" in body
+    assert 'data-label="Households and groups that posted"' in body
     assert "Posting breadth" not in body
 
 

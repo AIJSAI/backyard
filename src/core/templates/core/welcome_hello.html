@@ -23,9 +23,13 @@
     <p class="notice">
       {% if family_email_confirmed %}
         The Family email is on. It goes to {{ family_email_address }}.
-      {% else %}
+      {% elif family_email_mail_sent %}
         We sent one email to {{ family_email_address }}. Tap the link in it and the Family
         email starts.
+      {% else %}
+        The Family email will go to {{ family_email_address }} once that address is
+        confirmed. Tap the link in the email Backyard sent you when you joined; one tap
+        answers both.
       {% endif %}
     </p>
   {% endif %}

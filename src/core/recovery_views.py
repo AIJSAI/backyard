@@ -37,9 +37,9 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from . import permissions, recovery
+from .context_processors import note_the_reader_holds_a_link
 from .feed_views import _acting_member
 from .handover import apply_token_body_headers, consume_intent, fresh_intent, link_artifacts
-from .recovery import RECOVERED_USERNAME_KEY
 
 
 @login_required
@@ -106,6 +106,9 @@ def recover(request: HttpRequest, token: str) -> HttpResponse:
         live = recovery.resolve(token)
     except recovery.RecoveryInvalid as exc:
         raise Http404 from exc
+    # A live get-back-in link, minted by an admin for this one person, so the help line
+    # may name them — this is the page somebody reads when they are already locked out.
+    note_the_reader_holds_a_link(request)
 
     errors: list[str] = []
     if request.method == "POST":
@@ -149,7 +152,7 @@ def recover(request: HttpRequest, token: str) -> HttpResponse:
                 # nothing on any failure path can be made to print a username.
                 username = live.member.user.username if live.member.user else ""
                 if username:
-                    request.session[RECOVERED_USERNAME_KEY] = username
+                    recovery.remember_the_recovered_username(request.session, username)
                     messages.success(request, f"Your new password is saved. Sign in as {username}.")
                 return redirect("account_login")
     return render(

@@ -20,8 +20,9 @@
      real number; but an admin reading a permanent zero deserves to know it is a retired
      route and not a family that stopped replying. {% endcomment %}
   <p class="muted">&ldquo;Replied by email&rdquo; is a retired route: replying to the
-    Family email was turned off, so this column counts nothing new and reads zero for
-    every week since. Replies made on the web are counted under &ldquo;Posts with a
+    Family email was turned off, so no new message hands anybody an address. Replies to
+    the Family emails sent before the change still work for about a month, so this column can
+    carry a small number for a few more weeks and then reads zero. Replies made on the web are counted under &ldquo;Posts with a
     reply&rdquo;.</p>
   {% comment %} A real thead/tbody, and data-label on every cell. Both are load-bearing,
      not tidiness: without <thead> the stylesheet's `thead th` rule never matched, so the
@@ -43,7 +44,7 @@
          The field, the migration and rollup_metrics still say `posting_breadth`: renaming
          those is a migration, not a copy pass. Only what a person reads changed.
          {% endcomment %}
-      <tr><th>Week</th><th>Side of the family</th><th>Stopped by</th><th>Households that posted</th><th>Posts with a reply</th><th>Caught up later</th><th>Opened the email</th><th>Replied by email</th></tr>
+      <tr><th>Week</th><th>Side of the family</th><th>Stopped by</th><th>Households and groups that posted</th><th>Posts with a reply</th><th>Caught up later</th><th>Opened the email</th><th>Replied by email</th></tr>
     </thead>
     <tbody>
       {% for row in rows %}
@@ -51,7 +52,7 @@
           <td data-label="Week">{% when_date row.week_start %}</td>
           <td data-label="Side of the family">{{ row.yard.name }}</td>
           <td data-label="Stopped by">{{ row.wcm }} of {{ row.member_count }}</td>
-          <td data-label="Households that posted">{{ row.posting_breadth }}</td>
+          <td data-label="Households and groups that posted">{{ row.posting_breadth }}</td>
           <td data-label="Posts with a reply">{{ row.posts_responded }} of {{ row.posts_in_week }}</td>
           <td data-label="Caught up later">{{ row.catch_up_members }}</td>
           <td data-label="Opened the email">{{ row.digest_opens }}</td>

@@ -385,17 +385,46 @@ def test_the_backfill_does_not_re_stamp_someone_who_already_dismissed(pod: Pod) 
 # --- screen three says what screen two did (walk item 22) ------------------------------
 
 
-def test_screen_three_says_the_confirmation_is_waiting(pod: Pod) -> None:
-    """Picking "weekly" leaves one step outstanding — a link in an inbox — and this page
-    said nothing about it, so the relative found out a week later by not getting one."""
+def test_screen_three_says_which_email_to_look_for_when_none_was_sent_here(
+    pod: Pod,
+) -> None:
+    """The same-address case, which is the COMMON one on this screen — the address is
+    prefilled from the join form.
+
+    This test asserted "We sent one email to <address>." when it was written an hour
+    earlier in the same sitting, and that was a false claim: on this path `subscribe`
+    sends nothing, because the tap that starts the Family email is the account
+    confirmation already in their inbox from joining a minute ago. Naming an e-mail that
+    was never sent sends a relative looking for one that will never arrive, and there is
+    no way for them to make it appear.
+    """
     client, _member = _join(pod, email="cousin@example.com")
+    mail.outbox.clear()
     client.post(
         reverse("welcome_family_email"),
         {"choice": "weekly", "address": "cousin@example.com"},
     )
+    assert mail.outbox == []  # non-vacuity: this really is the no-mail path
 
     body = " ".join(client.get(reverse("welcome_hello")).content.decode().split())
-    assert "We sent one email to cousin@example.com." in body
+    assert "We sent one email" not in body, "it names an email this path never sent"
+    assert "The Family email will go to cousin@example.com once that address is confirmed." in body
+    assert "one tap answers both" in body
+
+
+def test_screen_three_does_say_so_when_a_mail_really_went_out(pod: Pod) -> None:
+    """The other direction: a DIFFERENT address gets its own content-free confirmation,
+    and then the page may say so."""
+    client, _member = _join(pod, email="cousin@example.com")
+    mail.outbox.clear()
+    client.post(
+        reverse("welcome_family_email"),
+        {"choice": "weekly", "address": "the-other-one@example.com"},
+    )
+    assert len(mail.outbox) == 1  # non-vacuity
+
+    body = " ".join(client.get(reverse("welcome_hello")).content.decode().split())
+    assert "We sent one email to the-other-one@example.com." in body
     assert "Tap the link in it and the Family email starts." in body
 
 

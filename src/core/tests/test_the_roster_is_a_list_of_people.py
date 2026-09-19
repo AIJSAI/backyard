@@ -216,3 +216,47 @@ def test_the_explanation_degrades_when_no_admin_can_be_named() -> None:
     row = _row_for(client.get(reverse("members")).content.decode(), "Jo Reed")
     assert "so only" in row and "the family admin" in row
     assert "so only  can change" not in " ".join(row.split()), "the sentence lost its subject"
+
+
+# --- the roster does not ask the same question once per person ------------------------
+
+
+def test_the_actors_own_reach_is_resolved_once_not_once_per_row(
+    django_assert_num_queries: object,
+) -> None:
+    """Copilot thread 1, measured rather than reasoned.
+
+    `_no_actions_reason` resolved `scoping.visible_yards(actor)` itself, which is a
+    property of the ACTOR and identical for every row — so it cost one query per person on
+    the roster. The count below is asserted as a CEILING that does not move when the
+    family grows: five more relatives must not buy five more queries.
+    """
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    client, _admin, pod, _yard = _instance_admin()
+    for n in range(3):
+        member = Member.objects.create(
+            display_name=f"Cousin {n}", user=User.objects.create_user(username=f"c{n}")
+        )
+        PodMembership.objects.create(member=member, pod=pod)
+
+    with CaptureQueriesContext(connection) as small:
+        client.get(reverse("members"))
+
+    for n in range(3, 9):
+        member = Member.objects.create(
+            display_name=f"Cousin {n}", user=User.objects.create_user(username=f"c{n}")
+        )
+        PodMembership.objects.create(member=member, pod=pod)
+
+    with CaptureQueriesContext(connection) as large:
+        client.get(reverse("members"))
+
+    # Six more people. Some per-row work is inherent (each row asks which sides that
+    # person is on), but the ACTOR's reach must not be among it.
+    growth = len(large) - len(small)
+    assert growth <= 6, (
+        f"{growth} extra queries for 6 extra people - the roster is asking something "
+        "about the ACTOR once per row again"
+    )

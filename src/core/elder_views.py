@@ -25,6 +25,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from . import elder_tokens, reacting, scoping
+from .context_processors import note_the_reader_holds_a_link
 from .models import Member, Reaction
 
 _SESSION_MEMBER = "elder_member_id"
@@ -63,6 +64,9 @@ def enter(request: HttpRequest, token: str) -> HttpResponse:
         elder_token = elder_tokens.resolve(token)
     except elder_tokens.ElderTokenInvalid as exc:
         raise Http404 from exc
+    # A live no-login link, so the help line may name the relative who sent it — she is
+    # the person in this product least able to work out who to ring.
+    note_the_reader_holds_a_link(request)
     # flush(), not cycle_key() (#42 review HIGH): cycle_key rotates the key but
     # PRESERVES session data, so opening the link in a browser with a live login
     # would carry that _auth_user_id through and hand the elder surface a fully
@@ -100,6 +104,10 @@ def elder_feed(request: HttpRequest) -> HttpResponse:
     """The one big readable column (S-601): the member's visible posts, large
     type, giant targets, one-tap named reactions, nowhere to get lost."""
     member = _elder_member(request)
+    # The session came from a token this product resolved at /t/, and `_elder_member` has
+    # just re-checked it against the member's live generation, so the help line may name
+    # the relative who set it up. /e/ with no such session 404s inside that call.
+    note_the_reader_holds_a_link(request)
     # Push the expiry out on every visit, so the window means "since she last looked" rather
     # than "since the link was handed over". Without this, six months is still a countdown
     # her family starts and she cannot reset by using the thing.
