@@ -116,3 +116,26 @@ def test_the_two_by_code_flows_that_bypass_the_hook_stay_off() -> None:
     the hole unless it grows its own check, so the precondition is pinned."""
     assert app_settings.LOGIN_BY_CODE_ENABLED is False
     assert app_settings.PASSWORD_RESET_BY_CODE_ENABLED is False
+
+
+def test_the_bounce_cannot_be_pointed_off_this_site() -> None:
+    """The refusal redirects to a URL built from the request's own path, and the reader
+    controls that path's query string. Nothing may leave this host: allauth validates the
+    `next` on both hops today, and this pins it, because an open redirect on an
+    unauthenticated endpoint is a phishing lever aimed at the one page that asks a relative
+    for their password."""
+    address = _member("nana", "nana@example.com")
+    url = _confirm_url(address)
+
+    for elsewhere in (
+        "?next=https://evil.example.test/",
+        "?next=//evil.example.test/",
+        "?next=/%09/evil.example.test",
+    ):
+        client = Client()
+        bounce = client.post(url + elsewhere).headers["Location"]
+        assert "evil.example.test" not in bounce.split("next=", 1)[0]
+        client.post(bounce, {"login": "nana", "password": _PW})
+        chain = client.post(url + elsewhere, follow=True).redirect_chain
+        assert not any("evil.example.test" in where for where, _status in chain), chain
+        EmailAddress.objects.filter(pk=address.pk).update(verified=False)
