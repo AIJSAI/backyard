@@ -13,6 +13,12 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
+Nothing yet.
+
+## [0.1.2] — 2026-09-19
+
+The first release a family is actually handed. `0.1.2` was written up on 2026-08-07 and never tagged; the state it described had known security holes, so it was never published and nobody could have installed it. This tag is that work plus everything found since by walking a live instance as every kind of user at phone width, by one outside-in security pass, and by moving the instance to a new server and restoring it there. The notes from the August cut follow the new ones, unchanged.
+
 Day one for the two relatives about to be made yard admins: nobody gets locked out, and the
 one control that destroys something asks first. Alongside it, the instance starts backing
 itself up and telling somebody when it cannot.
@@ -537,7 +543,7 @@ itself up and telling somebody when it cannot.
   in GitHub issues, and the two remaining documents say plainly which of them is a record and
   which is a list of criteria.
 
-## [0.1.2] — 2026-08-07
+**What follows was written for the 2026-08-07 cut of this version, which was never tagged. It ships in this tag too.**
 
 `v0.1.1` could not be installed from its own README, and several things it shipped were
 reachable by URL but not by a person. Install this one.

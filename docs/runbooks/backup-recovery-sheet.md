@@ -128,8 +128,12 @@ like "the stack is not running".
          'export DJANGO_SECRET_KEY=$(cat /data/secret_key); python manage.py restore_instance /data/backups/<archive>.bak'
 
    If it says it is **refusing to restore over a database that still has members**, you
-   created the first admin before restoring. Add `--force` to the end of that command and
-   run it again.
+   created the first admin before restoring. Run it again with `--force` INSIDE the quotes,
+   at the end of the `manage.py` line. After the closing `'` it becomes the shell's `$0`,
+   never reaches the command, and the restore refuses again with the identical message:
+
+       sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web sh -c \
+         'export DJANGO_SECRET_KEY=$(cat /data/secret_key); python manage.py restore_instance /data/backups/<archive>.bak --force'
 
    If it says the archive is encrypted and asks for a passphrase, step 1 did not take:
    check the `.env` line and bring the stack up again. The passphrase must be at least 12
