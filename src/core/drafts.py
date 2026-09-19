@@ -13,7 +13,7 @@ events, and no others.
 
   * the post is CREATED — the draft has become the thing it was a draft of;
   * the member CANCELS — on the confirmation page, or from the composer's own
-    "Discard it".
+    "Discard Draft".
 
 Nothing else drops it, and in particular merely rendering the feed does not: a draft that
 evaporated because its owner went to look at the directory would be the same defect one
@@ -56,9 +56,9 @@ def hold(request: HttpRequest, *, body: str, pod_id: int | None, handle: str | N
     post at a time, and the newest attempt is the one they meant.
 
     The body is clamped before it is written. The branch that holds a draft most often is
-    the ERROR branch, and "that post is a little long" is one of those errors — so the one
-    input guaranteed to be over the cap was the one being copied verbatim into a
-    database-backed session row and re-rendered on every feed request for the whole TTL.
+    the ERROR branch, and "Post must be 5000 characters or fewer" is one of those errors —
+    so the one input guaranteed to be over the cap was the one being copied verbatim into
+    a database-backed session row and re-rendered on every feed request for the whole TTL.
     staged_uploads bounds its bytes; this is the same posture for the words.
     """
     request.session[_SESSION_KEY] = {

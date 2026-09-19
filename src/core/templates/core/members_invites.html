@@ -9,7 +9,7 @@
 
    The card layout is scoped here rather than added to the shared stylesheet: this is the
    only list in the product whose rows carry two actions and a nested list. {% endcomment %}
-{% block title %}Outstanding invites{% endblock %}
+{% block title %}Invites{% endblock %}
 {% block extra_head %}
 <style>
 ul.invites > li { display: block; padding: 1.1rem 0; }
@@ -20,11 +20,11 @@ ul.invites .invite-actions form { margin: 0; }
 </style>
 {% endblock %}
 {% block body %}
-  <h1>Outstanding invites</h1>
-  <p class="back-link"><a class="back" href="{% url 'members' %}">Back to Family members</a></p>
-  <p class="muted">Every link you have handed out that still works, and who has joined from
-    each. Revoking one stops it immediately.</p>
-  <p class="page-action"><a href="{% url 'invite_household' %}">Invite a household</a></p>
+  <h1>Invites</h1>
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Back To Members</a></p>
+  <p class="muted">Every invite link and who has joined with it. Revoking a link stops it
+    immediately.</p>
+  <p class="page-action"><a href="{% url 'invite_household' %}">Invite A Household</a></p>
 
   <ul class="invites">
     {% for invite in invites %}
@@ -32,11 +32,14 @@ ul.invites .invite-actions form { margin: 0; }
         <span class="invite-name">{{ invite.pod.name }}</span>
         <span class="invite-state">
           {% if invite.revoked_at %}
-            <span class="flag">revoked</span> This link no longer works.
+            <span class="flag">Revoked</span> This link no longer works.
           {% elif invite.expires_at <= now %}
-            <span class="flag">expired</span> This link stopped working on {% when_date invite.expires_at %}.
+            <span class="flag">Expired</span> This link stopped working on {% when_date invite.expires_at %}.
           {% elif invite.use_count >= invite.max_uses %}
-            <span class="flag">full</span> {{ invite.max_uses }} {{ invite.max_uses|pluralize:"person,people" }} have used this link, which is all it allows.
+            {% comment %} "All 2 people it allows have used it." is awkward English for the common
+               case, and the joiners are listed by name directly underneath, so the number
+               adds nothing here. {% endcomment %}
+            <span class="flag">Full</span> Everyone this link allows has joined.
           {% else %}
             Works until {% when_date invite.expires_at %}, for up to {{ invite.max_uses }} people.
           {% endif %}
@@ -60,16 +63,14 @@ ul.invites .invite-actions form { margin: 0; }
           <span class="invite-state">
             {% with holder=invite.role_grant_holder %}
               {% if holder %}
-                <span class="flag">side admin</span> {{ holder.display_name }} joined
-                first, so they are the side admin. Anyone else using this link joins as a
-                member.
+                <span class="flag">Side Admin</span> {{ holder.display_name }} joined first
+                and is the Side Admin. Anyone else using this link joins as a member.
               {% elif invite.revoked_at or invite.expires_at <= now %}
-                <span class="flag">side admin</span> This link would have made its first
-                joiner the side admin. Nobody used it and it no longer works, so it handed
-                out nothing.
+                <span class="flag">Side Admin</span> This link no longer works, and nobody
+                used it, so nobody became Side Admin.
               {% else %}
-                <span class="flag">side admin</span> The first person to join with this
-                link becomes the side admin. Everyone after them joins as a member.
+                <span class="flag">Side Admin</span> The first person to join with this
+                link becomes the Side Admin. Everyone after them joins as a member.
               {% endif %}
             {% endwith %}
           </span>
@@ -82,13 +83,13 @@ ul.invites .invite-actions form { margin: 0; }
               {% endfor %}
             </ul>
           {% else %}
-            <span class="invite-state">No one has joined from it yet.</span>
+            <span class="invite-state">No one has joined yet.</span>
           {% endif %}
         {% endwith %}
         <span class="invite-actions">
           <form method="post" action="{% url 'resend_invite' invite.id %}" class="inline">
             {% csrf_token %}
-            <button type="submit">Make another link</button>
+            <button type="submit">Create Another Link</button>
           </form>
           {% if not invite.revoked_at %}
             <form method="post" action="{% url 'revoke_invite' invite.id %}" class="inline">
@@ -99,6 +100,9 @@ ul.invites .invite-actions form { margin: 0; }
         </span>
       </li>
     {% empty %}
+      {% comment %} One line, one action. The link is body text inside the sentence, so it
+         is sentence case; the page action at the top is a command, so it is not.
+         {% endcomment %}
       <li class="empty">No invites yet. <a href="{% url 'invite_household' %}">Invite a household.</a></li>
     {% endfor %}
   </ul>

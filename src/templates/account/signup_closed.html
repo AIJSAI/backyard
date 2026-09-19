@@ -1,0 +1,25 @@
+{% extends "account/base_entrance.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's account/signup_closed.html.
+
+   What /accounts/signup/ answers. Signup is invite-only here (S-101) and the adapter
+   refuses the route, so allauth renders this page instead — headed "Sign Up Closed" and
+   apologising in the first person plural: "We are sorry, but the sign up is currently
+   closed." There is no "we", nothing is closed, and nothing has gone wrong: this product
+   simply has one way in.
+
+   Nobody is linked here. It is reached by typing the address, or by an old link, or by a
+   search result.
+
+   It carries the invite-only fact ITSELF, in the one sentence that answers the question
+   somebody just asked by typing this address. The entrance layout's lede is on the sign-in
+   page only (see allauth/layouts/entrance.html), so nothing above this says it.
+   {% endcomment %}
+{% load i18n %}
+{% block head_title %}
+    {% trans "Joining Backyard" %}
+{% endblock head_title %}
+{% block content %}
+    <h1>{% trans "Joining Backyard" %}</h1>
+    <p>{% trans "There is no sign-up form. Your invite link makes your account when you open it." %}</p>
+    <p><a class="btn" href="{% url 'account_login' %}">{% trans "Sign In" %}</a></p>
+{% endblock content %}

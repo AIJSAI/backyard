@@ -1,0 +1,5 @@
+{% load i18n %}{% comment %} PROJECT OVERRIDE of django-allauth's account/messages/email_confirmation_sent.txt.
+
+   Raised when somebody taps "Send the confirmation again" on Your Sign-In Email. The
+   owner's own rewrite of this shape is in the voice guide: "An email has been sent to
+   <address>." {% endcomment %}{% blocktrans %}A confirmation email has been sent to {{ email }}.{% endblocktrans %}

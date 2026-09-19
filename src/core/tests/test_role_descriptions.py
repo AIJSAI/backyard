@@ -126,7 +126,9 @@ def test_the_yard_admin_description_is_true_on_all_three_of_its_claims(side: Yar
     text = Member.ROLE_DESCRIPTIONS[Member.YARD_ADMIN]
     assert "only on their own side of the family" in text
     assert permissions.can_manage_member(admin, same_side), "cannot manage their own side"
-    assert "Cannot touch an admin" in text
+    # "Cannot touch an admin" until the copy pass of 2026-09-19: "touch" is an idiom, and
+    # the guide says say the literal thing. The claim is identical; the word is not.
+    assert "Cannot manage an admin" in text
     assert not permissions.can_manage_member(admin, an_admin), "privilege inversion"
     assert "belongs to the other side" in text
     assert not permissions.can_manage_member(admin, bridger), "reached a bridging member"
@@ -200,7 +202,7 @@ def test_the_roster_actually_renders_the_key() -> None:
             ],
         },
     )
-    assert "What the roles mean" in html
+    assert "What The Roles Mean" in html
     for role in (Member.POD_OWNER, Member.YARD_ADMIN, Member.INSTANCE_ADMIN):
         # escape(), because the descriptions contain apostrophes and the template
         # autoescapes them — comparing raw text would fail on correct output.
@@ -216,7 +218,7 @@ def test_the_roster_renders_no_empty_disclosure_without_meanings() -> None:
     from django.template.loader import render_to_string
 
     html = render_to_string("core/members.html", {"rows": [], "can_create_yard": False})
-    assert "What the roles mean" not in html, "an empty role key rendered"
+    assert "What The Roles Mean" not in html, "an empty role key rendered"
     # The ELEMENT, not the bare class name: base.html's stylesheet ships
     # `details.role-key { ... }` on every page, so a substring check for "role-key"
     # matches the CSS and fails against correct output.

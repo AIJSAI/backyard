@@ -1,0 +1,10 @@
+{% extends "mfa/base_manage.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's mfa/webauthn/base.html.
+
+   It carries one string and it is load-bearing: the four passkey pages (add, list, rename,
+   remove) set no document title of their own, so this is the title of all four, and it
+   read "Security Keys". The product says passkey. {% endcomment %}
+{% load i18n %}
+{% block head_title %}
+    {% trans "Passkeys" %}
+{% endblock head_title %}

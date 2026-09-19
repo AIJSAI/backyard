@@ -44,8 +44,8 @@ from .views import _unique_yard_slug
 # test) instead of silently printing nothing.
 _WHAT_HAPPENED_TO_THEIR_POSTS = {
     removal.KEEP: "Their posts stay.",
-    removal.ANONYMIZE: "Their posts stay, with their name off them.",
-    removal.DELETE: "Their posts and photos are gone.",
+    removal.ANONYMIZE: "Their posts stay, with their name removed.",
+    removal.DELETE: "Their posts and photos are deleted.",
 }
 
 # Session key for "I have seen the second-factor prompt this time". The SESSION, not a
@@ -369,14 +369,12 @@ def assign_role(request: HttpRequest, member_id: int) -> HttpResponse:
         # The roster simply re-rendered with a different badge, three rows down a long
         # page — on a phone the admin could not see the row they had just changed, so the
         # only honest reading was "did that work?". The same calm flash the composer uses.
-        # The label is the one the roster shows, lower-cased into the sentence, so this can
-        # never disagree with the badge beside it.
+        # The label is the one the roster shows, VERBATIM: the role names are Title Case
+        # proper nouns now ("Side Admin"), so lower-casing the first letter into the
+        # sentence would print "side Admin" and disagree with the badge beside it.
         label = dict(Member.ROLE_CHOICES)[new_role]
         article = "an" if label[:1].lower() in "aeiou" else "a"
-        messages.success(
-            request,
-            f"{target.display_name} is now {article} {label[:1].lower() + label[1:]}.",
-        )
+        messages.success(request, f"{target.display_name} is now {article} {label}.")
     return redirect("members")
 
 
@@ -505,10 +503,10 @@ def create_supervised(request: HttpRequest) -> HttpResponse:
         # somewhere below the fold. Say it worked, say what it means, and offer the one
         # thing they will want next — the profile, which is the only screen where the
         # child's name, birthday and photo can be filled in.
-        messages.success(
-            request,
-            f"{child.display_name} is in. You look after their account.",
-        )
+        # Past tense, like every other confirmation in the product ("Posted.", "Saved.",
+        # "Post deleted.", "Passkey added.", "{name} was removed."). "is added" was the one
+        # present passive among sixteen.
+        messages.success(request, f"{child.display_name} added. You manage their account.")
     # Back to wherever the control lives: the roster for an admin, your own settings for a
     # parent making their own child's account, who cannot open the roster at all.
     return redirect("members" if permissions.is_admin(actor) else "profile_edit")
@@ -559,7 +557,7 @@ def remove(request: HttpRequest, member_id: int) -> HttpResponse:
     try:
         remove_member(target, content=content)
     except removal.UnknownContentChoice as exc:
-        raise BadRequest("Choose what happens to this person's posts.") from exc
+        raise BadRequest("Choose what happens to their posts.") from exc
     # The most consequential thing on this page, and it said nothing: the roster came back
     # one row shorter. Name the person AND what happened to their writing, because that is
     # the choice the admin just made and the one they will second-guess.
@@ -654,8 +652,8 @@ def invite_household(request: HttpRequest) -> HttpResponse:
         # Strictly a fallback for a POST that names NO side, never a correction of one that
         # does: a POST naming a side the actor cannot see still 404s in the resolution
         # above, and is never quietly swapped for the actor's own side. And strictly
-        # `== 1` — with no pickable side at all, "Pick at least one side of the family" is
-        # still the honest answer.
+        # `== 1` — with no pickable side at all, "Choose at least one side." is still the
+        # honest answer.
         if not yards and len(pickable_yards) == 1:
             yards = [pickable_yards[0]]
         # R2-6, and REFUSED rather than ignored. The control is rendered only for a
@@ -681,9 +679,9 @@ def invite_household(request: HttpRequest) -> HttpResponse:
         context["ticked_yard_ids"] = {yard.pk for yard in yards}
         name = request.POST.get("household_name", "").strip()
         if not name or len(name) > 100:
-            errors.append("Give the household a name.")
+            errors.append("Enter a household name.")
         elif not yards:
-            errors.append("Pick at least one side of the family.")
+            errors.append("Choose at least one side.")
         else:
             with transaction.atomic():
                 pod = Pod.objects.create(name=name, kind=Pod.HOUSEHOLD)
@@ -848,7 +846,7 @@ def family_sides(request: HttpRequest) -> HttpResponse:
     ):
         name = request.POST.get("yard_name", "").strip()
         if not name or len(name) > 100:
-            errors.append("Give the family side a name.")
+            errors.append("Enter a side name.")
         else:
             Yard.objects.create(name=name, slug=_unique_yard_slug(name))
             return redirect("family_sides")

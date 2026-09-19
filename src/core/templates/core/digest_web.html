@@ -1,9 +1,13 @@
 {% extends "core/base.html" %}
 {% load times %}
-{% block title %}Your Family email{% endblock %}
+{% block title %}Email Update{% endblock %}
 {% block body %}
-  <h1>{{ issue.yard.name }}: what the family has been up to</h1>
-  <p class="muted">What your family shared, {% when_date issue.window_start %} to {% when_date issue.window_end %}.</p>
+  {% comment %} The same words as the e-mail this page is the web copy of: heading, then
+     the window it covers. A second name for one issue ("Your Family email", "what the
+     family has been up to") is how a reader ends up unsure whether the page they opened is
+     the message they were sent. {% endcomment %}
+  <h1>New In {{ issue.yard.name }}</h1>
+  <p class="muted">{% when_date issue.window_start %} to {% when_date issue.window_end %}</p>
   {% for post in posts %}
     <article class="post">
       <p class="byline">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %} · {% when post.created_at %}</p>
@@ -24,10 +28,10 @@
                alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Still from a video shared by {{ post.author.display_name }}{% endif %}">
         {% endif %}
       {% endfor %}
-      <p><a href="{% url 'digest_web_post' token post.id %}">See replies</a></p>
+      <p><a href="{% url 'digest_web_post' token post.id %}">See Replies</a></p>
     </article>
   {% empty %}
-    <p class="empty">A quiet stretch; nothing new this time.</p>
+    <p class="empty">No posts in this date range.</p>
   {% endfor %}
 {% endblock %}
 {% block extra_body %}{% include "core/_localise_times.html" %}{% endblock %}

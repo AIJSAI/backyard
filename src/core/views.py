@@ -40,13 +40,15 @@ def _admin_exists() -> bool:
 
 def _validate_username(username: str) -> str | None:
     if not username:
-        return "Pick a username for the first admin."
+        return "Choose a username."
     if len(username) > 150:
-        return "That username is too long (max 150 characters)."
+        return "Username must be 150 characters or fewer."
     try:
         _username_validator(username)
     except ValidationError:
-        return "That username has characters that are not allowed. Use letters, numbers, and @ . + - _ only."  # noqa: E501
+        # Word for word what the join form says, because it is the same rule and a
+        # self-hoster who later helps a relative through join should read one sentence.
+        return "Username can contain letters, numbers, and @ . + - _ only."
     return None
 
 
@@ -139,11 +141,11 @@ def setup(request: HttpRequest) -> HttpResponse:
         if username_error:
             errors.append(username_error)
         if not display_name:
-            errors.append("Tell us the name your family will see for you.")
+            errors.append("Enter your name.")
         if not yard_name:
-            errors.append("Name this side of the family.")
+            errors.append("Enter a name for this side of the family.")
         if not pod_name:
-            errors.append("Name your household.")
+            errors.append("Enter a household name.")
         # Pass the prospective user so password-equals-username is rejected for the
         # most privileged account on the instance.
         try:

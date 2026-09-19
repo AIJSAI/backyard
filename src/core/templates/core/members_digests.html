@@ -1,30 +1,40 @@
 {% extends "core/base.html" %}
-{% block title %}Who gets the Family email{% endblock %}
+{% block title %}Email Updates{% endblock %}
 {% block body %}
-  <h1>Who gets the Family email</h1>
-  <p class="back-link"><a class="back" href="{% url 'members' %}">Back to Family members</a></p>
+  <h1>Email Updates</h1>
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Back To Members</a></p>
+  {% comment %} A lede this page did not have. "Email Updates" is also the name of a
+     member's OWN settings page, so the admin view says in one line whose settings it is
+     showing. {% endcomment %}
+  <p class="muted">Who gets email updates, and how the last few sends went.</p>
   {% comment %} thead/tbody + data-label: same reasons as members_metrics.html — the
      header rule needs a real thead, and the sub-40rem card reflow prints data-label
      as each value's name. {% endcomment %}
   <table class="digests">
     <thead>
-      <tr><th>Member</th><th>Address</th><th>How often</th><th>State</th><th>Last few sends</th></tr>
+      <tr><th>Member</th><th>Address</th><th>How Often</th><th>Status</th><th>Last Few Sends</th></tr>
     </thead>
     <tbody>
       {% for row in rows %}
         <tr>
           <td data-label="Member">{{ row.subscription.member.display_name }}</td>
           <td data-label="Address">{{ row.address }}</td>
-          <td data-label="How often">{{ row.subscription.get_cadence_display }}</td>
-          <td data-label="State">
-            {% if not row.subscription.enabled %}off{% elif not row.subscription.confirmed_at %}awaiting confirmation{% else %}on{% endif %}
+          {% comment %} Weekly / Monthly / Off, the same three words the member's own page
+             shows. This printed the stored cadence whatever the state, so a row read
+             "Weekly" under How Often and "Off" under Status: an admin answering "am I
+             still getting these?" got two different answers on one line. A disabled
+             subscription keeps its cadence for when it is turned back on; what it does NOW
+             is nothing. {% endcomment %}
+          <td data-label="How Often">{% if row.subscription.enabled %}{{ row.subscription.get_cadence_display }}{% else %}Off{% endif %}</td>
+          <td data-label="Status">
+            {% if not row.subscription.enabled %}Off{% elif not row.subscription.confirmed_at %}Awaiting Confirmation{% else %}On{% endif %}
           </td>
-          <td data-label="Last few sends">
-            {% for d in row.deliveries %}<span class="delivery">{{ d.get_status_display }}{% if d.detail %} ({{ d.detail }}){% endif %}</span>{% empty %}<span class="muted">none yet</span>{% endfor %}
+          <td data-label="Last Few Sends">
+            {% for d in row.deliveries %}<span class="delivery">{{ d.get_status_display }}{% if d.detail %} ({{ d.detail }}){% endif %}</span>{% empty %}<span class="muted">None</span>{% endfor %}
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan="5" class="empty">Nobody has turned the Family email on yet.</td></tr>
+        <tr><td colspan="5" class="empty">No one has turned email updates on yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>

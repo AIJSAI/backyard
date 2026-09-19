@@ -61,9 +61,9 @@ def _member_for(request: HttpRequest) -> Member | None:
 def help_contact_name() -> str:
     """The first name of whoever runs this Backyard, for the footer's help line.
 
-    "Stuck? Ask the person who invited you." is true and impersonal, and on a family's
-    app it reads like a support page. The person is a relative and has a name, so the
-    footer says it: "Stuck? Ask Jim."
+    "Need help? Contact the person who invited you." is true and impersonal, and on a
+    family's app it reads like a support page. The person is a relative and has a name, so
+    the footer says it: "Need help? Contact <first name>."
 
     Read from the DATABASE at render time, never hardcoded — this repository is public,
     and a relative's name does not belong in it. Empty when there is no instance admin
@@ -131,7 +131,7 @@ def note_the_reader_holds_a_link(request: HttpRequest) -> None:
 def may_name_the_admin(request: HttpRequest) -> bool:
     """Is this reader someone the family's admin has already been introduced to?
 
-    Walk item 12, 2026-09-19: "Stuck? Ask Jim." was in the footer of every page including
+    Walk item 12, 2026-09-19: the footer's help line named the admin on every page including
     the sign-in screen, both password-reset pages and About — so a stranger who typed the
     domain, or who was sent any link at all, learned a relative's first name and that they
     run this server. The same name was printed three times on /about/ and four on

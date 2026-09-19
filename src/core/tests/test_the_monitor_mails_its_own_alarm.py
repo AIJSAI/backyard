@@ -85,6 +85,23 @@ _NOT_ARMED = '[ -z "${MONITOR_RESEND_API_KEY:-}" ]'
 # A call, not the definition: after the name comes whitespace rather than `(`.
 _CALLS_SEND = re.compile(r"^\s*send_alert_mail\s", re.M)
 
+# The two subjects, and they are the product's copy rather than the workflow's shell. The
+# voice guide of 2026-09-19 governs every word a person reads, and an alarm at 7am is the
+# one message in this product nobody can skim past: subjects in Title Case, and a body that
+# opens with the point rather than with the machinery that found it. The guards in
+# `copy_scan.py` read templates and cannot reach a YAML file, so this is where that rule is
+# held for these two messages. Neither string is a matcher — the open alarm is found by its
+# `monitor-alarm` LABEL — so changing them breaks nothing but this test.
+_ALARM_SUBJECT = "Backyard Needs Attention"
+_RECOVERY_SUBJECT = "Backyard Is Well Again"
+_ALARM_OPENING = "Backyard has a problem."
+_RECOVERY_OPENING = "Backyard is well again."
+# Why it arrived, which is the last line of both.
+_MAIL_FOOTER = 'MAIL_FOOTER="This email is sent when the alarm opens and when it clears."'
+# Sentence case, a full stop, and none of these: no shouting, no dash instead of a stop, no
+# trailing off. The guide's punctuation rule, applied to the two sentences above.
+_BANNED_MARKS = ("!", "—", "…", "...")
+
 
 def _workflow() -> str:
     return _MONITOR.read_text(encoding="utf-8")
@@ -349,6 +366,54 @@ def test_the_branch_reader_can_tell_the_paths_apart() -> None:
     assert "send_alert_mail right" in _branch(sample, "if gh issue close")
     with pytest.raises(AssertionError):
         _branch(sample, "gh issue")  # ambiguous: three lines contain it
+
+
+def test_the_two_subjects_are_title_case_and_each_body_opens_with_the_point() -> None:
+    """What the owner actually reads: a subject line and a first sentence.
+
+    Asserted per BRANCH, so "the file contains the words somewhere" cannot satisfy it — the
+    alarm's subject sitting on the recovery path would read "Backyard Is Well Again" over a
+    list of problems, which is worse than no mail. The issue title is checked with the alarm
+    because it is the same sentence in the same voice; it is not a matcher (the label is),
+    so it is free to be.
+    """
+    script = _step_script(_workflow())
+    alarm = _branch(script, _NEW_ALARM)
+    recovery = _branch(script, _RECOVERY)
+
+    assert f'send_alert_mail "{_ALARM_SUBJECT}"' in alarm, (
+        f"the new-alarm mail no longer has the subject {_ALARM_SUBJECT!r}. Title Case, "
+        "because a subject line is the one thing read on a phone before anything else."
+    )
+    # Against the whole script, not the branch: `gh issue create` IS the branch's header
+    # line, and `_branch` returns what the header owns rather than the header itself.
+    assert f'gh issue create --title "{_ALARM_SUBJECT}"' in script, (
+        "the alarm issue's title and the subject of the mail about it have drifted apart"
+    )
+    assert _ALARM_OPENING in alarm, (
+        f"the alarm mail no longer opens with {_ALARM_OPENING!r}. The body opens with the "
+        "point; what found the problem comes after it."
+    )
+    assert f'send_alert_mail "{_RECOVERY_SUBJECT}"' in recovery, (
+        f"the recovery mail no longer has the subject {_RECOVERY_SUBJECT!r}"
+    )
+    # One sentence, written once and said twice: `$recovered` is both the closing comment on
+    # the issue and the body of this mail, so the two can never disagree about what is well.
+    assert f'recovered="{_RECOVERY_OPENING} ' in script, (
+        f"the recovery sentence no longer opens with {_RECOVERY_OPENING!r}, so somebody who "
+        "was told the instance was down has to read a sentence about certificates to find "
+        "out it came back"
+    )
+    assert '"$recovered" "$RUN_URL"' in recovery, (
+        "the recovery mail's body is no longer that same sentence, first"
+    )
+    assert _MAIL_FOOTER in script, (
+        "the last line that says why the mail arrived is gone. Both bodies end with it, and "
+        "an alarm whose origin is a mystery is an alarm somebody filters."
+    )
+    for line in (_ALARM_SUBJECT, _RECOVERY_SUBJECT, _ALARM_OPENING, _RECOVERY_OPENING):
+        for mark in _BANNED_MARKS:
+            assert mark not in line, f"{line!r} uses {mark!r}; the guide says a full stop"
 
 
 def test_an_unarmed_email_leg_is_one_quiet_line_and_never_an_alarm_failure() -> None:

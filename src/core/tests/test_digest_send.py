@@ -128,9 +128,10 @@ def test_bridge_member_gets_exactly_two_clean_emails(world: World) -> None:
     report = send_due_digests(timezone.now())
     assert report.sent == 2 and report.failed == 0
     assert len(mail.outbox) == 2
-    by_subject = {message.subject: message for message in mail.outbox}
-    maternal_message = by_subject["Maternal: what the family has been up to"]
-    paternal_message = by_subject["Paternal: what the family has been up to"]
+    # The subject is "New In <side>: <Mon D> To <Mon D>", so it is matched on the side and
+    # not on a window this test does not fix.
+    maternal_message = next(m for m in mail.outbox if m.subject.startswith("New In Maternal:"))
+    paternal_message = next(m for m in mail.outbox if m.subject.startswith("New In Paternal:"))
     assert "MAT-BODY" in maternal_message.body and "PAT-BODY" not in maternal_message.body
     assert "Paternal cousin" not in maternal_message.body
     assert "PAT-BODY" in paternal_message.body and "MAT-BODY" not in paternal_message.body
@@ -550,7 +551,7 @@ def test_a_quiet_side_is_skipped_while_a_busy_one_still_sends(world: World) -> N
     report = send_due_digests(timezone.now())
 
     assert report.sent == 1
-    assert [m.subject for m in mail.outbox] == ["Maternal: what the family has been up to"]
+    assert [m.subject.split(":", 1)[0] for m in mail.outbox] == ["New In Maternal"]
     assert DigestIssue.objects.filter(member=world.bridge).count() == 1
 
 

@@ -162,13 +162,27 @@ def test_edit_own_post_updates_it(world: dict[str, object]) -> None:
     assert post.edited_at is not None
 
 
-def test_edit_after_window_is_403(world: dict[str, object]) -> None:
+def test_edit_after_window_is_refused_and_says_why(world: dict[str, object]) -> None:
+    """The author has permission; the window closed. The refusal page told them "You Do Not
+    Have Access", which is false, so the view sends them back to their post with the rule.
+    The edit is refused either way: a POST from a page left open changes nothing."""
     author = world["author"]
     m_pod = world["m_pod"]
     assert isinstance(author, Member)
     assert isinstance(m_pod, Pod)
-    post = _post(author, m_pod, minutes_ago=16)
-    assert _client_for(author).get(reverse("edit_post", args=[post.id])).status_code == 403
+    post = _post(author, m_pod, body="before", minutes_ago=16)
+    client = _client_for(author)
+    for response in (
+        client.get(reverse("edit_post", args=[post.id])),
+        client.post(reverse("edit_post", args=[post.id]), {"body": "after"}),
+    ):
+        assert response.status_code == 302
+        assert response["Location"] == reverse("post_detail", args=[post.id])
+    page = client.get(reverse("post_detail", args=[post.id]))
+    assert "Posts can be edited for fifteen minutes after posting." in page.content.decode()
+    post.refresh_from_db()
+    assert post.body == "before"
+    assert post.edited_at is None
 
 
 def test_edit_someone_elses_visible_post_is_403(world: dict[str, object]) -> None:
@@ -211,7 +225,7 @@ def test_delete_own_post_removes_it_from_the_feed(world: dict[str, object]) -> N
     assert "regrettable" not in client.get(reverse("feed")).content.decode()
 
 
-def test_delete_confirm_states_digests_cannot_be_recalled(world: dict[str, object]) -> None:
+def test_delete_confirm_states_email_updates_cannot_be_recalled(world: dict[str, object]) -> None:
     author = world["author"]
     m_pod = world["m_pod"]
     assert isinstance(author, Member)
@@ -221,15 +235,13 @@ def test_delete_confirm_states_digests_cannot_be_recalled(world: dict[str, objec
     assert response.status_code == 200
     body = response.content.decode()
     assert "cannot be recalled" in body
-    # The feature has ONE name and one capitalisation, because a relative who reads "the
-    # Family email" on the How this works page, on their own settings and on the takedown
-    # confirmation has to recognise the same thing here. This page said "a family email",
-    # which reads as any old email somebody in the family happened to send rather than as
-    # the weekly one they can turn on and off themselves — and it was the single sentence
-    # telling them what deleting a post cannot undo. takedown_confirm.html already carried
-    # the identical sentence with the capital F; this page was the odd one out.
-    assert "the Family email" in body
-    assert "a family email" not in body
+    # The feature has ONE name, because a relative who reads about Email Updates on the
+    # How It Works page, on their own settings and on the takedown confirmation has to
+    # recognise the same thing here. This is the single sentence telling them what
+    # deleting a post cannot undo, so it must not invent a second word for the mail that
+    # already went out.
+    assert "an email update cannot be recalled" in body
+    assert "family email" not in body.lower()
 
 
 def test_delete_someone_elses_visible_post_is_403(world: dict[str, object]) -> None:
@@ -281,7 +293,7 @@ def test_boundary_falls_between_new_and_already_seen(world: dict[str, object]) -
 
     client = _client_for(author)
     first = client.get(reverse("feed")).content.decode()
-    assert "New since your last visit" not in first  # nothing was new on the first visit
+    assert "New posts above" not in first  # nothing was new on the first visit
 
     author.refresh_from_db()
     assert author.feed_last_seen_at is not None
@@ -291,7 +303,7 @@ def test_boundary_falls_between_new_and_already_seen(world: dict[str, object]) -
     )
 
     body = client.get(reverse("feed")).content.decode()
-    assert "New since your last visit" in body
+    assert "New posts above" in body
     # Newest first: the new post, then the boundary, then the already-seen post.
-    assert body.index("a brand new update") < body.index("New since your last visit")
-    assert body.index("New since your last visit") < body.index("an older update")
+    assert body.index("a brand new update") < body.index("New posts above")
+    assert body.index("New posts above") < body.index("an older update")

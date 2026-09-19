@@ -2,17 +2,27 @@
 {% block title %}Notifications{% endblock %}
 {% block body %}
   <h1>Notifications</h1>
-  <p class="muted">
-    Backyard never sends you anything unless you ask. The one thing you can turn on
-    is a nudge when someone replies to your own post.
-  </p>
-  <p class="back-link"><a class="back" href="{% url 'profile_edit' %}">Back to Settings</a></p>
+  <p class="back-link"><a class="back" href="{% url 'profile_edit' %}">Back To Settings</a></p>
+  {% comment %} The paragraph that stood here ("Backyard never sends you anything unless
+     you ask. The one thing you can turn on is a nudge when someone replies to your own
+     post") said nothing the one unticked box does not already say. What a person DOES
+     need is the dependency: `notifications.notify_reply` sends over the Email Updates
+     subscription and returns early unless it is confirmed and enabled, so ticking this
+     box with Email Updates off is a control that does nothing. That is the hint. {% endcomment %}
   <form method="post" action="{% url 'notification_settings' %}">
     {% csrf_token %}
     <label class="inline-check">
       <input type="checkbox" name="notify_on_reply"{% if pref.notify_on_reply %} checked{% endif %}>
-      Tell me when someone replies to my post
+      {% comment %} A NOUN, which is what the guide says a label is. "Email Me When Someone
+         Replies To My Post" was a seven-word sentence in Title Case — the owner's own
+         example of the shape that reads badly — and at 390px it wrapped and left "Post"
+         orphaned on a second line beside a checkbox aligned to the first. The sentence
+         moves into the hint, which keeps the dependency that actually prevents a mistake.
+         {% endcomment %}
+      Reply Notifications
     </label>
-    <button type="submit">Save</button>
+    <p class="hint">An email when someone replies to your post. These go to your Email
+      Updates address, so Email Updates has to be on.</p>
+    <button type="submit">Save Changes</button>
   </form>
 {% endblock %}

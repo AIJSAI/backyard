@@ -13,8 +13,12 @@ from __future__ import annotations
 from typing import Any
 
 from allauth.account.adapter import DefaultAccountAdapter
+from allauth.mfa.adapter import DefaultMFAAdapter
+from allauth.mfa.models import Authenticator
+from django.contrib.auth.base_user import AbstractBaseUser
+from django.utils.safestring import mark_safe
 
-from core import emailing
+from core import emailing, handover
 
 
 class AccountAdapter(DefaultAccountAdapter):  # type: ignore[misc]  # allauth is untyped
@@ -30,17 +34,18 @@ class AccountAdapter(DefaultAccountAdapter):  # type: ignore[misc]  # allauth is
     # username nobody has.
     error_messages = {
         **DefaultAccountAdapter.error_messages,
+        # The control is quoted by its own name: the sign-in page's reset link reads
+        # "Forgot Your Password?" (account/password_reset_help_text.html), and an error
+        # that tells somebody to use a control spells it the way the screen spells it.
         "username_password_mismatch": (
-            "That username or password did not work. Try again, or use "
-            '"Forgot your password?" below.'
+            'That username or password is not correct. Use "Forgot Your Password?" to reset it.'
         ),
         "email_password_mismatch": (
-            'That email or password did not work. Try again, or use "Forgot your password?" below.'
+            "That email address or password is not correct. "
+            'Use "Forgot Your Password?" to reset it.'
         ),
-        "incorrect_password": "That password did not match. Try again.",
-        "too_many_login_attempts": (
-            "That is a lot of tries in a row. Wait a few minutes and have another go."
-        ),
+        "incorrect_password": "That password is not correct.",
+        "too_many_login_attempts": "Too many sign-in attempts. Wait a few minutes and try again.",
     }
 
     def is_open_for_signup(self, request: Any) -> bool:  # noqa: ARG002
@@ -59,3 +64,74 @@ class AccountAdapter(DefaultAccountAdapter):  # type: ignore[misc]  # allauth is
         a second place for the two to disagree.
         """
         return emailing.from_address()
+
+
+class MFAAdapter(DefaultMFAAdapter):  # type: ignore[misc]  # allauth is untyped
+    """The name prefilled in the Add A Passkey box.
+
+    The last stock allauth string a relative reads on the passkey screens, and the only one
+    not in a template: allauth prefills "Master key", then "Backup key", then "Key nr. 3".
+    Two of those are claims about a key's importance that nothing in this product enforces
+    — any passkey signs you in — and all three use the library's word for the object where
+    every screen here says passkey. It is also STORED, so it is what the Passkeys list
+    shows for ever after.
+
+    The field stays optional, exactly as the package leaves it: the WebAuthn ceremony
+    completes before the POST, so a blank name must still save.
+    """
+
+    # The library's words on the two-step screens, and the siblings of the four
+    # AccountAdapter replaces above. One of them is captured on a real screen: "You cannot
+    # activate two-factor authentication until you have verified your email address." is
+    # the loudest thing on the page, and it breaks three rules at once. "Two-factor
+    # authentication" appears on no screen in this product — the page is called Passkeys
+    # And Sign-In Codes — an address here is CONFIRMED and never "verified", and an error
+    # is what is wrong PLUS the fix, where all five of allauth's state a rule and stop.
+    # Same treatment as the account errors, and nothing about the behaviour changes: these
+    # are the text of a refusal, not the refusal.
+    error_messages = {
+        **DefaultMFAAdapter.error_messages,
+        "add_email_blocked": (
+            "Remove your passkeys and authenticator app before adding an email address."
+        ),
+        "cannot_delete_authenticator": "That sign-in method cannot be turned off.",
+        "cannot_generate_recovery_codes": (
+            "Add a passkey or an authenticator app before creating recovery codes."
+        ),
+        "incorrect_code": "That code is not correct.",
+        "unverified_email": (
+            "Confirm your email address first. Open Your Sign-In Email in Settings."
+        ),
+    }
+
+    def generate_authenticator_name(self, user: AbstractBaseUser, type: Authenticator.Type) -> str:
+        # A COUNT IS NOT A NAME. Counting reuses a number the moment a key is removed, so
+        # losing a phone and enrolling its replacement produced two rows called "Passkey 2",
+        # and on Remove This Passkey? the name is the only thing telling them apart. Take
+        # the lowest number no existing key of this type is using.
+        taken = {
+            # .data.get, not .wrap().name: the authenticator-app and recovery-code wrappers
+            # carry no name at all and this hook accepts any type. A row with no name takes
+            # part in nothing rather than 500-ing the Add A Passkey page.
+            authenticator.data.get("name")
+            for authenticator in Authenticator.objects.filter(user_id=user.pk, type=type)
+        }
+        number = 1
+        while f"Passkey {number}" in taken:
+            number += 1
+        return f"Passkey {number}"
+
+    def build_totp_svg(self, url: str) -> str:
+        """The authenticator-app QR as INLINE SVG: one of the two audited mark_safe sites over
+        qr_svg output (the other, and the reasoning, is core/handover.py).
+
+        allauth's template puts this SVG in an <img> as a `data:` URI, and this product's
+        Content-Security-Policy is `img-src 'self' blob:` on purpose (core/middleware.py
+        says why `data:` stays out). So the page said "Scan this QR code" above an empty
+        box. The hand-over pages already draw their QR inline, which needs no img-src at
+        all; this is the same function. The only input is the otpauth URL, rendered as
+        qrcode's own path geometry and never as text, so nothing a person typed reaches
+        the markup. The view still base64-encodes the return value for the data URI it no
+        longer uses; a SafeString is a str, so that keeps working.
+        """
+        return mark_safe(handover.qr_svg(url))  # noqa: S308  # nosec

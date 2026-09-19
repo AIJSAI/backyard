@@ -1,0 +1,5 @@
+{% load i18n %}{% comment %} PROJECT OVERRIDE of django-allauth's account/messages/email_confirmed.txt.
+
+   Raised when the link in the confirmation email is tapped. "You have confirmed
+   <address>." narrates what the reader just did back at them; the address and its new
+   state is the whole of what is worth saying. {% endcomment %}{% blocktrans %}{{ email }} is confirmed.{% endblocktrans %}

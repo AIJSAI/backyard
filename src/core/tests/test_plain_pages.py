@@ -79,19 +79,23 @@ def test_it_opens_without_signing_in() -> None:
     assert reverse("how_it_works") in Client().get(reverse("account_login")).content.decode()
 
 
-def test_it_answers_the_six_questions_the_owner_listed() -> None:
-    body = Client().get(reverse("how_it_works")).content.decode()
+def test_it_answers_the_questions_the_owner_listed() -> None:
+    """The six of owner direction 8, plus the two the 2026-09-19 copy pass added because
+    a sceptical relative asks them before joining: what an admin can do, and how to get
+    out. Markers are whitespace-normalised — where a sentence wraps in the template is
+    not something a test should pin."""
+    body = " ".join(Client().get(reverse("how_it_works")).content.decode().split())
     for question, marker in (
-        ("who can see what I post", "goes to <strong>your household</strong>"),
-        ("who can join and how", "Only by invitation"),
-        ("what the Family email is", "The Family email"),
-        ("how to stop the Family email", "stops them"),
-        ("what happens to my photos", "removed\n    from the server for good"),
-        ("if I forget my password", "Forgot your password?"),
+        ("who can see what I post", "Posts are shared with your household"),
+        ("who can join and how", "By invitation only."),
+        ("what an admin can and cannot do", "An admin sees a post only if it was shared"),
+        ("what email updates are", "Email Updates"),
+        ("how to stop email updates", "carries a link that stops them"),
+        ("what happens to my photos", "removed from the server permanently"),
+        ("if I forget my password", "Forgot Your Password?"),
+        ("how to leave", "to remove you. They choose whether your posts stay"),
     ):
-        assert marker.replace("\n    ", " ") in " ".join(body.split()) or marker in body, (
-            f"the page does not answer: {question}"
-        )
+        assert marker in body, f"the page does not answer: {question}"
 
 
 def test_it_carries_the_privacy_disclosure_the_threat_model_promises() -> None:
@@ -103,8 +107,10 @@ def test_it_carries_the_privacy_disclosure_the_threat_model_promises() -> None:
     things about the same promise.
     """
     body = " ".join(Client().get(reverse("how_it_works")).content.decode().split())
-    assert "once a week, whether you stopped by" in body
-    assert "Just a yes or a no" in body
+    # The DISCLOSURE, not its punctuation: the sentence opened "One more thing, once a
+    # week:" until the judge walk of 2026-09-19 cut the presenter's tic in front of it.
+    assert "whether you visited" in body
+    assert "A yes or a no" in body
     assert "does not record what you read" in body
     assert "no per-person activity list" in body
 
@@ -119,8 +125,10 @@ def test_it_names_the_person_to_ask_when_there_is_one() -> None:
     _instance_admin(pod, "Jim Whitfield")
     # Signed in: /how-this-works/ is public, and since walk item 12 a public page names
     # nobody. What is asserted here is the naming path itself, which is unchanged.
-    body = _a_relative_signed_in(pod).get(reverse("how_it_works")).content.decode()
-    assert "ask Jim." in body or "Ask Jim." in body, "the page does not name who to ask"
+    page = _a_relative_signed_in(pod).get(reverse("how_it_works")).content.decode()
+    body = " ".join(page.split())
+    assert "Ask Jim for a link to pass on." in body, "the page does not name who to ask"
+    assert "ask Jim to remove you" in body, "the page does not name who removes you"
     assert "Whitfield" not in body, "the help line uses the first name only"
 
 
@@ -131,9 +139,15 @@ def test_it_falls_back_to_a_sentence_when_nobody_is_named() -> None:
     Whitespace-normalised since R2-1: this page's own three fallbacks wrap across lines in
     the template, so the un-normalised form of this assertion was only ever passing on the
     shared footer — which is a different sentence on a different surface.
+
+    The copy pass of 2026-09-19 replaced "whoever in the family set this up" with the
+    product's one public help phrase, which the shared footer also uses — so the page is
+    now sliced at the footer before counting, rather than counting a phrase that was
+    unique only by accident.
     """
-    body = " ".join(Client().get(reverse("how_it_works")).content.decode().split())
-    assert body.count("whoever in the family set this up") == 3, (
+    html = Client().get(reverse("how_it_works")).content.decode()
+    body = " ".join(html[: html.index("<footer")].split())
+    assert body.count("the person who invited you") == 3, (
         "this page's own three fallbacks are what it is about; the footer is asserted separately"
     )
 
@@ -148,12 +162,13 @@ def test_the_footer_names_the_person_who_runs_this_backyard() -> None:
     _instance_admin(pod, "Jim Whitfield")
     html = _a_relative_signed_in(pod).get(reverse("feed")).content.decode()
     footer = html[html.index("<footer") : html.index("</footer>")]
-    assert "Stuck? Ask Jim." in footer
+    assert "Need help? Contact Jim." in footer
     # The HELP AFFORDANCE is never a link — that is the SC 3.2.6 invariant, and it used to
     # be stated as "the footer has no links" because the footer held nothing else. Sign out
-    # joined it for signed-in readers on 2026-09-19 (walk item 11), AFTER the help line, so
-    # the help mechanism keeps its position on every surface. A signed-out footer still has
-    # no links at all, which the test below asserts.
+    # joined it for signed-in readers on 2026-09-19 (walk item 11), and the copy pass the
+    # same day brought How It Works and About into the signed-out footer. All of them sit
+    # AFTER the help line, so the help mechanism keeps its position on every surface, and
+    # the span is what is asserted rather than its neighbours.
     help_line = footer[footer.index('class="help"') : footer.index("</span>")]
     assert "<a " not in help_line, "the help affordance became a link; SC 3.2.6 depends on it"
 
@@ -161,7 +176,14 @@ def test_the_footer_names_the_person_who_runs_this_backyard() -> None:
 def test_the_grandparents_page_carries_the_same_help_line() -> None:
     """Owner direction 1, "same on the elder page" — she is the person most likely to be
     stuck and least likely to guess who to ring. Text, never a link: S-601 allows this
-    surface no href but its own."""
+    surface no href but its own.
+
+    ONE SENTENCE, ONE FILE. The elder page is standalone, so it inherits no footer, and it
+    used to hand-write its own copy of this line — which is how it went on reading
+    "Stuck? Ask Jim." after every other surface had been rewritten. It now includes
+    core/_footer.html in the `standalone=True` shape, so "same help line" means the same
+    words as well as the same person, and this assertion reads like the footer's above.
+    """
     pod = _family()
     _instance_admin(pod, "Jim Whitfield")
     nana = Member.objects.create(display_name="Nana")
@@ -171,7 +193,7 @@ def test_the_grandparents_page_carries_the_same_help_line() -> None:
     client = Client()
     client.get(reverse("elder_enter", args=[raw]))
     html = client.get(reverse("elder_feed")).content.decode()
-    assert "Stuck? Ask Jim." in html
+    assert "Need help? Contact Jim." in html
     assert 'href="https://github' not in html
 
 
@@ -192,7 +214,7 @@ def test_the_help_line_a_logged_out_reader_gets_names_the_person_who_invited_the
     for route in footer_pages:
         html = Client().get(route).content.decode()
         footer = html[html.index("<footer") : html.index("</footer>")]
-        assert "Stuck? Ask the person who invited you." in footer, (
+        assert "Need help? Contact the person who invited you." in footer, (
             f"{route} does not carry the fallback help line: {footer}"
         )
         assert "whoever in the family set this up" not in footer
@@ -209,17 +231,17 @@ def test_the_grandparents_page_falls_back_to_the_same_sentence() -> None:
     client = Client()
     client.get(reverse("elder_enter", args=[raw]))
     html = client.get(reverse("elder_feed")).content.decode()
-    assert "Stuck? Ask the person who invited you." in html
+    assert "Need help? Contact the person who invited you." in html
     assert "whoever in the family set this up" not in html
 
 
 def test_the_help_line_survives_an_admin_with_a_one_word_name() -> None:
     """A display name with no space in it is already its own first name; splitting on one
-    would be how this ends up rendering "Stuck? Ask ."."""
+    would be how this ends up rendering "Need help? Contact ."."""
     pod = _family()
     _instance_admin(pod, "Nana")
     html = _a_relative_signed_in(pod).get(reverse("feed")).content.decode()
-    assert "Stuck? Ask Nana." in html
+    assert "Need help? Contact Nana." in html
 
 
 # --- about ------------------------------------------------------------------------------
@@ -277,9 +299,9 @@ def test_signing_in_greets_the_person_and_never_the_username() -> None:
         follow=True,
     )
     body = response.content.decode()
-    assert "Welcome back, Priya." in body
+    assert "Signed in as Priya." in body
     assert "Successfully signed in" not in body
-    assert "priya." not in body.replace("Welcome back, Priya.", ""), (
+    assert "priya." not in body.replace("Signed in as Priya.", ""), (
         "the flash still prints the username"
     )
 
@@ -312,7 +334,7 @@ def test_a_returning_member_lands_on_the_family_and_not_on_a_stack_of_notices() 
     assert 'class="orientation"' not in body
     assert "Adding people is an admin" not in body
     assert 'class="prompt"' not in body
-    assert "Share something with your family" in body  # the composer is what they get
+    assert 'id="compose-body"' in body  # the composer is what they get
 
 
 @pytest.mark.django_db
@@ -339,13 +361,14 @@ def test_a_removed_instance_admin_is_never_the_person_to_ask() -> None:
     reader = _a_relative_signed_in(pod)
 
     # Denominator: the first admin by pk is the one named while they are still here.
-    assert "Stuck? Ask Jim." in reader.get(reverse("feed")).content.decode()
+    assert "Need help? Contact Jim." in reader.get(reverse("feed")).content.decode()
 
     removal.remove_member(admin, content=removal.KEEP)
 
     html = reader.get(reverse("feed")).content.decode()
-    assert "Stuck? Ask Jim." not in html, "the footer still names a removed admin"
-    assert "Stuck? Ask Ada." in html
+    assert "Need help? Contact Jim." not in html, "the footer still names a removed admin"
+    assert "Need help? Contact Ada." in html
 
     removal.remove_member(successor, content=removal.KEEP)
-    assert "Stuck? Ask the person who invited you." in reader.get(reverse("feed")).content.decode()
+    html = reader.get(reverse("feed")).content.decode()
+    assert "Need help? Contact the person who invited you." in html

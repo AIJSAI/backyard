@@ -1,33 +1,37 @@
 {% extends "core/base.html" %}
-{% block title %}No-login link for {{ target.display_name }}{% endblock %}
+{% block title %}No-Login Link For {{ target.display_name }}{% endblock %}
 {% block body %}
-  <h1>No-login link for {{ target.display_name }}</h1>
-  <p class="back-link"><a class="back" href="{% url 'members' %}">Back to Family members</a></p>
+  <h1>No-Login Link For {{ target.display_name }}</h1>
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Back To Members</a></p>
 
-  <p class="notice">This is a <strong>no-login link</strong>: it opens a large-text view of
-  the family feed, with no password and nothing to install. Whoever holds the link can read
-  and send love as {{ target.display_name }}, so hand it over in person or by a private
-  message, and make a new one if it ever goes astray.</p>
+  <p class="notice">A <strong>No-Login Link</strong> opens a large-text view of Your
+  Backyard, with no password and nothing to install. Anyone holding it can read and send
+  love as {{ target.display_name }}, so hand it over in person or in a private message.
+  Replace the link if it reaches anyone else.</p>
 
-  <h2>What this link will grant</h2>
+  <h2>What This Link Allows</h2>
   <p>Reading and one-tap reactions in:</p>
   <ul>
-    {% for yard in yards %}<li>the <strong>{{ yard.name }}</strong> family feed</li>{% endfor %}
+    {% for yard in yards %}<li><strong>{{ yard.name }}</strong></li>{% endfor %}
   </ul>
-  <p>Their households: {% for pod in pods %}{{ pod.name }}{% if not forloop.last %}, {% endif %}{% empty %}none yet{% endfor %}.</p>
+  <p>Their households: {% for pod in pods %}{{ pod.name }}{% if not forloop.last %}, {% endif %}{% empty %}none{% endfor %}.</p>
   <p class="muted">It cannot edit profiles, browse the directory, export data, or invite anyone.</p>
 
   {% if minted_link %}
-    <h2>{% if regenerated %}New link ready &mdash; the old one has stopped working{% else %}Link ready to hand over{% endif %}</h2>
-    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="No-login link" handover_share_title="Your family on Backyard" handover_note="Hand it over in person or by a private message, or print this page for the QR. It appears only once." %}
-    {% if regenerated %}<p class="muted">If you made a new link because a phone or tablet was lost, also check the <a href="{% url 'member_invites' %}">invites that are still open</a>. An invite that device can read is still a way in.</p>{% endif %}
+    {% comment %} The heading used to carry the consequence too ("New link ready — the old
+       one has stopped working"). A heading is not a sentence: the heading names what is on
+       the screen and the line under it says what happened to the earlier link. {% endcomment %}
+    <h2>{% if regenerated %}New Link Ready{% else %}Link Ready To Hand Over{% endif %}</h2>
+    {% if regenerated %}<p>The earlier link has stopped working.</p>{% endif %}
+    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="No-Login Link" handover_share_title="Your Backyard" handover_note="Hand it over in person or in a private message, or print this page for the QR code. The link is shown once." %}
+    {% if regenerated %}<p class="muted">If you created a new link because a phone or tablet was lost, check the <a href="{% url 'member_invites' %}">open invites</a> too. An invite on that device still works.</p>{% endif %}
   {% endif %}
 
   <form method="post" action="{% url 'provision_elder' target.id %}">
     {% csrf_token %}
     <input type="hidden" name="intent" value="{{ intent }}">
     <button type="submit">
-      {% if has_token and not minted_link %}Regenerate the link{% elif not has_token %}Generate the link{% else %}Regenerate again{% endif %}
+      {% if has_token and not minted_link %}Replace Link{% elif not has_token %}Create Link{% else %}Replace Link Again{% endif %}
     </button>
   </form>
 {% endblock %}

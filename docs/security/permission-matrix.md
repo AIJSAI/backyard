@@ -87,7 +87,7 @@ the founder.
 
 The ROUTE that acts on it (`managed_profile_edit`) resolves its target through
 `permissions.administrable_members`, not through the read guard, so the roster's
-`Edit profile` link and the page it opens answer the same question. For everyone below the
+`Edit Profile` link and the page it opens answer the same question. For everyone below the
 instance admin that set IS the yard-scoped visible set, so the other side of the family
 stays a byte-identical 404 (S-202/S-902). For the instance admin it is every member,
 because they own the instance and sit above yard isolation — isolation is a member-level

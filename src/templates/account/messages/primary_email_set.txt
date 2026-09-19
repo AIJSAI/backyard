@@ -1,0 +1,7 @@
+{% load i18n %}{% comment %} PROJECT OVERRIDE of django-allauth's account/messages/primary_email_set.txt.
+
+   Raised after "Use this one" on Your Sign-In Email. "Primary email address set." is the
+   database's word for it; the page is called Your Sign-In Email and the reader has just
+   changed which one that is. allauth passes this message no context, so the address it
+   applies to cannot be named here — it is the one the reader just chose, one line above.
+   {% endcomment %}{% blocktrans %}Sign-in email updated.{% endblocktrans %}

@@ -14,13 +14,13 @@ never holding long-lived key material — but it means this sheet is the single 
 failure for your family's history.
 
 **The one thing to do today, before filling in anything else:** appoint a second instance
-admin (Members → Set role → Instance admin) and write their name below. One admin is one bus.
+admin (Members, then Manage on their row, then Change Role to Family Admin) and write their name below. One admin is one bus.
 
 ---
 
 ## Who else can run this
 
-    Second instance admin (name): ________________________________
+    Second Family Admin (name): __________________________________
 
       their email: ________________________________________________
 
@@ -38,7 +38,7 @@ admin (Members → Set role → Instance admin) and write their name below. One 
 
       registrar lock: [ ] on  [ ] off      multi-year: [ ] yes  [ ] no
 
-      A lapsed domain hands every printed QR and elder link to a squatter
+      A lapsed domain hands every printed QR and no-login link to a squatter
       (T-OP-G4). This line is the one that fails quietly.
 
     Server / VPS provider: ______________  login: _______________
@@ -149,7 +149,7 @@ like "the stack is not running".
    That must exit 0 before you tell anyone the instance is up.
 
 5. **A restore is a security event (TM-7).** The command will tell you what it did: every
-   elder link, digest link and reply-by-email address the backup carried is dead, every
+   no-login link, email-update link and reply-by-email address the backup carried is dead, every
    session is flushed, and outstanding invites are void. Re-provision only the people who
    should still have access — and remember the restore cannot know who was removed *after*
    the backup was taken, so check the roster.

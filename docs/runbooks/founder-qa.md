@@ -94,8 +94,9 @@ that; the names do not.
 > the `BACKYARD_DEMO_WIPE` disaster again, one layer up.
 >
 > The order that avoids it, and the one actually walked: create the real sides and the real
-> households in the product **first**, use **Members → Change household** to move the founder
-> onto a real household on each real side, and only then mark. The dry run must name the
+> households in the product **first**, then open **Members**, tap **Manage** on the row and
+> use **Change Household** to move the founder onto a real household on each real side, and
+> only then mark. The dry run must name the
 > founder under "Deliberately NOT marked" before you type `--yes`. If it does not, stop:
 > marking is reversible (`--undo --yes`), and the wipe that follows is not.
 
@@ -133,7 +134,7 @@ reversible until you do:
       'export DJANGO_SECRET_KEY=$(cat /data/secret_key); python manage.py mark_demo_data --undo --yes'
 
 The wipe is not reversible. Take a backup first — `docs/runbooks/backup-restore.md` — and
-read what a restore does to elder links and to members removed since the backup before you
+read what a restore does to no-login links and to members removed since the backup before you
 rely on having one.
 
 **The wipe used to be `BACKYARD_DEMO_WIPE=1`, and it was not scoped.** It ran
@@ -189,7 +190,7 @@ Two more facts about that route, because they change what "wrong" looks like in 
 a reply is attributed from the capability Resend reports in `data.received_for` and never
 from the sender-written `To:` header, so a multi-recipient delivery is refused rather than
 resolved to its first address; and a refused message is not lost — it lands on
-**Members → "Replies we couldn't post"** with the reason.
+**Members → Held Replies** with the reason.
 
 ---
 
@@ -217,18 +218,18 @@ This is the product's central bet and the part that was most broken.
 > there is no "view as". Verified 2026-07-29 by creating a new side, adding an elder to
 > it, and opening her link cold.
 >
-> So: **post something to the whole side of the family FIRST, then hand out the elder
+> So: **post something to the whole side of the family FIRST, then hand out the no-login
 > links.** One photo is enough. Tell whoever else is setting up grandparents the same
 > thing — it is the difference between "look, there's the family" and a blank page.
 
 | # | Do | Wrong looks like |
 |---|----|------------------|
-| A1 | From the admin roster, use **No-login link** on a test member's row and mint one. Print or open the QR. | No link, or a page that errors |
+| A1 | From the admin roster, tap **Manage** on a test member's row, then **No-Login Link**, and make one. Print or open the QR. | No link, or a page that errors |
 | A2 | 📱 Open the link on a phone **you are not logged in on**. Use a private window. | Anything asking you to log in |
 | A3 | **Can you see a photograph?** Scroll to a post with photos. | Captions with no pictures. *This was broken for weeks while the tracker said it worked.* |
 | A4 | Can you read the replies under a post? | Replies missing entirely |
-| A5 | Tap "Send love". Does it register and stay? | Nothing happens, or it resets |
-| A6 | Tap "Bigger text". Is it genuinely bigger and still readable? | Layout breaks, text overlaps |
+| A5 | Tap **Send Love**. Does it register and stay? | Nothing happens, or it resets |
+| A6 | Tap **Bigger Text**. Is it genuinely bigger and still readable? | Layout breaks, text overlaps |
 | A7 | Hold the phone at arm's length. Can your least-technical relative use this? | You find yourself explaining it |
 | A8 | Try to get lost — look for any link off this page. | Any link that leaves the elder surface |
 
@@ -248,7 +249,7 @@ This is the product's central bet and the part that was most broken.
 | B5 | Try 25 photos at once. | A bare error page instead of a plain message saying how many did not fit |
 | B6 | Post a HEIC straight off an iPhone. | Silent disappearance rather than a message |
 | B7 | Post a link. Does a preview card appear within a few seconds? | Never appears |
-| B8 | Post a short video. Does it show "on its way" then play? | Broken player, or nothing at all |
+| B8 | Post a short video. Does it say "This video is still processing." and then play? | Broken player, or nothing at all |
 
 ## C. The feed and the archive
 
@@ -256,7 +257,7 @@ This is the product's central bet and the part that was most broken.
 |---|----|------------------|
 | C1 | Read the feed. Is it strictly newest-first with no counts or badges? | Any engagement metric |
 | C2 | Scroll to the bottom. | "You are all caught up" **when there are older posts** |
-| C3 | If there are older posts, use "Show older posts" and walk back. | Dead end, repeats, or missing posts |
+| C3 | If there are older posts, use **Show Older Posts** and walk back. | Dead end, repeats, or missing posts |
 | C4 | Go back to the top. Are the new-since-last-visit markers sane? | Everything marked read after browsing history |
 
 ## D. Family shape — the privacy core
@@ -281,10 +282,10 @@ This is the product's central bet and the part that was most broken.
 
 | # | Do | Wrong looks like |
 |---|----|------------------|
-| F1 | Subscribe a real address to the Family email. Confirm via the email. | No mail, or the link fails |
+| F1 | Subscribe a real address to Email Updates. Confirm via the email. | No mail, or the link fails |
 | F2 | Wait for a due send. Does it arrive, and is it readable on a phone? | Spam folder, broken layout |
 | F3 | Click through to the web version **while logged out.** Can you see photographs? | Captions with no pictures |
-| F4 | Tap **"Reply in Backyard"** on a post block. Does it land on that thread's reply box? | A mail composer, or the feed top |
+| F4 | Tap **Reply In Backyard** on a post block. Does it land on that thread's reply box? | A mail composer, or the feed top |
 | F5 | Turn on reply notifications, have someone reply, check the mail. | No mail |
 | F6 | Click the unsubscribe link. Does *all* mail stop, including reply nudges? | Nudges keep coming |
 
@@ -295,14 +296,14 @@ This is the product's central bet and the part that was most broken.
 > runs it hourly. There is no command that forces one out, so budget the wait or move the
 > subscription's anchor deliberately.
 >
-> And the family email **publishes no reply address**. It did once, and #101 removed it:
+> And Email Updates **publish no reply address**. It did once, and #101 removed it:
 > a per-post reply address is a bearer credential, so printing it in every body forwarded the
 > ability to comment as you along with the email (T-EMAIL-2). There is no `Reply-To` header
 > either, so hitting Reply in a mail client answers the sending address and the message is
-> refused. What each post block carries instead is a **"Reply in Backyard"** link to
+> refused. What each post block carries instead is a **Reply In Backyard** link to
 > `/posts/<id>/#reply`, which carries no capability, lands on the login wall, and opens a
 > reply box that takes photographs. The inbound pipeline itself is untouched and still
-> live — that is what the registered webhook and "Replies we couldn't post" are for — but
+> live — that is what the registered webhook and **Held Replies** are for — but
 > nothing hands anybody an address to use it with, so **there is no emailed-reply path to
 > walk in this section today.**
 
@@ -313,7 +314,7 @@ This is the product's central bet and the part that was most broken.
 | G1 | Remove a test member. Are you **asked** what happens to their posts? | A bare Remove button with no question |
 | G2 | Try "anonymize". Do their posts stay but their name go? | Posts vanish, or the name remains |
 | G3 | Try "delete" on another test member. Are the posts and photos gone? | Content still visible |
-| G4 | After removal, try their old elder link and any old session. | Either still works |
+| G4 | After removal, try their old no-login link and any old session. | Either still works |
 
 ## H. Operations — do this once, properly
 
@@ -324,7 +325,7 @@ This is the product's central bet and the part that was most broken.
 | H3 | Restore that backup onto a throwaway machine. | It fails, or the media does not come back |
 | H4 | Confirm the restore tells you it killed all the old links and sessions. | Silence |
 | H5 | Install the PWA on your phone. Is the icon green, matching the app? | Navy — the rejected identity |
-| H6 | Sign in and open **Settings → Account security**. A second factor is offered, never demanded. | Being forced to enrol, or no way to enrol at all |
+| H6 | Sign in and open **Settings → Passkeys And Sign-In Codes**. A second factor is offered, never demanded. | Being forced to enrol, or no way to enrol at all |
 
 > **H3, the two things that bite.** Get the archive *into* the container by streaming it in
 > as the app user — `docker compose cp` lands it owned by the host uid with mode 600 and the

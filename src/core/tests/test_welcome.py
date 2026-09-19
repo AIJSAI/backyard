@@ -2,14 +2,14 @@
 
 What this replaces: a green card at the top of the feed that named which sides of the
 family you were in. It filled a phone screen before anyone had seen a photograph, and in
-all that room it never said what this place IS, never offered the Family email, and never
+all that room it never said what this place IS, never offered email updates, and never
 helped with a first post — the three things a relative actually needs on day one.
 
 The acceptance has four halves and three of them can rot quietly:
   * joining LANDS on it (not on the feed with an explanation stapled to the top);
   * every screen is skippable, and skipping leaves a complete, working member;
   * it is SEEN ONCE — the family already here never meets it;
-  * the Family email offered there is the real opt-in, so the address still has to be
+  * the Email Updates step there is the real opt-in, so the address still has to be
     confirmed before any family content goes to it.
 """
 
@@ -70,10 +70,10 @@ def test_joining_lands_on_the_welcome(pod: Pod) -> None:
 
 def test_the_first_screen_says_what_this_is_in_plain_words(pod: Pod) -> None:
     client, _ = _join(pod)
-    body = client.get(reverse("welcome")).content.decode()
-    assert "private place for our family" in body
-    assert "No ads, no strangers" in body
-    assert "goes to your household" in body
+    body = " ".join(client.get(reverse("welcome")).content.decode().split())
+    assert "A private, ad-free network to stay connected with everyone." in body
+    assert "Posts are shared with your household." in body
+    assert "choose a side of the family or a group when posting" in body
     # The vocabulary itself is held by test_one_word_per_concept.py, over every
     # template's visible text; repeating a weaker version of it here would only give
     # two places to weaken.
@@ -86,11 +86,11 @@ def test_the_three_screens_are_reachable_in_order(pod: Pod) -> None:
 
     two = client.get(reverse("welcome_family_email"))
     assert two.status_code == 200
-    assert "Want the Family email?" in two.content.decode()
+    assert "<h1>Email Updates</h1>" in two.content.decode()
 
     three = client.get(reverse("welcome_hello"))
     assert three.status_code == 200
-    assert "Say hello" in three.content.decode()
+    assert "Say Hello" in three.content.decode()
 
 
 # --- skipping -----------------------------------------------------------------------
@@ -141,7 +141,7 @@ def test_reaching_the_last_screen_marks_it_seen(pod: Pod) -> None:
     assert member.orientation_dismissed_at is not None
 
 
-# --- the Family email, screen two ----------------------------------------------------
+# --- Email Updates, screen two -------------------------------------------------------
 
 
 def test_the_address_is_already_filled_in_from_the_join_form(pod: Pod) -> None:
@@ -192,7 +192,7 @@ def test_choosing_weekly_at_a_DIFFERENT_address_still_confirms_it(pod: Pod) -> N
     subscription = DigestSubscription.objects.get(member=member)
     assert subscription.confirmed_at is None
     assert len(mail.outbox) == 1
-    assert mail.outbox[0].subject == "Is this your email address?"
+    assert mail.outbox[0].subject == "Confirm This Address For Email Updates"
     assert mail.outbox[0].to == ["the-other-one@example.com"]
 
 
@@ -230,7 +230,7 @@ def test_a_bad_address_is_refused_rather_than_enrolled(pod: Pod) -> None:
         reverse("welcome_family_email"), {"choice": "weekly", "address": "not-an-address"}
     )
     assert response.status_code == 200
-    assert "does not look like an email address" in response.content.decode()
+    assert "Enter a valid email address." in response.content.decode()
     assert not DigestSubscription.objects.filter(member=member).exists()
     assert mail.outbox == []
 
@@ -251,7 +251,7 @@ def test_an_over_long_address_is_refused_and_never_silently_shortened(pod: Pod) 
     )
 
     assert response.status_code == 200
-    assert "too long" in response.content.decode()
+    assert "254 characters or fewer" in response.content.decode()
     assert not DigestSubscription.objects.filter(member=member).exists(), (
         "a shortened address was stored, and it is not the one they typed"
     )
@@ -262,7 +262,7 @@ def test_an_empty_address_is_asked_for_rather_than_guessed(pod: Pod) -> None:
     client, member = _join(pod)
     response = client.post(reverse("welcome_family_email"), {"choice": "weekly", "address": ""})
     assert response.status_code == 200
-    assert "Tell us where to send it" in response.content.decode()
+    assert "Enter your email address." in response.content.decode()
     assert not DigestSubscription.objects.filter(member=member).exists()
 
 
@@ -272,7 +272,7 @@ def test_a_submission_with_no_choice_asks_again(pod: Pod) -> None:
     client, member = _join(pod, email="cousin@example.com")
     response = client.post(reverse("welcome_family_email"), {"address": "cousin@example.com"})
     assert response.status_code == 200
-    assert "Choose how often" in response.content.decode()
+    assert "Select a frequency." in response.content.decode()
     assert not DigestSubscription.objects.filter(member=member).exists()
 
 
@@ -391,12 +391,12 @@ def test_screen_three_says_which_email_to_look_for_when_none_was_sent_here(
     """The same-address case, which is the COMMON one on this screen — the address is
     prefilled from the join form.
 
-    This test asserted "We sent one email to <address>." when it was written an hour
-    earlier in the same sitting, and that was a false claim: on this path `subscribe`
-    sends nothing, because the tap that starts the Family email is the account
-    confirmation already in their inbox from joining a minute ago. Naming an e-mail that
-    was never sent sends a relative looking for one that will never arrive, and there is
-    no way for them to make it appear.
+    This test asserted that a confirmation email had been sent when it was written an
+    hour earlier in the same sitting, and that was a false claim: on this path `subscribe`
+    sends nothing, because the tap that starts email updates is the account confirmation
+    already in their inbox from joining a minute ago. Naming an e-mail that was never sent
+    sends a relative looking for one that will never arrive, and there is no way for them
+    to make it appear.
     """
     client, _member = _join(pod, email="cousin@example.com")
     mail.outbox.clear()
@@ -407,9 +407,9 @@ def test_screen_three_says_which_email_to_look_for_when_none_was_sent_here(
     assert mail.outbox == []  # non-vacuity: this really is the no-mail path
 
     body = " ".join(client.get(reverse("welcome_hello")).content.decode().split())
-    assert "We sent one email" not in body, "it names an email this path never sent"
-    assert "The Family email will go to cousin@example.com once that address is confirmed." in body
-    assert "one tap answers both" in body
+    assert "has been sent" not in body, "it names an email this path never sent"
+    assert "Email updates start once cousin@example.com is confirmed." in body
+    assert "Use the confirmation email sent when you joined." in body
 
 
 def test_screen_three_does_say_so_when_a_mail_really_went_out(pod: Pod) -> None:
@@ -424,13 +424,13 @@ def test_screen_three_does_say_so_when_a_mail_really_went_out(pod: Pod) -> None:
     assert len(mail.outbox) == 1  # non-vacuity
 
     body = " ".join(client.get(reverse("welcome_hello")).content.decode().split())
-    assert "We sent one email to the-other-one@example.com." in body
-    assert "Tap the link in it and the Family email starts." in body
+    assert "A confirmation email has been sent to the-other-one@example.com." in body
+    assert "Email updates start once you confirm it." in body
 
 
 def test_screen_three_does_not_promise_a_mail_that_was_never_sent(pod: Pod) -> None:
     """The item-24 case: the address was already their proven sign-in address, so nothing
-    was sent and nothing needs tapping. "We sent one email" would be a plain untruth."""
+    was sent and nothing needs tapping. Naming a confirmation email would be untrue."""
     from allauth.account.models import EmailAddress
 
     client, member = _join(pod, email="cousin@example.com")
@@ -441,16 +441,16 @@ def test_screen_three_does_not_promise_a_mail_that_was_never_sent(pod: Pod) -> N
     )
 
     body = " ".join(client.get(reverse("welcome_hello")).content.decode().split())
-    assert "We sent one email" not in body
-    assert "The Family email is on. It goes to cousin@example.com." in body
+    assert "has been sent" not in body
+    assert "Email updates are on. They are sent to cousin@example.com." in body
 
 
 def test_screen_three_says_nothing_when_they_said_no_thanks(pod: Pod) -> None:
-    """Non-vacuity, and a nag check: somebody who declined must not be told about a
-    Family email they did not ask for."""
+    """Non-vacuity, and a nag check: somebody who declined must not be told about email
+    updates they did not ask for."""
     client, _member = _join(pod, email="cousin@example.com")
     client.post(reverse("welcome_family_email"), {"choice": "none"})
 
     body = " ".join(client.get(reverse("welcome_hello")).content.decode().split())
-    assert "We sent one email" not in body
-    assert "The Family email is on" not in body
+    assert "has been sent" not in body
+    assert "Email updates are on" not in body

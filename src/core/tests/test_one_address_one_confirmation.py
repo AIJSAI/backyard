@@ -1,11 +1,16 @@
-"""One address, one proof: the Family email and the sign-in address stop asking twice.
+"""One address, one proof: Email Updates and the sign-in address stop asking twice.
 
 Walk item 24, 2026-09-19. A new relative who gave an e-mail address at join and then
 picked "weekly" on the welcome screen received TWO messages inside a minute — one from
-allauth for the sign-in address, one from `digesting` for the Family email — with the
+allauth for the sign-in address, one from `digesting` for Email Updates — with the
 IDENTICAL subject "Is this your email address?", from the same sender, threaded together
 by their mail client into what looked like one message sent twice. Both asked for a tap.
 Neither said which was which, and tapping one left the other apparently unanswered.
+
+The two subjects are no longer the same line either ("Confirm Your Email Address" and
+"Confirm This Address For Email Updates"), so the rare case that still sends both — two
+different mailboxes — arrives as two messages a reader can tell apart. The collapse below
+is what stops the same mailbox being asked twice at all.
 
 They were proving the same fact about the same mailbox.
 
@@ -273,11 +278,11 @@ def test_the_settings_page_says_which_email_to_look_for_when_it_sent_none(pod: P
     body = " ".join(page.content.decode().split())
 
     assert mail.outbox == []  # non-vacuity: this is the branch that sends nothing
-    assert "Check cousin@example.com for one email" not in body, (
+    assert "A confirmation email has been sent to cousin@example.com." not in body, (
         "the page sends the member looking for an email it never sent"
     )
-    assert "This is your sign-in address, and it is not confirmed yet." in body
-    assert "One tap answers both" in body
+    assert "This is your sign-in address and it is not confirmed yet." in body
+    assert "Confirming it starts email updates." in body
     # ...and a way to get another one, which is the only route forward if the join mail
     # failed or has expired.
     assert reverse("account_email") in body
@@ -298,7 +303,7 @@ def test_the_settings_page_still_says_check_your_inbox_when_it_did_send(pod: Pod
     body = " ".join(page.content.decode().split())
 
     assert len(mail.outbox) == 1
-    assert "Check somewhere-else@example.com for one email" in body
+    assert "A confirmation email has been sent to somewhere-else@example.com." in body
     assert "This is your sign-in address" not in body
 
 
@@ -319,7 +324,7 @@ def test_a_cadence_tweak_on_a_confirmed_address_says_only_saved(pod: Pod) -> Non
 
     assert mail.outbox == []
     assert "Saved." in body
-    assert "Check cousin@example.com for one email" not in body
+    assert "A confirmation email has been sent to cousin@example.com." not in body
     assert "This is your sign-in address" not in body
 
 
@@ -420,7 +425,14 @@ def test_the_account_mail_says_what_its_link_actually_does(pod: Pod) -> None:
         {"activate_url": "https://example.test/confirm/x/", "current_site": None},
     )
     flat = " ".join(body.split())
-    assert "it starts the Family email if one has been pointed at this address" in flat
+    # Conditional, because the link starts Email Updates only for a PRIMARY address that
+    # has them turned on; a flat promise was false for a secondary address.
+    assert "Confirm that this address is yours." in flat
+    assert (
+        "If it is your primary address and you turned on email updates at this address, "
+        "they start once it is confirmed"
+    ) in flat
+    assert "Nothing else will be sent here" not in flat
     assert "Nothing else is sent to this address unless you ask for it" not in flat
 
 

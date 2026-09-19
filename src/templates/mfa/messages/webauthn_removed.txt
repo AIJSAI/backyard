@@ -1,0 +1,3 @@
+{% load i18n %}{% comment %} PROJECT OVERRIDE of django-allauth's mfa/messages/webauthn_removed.txt.
+
+   "Security key removed." Same object, same word. {% endcomment %}{% blocktrans %}Passkey removed.{% endblocktrans %}

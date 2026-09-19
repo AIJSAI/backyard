@@ -1,5 +1,5 @@
 {% extends "core/base.html" %}
-{% block title %}Family members{% endblock %}
+{% block title %}Members{% endblock %}
 {% block extra_head %}
 <style>
 /* Two small layout repairs, scoped to this page. The design system is shared and is not
@@ -7,8 +7,8 @@
    phone both new admins will actually hold. */
 
 /* THE LINKS INSIDE MANAGE. They are ONE group, so they keep real gaps between them and no
-   label splits across a line break. Without this, "Edit profile No-login link Get back in
-   link" ran together as a single phrase at 390px and wrapped mid-label. They used to live
+   label splits across a line break. Without this, "Edit Profile No-Login Link Sign-In
+   Link" ran together as a single phrase at 390px and wrapped mid-label. They used to live
    on the head row, where the row centred them against a two-control form and each name's
    length changed the layout; there is no head row to fight with now. */
 .member-links { display: flex; flex-wrap: wrap; align-items: center; gap: 0 1.1rem; }
@@ -66,9 +66,14 @@
    run-on sentence. Two named groups, one target per line, each the height of a thumb. */
 .admin-links { display: grid; gap: 1.4rem 2rem; grid-template-columns: 1fr; }
 @media (min-width: 30rem) { .admin-links { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* NO text-transform, the third and last site of it on WORDS in the product (`.avatar`
+   still upper-cases initials, which are letters rather than copy). The source says "Add
+   People" and "Tools" and the screen said ADD PEOPLE and TOOLS; the
+   guide writes capitals in the source and never in CSS. Same cure as the table headers in
+   base.html: a little larger, a lot less tracking. */
 .admin-links h2 {
-  margin: 0; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.08em;
-  text-transform: uppercase; color: var(--ink-soft);
+  margin: 0; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.02em;
+  color: var(--ink-soft);
 }
 .admin-links ul { list-style: none; margin: 0.1rem 0 0; padding: 0; }
 .admin-links a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; }
@@ -76,12 +81,15 @@
 </style>
 {% endblock %}
 {% block body %}
-  <h1>Family members</h1>
+  <h1>Members</h1>
   {% comment %} The header used to end with "Supervised accounts are managed by a parent."
      There are no children on this instance (owner direction 5), so the roster stops
      leading with a feature nobody here uses; it is still offered on a member's own row
-     for a family that needs it. {% endcomment %}
-  <p class="muted">Everyone in your family.</p>
+     for a family that needs it.
+
+     And the lede under it ("Everyone in your family.") went in the copy pass: the heading
+     plus a list of people already says it, and it was not even true for a side admin,
+     whose roster stops at their own side. {% endcomment %}
 
   {% comment %} FD-2. One calm offer, never a gate: the threat model used to claim a second
      factor was REQUIRED of admins and nothing enforced it, and the honest fix is not to
@@ -110,38 +118,50 @@
        browser hoists it out on parse, which breaks the line it is meant to sit on.
        {% endcomment %}
     <aside class="second-factor-prompt">
-      <span>{% if is_instance_admin %}Your sign-in opens every side of the family.{% else %}Your
-        sign-in lets you add and remove people on your side of the family.{% endif %}
-        <a href="{% url 'mfa_index' %}">Add a second way to prove it&rsquo;s you</a> &mdash;
-        the fingerprint or face you already unlock your phone with, about a minute.</span>
+      <span>{% if is_instance_admin %}Your sign-in manages everyone, on both sides.{% else %}Your
+        sign-in adds and removes members on your side.{% endif %}
+        {% comment %} One fact, one command, stop. This carried ": the fingerprint or face
+           you already unlock your phone with, about a minute" — an explanation of a phone
+           unlock to somebody holding a phone, and then a time estimate, which is
+           persuasion. It was also a THIRD wording for one object: the page this link opens
+           says "your face, fingerprint or screen lock", and so does the two-step overview,
+           so this is now the same phrase as both.
+
+           The descriptor stays rather than going altogether, and the reason is armed:
+           test_the_prompt_speaks_the_familys_language asserts this prompt names the thing
+           in plain words ("fingerprint" or "face") as well as using no jargon. That guard
+           is a decision somebody made on purpose — a bare "Add a second sign-in step" is
+           jargon on its own — and it outranks a wish to cut further. {% endcomment %}
+        <a href="{% url 'mfa_index' %}">Add a second sign-in step</a>: your face,
+        fingerprint or screen lock.</span>
       <form method="post" action="{% url 'dismiss_second_factor_prompt' %}">
         {% csrf_token %}
-        <button type="submit" class="btn-quiet">Not now</button>
+        <button type="submit" class="btn-quiet">Not Now</button>
       </form>
     </aside>
   {% endif %}
   {% comment %} Gated the way their views are: the Family email panel for any admin, the
      other two for the instance admin only. Three of these were routed and linked from
      nowhere at all before the nav carried `Members`. {% endcomment %}
-  <nav class="rail" aria-label="Managing members">
+  <nav class="rail" aria-label="Managing Members">
     <div class="admin-links">
       <div>
-        <h2>Add people</h2>
+        <h2>Add People</h2>
         <ul>
-          <li><a href="{% url 'invite_household' %}">Invite a household</a></li>
-          <li><a href="{% url 'new_elder' %}">Add a grandparent</a></li>
-          <li><a href="{% url 'member_invites' %}">Outstanding invites</a></li>
-          {% if can_create_yard %}<li><a href="{% url 'family_sides' %}">Family sides</a></li>{% endif %}
+          <li><a href="{% url 'invite_household' %}">Invite A Household</a></li>
+          <li><a href="{% url 'new_elder' %}">Add A Grandparent</a></li>
+          <li><a href="{% url 'member_invites' %}">Invites</a></li>
+          {% if can_create_yard %}<li><a href="{% url 'family_sides' %}">Sides</a></li>{% endif %}
         </ul>
       </div>
       <div>
-        <h2>Check on things</h2>
+        <h2>Tools</h2>
         <ul>
-          <li><a href="{% url 'admins_day_one' %}">A guide for the two of you</a></li>
-          <li><a href="{% url 'member_digests' %}">Who gets the Family email</a></li>
+          <li><a href="{% url 'admins_day_one' %}">Admin Guide</a></li>
+          <li><a href="{% url 'member_digests' %}">Email Updates</a></li>
           {% if is_instance_admin %}
-            <li><a href="{% url 'member_metrics' %}">How the family is using it</a></li>
-            <li><a href="{% url 'member_quarantine' %}">Replies we couldn&rsquo;t post</a></li>
+            <li><a href="{% url 'member_metrics' %}">Usage</a></li>
+            <li><a href="{% url 'member_quarantine' %}">Held Replies</a></li>
           {% endif %}
         </ul>
       </div>
@@ -154,7 +174,7 @@
      few times someone re-roles a relative, and never again. {% endcomment %}
   {% if role_meanings %}
     <details class="role-key">
-      <summary>What the roles mean</summary>
+      <summary>What The Roles Mean</summary>
       <dl>
         {% for label, meaning in role_meanings %}
           <dt>{{ label }}</dt><dd>{{ meaning }}</dd>
@@ -196,7 +216,7 @@
             <div class="manage-body">
               <span class="member-links">
               {% if row.can_edit_profile %}
-                <a href="{% url 'managed_profile_edit' row.member.id %}">Edit profile</a>
+                <a href="{% url 'managed_profile_edit' row.member.id %}">Edit Profile</a>
               {% endif %}
               {% comment %} Gated on can_provision_token, NOT on manageable. Minting this link
                  hands over a working no-login credential for that person's whole scope, so a
@@ -205,7 +225,7 @@
                  yard admin saw this link on every row in their side and got a refusal on
                  click. {% endcomment %}
               {% if row.can_provision_elder %}
-                <a href="{% url 'provision_elder' row.member.id %}">No-login link</a>
+                <a href="{% url 'provision_elder' row.member.id %}">No-Login Link</a>
               {% endif %}
               {% comment %} BY-01. Before this, a relative who forgot their password and had
                  never given an email address could be helped by nobody in the product: the
@@ -214,14 +234,14 @@
                  view (can_manage_member, plus having a password at all), so it never refuses
                  on click. {% endcomment %}
               {% if row.can_issue_recovery %}
-                <a href="{% url 'issue_recovery' row.member.id %}">Get back in link</a>
+                <a href="{% url 'issue_recovery' row.member.id %}">Sign-In Link</a>
               {% endif %}
               {% comment %} BY-14. Before this, somebody who already had an account could only
                  enter a household by redeeming an invite — and redeeming MINTS A NEW MEMBER —
                  so a person in the wrong household, an adult child who moved out, or two
                  households merging had no answer anywhere in the product. {% endcomment %}
               {% if row.can_change_household %}
-                <a href="{% url 'change_household' row.member.id %}">Change household</a>
+                <a href="{% url 'change_household' row.member.id %}">Change Household</a>
               {% endif %}
               </span>
 
@@ -234,14 +254,18 @@
                    value as "no change" rather than refusing it. {% endcomment %}
                 <form method="post" action="{% url 'assign_role' row.member.id %}" class="inline">
                   {% csrf_token %}
-                  <label class="visually-hidden" for="role-{{ row.member.id }}">Change {{ row.member.display_name }}&rsquo;s role</label>
+                  {% comment %} A NOUN, not a sentence. "Change <name>'s role" was a command
+                     in a label slot, and the possessive read badly beside the name the
+                     screen reader had just announced. "Role For <name>" names the control
+                     and still distinguishes six of them on one page. {% endcomment %}
+                  <label class="visually-hidden" for="role-{{ row.member.id }}">Role For {{ row.member.display_name }}</label>
                   <select id="role-{{ row.member.id }}" name="role">
-                    <option value="" selected>{{ row.member.get_role_display }} &mdash; no change</option>
+                    <option value="" selected>{{ row.member.get_role_display }} (No Change)</option>
                     {% for value, label in row.assignable_roles %}
                       <option value="{{ value }}">{{ label }}</option>
                     {% endfor %}
                   </select>
-                  <button type="submit">Change role</button>
+                  <button type="submit">Change Role</button>
                 </form>
               {% endif %}
 
@@ -256,11 +280,11 @@
                    control that erases photographs, which is the arrangement, not an
                    accident of layout. {% endcomment %}
                 <details class="removal-disclosure">
-                  <summary>Remove {{ row.member.display_name }}&hellip;</summary>
+                  <summary>Remove {{ row.member.display_name }}</summary>
                   <form method="post" action="{% url 'member_remove' row.member.id %}" class="removal">
                     {% csrf_token %}
                     <fieldset>
-                      <legend>What happens to their posts?</legend>
+                      <legend>What Happens To Their Posts</legend>
                       {% for value, label in content_choices %}
                         <label class="inline-check">
                           <input type="radio" name="content" value="{{ value }}" required>
@@ -271,8 +295,8 @@
                          for good. Say so beside the radio, and say that there is another
                          step, so the button is not the last thing between an admin and an
                          irreversible act. The step itself is enforced in the view. {% endcomment %}
-                      <p class="hint">Deleting erases their photos from the server for good. We
-                        will ask you to confirm first.</p>
+                      <p class="hint">Deleting erases their photos from the server for good.
+                        The next page asks you to confirm.</p>
                     </fieldset>
                     <button type="submit" class="danger">Remove {{ row.member.display_name }}</button>
                   </form>
@@ -285,24 +309,24 @@
                    free-standing form. {% endcomment %}
                 {% if not row.member.is_supervised and row.own_pods %}
                   <details class="supervised-disclosure">
-                    <summary>Add a child account looked after by {{ row.member.display_name }}&hellip;</summary>
+                    <summary>Add A Child Account For {{ row.member.display_name }}</summary>
                     <form method="post" action="{% url 'create_supervised' %}">
                       {% csrf_token %}
                       <input type="hidden" name="parent_id" value="{{ row.member.id }}">
-                      <label for="child-name-{{ row.member.id }}">Their name</label>
+                      <label for="child-name-{{ row.member.id }}">Their Name</label>
                       <input id="child-name-{{ row.member.id }}" type="text" name="display_name"
                              maxlength="100" required>
                       {% comment %} The PARENT's households, not every household the admin can
                          see. This offered `assignable_pods` — every household on the instance
                          for an instance admin — so picking the wrong line placed a child in a
                          family their own parent is not in. {% endcomment %}
-                      <label for="child-pod-{{ row.member.id }}">Which of their households</label>
+                      <label for="child-pod-{{ row.member.id }}">Their Household</label>
                       <select id="child-pod-{{ row.member.id }}" name="pod_id">
                         {% for pod in row.own_pods %}
                           <option value="{{ pod.id }}">{{ pod.name }}</option>
                         {% endfor %}
                       </select>
-                      <button type="submit">Create the account</button>
+                      <button type="submit">Create Account</button>
                     </form>
                   </details>
                 {% endif %}
@@ -318,19 +342,19 @@
              sentence that still makes sense. {% endcomment %}
           <p class="muted why-no-actions">
             {% if row.no_actions_reason == "you" %}
-              This is you. Someone else has to make changes to your own account.
+              This is your own account. Another admin has to change it.
             {% elif row.no_actions_reason == "other-side" %}
-              Also on the other side of the family, so only
-              {% if help_contact %}{{ help_contact }}{% else %}the family admin{% endif %}
+              Also on the other side, so only
+              {% if help_contact %}{{ help_contact }}{% else %}the Family Admin{% endif %}
               can change this.
             {% elif row.no_actions_reason == "admin" %}
               An admin, so only
-              {% if help_contact %}{{ help_contact }}{% else %}the family admin{% endif %}
+              {% if help_contact %}{{ help_contact }}{% else %}the Family Admin{% endif %}
               can change this.
             {% else %}
-              Not yours to change. Ask
-              {% if help_contact %}{{ help_contact }}{% else %}the family admin{% endif %}
-              if it needs to be.
+              Only
+              {% if help_contact %}{{ help_contact }}{% else %}the Family Admin{% endif %}
+              can change this.
             {% endif %}
           </p>
         {% endif %}

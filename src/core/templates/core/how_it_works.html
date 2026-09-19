@@ -5,86 +5,140 @@
    here, in words, not only in docs/family-privacy-note.md), and the ground the admins'
    day-one guide stands on.
 
-   VOCABULARY IS THE POINT. household, side of the family, the Family email, no-login link,
-   this Backyard — and none of the internal nouns. test_one_word_per_concept.py fails the
-   build if one comes back. Phone-first: short sections, no nesting, every link a real
-   target the size of a thumb. {% endcomment %}
-{% block title %}How this works{% endblock %}
+   EVERY CLAIM ON THIS PAGE IS CHECKED AGAINST THE CODE, because a sceptical relative
+   reads it before deciding to join and a sentence that over-promises is worse than no
+   page. The ones that were re-read on 2026-09-19, with what they are checked against:
+
+     posts default to the household               scoping.visible_posts
+     posting to a SIDE asks you to confirm        feed_views.compose, TM-3 (a GROUP does
+                                                  not, which the old wording got wrong)
+     an admin sees no more than you do            scoping.visible_posts has no admin path
+     a takedown is silent and permanent           moderation.take_down_post
+     email updates are off until turned on        digesting, DigestSubscription
+     nothing is sent when nothing was posted      digest_send, "an empty window sends
+                                                  nothing at all"
+     photos are never in an email                 core/email/digest.txt links, never
+                                                  attaches — so the old "a copy that
+                                                  already went out" was true of the TEXT
+                                                  and false of the photographs
+     the one per-person datum                     models.MemberWeekPresence
+     removal is an admin's act, with a choice     removal.CONTENT_CHOICES
+
+   VOCABULARY IS THE POINT. household, side of the family, No-Login Link, Email Updates —
+   and none of the internal nouns. test_one_word_per_concept.py fails the build if one
+   comes back. "A side of the family" is spelled out ONCE here, where a side is defined;
+   everywhere after it the word is "side". Phone-first: short sections, no nesting, every
+   link a real target the size of a thumb. {% endcomment %}
+{% block title %}How It Works{% endblock %}
 {% block body %}
-  <h1>How this works</h1>
-  <p class="muted">A private place for our family. No ads, no strangers, nothing that nags.
-    Post when you feel like it.</p>
+  <h1>How It Works</h1>
+  <p class="muted">What Backyard stores, who can see it, and how to leave.</p>
 
-  <h2>Who sees what I post</h2>
-  <p>Everything you write goes to <strong>your household</strong> — the people who share
-    your home, or whoever was set up alongside you. Nobody else sees it.</p>
-  <p>When you want more people to see something, you choose a wider group as you write it,
-    and Backyard asks you to confirm before it goes.</p>
-  <p>A side of the family is one branch of it, with its own feed. Most of us are on one
-    side and see only that one. Some households sit in both &mdash; the ones who are
-    related to everybody &mdash; and they see both sides. That is the only way anything
-    crosses: through the people who belong to both, never from one side to the other on
-    its own.</p>
+  <h2>Who Sees What You Post</h2>
+  <p>Posts are shared with your household: the people you live with, or whoever was set up
+    alongside you. Nobody else sees them.</p>
+  <p>A side of the family is one branch of it, with its own feed. A group is a set of
+    people somebody picked.</p>
+  <p>To reach further than your household, choose a side or a group when you post. Posting
+    to a side shows you how many people will see it and asks you to confirm.</p>
+  <p>Most people are on one side and see only that side. A household that belongs to both
+    sides sees both, and that is the only way a post reaches the other side.</p>
 
-  <h2>Who can join, and how</h2>
-  <p>Only by invitation. Someone who looks after this Backyard makes a link and sends it to
-    you; you open it, pick a name and a password, and you are in. There is no way to sign
-    up from the outside, and nothing here is public.</p>
-  <p>Adding people is an admin&rsquo;s job, so if you would like somebody brought in,
-    ask {% if help_contact %}{{ help_contact }}{% else %}whoever in the family set this
-    up{% endif %} and they will make you a link to pass on.</p>
-  <p>A grandparent who would rather not deal with passwords can be given a
-    <strong>no-login link</strong> instead. It opens straight onto a large-text page of the
-    family's posts with one button to send love. Anyone holding that link can use it, so it
-    is handed over in person or by a private message.</p>
+  <h2>Who Can Join</h2>
+  <p>By invitation only. An admin creates an invite link and sends it to you. Open it to
+    choose your name, a username and a password. There is no public sign-up, and no post
+    is public.</p>
+  <p>Only an admin can invite somebody. Ask {% if help_contact %}{{ help_contact }}{% else %}the
+    person who invited you{% endif %} for a link to pass on.</p>
+  <p>Somebody who would rather not use a password can be given a <strong>No-Login
+    Link</strong> instead. It opens a large-text page of recent posts with one button to
+    send love. Anyone holding that link can read and send love as that person, so hand it
+    over in person or in a private message.</p>
+  {% comment %} "send love", not "react": that is what the button on the page says, and it
+     is what both admin pages that hand out the link say. The verb was a third word for one
+     object on the one place this link is described to the FAMILY rather than to an admin.
 
-  <h2>The Family email</h2>
-  <p>If you want one, Backyard can email you what the family has been up to, weekly or
-    monthly. It is off unless you turn it on, it goes only to an address you have
-    confirmed, and a week when nobody posted sends you nothing at all.</p>
-  <p>Every one of those emails has a link at the bottom that stops them. You can also stop
-    them here at any time, and stopping the email never removes you from the family.</p>
+     DECISION 9, MEASURED ON 2026-09-19, and the answer is that NO SENTENCE about held
+     replies belongs on this page. The question was whether an email reply that failed to
+     post can still be read by the Family Admin in the shipped configuration. It cannot:
+     no surface hands anybody an address to reply to — `block.reply_address` is minted in
+     digest_send.py but printed by no template (digest.txt and digest.html carry only
+     "Reply In Backyard" web links) and emailing.send_family_email sets no Reply-To header
+     — and mail sent to any other address dies in inbound.process_inbound at
+     `reply_addresses.resolve`, which raises ReplyAddressInvalid and bounces BEFORE any
+     quarantine row is written. So there is no path by which a relative's words reach the
+     Held Replies page, and a privacy page that discloses a disclosure that cannot happen
+     is a false record, which is worse here than silence. {% endcomment %}
+
+  <h2>Admins</h2>
+  <p>Two roles manage people. A Side Admin adds and removes members on one side. A Family
+    Admin manages everyone, on both sides.</p>
+  <p>Admins manage people, not what you can read. An admin sees a post only if it was
+    shared with them, the same as everyone else.</p>
+  <p>An admin can take down a post they can see. That is permanent, and the author is not
+    told.</p>
+
+  <h2>Email Updates</h2>
+  <p>Backyard can email you what has been posted, weekly or monthly. It is off until you
+    turn it on.</p>
+  <p>Updates go only to an address you have confirmed. If nobody posted, nothing is
+    sent.</p>
+  <p>Every update carries a link that stops them, and you can stop them in Settings.
+    Stopping them does not remove you from Backyard.</p>
+  <p>Updates are delivered by an email provider, the same as any other email.</p>
   {% if user.is_authenticated %}
-    <p><a class="btn" href="{% url 'digest_settings' %}">The Family email</a></p>
+    <p><a class="btn" href="{% url 'digest_settings' %}">Manage Email Updates</a></p>
   {% endif %}
 
-  <h2>My photos</h2>
-  <p>Photos live on this family's own server and are shown only to the people the post was
-    for. They are not sent to any other company, they are not used to train anything, and
-    they are never scanned or sold.</p>
-  <p>You can delete any post of yours: open it, choose Delete, and its photos are removed
-    from the server for good. The one thing nobody can recall is a copy that already went
-    out in a Family email, the same as any email you have already sent.</p>
-  <p>You can also take a copy of everything you have written and every photo you have
-    added, whenever you like.</p>
-  {% if user.is_authenticated %}
-    <p><a class="btn" href="{% url 'export_data' %}">Download my things</a></p>
-  {% endif %}
+  <h2>Photos</h2>
+  <p>Photos are stored on this server and shown only to the people the post was shared
+    with. Backyard does not send them to another company and does not use them to train
+    anything.</p>
+  <p>To delete a post, find it in your feed and choose Delete Post. The post and its photos
+    are removed from the server permanently.</p>
+  <p>Photos are never attached to an email update. Text that has already been emailed
+    cannot be recalled.</p>
 
-  <h2>What this place keeps about me</h2>
-  <p>One thing, and this is it: once a week, whether you stopped by. Just a yes or a no.
-    It is there so the family can tell this place is still alive.</p>
+  <h2>What Backyard Stores About You</h2>
+  <p>Your posts, replies, photos and profile details, the name you sign in with, and an
+    email address if you gave one.</p>
+  {% comment %} "One more thing" is a presenter's tic, on the page whose whole value is sounding like
+     it is not performing. The fact stays. {% endcomment %}
+  <p>Once a week, whether you visited. A yes or a no, and nothing else.</p>
   <p>Backyard does not record what you read, how long you stayed, or what you tapped.
-    There is no per-person activity list anywhere in it. The only numbers anyone can see
-    are totals for a whole side of the family, never one of us on our own.</p>
-
-  <h2>If I forget my password</h2>
-  <p>If you gave an email address, use <strong>Forgot your password?</strong> on the
-    sign-in page and Backyard will email you a way back in.</p>
-  <p>If you did not give one, ask {% if help_contact %}{{ help_contact }}{% else %}whoever
-    in the family set this up{% endif %}. They can make you a one-time link that lets you
-    choose a new password. It is worth adding an email address now so you never need to
-    ask.</p>
+    There is no per-person activity list. The only numbers anyone can see are totals for a
+    whole side, never one person.</p>
+  <p>There are no ads and no third-party tracking.</p>
+  <p>You can download everything you have posted at any time.</p>
   {% if user.is_authenticated %}
-    <p><a class="btn" href="{% url 'account_email' %}">Add my sign-in email</a></p>
-  {% else %}
-    <p><a class="btn" href="{% url 'account_login' %}">Go to sign in</a></p>
+    <p><a class="btn" href="{% url 'export_data' %}">Download Your Data</a></p>
   {% endif %}
 
-  <h2>If something looks wrong</h2>
-  <p>Ask {% if help_contact %}{{ help_contact }}{% else %}whoever in the family set this
-    up{% endif %}. This is run by a relative, not a company, and nothing here is so
-    important that it cannot wait until they have a minute.</p>
+  <h2>If You Forget Your Password</h2>
+  <p>If you gave an email address, use Forgot Your Password? on the sign-in page.</p>
+  <p>If you did not, ask {% if help_contact %}{{ help_contact }}{% else %}the person who
+    invited you{% endif %} for a Sign-In Link. Use it once to choose a new password.</p>
+  <p>Adding an email address means you can reset your password yourself.</p>
+  {% if user.is_authenticated %}
+    <p><a class="btn" href="{% url 'account_email' %}">Add Your Email Address</a></p>
+  {% else %}
+    <p><a class="btn" href="{% url 'account_login' %}">Sign In</a></p>
+  {% endif %}
 
-  <p class="page-action"><a href="{% url 'about' %}">About this Backyard</a></p>
+  <h2>If You Want To Leave</h2>
+  <p>You can leave a group yourself on the Groups page. A household is managed by an
+    admin.</p>
+  <p>To leave Backyard, ask {% if help_contact %}{{ help_contact }}{% else %}the person who
+    invited you{% endif %} to remove you. They choose whether your posts stay as they are,
+    stay without your name, or are deleted along with their photos. Download your data
+    first if you want a copy.</p>
+
+  {% comment %} SIGNED IN ONLY. The signed-out footer already carries How It Works and
+     About, so this paragraph put a second About link inside one screenful, immediately
+     above a footer holding the first — the orphaned-fragment shape the footer rewrite was
+     called for. A signed-in member's footer carries How It Works and Sign Out and not
+     About, so for them this is the route rather than a repeat. {% endcomment %}
+  {% if user.is_authenticated %}
+    <p class="page-action"><a href="{% url 'about' %}">About</a></p>
+  {% endif %}
 {% endblock %}

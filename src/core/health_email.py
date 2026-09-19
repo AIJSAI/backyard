@@ -46,7 +46,9 @@ def build(now: datetime.datetime | None = None) -> tuple[str, str, bool]:
     fields = health.measure(now)
     alarming = health.has_anything_alarming(fields)
     domain = health.instance_domain() or "this instance"
-    subject = f"{domain}: {'needs attention' if alarming else 'weekly health check'}"
+    # Title Case, like every other subject this product sends. The domain is left exactly
+    # as it is configured: it is an address, not a word.
+    subject = f"{domain}: {'Needs Attention' if alarming else 'Weekly Health Check'}"
     text = render_to_string(
         "core/email/health.txt",
         {"fields": fields, "alarming": alarming, "domain": domain},

@@ -59,7 +59,9 @@ class Pod(models.Model):
 
     HOUSEHOLD = "household"
     ADHOC = "adhoc"
-    KIND_CHOICES = [(HOUSEHOLD, "Household"), (ADHOC, "Ad-hoc group")]
+    # "Ad-hoc group" was the schema's word for it. A family says "group", every screen in
+    # the product says Group, and the glossary has one word per concept.
+    KIND_CHOICES = [(HOUSEHOLD, "Household"), (ADHOC, "Group")]
 
     name = models.CharField(max_length=100)
     kind = models.CharField(max_length=16, choices=KIND_CHOICES, default=HOUSEHOLD)
@@ -116,12 +118,16 @@ class Member(models.Model):
     # instance. Renaming the VALUES would be a migration of live rows and every permission
     # predicate; renaming the labels is a copy pass, which is all this ever needed.
     # `test_one_word_per_concept.py` now reads these, so they cannot drift back.
+    #
+    # Title Case, like every other label a person reads (the copy pass, 2026-09-19). These
+    # render as a badge on the roster and as the options in the role select, both of which
+    # the owner's rule covers word for word.
     ROLE_CHOICES = [
         (MEMBER, "Member"),
-        (POD_OWNER, "Group owner"),
-        (YARD_ADMIN, "Side admin"),
-        (INSTANCE_ADMIN, "Family admin"),
-        (SUPERVISED, "Child account"),
+        (POD_OWNER, "Group Owner"),
+        (YARD_ADMIN, "Side Admin"),
+        (INSTANCE_ADMIN, "Family Admin"),
+        (SUPERVISED, "Child Account"),
     ]
     # S-907. The roster used to render these five names and nothing else, so the
     # relative being handed the admin controls had to be TOLD, out of band, what
@@ -134,7 +140,7 @@ class Member(models.Model):
     # and against docs/security/permission-matrix.md (so the prose and the doc cannot
     # drift apart silently).
     ROLE_DESCRIPTIONS = {
-        MEMBER: "Posts and replies. No say over anyone else.",
+        MEMBER: "Posts and replies. Does not manage anyone.",
         # Both affirmative halves of this sentence used to be false, in the copy shown
         # beside the control that grants the role. It said "Sets their household's house
         # rule and invites people into it" — `pods.set_house_rule` raises "A household pod
@@ -147,19 +153,20 @@ class Member(models.Model):
         # pod_owner? No", and it is no longer offered by the roster; the constant stays for
         # the rows that already carry it.
         POD_OWNER: (
-            "The same as a member. Setting a house rule and adding people comes from "
-            "creating an ad-hoc group, not from this label."
+            "The same as a member. Setting a group's rule and adding people to it comes "
+            "from creating a group, not from this label."
         ),
         YARD_ADMIN: (
-            "Manages members, but only on their own side of the family. "
-            "Cannot touch an admin, or anyone who also belongs to the other side."
+            "Adds and removes members, but only on their own side of the family. "
+            "Cannot manage an admin, or anyone who also belongs to the other side."
         ),
         # "This is the whole instance." was the second sentence here until 2026-09-19. It
         # was the only place in the product that used the word at a relative, and it told
-        # them nothing they could act on; what they need to know is that this role reaches
-        # everyone, which the first sentence already says.
-        INSTANCE_ADMIN: ("Manages anyone, on either side. The whole family, not one side of it."),
-        SUPERVISED: "A managed account with no login of its own. Their parent edits it.",
+        # them nothing they could act on. Its replacement ("The whole family, not one side
+        # of it.") restated the first sentence and went the same way in the copy pass: say
+        # the thing once and stop.
+        INSTANCE_ADMIN: "Manages anyone, on either side.",
+        SUPERVISED: "A managed account with no sign-in of its own. A parent edits it.",
     }
 
     # PROTECT, not SET_NULL: deleting the auth User looks like offboarding but revokes
@@ -188,10 +195,19 @@ class Member(models.Model):
     # These strings are the OPTIONS in the control that decides who sees somebody's
     # phone number, so they are read by a relative on a phone, not by us. "People in my
     # yards" named an object no screen in the product ever defined.
+    # Short and parallel, and Title Case like every other option a person picks from.
+    # "Everyone in my family" became "All Members": the reader is inside a family network
+    # and does not need to be told so again in the third option of a select (copy pass rule
+    # 4, 2026-09-19 — "let's not make it all family branded"). NOT the bare "Everyone",
+    # which the judge walk of 2026-09-19 read as the public web on the one control that
+    # governs a phone number, an email address and a home address — a first-time relative
+    # withholds a number they would happily share, or shares one they would not. "All
+    # Members" names exactly who: everyone who can sign in here, and nobody else. It also
+    # stays parallel with "No One" and "My Household".
     FIELD_VISIBILITY_CHOICES = [
-        (HIDDEN, "No one"),
-        (POD, "My household"),
-        (YARD, "Everyone in my family"),
+        (HIDDEN, "No One"),
+        (POD, "My Household"),
+        (YARD, "All Members"),
     ]
     birthday_month = models.PositiveSmallIntegerField(null=True, blank=True)
     birthday_day = models.PositiveSmallIntegerField(null=True, blank=True)
@@ -965,10 +981,13 @@ class DigestDelivery(models.Model):
     HANDED_TO_RELAY = "handed_to_relay"
     REJECTED = "rejected"
     DSN_QUARANTINED = "dsn_quarantined"
+    # The words the family admin reads in the "Last Few Sends" column. They must stay as
+    # honest as they were: "Sent" is what this product knows (the message was handed to the
+    # mail relay), and nothing here may say "Delivered", which no transport has told us.
     STATUS_CHOICES = [
-        (HANDED_TO_RELAY, "Handed to relay"),
-        (REJECTED, "Rejected at submission"),
-        (DSN_QUARANTINED, "Bounce held for review"),
+        (HANDED_TO_RELAY, "Sent"),
+        (REJECTED, "Rejected"),
+        (DSN_QUARANTINED, "Bounced"),
     ]
 
     issue = models.ForeignKey(DigestIssue, on_delete=models.CASCADE, related_name="deliveries")
@@ -1078,11 +1097,18 @@ class InboundQuarantine(models.Model):
     NO_SEPARATOR = "no_separator"
     MALFORMED = "malformed"
     RATE_LIMITED = "rate_limited"
+    # Read by the family admin on the quarantine page. "From" was the mail header's name,
+    # which is the machine's word for it, not a person's — and three of the four that
+    # replaced it were still a mail server talking. This page's whole instruction is "Talk
+    # to the member directly", so the reason has to be sayable out loud on the phone: a
+    # relative running this for his family cannot act on "Reply separator not found", which
+    # names an object that exists nowhere else in the product. The VALUES are untouched;
+    # only the words are.
     REASON_CHOICES = [
-        (FROM_MISMATCH, "From did not match the member's address"),
-        (NO_SEPARATOR, "Reply separator not found"),
-        (MALFORMED, "Malformed or oversized message"),
-        (RATE_LIMITED, "Too many replies too fast"),
+        (FROM_MISMATCH, "Sent from an address that is not theirs"),
+        (NO_SEPARATOR, "Could not tell the reply from the quoted email"),
+        (MALFORMED, "The email was damaged or too large"),
+        (RATE_LIMITED, "Too many replies in a row"),
     ]
 
     reason = models.CharField(max_length=16, choices=REASON_CHOICES)

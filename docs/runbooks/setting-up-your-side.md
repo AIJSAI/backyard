@@ -1,171 +1,142 @@
-# Setting up your side of the family
+# Setting Up Your Side
 
-For whoever is bringing people in. It is short on purpose. If a step is not here, you do not
-have to do it.
+For the Side Admin who brings people in. The short version is a page in the product:
+**`Members` → `Admin Guide`**. Read that on your phone. Read this when you want the detail.
 
-**The one rule that matters:** post something to your whole side of the family *before* you
-hand anyone a grandparent link. See "A grandparent" below for why.
-
-> The short version of this document is now a page inside the product:
-> **`Members`** → **`A guide for the two of you`**. Read that on your phone; read this
-> when you want the detail.
+**The one rule that matters:** post something to your whole side of the family before you
+hand anyone a no-login link. "Add A Grandparent" below says why.
 
 ---
 
-## Before anything else: getting in
+## Before You Start
 
-1. **Open the instance** in a browser: `https://backyard.family`
-   *(If you are reading a copy of this for a different family's instance, use theirs.)*
-2. **Sign in** with the account you were given. If you are already signed in you will land
-   on the feed.
-3. **Look at the top of the page for a link called `Members`.** Everything below happens
-   there.
+1. Open Backyard in a browser, at the address you were given.
+2. Sign in with the account you were given.
+3. Look at the top of the page for **`Members`**. Everything below happens there.
 
-**If you cannot see `Members`, stop — you are not set up yet.** That link only appears for
-people who have been made a **yard admin** (or an instance admin), and without it every
-step below leads to a page that refuses you. Ask whoever runs the server to make you an
-admin for your side of the family, then sign out and back in.
+**If `Members` is not there, stop.** That link appears only for a Side Admin or a Family
+Admin, and without it every step below leads to a page that refuses you. Ask the Family
+Admin to make you a Side Admin, then sign out and sign in again.
 
-That is the whole prerequisite. You do not need a terminal, a server login, or anything
-installed.
+You do not need a terminal, a server login, or anything installed.
 
----
+## What You Are Setting Up
 
-## What you are actually doing
+Two kinds of person, and they are set up differently.
 
-There are two kinds of person to set up, and they are genuinely different:
-
-| | **Household** | **Grandparent** |
+| | Household | Grandparent |
 |---|---|---|
 | Who | Anyone with a phone who can manage a password | Someone who does not use apps |
-| They get | A join link — they pick a name and password | A link that just *opens*. No login, ever. |
-| Where they land | The family feed | A large-text page: read, and one tap to send love |
-| Reusable | Yes, up to 8 people from one link, for 7 days | No — one link, one person |
+| They get | A join link. They choose a name and a password | A link that opens the page. No password, ever |
+| Where they land | Your Backyard, with everyone else | A large-text page: read the posts, send love with one tap |
+| Reusable | Yes. Up to 8 people, for 7 days | No. One link, one person |
 
-Both links are **one-time-view**: the page shows the link once and never again. Copy it
-before you leave the page. If you lose one, mint a new one — that is normal and costs
-nothing.
+Both links are shown once and never again. Copy the link before you leave the page. If you
+lose one, make another.
 
----
+## Invite A Household
 
-## A household (a couple, a family, a sibling and their kids)
+1. **`Members` → `Invite A Household`**.
+2. Name the household the way everyone says it, "The Reeds" or "Aunt Jo's", and choose the
+   side it joins.
+3. The page shows the link, a **Copy Link** button, a **Share** button and a QR code. It
+   also says how many people the link works for and the date it stops working.
+4. Send it however you normally reach them. One link covers the whole household, so you can
+   send it to one person and let them pass it on.
 
-1. **`Members` → `Invite a household`.**
-2. Name it the way the family would say it — "The Reeds", "Aunt Jo's" — and pick which side
-   of the family it belongs to.
-3. You get a link, a **Copy** button, a **Share** button, and a QR code. The page tells you
-   how many people it works for and the date it stops working.
-4. Send it however you normally reach them. Text is fine. **One link covers the whole
-   household** — send it to one person and let them pass it around, or send it to each of
-   them; either works.
+They choose a name, a username and a password, and an email address if they want one. Then
+they are in. There is no setup to walk them through.
 
-**What they see:** a page saying they were invited, a few boxes (their name, a username, a
-password, and an email address if they want one), and then they are in the feed. Nothing
-else. No setup wizard.
+An email address is optional and worth asking for: it is the only way to reset a forgotten
+password without an admin.
 
-> The email box is optional but worth encouraging: it is the only way to reset a forgotten
-> password without asking an admin.
+When someone joins, a card appears in that household's feed so the people already there know
+they arrived. Nobody is notified.
 
-**What to tell them:** *"Tap the link, pick the name you want the family to see, make a
-password. That's it — you'll be looking at the family's photos."*
+## Add A Grandparent
 
-When someone joins, a quiet line appears in that household's feed so the family knows they
-arrived. Nobody gets notified; it is just there.
+**Post something to their side first.** Their page shows the posts their household can see,
+so with nothing posted they open the link to an empty page. You cannot preview it for them.
 
----
+1. **`Members` → `Add A Grandparent`**.
+2. Enter their name, what everyone calls them (optional), the name of their household, and
+   the side of the family.
+3. The page shows their link and a QR code.
 
-## A grandparent
+**Hand this link over in person or in a private message.** Anyone holding it can read the
+posts and send love as that person. That is the trade for no password, ever. Do not put it in
+a group chat.
 
-1. **`Members` → `Add a grandparent`.**
-2. Their name, what the family calls them (Nana, Papa — optional), name their household,
-   pick the side of the family.
-3. You get their link and a QR code.
+What they see: the recent posts their household can see, the replies underneath, a **Send
+Love** button on each post, and a **Bigger Text** button. Nothing to install, nothing to sign
+in to, and no link that leads off the page.
 
-**Hand this one over in person or by a private message.** Anyone holding that link can read
-and react as them — that is the trade that buys "no password, ever". Do not put it in a
-group chat.
+You can print the page. The QR code is on it, which some people find easier than a text
+message.
 
-**What they see:** *"Hello, Nana"*, the family's recent posts with the photos, the replies
-underneath, one big **Send love** button, and a **Bigger text** button. Nothing to install.
-Nothing to log into. Nothing that can take them somewhere else — that is deliberate: there
-is no way for them to get lost, and no way for a stray link to lead them off the page.
+## Questions People Ask
 
-**Do this first, though.** Their page shows the posts their household can see. If nobody has
-posted to that side of the family yet, they will open the link and read *"Nothing new right
-now."* You cannot preview it for them, so **post a photo to the whole side of the family
-before you send the link.**
+**Do I need the app?** There is no app. Backyard is a web page. On a phone you can add it to
+the home screen.
 
-Practical option: print the page. The QR is on it. Some people find "point your camera at
-this" easier than a text message, and the paper is a backup when the message scrolls away.
+**Who can see what I post?** Posts are shared with your household. To reach more people,
+choose a side of the family or a group when posting. A grandparent sees what their household
+sees.
 
----
+**Can I see the other side of the family?** No. The two sides never see each other. A
+household that belongs to both sides sees both, and neither side sees the other through it.
 
-## Things people ask
+**Will it email me?** Only what a member turns on. Under **`Settings` → `Notifications`** they
+can ask for an email when someone replies to their post.
+Under **`Settings` → `Email Updates`** they can choose Weekly or Monthly. A week with nothing
+posted sends nothing.
 
-**"Do I need the app?"** There is no app. It is a web page. On a phone you can add it to the
-home screen if you want it to feel like one.
+## If Something Goes Wrong
 
-**"Who can see what I post?"** Your household, unless you tick a whole side of the family
-when you post. Grandparents see what their household sees.
+**A link stopped working.** Household links expire after 7 days and run out after 8 people.
+**`Members` → `Invites`** shows which links are still live, makes another, and revokes one
+you no longer want.
 
-**"Can I see the other side of the family?"** No. The two sides never see each other. A
-household that belongs to both sides sees both, and neither side sees the other through
-them.
+**Someone joined with the wrong name.** They can change it themselves under **`Settings`**. To
+do it for them, open **`Members`**, tap **Manage** on their row, then **Edit Profile**. That
+works for anyone on your own side. For someone who belongs to both sides, or for another
+admin, the control is not there and it is the Family Admin's job.
 
-**"Is it going to send me things?"** No. Nothing is pushed at anyone by default. The only
-thing anyone can turn on is a nudge when someone replies to their own post — under
-`Settings` → `Notifications`. There is also the Family email, off until somebody switches
-it on, under `Settings`; a week when nobody posted sends nothing at all.
+That page shows their name, their nickname and their two dates, and nothing else. Their phone
+number, email address and home address are not shown to you and you cannot change them. Each
+of those has its own visibility setting, and it belongs to the person it is about.
 
----
+**A grandparent's link went to the wrong person.** Make a new one immediately: open
+**`Members`**, tap **Manage** on their row, then **No-Login Link**. The old link stops working
+at once.
 
-## If something goes wrong
+**No-Login Link** appears only for someone whose households you are in yourself. The link is a
+working credential for everything that person can see, so making one for a household you are
+not in would hand you its contents. If the control is not there for someone, ask the Family
+Admin.
 
-- **A link stopped working.** They expire after 7 days, and household links run out after 8
-  people. Mint a new one — **`Members` → `Outstanding invites`** shows what is still live
-  and lets you revoke anything you would rather kill.
-- **Someone joined with the wrong name.** They can fix it themselves: **`Settings`** in the
-  top nav, then change the name field and save. If they cannot do it themselves, you can do
-  it for them: **`Members` → `Edit profile`** on their row. That works for anyone on your
-  own side of the family; for somebody who belongs to both sides, or for another admin, you
-  will not see the control and it is the instance admin's job.
+**Somebody forgot their password and has no email address.** Open **`Members`**, tap
+**Manage** on their row, then **Sign-In Link**. It makes a one-time link you can text to them
+or read out over the phone, and they set a new password with it.
 
-  You will see their name, their nickname and their two dates on that page, and nothing
-  else. Their phone number, email address and home address are not shown to you and you
-  cannot change them — each of those has its own "who can see this" setting that belongs to
-  the person it is about, and standing in to fix a name is not a reason to read them.
-- **You handed a grandparent link to the wrong person.** Mint a new one for that grandparent
-  immediately — find them on **`Members`** and use **`No-login link`** on their row. Minting a
-  new one kills the old one straight away.
+Make sure you are really talking to them first. Call, or text the number you already have.
+Whoever holds the link can set that password. It works once, it stops working after two days,
+and making a new one cancels any earlier one. When they use it, they are signed out
+everywhere else.
 
-  `No-login link` only appears for grandparents in **households you are in yourself**. That is
-  deliberate: the link is a working no-login credential for everything that person can see,
-  so minting one for a household you are not in would hand you its contents. If you cannot
-  see the control for someone, ask whoever runs the server.
-- **Somebody forgot their password and gave no email address.** You can get them back in
-  yourself: **`Members` → `Get back in link`** on their row. That makes a one-time link you
-  text to them or read out over the phone; they choose a new password with it and they are
-  in.
+You see this control for members on your own side. Another admin, or somebody who belongs to
+both sides, is the Family Admin's to recover. An admin's own recovery needs the server, by
+design.
 
-  Before you make one, **make sure you are really talking to them** — a call, or a text to
-  the number you already have. Whoever holds the link can set that password. It works once,
-  it stops working after two days, and making a new one turns off any earlier one. When they
-  use it they are signed out everywhere else and sign back in with the new password.
+Worth doing before it happens: ask everyone on your side to add an email address under
+**`Settings` → `Your Sign-In Email`**, so they can reset their own password.
 
-  You will only see the control for ordinary members on your own side. Another admin, or
-  somebody who belongs to both sides, is the instance admin's to recover — and an admin's
-  own recovery needs the server, by design.
-
-  **Worth doing before it happens:** ask everyone on your side to add an email address
-  (**`Settings` → `Your sign-in email`**) so they can reset their own password without
-  anybody's help.
-- **Anything else.** Ask whoever runs the server. That is a relative, not a support desk,
-  and they can fix it.
+**Anything else.** Ask the Family Admin.
 
 ---
 
-<sub>Every navigation instruction in this document names a link that exists in the product.
-That was not true until 2026-08-06: `Members` was not in the nav at all, so a delegate
-reading this had nothing to click and no URL to fall back on. `test_member_settings_are_reachable.py`
-now walks the product by following links and fails the build if any page becomes
-unreachable, which is what keeps this document honest.</sub>
+<sub>Every navigation instruction in this document names a control that exists in the product.
+That was not true until 2026-08-06: `Members` was not in the nav at all, so a delegate reading
+this had nothing to click and no URL to fall back on. `test_member_settings_are_reachable.py`
+walks the product by following links and fails the build if a page becomes unreachable, which
+is what keeps this document honest.</sub>

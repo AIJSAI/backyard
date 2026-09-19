@@ -93,7 +93,10 @@ def test_empty_feed_shows_the_empty_state(world: dict[str, object]) -> None:
     author = world["author"]
     assert isinstance(author, Member)
     response = _client_for(author).get(reverse("feed"))
-    assert "Nothing here yet" in response.content.decode()
+    body = response.content.decode()
+    assert "No posts yet. Write the first one." in body
+    # ONE empty state: the page used to print the line above AND "You are all caught up."
+    assert "You are all caught up." not in body
 
 
 def test_compose_creates_a_pod_only_post_by_default(world: dict[str, object]) -> None:
@@ -254,7 +257,9 @@ def test_a_rejected_compose_keeps_the_words_as_well_as_the_photos(
     # Re-rendered for correction, not redirected — this is the bounce-back path.
     assert response.status_code == 200
     body = response.content.decode()
-    assert "a little long" in body, "expected the length error; the fixture no longer trips it"
+    assert "characters or fewer" in body, (
+        "expected the length error; the fixture no longer trips it"
+    )
     assert over_the_cap in body, (
         "the composer threw away what they typed while telling them their photos were safe"
     )
@@ -306,9 +311,9 @@ def test_two_sides_are_named_in_a_sentence_not_a_comma_list(world: dict[str, obj
     assert response.templates[0].name == "core/compose_confirm.html"
     body = " ".join(response.content.decode().split())
 
-    assert "Share with Maternal and Paternal?" in body, body[:400]
+    assert "Share With Maternal and Paternal?" in body, body[:400]
     assert "everyone in Maternal and Paternal" in body
-    assert "Yes, share with Maternal and Paternal" in body
+    assert "Share With Maternal and Paternal</button>" in body
     assert "Maternal, Paternal" not in body, "the comma list survived somewhere on the page"
 
 

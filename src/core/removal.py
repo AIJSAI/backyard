@@ -50,10 +50,13 @@ from .revocation import revoke_member_credentials
 KEEP = "keep"
 ANONYMIZE = "anonymize"
 DELETE = "delete"
+# The LABELS are what an admin reads beside three radio buttons, so they are short and
+# parallel: same verb first, same shape, no clause explaining itself. They render inside a
+# <label>, which the product capitalises.
 CONTENT_CHOICES: tuple[tuple[str, str], ...] = (
-    (KEEP, "Keep their posts, still attributed to them"),
-    (ANONYMIZE, "Keep their posts, but remove their name from them"),
-    (DELETE, "Delete their posts, replies and photos"),
+    (KEEP, "Keep Their Posts"),
+    (ANONYMIZE, "Keep Their Posts, Without Their Name"),
+    (DELETE, "Delete Their Posts, Replies And Photos"),
 )
 _VALID = {choice for choice, _label in CONTENT_CHOICES}
 

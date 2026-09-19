@@ -5,16 +5,19 @@
    one tap from Settings and from the sign-in page is that offer, and
    test_agpl_source_offer.py walks both routes rather than grepping this file.
 
-   Written for two readers at once: a relative who tapped "About this Backyard" and wants
-   one sentence, and another self-hoster who needs the licence and the repository. The
-   relative's sentence goes first. {% endcomment %}
-{% block title %}About this Backyard{% endblock %}
+   Written for two readers at once: a relative who tapped "About" and wants one sentence,
+   and another self-hoster who needs the licence and the repository. The relative's
+   sentence goes first. {% endcomment %}
+{% block title %}About{% endblock %}
 {% block body %}
-  <h1>About this Backyard</h1>
-  <p class="muted">Backyard is the software this family's private page runs on. A relative
-    runs it; there is no company behind it and nobody is paying for your attention.</p>
+  <h1>About</h1>
+  {% comment %} "A relative runs it." is cut: the section heading directly below already promises it
+     ("Who Runs This") and its first line says it again in full ("A relative set this up and
+     runs it"). The same fact twice in seven lines, on a page three paragraphs long. {% endcomment %}
+  <p class="muted">Backyard is the software this private network runs on. No company is
+    behind it, and there is no advertising.</p>
 
-  <h2>Who looks after it</h2>
+  <h2>Who Runs This</h2>
   {% comment %} `help_contact` is empty for anybody who has not been let in — this page is
      public and linked from the sign-in screen, and it printed a relative's first name
      TWICE to a stranger who typed the domain (walk item 12). The name is not a secret;
@@ -22,21 +25,19 @@
      signed-in member, or a reader holding a link a relative sent them, still gets it,
      because they have already been introduced. The gate is one function,
      context_processors.may_name_the_admin. {% endcomment %}
-  <p>{% if help_contact %}{{ help_contact }} set this up and looks after it. If something
-    is wrong, or you would rather not be here at all, ask {{ help_contact }}.{% else %}A
-    relative set this up and looks after it. If something is wrong, or you would rather
-    not be here at all, ask the person who invited you.{% endif %}</p>
-  <p><a href="{% url 'how_it_works' %}">How this works</a> answers what a relative usually
-    wants to know: who sees what you post, what the Family email is, and what this place
-    keeps about you.</p>
+  <p>{% if help_contact %}{{ help_contact }} set this up and runs it. Contact
+    {{ help_contact }} if something is wrong, or if you want to leave.{% else %}A relative
+    set this up and runs it. Contact the person who invited you if something is wrong, or
+    if you want to leave.{% endif %}</p>
+  <p><a href="{% url 'how_it_works' %}">How It Works</a> covers who can see what you post,
+    what Backyard stores about you, and how to leave.</p>
 
-  <h2>The licence</h2>
+  <h2>The License</h2>
   {% comment %} The section 13 offer itself. Kept as one block so it reads as a single
      statement and so a future edit cannot drop half of it. {% endcomment %}
-  <p>Backyard is free software, licensed under the
-    <strong>AGPL-3.0-or-later</strong>. You are welcome to read it, run your own copy for
-    your own family, and change it.</p>
+  <p>Backyard is free software under the <strong>AGPL-3.0-or-later</strong> license. You
+    can read the source, run your own copy, and change it.</p>
   <p>Source code: <a href="https://github.com/AIJSAI/backyard" rel="noopener noreferrer">github.com/AIJSAI/backyard</a></p>
-  <p class="muted">That link is the offer the licence requires this program to make to
-    anyone using it over a network. The version running here is this family's own copy.</p>
+  <p class="muted">The license requires that offer to anyone using the software over a
+    network. This server runs its own copy.</p>
 {% endblock %}

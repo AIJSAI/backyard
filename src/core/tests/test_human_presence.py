@@ -151,7 +151,7 @@ def test_a_profile_shows_what_that_person_actually_wrote(world: dict[str, object
     assert isinstance(pod, Pod) and isinstance(rose, Member)
     posting.create_post(author=rose, pod=pod, audience_yards=[], body="Biggest fish of the day")
     page = _page(world, reverse("member_profile", args=[rose.id]))
-    assert "Recent posts from Rose Whitfield" in page
+    assert "Recent Posts" in page
     assert "Biggest fish of the day" in page
 
 

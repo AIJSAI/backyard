@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load avatars %}
 {% load times %}
-{% block title %}{% if is_archive_page %}Older posts{% else %}Your backyard{% endif %}{% endblock %}
+{% block title %}{% if is_archive_page %}Older Posts{% else %}Your Backyard{% endif %}{% endblock %}
 {% block extra_head %}
 <style>
 /* THE EMAIL LINE (walk item 5). One quiet line under the composer, where a screen-tall
@@ -32,10 +32,10 @@
 {% endblock %}
 {% block body %}
   {% comment %} Paging back is a different page and it has to say so. It used to keep the
-     title "Your backyard", the orientation card, the whole composer and the
+     title "Your Backyard", the orientation card, the whole composer and the
      "You are all caught up" end-cap — a history page claiming to be the current feed and
      then claiming the reader had seen everything (F9). {% endcomment %}
-  <h1>{% if is_archive_page %}Older posts{% else %}Your backyard{% endif %}</h1>
+  <h1>{% if is_archive_page %}Older Posts{% else %}Your Backyard{% endif %}</h1>
 
   {% if not is_archive_page %}
   {% comment %} Wayfinding moves into the margin rail at >=64rem so the reading well
@@ -48,14 +48,14 @@
   {% if todays_dates %}
     <aside class="date-banner" aria-label="Today">
       {% for d in todays_dates %}
-        <p>Today is {{ d.display_name }}{% if d.kinship_name %} ({{ d.kinship_name }}){% endif %}&rsquo;s {{ d.kind }}.</p>
+        <p>Today is {{ d.display_name }}{% if d.kinship_name %} ({{ d.kinship_name }}){% endif %}'s {{ d.kind }}.</p>
       {% endfor %}
     </aside>
   {% endif %}
 
   {% comment %} S-906's orientation card is GONE from here (owner direction 7). It filled
      a phone screen with an explanation before anyone had seen a single photograph, and
-     for all that room it never said what this place is, never offered the Family email,
+     for all that room it never said what this place is, never offered email updates,
      and never helped with a first post. Those three things are now the welcome
      (core/welcome_views.py), shown once, right after joining, where somebody is actually
      reading. `Member.orientation_dismissed_at` still means "has seen the welcome", so
@@ -80,12 +80,12 @@
       {% comment %} Name the photos when there are photos: they are held server-side
          (core/staged_uploads.py) and so cannot be shown back in the picker, and a member
          who cannot see them has no way to know they survived. {% endcomment %}
-      <p>Your unfinished post is still here{% if staged_handle %}, with the photos you
+      <p>Your draft is still here{% if staged_handle %}, with the photos you
         picked{% endif %}.</p>
       <form method="post" action="{% url 'compose_cancel' %}">
         {% csrf_token %}
         {% if staged_handle %}<input type="hidden" name="staged_uploads" value="{{ staged_handle }}">{% endif %}
-        <button type="submit" class="btn-quiet">Discard it</button>
+        <button type="submit" class="btn-quiet">Discard Draft</button>
       </form>
     </div>
   {% endif %}
@@ -108,17 +108,24 @@
        handle above already carried the PHOTOS back, and the notice beside it says so — but
        the words were dropped, so the page reassured a member their pictures were safe while
        having just deleted the paragraph they wrote. {% endcomment %}
-    <label class="visually-hidden" for="compose-body">Share something with your family</label>
-    <textarea id="compose-body" name="body" rows="3" placeholder="Share something with your family" required>{{ draft_body }}</textarea>
+    <label class="visually-hidden" for="compose-body">Write A Post</label>
+    {% comment %} THE PLACEHOLDER IS MECHANISM AS WELL AS COPY. base.html collapses
+       `.composer-extras` with `:has(textarea:placeholder-shown)`, and that pseudo-class
+       cannot match a textarea with no placeholder attribute: the copy pass removed this one
+       as a repeat of its label and the composer opened full-height for everybody, which is
+       the defect the rule was written to cure. A composer's prompt is also one of the two
+       conventional exceptions the voice guide allows (the other is a search box), and the
+       reply box one screen away has always carried its own. {% endcomment %}
+    <textarea id="compose-body" name="body" rows="3" placeholder="Write a post" required>{{ draft_body }}</textarea>
 
     <div class="composer-extras">
       {% include "core/_media_picker.html" with picker_id="media" %}
 
       <fieldset class="composer-audience">
-        <legend>Who can see this</legend>
+        <legend>Who Can See This</legend>
         <div class="audience-row">
           <div>
-            <label for="pod_id">Post to</label>
+            <label for="pod_id">Post To</label>
             <select id="pod_id" name="pod_id" required>
               {% comment %} `selected` is the audience half of a restored draft: without it a
                  resumed post silently re-aims at the first pod the member can see, while the
@@ -127,7 +134,12 @@
             </select>
           </div>
           <fieldset>
-            <legend>Share with a wider group</legend>
+            {% comment %} "Also Share With", not "a wider group": a Group is a thing a
+               member makes and it is already in the select beside this, so naming these
+               sides "groups" was two objects under one word. The checkboxes carry each
+               side's own name, which is the only wording that tells a reader who they
+               are about to reach. {% endcomment %}
+            <legend>Also Share With</legend>
             {% comment %} .sides is the fieldset's CONTROL box — it wears the same border and
                height as the select beside it, so the two columns line up. {% endcomment %}
             <div class="sides">
@@ -152,7 +164,7 @@
 
      IT WAS A CARD ABOVE THE COMPOSER, and the walk on 2026-09-19 found what that cost: a
      full phone screen of chrome between a member and the box they came here to type in,
-     saying the same thing in two paragraphs, with "Not now" as the loudest button on the
+     saying the same thing in two paragraphs, with "Not Now" as the loudest button on the
      page — and after posting, their own new post sat two screens down. It is one line
      now, under the composer, where it is still the first thing below what you came to do
      but is no longer in front of it. The offer did not change; its volume did. {% endcomment %}
@@ -161,11 +173,11 @@
        hoists it out of the <p> on parse, which breaks the line it was meant to sit on.
        {% endcomment %}
     <div class="email-prompt">
-      <span><a href="{% url 'account_email' %}">Add an email address</a> so you can reset
-        your own password.</span>
+      <span><a href="{% url 'account_email' %}">Add an email address</a> to reset your own
+        password.</span>
       <form method="post" action="{% url 'dismiss_email_prompt' %}">
         {% csrf_token %}
-        <button type="submit" class="btn-quiet">Not now</button>
+        <button type="submit" class="btn-quiet">Not Now</button>
       </form>
     </div>
   {% endif %}
@@ -174,7 +186,7 @@
   <ul class="feed">
     {% for item in items %}
       {% if item.post.id == first_seen_id %}
-        <li class="boundary"><span>New since your last visit is above</span></li>
+        <li class="boundary"><span>New posts above</span></li>
       {% endif %}
       <li>
         {% comment %} The name leads the post, so the person does: one calm initials disc
@@ -201,9 +213,9 @@
                     <source src="{% url 'serve_media' m.token %}" type="video/mp4">
                   </video>
                 {% elif m.transcode_status == 'failed' %}
-                  <p class="clip-status">This clip couldn't be processed.</p>
+                  <p class="clip-status">This video could not be processed.</p>
                 {% else %}
-                  <p class="clip-status">Processing this clip… it'll appear here shortly.</p>
+                  <p class="clip-status">This video is still processing.</p>
                 {% endif %}
               {% else %}
                 <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.thumbnail_token %}" loading="lazy" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ item.post.author.display_name }}{% endif %}"></a>
@@ -223,10 +235,15 @@
            (base.html): all three read as identical bold green links 36px apart, so a thumb
            aiming at the thread could land on the one that erases a photograph. {% endcomment %}
         <span class="actions">
-          <a href="{% url 'post_detail' item.post.id %}">Open thread</a>
+          <a href="{% url 'post_detail' item.post.id %}">Open Post</a>
           {% if item.is_own %}
-            {% if item.is_editable %}<a href="{% url 'edit_post' item.post.id %}">Edit</a>{% endif %}
-            <a class="destructive" href="{% url 'delete_post' item.post.id %}">Delete</a>
+            {% comment %} Verb plus object on all four, which is the guide's rule and the
+               other half of the cure the comment above describes: "Open Post", "Edit",
+               "Delete", "Take Down Post" put two bare verbs in a row of four controls, and
+               the shortest one was the one that erases a photograph. The page it opens is
+               already headed "Delete This Post?" with a "Delete Post" button. {% endcomment %}
+            {% if item.is_editable %}<a href="{% url 'edit_post' item.post.id %}">Edit Post</a>{% endif %}
+            <a class="destructive" href="{% url 'delete_post' item.post.id %}">Delete Post</a>
           {% endif %}
           {% comment %} `not item.is_own`: an admin looking at their OWN post was offered
              Delete AND Take down, side by side, in the same red. Taking down your own post
@@ -234,12 +251,16 @@
              so the pair was two names for one outcome and a chance to pick the wrong one.
              On your own post you get Edit and Delete, which is what a member gets. {% endcomment %}
           {% if is_moderator and not item.is_own %}
-            <a class="destructive" href="{% url 'take_down_post' item.post.id %}">Take down</a>
+            <a class="destructive" href="{% url 'take_down_post' item.post.id %}">Take Down Post</a>
           {% endif %}
         </span>
       </li>
     {% empty %}
-      <li class="empty">Nothing here yet. Be the first to post.</li>
+      {% comment %} ONE empty state, and it says what is empty plus the one action. The
+         page used to print this line AND "You are all caught up." under it: two lines
+         about the same nothing, the second of them a claim about posts a reader has seen
+         when there are none to see. The end-cap below waits on `items` now. {% endcomment %}
+      <li class="empty">{% if is_archive_page %}No older posts.{% else %}No posts yet. Write the first one.{% endif %}</li>
     {% endfor %}
   </ul>
 
@@ -247,17 +268,17 @@
     {% comment %} The feed ends (P1) — but at the real end, not at an arbitrary slice.
        Before this the page cut off silently and still claimed "all caught up", so the
        family archive was unreachable from every surface. {% endcomment %}
-    <p class="older"><a href="{% url 'feed' %}?before={{ older_cursor|urlencode }}">Show older posts</a></p>
-  {% elif not is_archive_page %}
+    <p class="older"><a href="{% url 'feed' %}?before={{ older_cursor|urlencode }}">Show Older Posts</a></p>
+  {% elif items and is_archive_page %}
+    <p class="caught-up">Nothing older than this.</p>
+  {% elif items %}
     {% comment %} F9: "You are all caught up." is a fact about the TOP of the feed. At the
        end of an archive page it said the opposite of what was true — the reader had just
        walked backwards through the family's history to reach it. {% endcomment %}
     <p class="caught-up">You are all caught up.</p>
-  {% else %}
-    <p class="caught-up">That is the beginning.</p>
   {% endif %}
   {% if is_archive_page %}
-    <p class="older"><a href="{% url 'feed' %}">Back to the newest posts</a></p>
+    <p class="older"><a href="{% url 'feed' %}">Back To The Newest Posts</a></p>
   {% endif %}
 
   {% if not is_archive_page %}{% include "core/_composer_media.html" %}{% endif %}

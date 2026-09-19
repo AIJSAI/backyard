@@ -1,0 +1,79 @@
+{% comment %} THE FOOTER, ONCE, FOR EVERY LAYOUT.
+
+   The owner read the shipped footer on 2026-09-19 and said the help line and Sign Out
+   "look unprofessional and unfinished", on the whole site. They were: a centred sentence
+   with an account action floated into the middle of it, no separation from the page, and
+   on the sign-in pages two more links stranded in a paragraph under the card. Three
+   compositions for one piece of furniture.
+
+   One include now renders it everywhere, so a change lands on every surface at once:
+
+     core/base.html                       the signed-in site, the public pages, 404/429
+     allauth/layouts/entrance.html        sign-in, password reset, the account dead ends
+     allauth/layouts/manage.html          inherits base.html's, unchanged
+
+   TWO SHAPES, both from this file:
+
+     default        <footer class="site"> with the help line on the left and the account
+                    action (or the public links) on the right, stacking at phone width.
+     standalone=True  the help SENTENCE only, in a <p class="source-note">, for a page
+                    that extends nothing and carries its own CSS. core/elder_feed.html is
+                    that page, and S-601 gives it no href but its own, which is why this
+                    shape emits no links at all. Include it there as
+                    `{% templatetag openblock %} include "core/_footer.html" with
+                    standalone=True {% templatetag closeblock %}`.
+
+   WHO MAY BE NAMED IS NOT A COPY DECISION and is untouched here. `help_contact` is empty
+   for anybody who has not been let in — a signed-out reader, a stranger who typed the
+   domain, a probe that hit a 404 — and carries the admin's first name for a signed-in
+   member or a reader whose token a view has RESOLVED (core/context_processors.py,
+   may_name_the_admin). This file only chooses the words on either side of it.
+
+   THE HELP AFFORDANCE IS NEVER A LINK. There is no help route in this app and none is
+   being added; a link to a page that does not exist is worse than no link (WCAG 2.2
+   SC 3.2.6), so the mechanism is the sentence, naming the real person who can act. It is
+   FIRST in the footer on every surface, so its position never moves. The links that
+   follow it are ordinary navigation and are allowed; the sentence is not one of them.
+   test_plain_pages.py and test_accessibility_modes.py hold that invariant.
+
+   The AGPL section 13 source offer lives on /about/, which this footer reaches from every
+   signed-out page; test_agpl_source_offer.py walks the route rather than grepping for it.
+{% endcomment %}
+{% if standalone %}
+  <p class="source-note">Need help? Contact {% if help_contact %}{{ help_contact }}{% else %}the person who invited you{% endif %}.</p>
+{% else %}
+  <footer class="site">
+    <div class="wrap">
+      <span class="help">Need help? Contact {% if help_contact %}{{ help_contact }}{% else %}the person who invited you{% endif %}.</span>
+      <span class="footer-links">
+        {% if user.is_authenticated %}
+          {% comment %} How It Works is here for a signed-in member too. It is the privacy
+             page — who can see what you post, what is stored, how to leave — and it was
+             reachable only from inside Settings, which is one tap too many for the
+             question a member asks mid-scroll. A privacy page reachable from every page is
+             what a well-made product does.
+
+             ABOUT STAYS SIGNED-OUT ONLY. A member reaches it from How It Works and from
+             Settings, and two links beside the help sentence is what fits the phone footer
+             cleanly. Judged at 390px against the shipped CSS: `footer.site .wrap` stacks
+             at phone width and `.footer-links` is a flex row with a 1.25rem gap, so these
+             two sit on one line under the help sentence with room to spare — the signed-out
+             footer has carried two links in this slot all along.
+
+             Sign out is an action, not a place, so it is not in the header nav — six nav
+             items wrap to two rows at 390px and push the family's own content down a band
+             of chrome on every screen. It sits here and at the foot of Settings.
+             {% endcomment %}
+          <a href="{% url 'how_it_works' %}">How It Works</a>
+          <a class="sign-out" href="{% url 'account_logout' %}">Sign Out</a>
+        {% else %}
+          {% comment %} The two quiet public pages, offered where somebody who cannot get
+             in can still reach them. They used to be a stray paragraph under the sign-in
+             card and were missing from every other signed-out surface. {% endcomment %}
+          <a href="{% url 'how_it_works' %}">How It Works</a>
+          <a href="{% url 'about' %}">About</a>
+        {% endif %}
+      </span>
+    </div>
+  </footer>
+{% endif %}

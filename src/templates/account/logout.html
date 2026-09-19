@@ -1,20 +1,31 @@
 {% extends "account/base_manage.html" %}
 {% comment %} PROJECT OVERRIDE of django-allauth's account/logout.html.
 
-   Copy only. The library's house style is Title Case: the nav link that brings you here
-   says "Sign out" and the page it opened said "Sign Out", in both the heading and the
-   button. Every other heading and button in this product is sentence case. The markup,
-   the form and the redirect field are the package's, verbatim. {% endcomment %}
+   Copy only. The markup, the form and the redirect field are the package's, verbatim.
+
+   It is a confirmation page, so it is written like every other one in the product: the
+   heading asks the question, the body is the consequence, and the button repeats the verb.
+   The body used to be the question a second time ("Sign out of Backyard on this device?"
+   under a heading that said "Sign out"), which left the page saying nothing about what
+   happens.
+
+   THE WAY OUT IS CANCEL, under the button, like the other five. This page relied on the
+   layout's back link one line ABOVE the heading, which made it the one confirmation page
+   in the product whose only escape was somewhere else — the guide says it twice ("the way
+   out is always Cancel", and a confirmation page's buttons are the action and "Cancel"),
+   and Delete This Post?, Take This Post Down?, Remove This Passkey?, Turn Off The
+   Authenticator App? and Create New Recovery Codes? all pair the two. The quiet variant,
+   so the two answers to the question do not carry the same weight. {% endcomment %}
 {% load allauth i18n %}
 {% block head_title %}
-    {% trans "Sign out" %}
+    {% trans "Sign Out" %}
 {% endblock head_title %}
 {% block content %}
     {% element h1 %}
-        {% trans "Sign out" %}
+        {% trans "Sign Out?" %}
     {% endelement %}
     {% element p %}
-        {% trans 'Sign out of Backyard on this device?' %}
+        {% trans 'You will need to sign in again on this device.' %}
     {% endelement %}
     {% url 'account_logout' as action_url %}
     {% element form method="post" action=action_url no_visible_fields=True %}
@@ -24,8 +35,9 @@
         {% endslot %}
         {% slot actions %}
             {% element button type="submit" %}
-                {% trans 'Sign out' %}
+                {% trans 'Sign Out' %}
             {% endelement %}
         {% endslot %}
     {% endelement %}
+    <p><a class="btn-quiet" href="{% url 'feed' %}">{% trans "Cancel" %}</a></p>
 {% endblock content %}

@@ -194,7 +194,7 @@ def _render_feed(
         # The pod comes back WITH the words, or the restore quietly changes who the post is
         # for: the select would otherwise fall back to the first pod this member can see, so
         # a note written for the four cousins is re-aimed at the whole household while the
-        # page says "Your unfinished post is still here". Re-validated here and never trusted
+        # page says "Your draft is still here". Re-validated here and never trusted
         # from the session — a pod the member has since left simply does not match, and the
         # composer opens on its ordinary default instead. compose() still re-checks it at
         # POST through require_visible_pod; this is the display half of the same rule.
@@ -281,7 +281,7 @@ def _render_feed(
             # The audience half of the restore (see above); the template preselects it.
             "draft_pod_id": draft_pod_id,
             "staged_notice": staged_notice,
-            # Drives the "Your unfinished post is still here / Discard it" row, which is
+            # Drives the "Your draft is still here / Discard Draft" row, which is
             # the ONLY way a member can drop a draft from the feed — it has to sit outside
             # the composer's own <form>, because forms do not nest.
             "restored_draft": restored_draft,
@@ -366,7 +366,7 @@ def compose(request: HttpRequest) -> HttpResponse:
     if not body:
         errors.append("Write something to post.")
     elif len(body) > _MAX_BODY:
-        errors.append(f"That post is a little long. Keep it under {_MAX_BODY} characters.")
+        errors.append(f"Post must be {_MAX_BODY} characters or fewer.")
 
     # Videos are validated (size, format, duration) BEFORE the post is created, so an
     # over-cap or unplayable clip rejects the whole compose with a clear message and
@@ -395,8 +395,8 @@ def compose(request: HttpRequest) -> HttpResponse:
             # the sweep can cross the TTL while the member hesitates over the confirmation.
             # Say it rather than posting quietly without them.
             media_notices.append(
-                f"{claimed.missing} upload{'s' if claimed.missing > 1 else ''} had expired "
-                "before you confirmed, so they were not added. Please attach them again."
+                f"{claimed.missing} file{'s' if claimed.missing > 1 else ''} expired "
+                f"before you confirmed. Attach {'them' if claimed.missing > 1 else 'it'} again."
             )
 
     # TM-3: any audience broader than the poster's own pod (a yard send, or more
@@ -441,7 +441,7 @@ def compose(request: HttpRequest) -> HttpResponse:
             staged_handle=handle,
             draft_body=body,
             staged_notice=(
-                "Your photos are still attached — fix the note above and post again."
+                "Your photos are still attached. Fix the error above and post again."
                 if handle
                 else ""
             ),
@@ -463,7 +463,7 @@ def compose(request: HttpRequest) -> HttpResponse:
     # new post lands ~1700px below the fold on a phone, so nothing visibly changed —
     # while the product cheerfully announced "Successfully signed in as …", the least
     # important event it knows about. A relative with no confirmation taps Post twice.
-    messages.success(request, "Posted. Your family can see it now.")
+    messages.success(request, "Posted.")
     # Anything the post did NOT get is said out loud on the feed the member lands on.
     # Silence here is the failure mode: a post appears, looks fine, and is missing photos
     # nobody will ever mention.
@@ -482,27 +482,33 @@ def edit_post(request: HttpRequest, post_id: int) -> HttpResponse:
     if post.author_id != member.id:
         raise PermissionDenied
 
+    if not posting.within_edit_window(post):
+        # The author HAS permission here; the window closed. Raising PermissionDenied put
+        # "You Do Not Have Access" in front of somebody editing their own post from a page
+        # left open, which is false. The edit is still refused, on GET and on POST; they
+        # are told why and sent back to the post.
+        messages.info(request, "Posts can be edited for fifteen minutes after posting.")
+        return redirect("post_detail", post_id=post.id)
+
     if request.method == "POST":
         body = request.POST.get("body", "").strip()
         errors: list[str] = []
         if not body:
             errors.append("Write something to post.")
         elif len(body) > _MAX_BODY:
-            errors.append(f"That post is a little long. Keep it under {_MAX_BODY} characters.")
+            errors.append(f"Post must be {_MAX_BODY} characters or fewer.")
         if not errors:
             posting.edit_post(actor=member, post=post, body=body)
             return redirect("feed")
         return render(request, "core/edit_post.html", {"post": post, "errors": errors})
 
-    if not posting.within_edit_window(post):
-        raise PermissionDenied  # the feed hides the edit link by now; enforce it here too
     return render(request, "core/edit_post.html", {"post": post, "errors": []})
 
 
 @login_required
 def delete_post(request: HttpRequest, post_id: int) -> HttpResponse:
     """Delete one's own post (S-302). GET confirms, stating plainly that copies
-    already sent in email digests cannot be recalled; POST performs the soft delete.
+    already sent in an email update cannot be recalled; POST performs the soft delete.
     Same guard rules as edit: 404 if not visible, 403 if visible but not yours."""
     member = _acting_member(request)
     post = scoping.require_visible_post(member, post_id)
@@ -528,7 +534,7 @@ _VIDEO_SUFFIXES = (".mov", ".mp4", ".m4v", ".qt")
 def _split_media(files: list[UploadedFile]) -> tuple[list[UploadedFile], list[UploadedFile]]:
     """Route ONE picker's files to the photo gate or the video gate.
 
-    The composer is a single control now (owner direction 4: "Add photos or a video",
+    The composer is a single control now (owner direction 4: "Add Photos Or A Video",
     `accept="image/*,video/*"`), because two stacked pickers made a place to say something
     read as an upload form, and because "Files" is the wrong word on a phone. Both kinds
     therefore arrive under one field name and something has to decide which is which.
@@ -572,9 +578,12 @@ def _read_photos(files: list[UploadedFile]) -> tuple[list[bytes], list[str]]:
     submitted = len(files)
     if submitted > _MAX_PHOTOS:
         dropped = submitted - _MAX_PHOTOS
+        # The same sentence the picker's script says for the same event
+        # (core/_composer_media.html `couldNotAdd`), so a member who meets the ceiling in
+        # the browser and one who meets it on the way in read one wording, not two.
         notices.append(
-            f"{dropped} of your {submitted} photos could not be added — "
-            f"{_MAX_PHOTOS} is the limit for one post."
+            f"{dropped} photo{'s' if dropped > 1 else ''} could not be added. "
+            f"A post can carry {_MAX_PHOTOS} photos."
         )
     raws: list[bytes] = []
     too_large = 0
@@ -589,8 +598,8 @@ def _read_photos(files: list[UploadedFile]) -> tuple[list[bytes], list[str]]:
         raws.append(raw)
     if too_large:
         notices.append(
-            f"{too_large} photo{'s were' if too_large > 1 else ' was'} too large to add "
-            f"({_MAX_PHOTO_BYTES // (1024 * 1024)} MB is the limit each)."
+            f"{too_large} photo{'s were' if too_large > 1 else ' was'} too large to add. "
+            f"Each photo must be {_MAX_PHOTO_BYTES // (1024 * 1024)} MB or smaller."
         )
     return raws, notices
 
@@ -613,10 +622,9 @@ def _attach_photos(
             rejected += 1
     if not rejected:
         return []
-    return [
-        f"{rejected} photo{'s' if rejected > 1 else ''} could not be added — "
-        "the file was not a picture Backyard could read."
-    ]
+    if rejected == 1:
+        return ["1 photo could not be added. The file was not an image Backyard can read."]
+    return [f"{rejected} photos could not be added. The files were not images Backyard can read."]
 
 
 def _validate_videos(files: list[UploadedFile]) -> tuple[list[bytes], list[str]]:
@@ -633,7 +641,7 @@ def _validate_videos(files: list[UploadedFile]) -> tuple[list[bytes], list[str]]
         # (mem_limit'd) only to be rejected after. validate_video re-checks len(raw) as
         # a backstop for an unknown declared size.
         if uploaded.size is not None and uploaded.size > cap:
-            errors.append(f"That clip is too large. Keep it under {cap // (1024 * 1024)} MB.")
+            errors.append(f"Video must be {cap // (1024 * 1024)} MB or smaller.")
             continue
         raw = uploaded.read()
         try:
@@ -778,6 +786,11 @@ def notification_settings(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         enabled = request.POST.get("notify_on_reply") == "on"
         notifications.set_reply_notification(member, enabled=enabled)
+        # The save redirected back to this same form and said NOTHING, so the screen
+        # simply re-rendered and the only honest reading was "did that take?" — the same
+        # defect walk item 27 found on the profile form, which is a few lines from here
+        # and already fixed. The confirmation every other save in the product gives.
+        messages.success(request, "Saved.")
         return redirect("notification_settings")
     return render(
         request, "core/notification_settings.html", {"pref": notifications.preference_for(member)}
@@ -825,9 +838,9 @@ def add_comment(request: HttpRequest, post_id: int) -> HttpResponse:
         # A reply that is only a photograph is a real reply, so the body is required only
         # when nothing is attached. "Write a reply" in front of someone who just picked
         # three wedding photos would be a lie.
-        errors.append("Write a reply, or add a photo.")
+        errors.append("Write a reply or add a photo.")
     elif len(body) > _MAX_COMMENT:
-        errors.append(f"That reply is a little long. Keep it under {_MAX_COMMENT} characters.")
+        errors.append(f"Reply must be {_MAX_COMMENT} characters or fewer.")
     if errors:
         return _render_post_detail(request, member, post, errors + media_notices)
 
@@ -836,7 +849,7 @@ def add_comment(request: HttpRequest, post_id: int) -> HttpResponse:
     _attach_videos(video_raws, comment=comment)
     # Same silence as the composer had, same cure (C4): a reply lands below whatever
     # thread is already there, so on a long one nothing visibly happened.
-    messages.success(request, "Your reply is up.")
+    messages.success(request, "Reply posted.")
     if media_notices:
         # Same posture as the composer: a partial attach is REPORTED, never dropped in
         # silence. The reply itself already landed, so these are notices, not errors.

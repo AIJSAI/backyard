@@ -71,7 +71,7 @@ def _roster(client: Client) -> str:
 
 def _prompt(client: Client) -> str:
     body = _roster(client)
-    start = body.index("Add a second way to prove it")
+    start = body.index("Add a second sign-in step")
     return body[body.rindex("<aside", 0, start) : body.index("</aside>", start)]
 
 
@@ -85,7 +85,7 @@ def test_an_admin_with_nothing_enrolled_is_offered_a_second_factor(
     told the option exists."""
     client, _user = admin_client_and_user
     body = _roster(client)
-    assert "Add a second way to prove it" in body, body[:600]
+    assert "Add a second sign-in step" in body, body[:600]
     assert reverse("mfa_index") in body, "the prompt must link to where you actually do it"
 
 
@@ -101,7 +101,7 @@ def test_an_admin_who_has_enrolled_is_not_nagged(
     Authenticator.objects.create(
         user=user, type=Authenticator.Type.TOTP, data={"secret": "-".join(("not", "a", "value"))}
     )
-    assert "Add a second way to prove it" not in _roster(client)
+    assert "Add a second sign-in step" not in _roster(client)
 
 
 def test_the_prompt_never_blocks_anything(
@@ -123,14 +123,14 @@ def test_not_now_dismisses_it_for_this_sign_in_only(
     good; signing in again asks once more, which is as much nagging as somebody who did
     not want to do it deserves."""
     client, user = admin_client_and_user
-    assert "Add a second way to prove it" in _roster(client)
+    assert "Add a second sign-in step" in _roster(client)
 
     client.post(reverse("dismiss_second_factor_prompt"))
-    assert "Add a second way to prove it" not in _roster(client)
+    assert "Add a second sign-in step" not in _roster(client)
 
     fresh = Client()
     fresh.force_login(user, backend=_BACKEND)
-    assert "Add a second way to prove it" in _roster(fresh)
+    assert "Add a second sign-in step" in _roster(fresh)
 
 
 def test_the_dismissal_is_post_only(admin_client_and_user: tuple[Client, User]) -> None:
@@ -138,7 +138,7 @@ def test_the_dismissal_is_post_only(admin_client_and_user: tuple[Client, User]) 
     prompt nobody has read — the shape the feed's two dismissals already guard against."""
     client, _user = admin_client_and_user
     assert client.get(reverse("dismiss_second_factor_prompt")).status_code == 405
-    assert "Add a second way to prove it" in _roster(client)
+    assert "Add a second sign-in step" in _roster(client)
 
 
 def test_the_prompt_speaks_the_familys_language(
@@ -161,15 +161,15 @@ def test_a_side_admin_is_not_told_their_sign_in_opens_every_side(
     of the family" to whoever opened the roster — and a side admin's sign-in does not.
     `permissions.can_manage_member` stops them at their own side, and the roster itself
     tells them so, one line under every row it will not let them touch ("Also on the
-    other side of the family, so only <name> can change this").
+    other side, so only <name> can change this").
 
     Overstating what a password unlocks is not harmless urgency: the two relatives this
     is written for can see the claim is wrong from the page it is printed on, and a
     security prompt that is visibly wrong about you is one you learn to skip.
     """
     prompt = _prompt(side_admin_client)
-    assert "every side of the family" not in prompt, prompt
-    assert "add and remove people on your side" in prompt, prompt
+    assert "manages everyone" not in prompt, prompt
+    assert "adds and removes members on your side" in prompt, prompt
 
 
 def test_the_family_admin_is_still_told_what_their_sign_in_really_opens(
@@ -179,7 +179,7 @@ def test_the_family_admin_is_still_told_what_their_sign_in_really_opens(
     weaker sentence for everybody: for the family admin the strong claim is TRUE, and it
     is the whole argument for spending the minute."""
     client, _user = admin_client_and_user
-    assert "Your sign-in opens every side of the family." in _prompt(client)
+    assert "Your sign-in manages everyone, on both sides." in _prompt(client)
 
 
 def test_the_offer_is_one_line_rather_than_a_card(

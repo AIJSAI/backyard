@@ -136,7 +136,7 @@ def test_the_no_login_surface_no_longer_prints_the_licence_at_a_grandparent() ->
 
     assert _REPO not in html, "the grandparent's page is printing a source-code URL at her"
     assert "AGPL" not in html, "the grandparent's page is printing a licence name at her"
-    assert "Stuck? Ask" in html, (
+    assert "Need help? Contact" in html, (
         "the help line went with the licence line. It is the one thing on this page she "
         "might need, and it has no route to a help page (S-601), so it lives here."
     )

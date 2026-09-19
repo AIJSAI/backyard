@@ -1,0 +1,4 @@
+{% load i18n %}{% comment %} PROJECT OVERRIDE of django-allauth's mfa/messages/totp_deactivated.txt.
+
+   "Authenticator app deactivated." Its page now asks "Turn Off The Authenticator App?",
+   so this says it was. {% endcomment %}{% blocktrans %}Authenticator app turned off.{% endblocktrans %}

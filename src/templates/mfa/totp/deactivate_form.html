@@ -1,0 +1,31 @@
+{% extends "mfa/totp/base.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's mfa/totp/deactivate_form.html.
+
+   A confirmation page, written as the guide writes one: the heading is the question, the
+   body is the consequence, and the two controls are the act and the way out. The stock
+   page asked "You are about to deactivate authenticator app based authentication. Are you
+   sure?" and offered no Cancel at all — the only way back was the browser's own button.
+
+   The form is the package's: same action, same `form.as_p` for whatever hidden fields
+   DeactivateTOTPForm carries. {% endcomment %}
+{% load i18n %}
+{% block head_title %}
+    {% trans "Turn Off The Authenticator App" %}
+{% endblock head_title %}
+{% block content %}
+    <h1>{% trans "Turn Off The Authenticator App?" %}</h1>
+    <p>{% trans "Codes from the app stop working. You can set it up again later." %}</p>
+    {% comment %} `form.as_p` is the package's: DeactivateTOTPForm has no fields, so this
+       renders nothing but its refusal ("you cannot remove your last way in"), and
+       `ul.errorlist` is styled identically to the product's own errors block. {% endcomment %}
+    <form method="post" action="{% url 'mfa_deactivate_totp' %}">
+        {% csrf_token %}
+        {{ form.as_p }}
+        {% comment %} Verb plus object, like every other confirmation button in the product (Delete
+           Post, Take Down Post, Remove Passkey, Create New Codes, Turn Off Email Updates).
+           A pronoun was the one break in the pattern, on the page whose heading already
+           spells the full phrase. {% endcomment %}
+        <button class="danger" type="submit">{% trans "Turn Off The Authenticator App" %}</button>
+    </form>
+    <p><a class="btn-quiet" href="{% url 'mfa_index' %}">{% trans "Cancel" %}</a></p>
+{% endblock content %}

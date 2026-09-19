@@ -1,0 +1,9 @@
+{% load i18n %}{% comment %} PROJECT OVERRIDE of django-allauth's account/messages/email_confirmation_failed.txt.
+
+   Raised when a confirmation link lands on an address another account already holds — in
+   this product, another relative. "Unable to confirm <address> because it is already
+   confirmed by a different account." explains the library's reasoning; the reader needs
+   the fact and one thing to do.
+
+   It deliberately does NOT name who holds it: that would tell whoever is holding the link
+   which relative uses that address. {% endcomment %}{% blocktrans %}{{ email }} already belongs to another account. Use a different address.{% endblocktrans %}

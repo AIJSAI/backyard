@@ -2,12 +2,17 @@
 {% comment %} 500 — deliberately self-contained: it inherits nothing, resolves no
    URLs and touches no database, so it still renders when everything else is
    broken. Light-only. Keep it that way; a dependency here is a page that fails
-   exactly when it is needed. {% endcomment %}
+   exactly when it is needed.
+
+   It is also rendered with NO request and NO context (django.views.defaults.
+   server_error calls template.render()), so it cannot name the admin the way the
+   shared footer does. "The person who invited you" is the product's public help
+   sentence and the only one that is true here. {% endcomment %}
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Something went wrong — Backyard</title>
+  <title>Something Went Wrong</title>
   <style>
     body { margin:0; background:#fbfcfb; color:#1c211e; min-height:100vh;
            display:flex; align-items:center; justify-content:center; text-align:center;
@@ -24,8 +29,11 @@
 <body>
   <main>
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.4 L20.6 10.8 V20.6 H3.4 V10.8 Z M9.7 20.6 V14.8 A2.3 2.3 0 0 1 14.3 14.8 V20.6 Z" fill="currentColor"/></svg>
-    <h1>Something went wrong on our side</h1>
-    <p>Your family&rsquo;s Backyard hit an error. Nothing you did — try again in a minute, and tell whoever in the family set this up if it keeps happening.</p>
+    <h1>Something Went Wrong</h1>
+    {% comment %} "Backyard hit an error." is a colloquialism and it restated the heading directly
+       above it ("Something Went Wrong"). Every other error page states the fact once and
+       then the fix. {% endcomment %}
+    <p>Try again in a minute. If it keeps happening, contact the person who invited you.</p>
     <!-- The AGPL section 13 source offer. This page is STANDALONE — it does not extend
          base.html, because Django renders it when the app is broken enough that a template
          inheriting from anything may not render at all — so it does not inherit the footer's

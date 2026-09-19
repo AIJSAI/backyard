@@ -1,37 +1,37 @@
 {% extends "core/base.html" %}
-{% block title %}Get {{ target.display_name }} back in{% endblock %}
+{% block title %}Create A Sign-In Link{% endblock %}
 {% block body %}
-  <h1>Get {{ target.display_name }} back in</h1>
-  <p><a href="{% url 'members' %}">Back to members</a></p>
+  <h1>Create A Sign-In Link For {{ target.display_name }}</h1>
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Back To Members</a></p>
 
   {% comment %} Plain words on purpose. The person reading this page is a relative who was
-     made a yard admin last week, and what they need is what the link does, who may use it,
+     made a side admin last week, and what they need is what the link does, who may use it,
      and how long it lasts — not the word "token". {% endcomment %}
-  <p class="notice">This makes a one-time link that lets {{ target.display_name }} choose a
-  new password. Use it when they have forgotten theirs and have no email address on file, so
-  the usual <strong>Forgot your password?</strong> cannot reach them.</p>
+  <p class="notice">A one-time link for {{ target.display_name }} to set a new password. Use
+  it when they have forgotten theirs and have no email address on file.</p>
 
-  <h2>Before you make it</h2>
+  {% comment %} Every line here prevents a security mistake, so every line stays. They are
+     shorter than they were, and each one says one thing. {% endcomment %}
+  <h2>Before You Create It</h2>
   <ul>
-    <li>Make sure you are really talking to {{ target.display_name }} — a phone call or a
-      text to the number you already have for them, not a message from somewhere new.</li>
-    <li>Anyone who gets the link can set the password, so send it to them and nobody else.</li>
-    <li>It works once, and it stops working after two days.</li>
-    <li>Making a new one turns off any earlier link for {{ target.display_name }}.</li>
-    <li>When they use it, they are signed out everywhere else and sign back in with the new
-      password.</li>
+    <li>Make sure you are really talking to {{ target.display_name }}. Call or text the
+      number you already have, not a new one.</li>
+    <li>Anyone holding the link can set the password. Send it to them and no one else.</li>
+    <li>It works once and expires after two days.</li>
+    <li>Creating a new link turns off any earlier one.</li>
+    <li>Using it signs {{ target.display_name }} out everywhere else.</li>
   </ul>
 
   {% if minted %}
-    <h2>Link ready to hand over</h2>
-    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_label="Get back in link" handover_share_title="Getting back into Backyard" handover_note="Text it to them, or read it out over the phone. It appears only once, it works once, and it stops working after two days." %}
+    <h2>Link Ready To Hand Over</h2>
+    {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_label="Sign-In Link" handover_share_title="Backyard Sign-In Link" handover_note="Text or email it to them. The link is shown once, works once, and expires after two days." %}
   {% endif %}
 
   <form method="post" action="{% url 'issue_recovery' target.id %}">
     {% csrf_token %}
     <input type="hidden" name="intent" value="{{ intent }}">
     <button type="submit">
-      {% if minted %}Make another link{% else %}Make the link{% endif %}
+      {% if minted %}Create Another Link{% else %}Create Link{% endif %}
     </button>
   </form>
 {% endblock %}

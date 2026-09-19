@@ -285,5 +285,5 @@ def test_the_family_email_is_written_in_the_instance_s_own_zone(settings: Any) -
     assert "A photo from the weekend" in built.text  # non-vacuity
     # The POST's own date line, not the window header — the window is anchored on "now",
     # so asserting over the whole body would pass or fail depending on the day it runs.
-    assert "Cousin Reed on September 18:" in built.text, built.text
+    assert "Cousin Reed on Sep 18:" in built.text, built.text
     assert "on September 19" not in built.text

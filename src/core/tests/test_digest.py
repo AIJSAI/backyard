@@ -402,7 +402,7 @@ def test_the_email_says_why_it_arrived(world: World) -> None:
 
     for part, name in ((built.text, "text part"), (built.html, "HTML part")):
         flat = " ".join(part.split())
-        assert "You are getting this because you asked for the Family email." in flat, name
+        assert "You are receiving this because Email Updates is on." in flat, name
 
 
 def test_the_email_never_promises_a_reply_route_a_relative_has_not_got(

@@ -1,0 +1,4 @@
+{% load i18n %}{% comment %} PROJECT OVERRIDE of django-allauth's mfa/messages/webauthn_added.txt.
+
+   "Security key added." One object, one word: this product says passkey, on the settings
+   link, on the page and here. {% endcomment %}{% blocktrans %}Passkey added.{% endblocktrans %}

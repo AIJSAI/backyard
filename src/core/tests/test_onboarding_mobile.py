@@ -83,13 +83,18 @@ def _drive_join_to_feed(
         # nothing the account needs — and the whole point of walking it on a real phone is
         # that skipping out of it has to leave a finished member in a working feed.
         page.wait_for_url(f"{base_url}/welcome/")
-        expect(page.get_by_text("private place for our family")).to_be_visible()
-        page.click("text=Skip to the family")
+        expect(page.get_by_text("A private, ad-free network")).to_be_visible()
+        # The BUTTON, not any element whose text contains "Skip". `text=Skip` is a
+        # substring match, and every page in this product opens with an <a class="skip-link">
+        # reading "Skip To Content" — so the bare selector resolved to two elements, took
+        # the first (the skip link, which sits behind the sticky header until it is
+        # focused) and timed out clicking something invisible.
+        page.get_by_role("button", name="Skip", exact=True).click()
 
         # And they are standing IN the pod feed: the composer and the pod-mate's existing
         # post both render for the brand-new account (S-101 acceptance).
         page.wait_for_url(f"{base_url}/feed/")
-        expect(page.get_by_placeholder("Share something with your family")).to_be_visible()
+        expect(page.get_by_label("Write A Post")).to_be_visible()
         expect(page.get_by_text(welcome_body)).to_be_visible()
     finally:
         browser.close()
@@ -206,9 +211,9 @@ def _drive_invite_mint_handover_and_redeem(
         newcomer.fill('input[name="password"]', _PW)
         newcomer.click('button[type="submit"]')
         newcomer.wait_for_url(f"{base_url}/welcome/")
-        newcomer.click("text=Skip to the family")
+        newcomer.get_by_role("button", name="Skip", exact=True).click()
         newcomer.wait_for_url(f"{base_url}/feed/")
-        expect(newcomer.get_by_placeholder("Share something with your family")).to_be_visible()
+        expect(newcomer.get_by_label("Write A Post")).to_be_visible()
     finally:
         browser.close()
 
@@ -246,15 +251,18 @@ def _drive_new_elder_mint_and_open(
         elder = browser.new_context(**device_args).new_page()
         elder.goto(f"{base_url}/t/{raw}/")
         elder.wait_for_url(f"{base_url}/e/")
-        expect(elder.get_by_text("Grandma Reed")).to_be_visible()  # "Hello, Grandma Reed"
+        # The top of her page names the page, not her: the copy pass took "Hello, Grandma
+        # Reed" off it (a greeting is the one thing on this surface she cannot act on).
+        # What proves she landed is her family's own post, below.
+        expect(elder.get_by_text("Your Backyard")).to_be_visible()
         expect(elder.get_by_text(welcome_body)).to_be_visible()
 
         # And the elder can send love with one tap (S-602). This is the load-bearing proof
         # of the /e/ Referrer-Policy fix: the react form is a same-origin POST, and under
         # the old no-referrer the browser sent Origin: null and Django's CSRF rejected it,
         # so the elder could never react from a real browser. It must succeed now.
-        elder.locator("button", has_text="Send love").click()
-        expect(elder.get_by_text("You love this")).to_be_visible()
+        elder.locator("button", has_text="Send Love").click()
+        expect(elder.get_by_text("You Love This")).to_be_visible()
     finally:
         browser.close()
 
@@ -340,7 +348,7 @@ def _drive_csp_inline_script_check(
         # The feed carries two nonce'd inline scripts (service-worker registration, the
         # client-side resize); if the CSP blocked either, the console records it.
         page.goto(f"{base_url}/feed/")
-        expect(page.get_by_placeholder("Share something with your family")).to_be_visible()
+        expect(page.get_by_label("Write A Post")).to_be_visible()
         page.wait_for_timeout(400)  # give the inline scripts a beat to run (or be refused)
         assert not violations, (
             f"CSP refused an inline script under the enforced policy: {violations}"

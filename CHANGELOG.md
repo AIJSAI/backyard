@@ -13,7 +13,96 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
+### Changed
+
+- **Every word the product shows a person has been rewritten.** The owner read the shipped
+  copy end to end and rejected it. No route and no permission changed. Two stored values
+  did, both for things saved after this release: the name prefilled into the Add A Passkey
+  box is "Passkey 1" rather than django-allauth's "Master key" and is saved with the
+  credential, and the vCard grouping category is `Backyard` rather than `Backyard family`.
+  Existing passkeys keep their names; contacts imported earlier keep the old category and
+  will not group with new ones. The few behaviours that changed were defects found while
+  judging the new words at phone width, and they are listed under Fixed.
+  - **A plainer voice.** The product no longer calls itself "we", "us" or "our", and no
+    longer reassures, charms or explains what an adult already knows. Sentences that only
+    set a mood are gone. Warnings that stop an irreversible or a security mistake all
+    stayed, shorter: what a no-login link lets its holder do, who becomes a side admin when
+    a hand-over link is first opened, that a link is shown once, and that deleting erases
+    photographs from the server for good.
+  - **Titles, headings, buttons and labels Capitalise Every Word**, written into the source
+    rather than applied with CSS, so screen readers and tests read what the page shows.
+    Names, addresses and anything a person typed are never re-cased.
+  - **"Email Updates" replaces "the Family email" and "digest"** on every screen, in the
+    settings page, in the mail itself and in its subject line. Route names, model names and
+    URLs are untouched, so links already sitting in inboxes still work.
+  - **One footer, on every layout**, including the sign-in pages and the grandparent page:
+    the help line at one end and two links at the other, stacked cleanly on a phone. The
+    links are How It Works and Sign Out for a signed-in member, How It Works and About for
+    everybody else, so the page that answers "who can see what I post" is one tap from
+    every screen. The help sentence is "Need help? Contact <name>."
+  - **A real 403 page.** A member who tapped something they may not do used to get Django's
+    unstyled built-in "403 Forbidden" with no header, no footer and no way back. There is a
+    page now, in the product's own chrome. It deliberately does not print the internal
+    refusal message.
+  - **The passkey, two-factor and password-management pages are the product's own.**
+    Thirty-six screens and flash messages that still spoke django-allauth's developer
+    English ("Please reauthenticate to safeguard your account", "Master key") now read like
+    the rest of the app, and Django's four bulleted password rules are one plain sentence.
+  - **Three guards keep it that way**: one for the vocabulary, one for the voice (no first
+    person, no exclamation marks, em dashes, ellipses or curly quotes) and one for
+    capitalisation. They read every template and every e-mail this product sends, they are
+    parametrised per file, and a failure prints the pasteable fix. The rules they enforce
+    are written down in [docs/design/voice.md](docs/design/voice.md).
+
 ### Fixed
+
+- **Found by reading every screen and e-mail at phone width after the rewrite**, as a
+  designer, as a first-time relative and as an editor:
+  - The weekly Email Updates mail was a fixed 600px table and clipped sentences mid-word on
+    a phone. It is fluid up to 600px now, with an Outlook-only fallback that keeps it at
+    600px where `max-width` is ignored.
+  - On the share-more-widely confirmation, "Cancel" threw away the post that had just been
+    written. The button says what it does: Discard Post.
+  - The delete-a-person page kept its only Cancel a screen and a half above the delete
+    button. It sits beside it.
+  - The join form showed the browser's own grey validation bubble over the Join button,
+    and the two Email Updates address boxes did the same. The server's plain errors are
+    the only ones now. (The contact email box in Settings keeps the browser's check until
+    it has a server-side one.)
+  - The no-login page stopped saying whose link it was, so on a shared tablet Send Love
+    could be tapped under the wrong person's name. It says "For <first name>".
+  - An author who opened Edit Post after the fifteen-minute window was told "You Do Not
+    Have Access", which is false. They are returned to the post and told the rule. The
+    edit is still refused, on GET and on POST.
+  - The widest contact-visibility choice read "Everyone", which a first-time relative can
+    take to mean the public web. It reads "All Members" (a label only; migration `0032`
+    emits no SQL).
+  - The reply-notification mail named the wrong switch in its last line, so turning it off
+    also stopped Email Updates without saying so. Each mail now names its own switch.
+  - Three CSS rules upper-cased text the source writes in Title Case, including every
+    table label at phone width. Removed.
+  - The authenticator-app page said "Scan this QR code" above a line of fallback text where
+    the code should be: django-allauth draws the code as a `data:` image, which this
+    product's own Content-Security-Policy refuses on purpose. It is drawn inline now, the
+    way the hand-over pages draw theirs, and the setup key beside it can be selected and
+    copied (it was a disabled field).
+  - A generated passkey name could repeat after one was removed, leaving two rows called
+    "Passkey 2" with identical Remove pages. New names take the lowest unused number.
+  - "Backyard is invite-only. Open your invite link to join." printed on every signed-out
+    page in the sign-in layout, including the second sign-in step and the emailed address
+    confirmation, whose readers are already members. It is on the sign-in page only.
+  - The address-confirmation mail and page said confirming enables password reset and email
+    updates. Email updates start only for a primary address that has them turned on at that
+    address, and they say so now. They no longer promise password reset, which
+    django-allauth already sends to an unconfirmed address.
+  - The Email Updates settings page accepted any text with an "@" in it and cut a long
+    address at 254 characters. It uses the same validator as joining: a malformed address
+    is refused and nothing is stored or mailed.
+  - Saving Notifications said nothing. It says "Saved.", like every other save.
+  - A downloaded video is named `video.mp4` rather than `clip.mp4`.
+  - Your Sign-In Email rendered a radio on its own line above an address run together with
+    its two statuses, and three filled buttons of equal weight. It uses the product's own
+    row, pills and quiet and danger buttons; allauth's field names are unchanged.
 
 - **The outside monitor's alarm reached nobody's inbox.** It raised the alarm by opening an
   issue that mentions the repository owner, on the assumption that the mention e-mails them.

@@ -1,8 +1,16 @@
 {% extends "core/base.html" %}
-{% block title %}This link has expired{% endblock %}
+{% block title %}Link Expired{% endblock %}
+{% comment %} The same object as the other four error pages. This one was left-aligned with
+   no button, so a relative who tapped an old link got two lines of text and about 1100px
+   of empty page under them with nowhere to go, while 404, 403 and 429 are centred in
+   `.page-center` with a muted body and a way back. Three weeks, not "a few weeks": the
+   product knows the number (digest_links.DIGEST_LINK_TTL is 21 days) and a guess where
+   there is a fact reads as a product that has not checked. {% endcomment %}
 {% block body %}
-  <h1>This link has had its day</h1>
-  <p>Links in the Family email only work for a few weeks, so an old message cannot open the
-  family's pages forever.</p>
-  <p>Look for a more recent email, or ask your family for a fresh link.</p>
+  <div class="page-center">
+    <h1>Link Expired</h1>
+    <p class="muted">Links in email updates stop working after three weeks. Open a more
+      recent email update.</p>
+    <p><a class="btn" href="/">{% if user.is_authenticated %}Go To Your Backyard{% else %}Go To Backyard{% endif %}</a></p>
+  </div>
 {% endblock %}

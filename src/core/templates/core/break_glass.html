@@ -1,10 +1,10 @@
 {% extends "core/base.html" %}
-{% block title %}Reset admin access{% endblock %}
+{% block title %}Reset Admin Access{% endblock %}
 {% block body %}
-  <h1>Reset admin access</h1>
+  <h1>Reset Admin Access</h1>
   <p class="muted">
-    This is the break-glass recovery you started from the server console. Set a new
-    password, then sign in with it and add a passkey or one-time code again.
+    Break-glass recovery, started from the server console. Set a new password, then sign in
+    and add a passkey or one-time code again.
   </p>
 
   {% if errors %}
@@ -15,9 +15,9 @@
 
   <form method="post">
     {% csrf_token %}
-    <label for="password">New password</label>
+    <label for="password">New Password</label>
     <input type="password" id="password" name="password" autocomplete="new-password" required>
 
-    <button type="submit">Set new password</button>
+    <button type="submit">Set New Password</button>
   </form>
 {% endblock %}

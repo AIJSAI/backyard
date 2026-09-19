@@ -1,0 +1,33 @@
+{% extends "mfa/webauthn/base.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's mfa/webauthn/edit_form.html.
+
+   Renaming a passkey. The stock page was headed "Edit Security Key" over an unlabelled
+   box — Django printed the field name, "Name", because the form gives it no label — and a
+   button reading Save with nothing said about what it saves. The field name and the form
+   action are the package's. {% endcomment %}
+{% load i18n %}
+{% block content %}
+    <h1>{% trans "Rename This Passkey" %}</h1>
+    {% if form.errors %}
+        <div class="errors">
+            {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+            {% for error in form.name.errors %}<p>{{ error }}</p>{% endfor %}
+        </div>
+    {% endif %}
+    {% comment %} No action attribute, exactly as the package renders it: the stock template
+       reverses mfa_edit_webauthn without the pk it needs, so its action came out empty and
+       the form posts to the current URL — which is what carries `?next=` back. {% endcomment %}
+    <form method="post">
+        {% csrf_token %}
+        <label for="{{ form.name.auto_id }}">{% trans "Name" %}</label>
+        <input type="text" id="{{ form.name.auto_id }}" name="name"
+               value="{{ form.name.value|default:'' }}"
+               aria-describedby="passkey-name-help" required>
+        <p class="hint" id="passkey-name-help">
+            {# The twin of the hint in add_form.html; the two passkey forms say one thing. #}
+            {% trans "Which device this is." %}
+        </p>
+        <button type="submit">{% trans "Save Name" %}</button>
+    </form>
+    <p><a class="btn-quiet" href="{% url 'mfa_list_webauthn' %}">{% trans "Cancel" %}</a></p>
+{% endblock %}

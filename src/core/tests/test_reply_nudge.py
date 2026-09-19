@@ -71,7 +71,7 @@ def test_an_opted_in_author_is_told_when_someone_replies(world: dict[str, object
     assert len(mail.outbox) == 1
     sent = mail.outbox[0]
     assert sent.to == [subscription.address]
-    assert "Sam replied to your post" in sent.subject
+    assert "Sam Replied To Your Post" in sent.subject
 
 
 def test_the_nudge_carries_no_reply_text(world: dict[str, object]) -> None:

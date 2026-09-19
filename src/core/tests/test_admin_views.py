@@ -142,7 +142,8 @@ def test_roster_visibly_flags_supervised_members_to_admins(world: dict[str, obje
     ONE badge, not two. The row used to carry the role pill and a second amber flag
     side by side, both saying the same thing in different words — and the pill said
     "Supervised member", which is the matrix's vocabulary rather than a family's. The
-    role label is the badge now, and it says "Child account"."""
+    role label is the badge now, and it says "Child Account" (Title Case since the copy
+    pass of 2026-09-19, like every other label a person reads)."""
     admin = world["admin"]
     parent = world["member_a"]
     pod_a = world["pod_a"]
@@ -152,7 +153,7 @@ def test_roster_visibly_flags_supervised_members_to_admins(world: dict[str, obje
     assert response.status_code == 200
     content = response.content.decode()
     assert "Kiddo" in content  # the supervised child appears on the roster at all
-    badge = '<span class="role">Child account</span>'
+    badge = '<span class="role">Child Account</span>'
     assert badge in content  # and is flagged
     # exactly one: the supervised child, never the full members (MemberA/AAdmin/Admin)
     assert content.count(badge) == 1

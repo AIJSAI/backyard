@@ -302,7 +302,10 @@ def test_a_rejected_password_does_not_burn_the_link(world: World) -> None:
     url = reverse("recover", args=[raw])
     response = Client().post(url, _set_password("123"))
     assert response.status_code == 200
-    assert b"too short" in response.content.lower() or b"common" in response.content.lower()
+    # The refusal is this product's sentence since the copy pass: core/password_rules.py
+    # keeps Django's check and replaces "This password is too short. It must contain at
+    # least 8 characters." with one plain line.
+    assert b"Password must be at least 8 characters." in response.content
     assert RecoveryToken.objects.get(member=world.relative).used_at is None
     assert Client().post(url, _set_password()).status_code == 302
 
@@ -411,7 +414,7 @@ def test_a_mistyped_new_password_costs_a_retype_not_the_link(world: World) -> No
 
     response = Client().post(url, {"password": _NEW_PW, "password_again": "a-fine-password-1234"})
     assert response.status_code == 200
-    assert b"not the same" in response.content
+    assert b"do not match" in response.content
     assert RecoveryToken.objects.get(member=world.relative).used_at is None
     assert world.relative.user is not None
     world.relative.user.refresh_from_db()

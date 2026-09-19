@@ -1,36 +1,48 @@
 {% extends "core/base.html" %}
-{% comment %} Screen two. The Family email offered once, at the only moment anybody is
+{% comment %} Screen two. Email Updates offered once, at the only moment anybody is
    thinking about it, with the address already filled in from the join form.
 
    Three buttons, not a select plus a submit: the choice IS the action, and a phone
-   keyboard opening over a dropdown is one more thing to get wrong. "No thanks" is the
-   same size as the other two — a refusal that is harder to press than an acceptance is
-   not a real choice. {% endcomment %}
-{% block title %}The Family email{% endblock %}
+   keyboard opening over a dropdown is one more thing to get wrong. "Off" is the same size
+   as the other two — a refusal that is harder to press than an acceptance is not a real
+   choice.
+
+   THE FEATURE HAS ONE NAME NOW. It was "the Family email" here, on the settings page and
+   in the mail itself; the owner ruled out both that and "digest", and named it Email
+   Updates. The three buttons carry the frequency and nothing else — Weekly, Monthly, Off —
+   under a legend that asks the question once, instead of three buttons that each restated
+   it ("Once a week", "Once a month", "No thanks"). A fieldset is what groups controls
+   under one question, and the design system already styles one. {% endcomment %}
+{% block title %}Email Updates{% endblock %}
 {% block body %}
-  <h1>Want the Family email?</h1>
-  <p>Backyard can send you what the family has been up to. A quiet week sends nothing.</p>
+  <h1>Email Updates</h1>
+  <p>A summary of new posts, sent by email.</p>
 
   {% if error %}<div class="errors"><p>{{ error }}</p></div>{% endif %}
 
   <form method="post" action="{% url 'welcome_family_email' %}">
     {% csrf_token %}
-    <label for="address">Send it to</label>
-    <input id="address" type="email" name="address" value="{{ address }}" maxlength="254"
-           autocomplete="email" placeholder="you@example.com">
-    <p class="muted">We send one email to check the address is yours. Nothing from the
-      family goes out until you tap the link in it.</p>
+    <label for="address">Email Address</label>
+    <input id="address" type="text" inputmode="email" name="address" value="{{ address }}" maxlength="254"
+           autocomplete="email" placeholder="you@example.com" aria-describedby="address-help">
+    {% comment %} The one thing on this screen that is not obvious: choosing a frequency
+       does not start anything until the address is proven. The sentence it replaces said
+       so in two, in the first person, and named the mail that does the proving. Which mail
+       that is depends on the address, and screen three knows; this screen does not. {% endcomment %}
+    <p class="hint" id="address-help">Updates start once this address is confirmed.</p>
 
-    <button type="submit" name="choice" value="weekly">Once a week</button>
-    <button type="submit" name="choice" value="monthly" class="btn-secondary">Once a month</button>
-    <button type="submit" name="choice" value="no" class="btn-secondary">No thanks</button>
+    <fieldset>
+      <legend>How Often</legend>
+      <button type="submit" name="choice" value="weekly">Weekly</button>
+      <button type="submit" name="choice" value="monthly" class="btn-secondary">Monthly</button>
+      <button type="submit" name="choice" value="no" class="btn-secondary">Off</button>
+    </fieldset>
   </form>
 
-  <p class="muted">You can change this later under Settings, and every email we send has
-    a link at the bottom that stops them.</p>
+  <p class="muted">Change this anytime in Settings.</p>
 
   <form method="post" action="{% url 'welcome_skip' %}">
     {% csrf_token %}
-    <button type="submit" class="btn-secondary">Skip to the family</button>
+    <button type="submit" class="btn-secondary">Skip</button>
   </form>
 {% endblock %}

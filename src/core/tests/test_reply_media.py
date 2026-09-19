@@ -131,7 +131,7 @@ def test_an_empty_reply_with_nothing_attached_is_still_refused(world: World) -> 
         reverse("add_comment", args=[world.post.id]), {"body": "   "}
     )
     assert response.status_code == 200  # re-rendered with the error
-    assert "Write a reply, or add a photo." in response.content.decode()
+    assert "Write a reply or add a photo." in response.content.decode()
     assert not Comment.objects.filter(author=world.replier).exists()
 
 

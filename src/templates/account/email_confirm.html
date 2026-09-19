@@ -6,16 +6,16 @@
 {% load account %}
 {% load allauth %}
 {% block head_title %}
-    {% trans "Confirm your address" %}
+    {% trans "Confirm Your Email Address" %}
 {% endblock head_title %}
 {% block content %}
     {% element h1 %}
-        {% trans "Confirm your address" %}
+        {% trans "Confirm Your Email Address" %}
     {% endelement %}
     {% if confirmation %}
         {% if can_confirm %}
             {% element p %}
-                {% blocktrans with confirmation.email_address.email as email %}Is {{ email }} yours? Confirming means we can send you a way back in if you ever forget your password.{% endblocktrans %}
+                {% if confirmation.email_address.primary %}{% blocktrans with confirmation.email_address.email as email %}Confirm that {{ email }} is yours. If you turned on email updates at this address, they start once it is confirmed.{% endblocktrans %}{% else %}{% blocktrans with confirmation.email_address.email as email %}Confirm that {{ email }} is yours.{% endblocktrans %}{% endif %}
             {% endelement %}
             {% url 'account_confirm_email' confirmation.key as action_url %}
             {% element form method="post" action=action_url %}
@@ -23,19 +23,19 @@
                     {% csrf_token %}
                     {{ redirect_field }}
                     {% element button type="submit" %}
-                        {% trans 'Yes, that is mine' %}
+                        {% trans 'Confirm Email Address' %}
                     {% endelement %}
                 {% endslot %}
             {% endelement %}
         {% else %}
             {% element p %}
-                {% blocktrans %}That address is already in use here, so it cannot be confirmed again.{% endblocktrans %}
+                {% blocktrans %}That address is already in use here, so it cannot be confirmed.{% endblocktrans %}
             {% endelement %}
         {% endif %}
     {% else %}
         {% url 'account_email' as email_url %}
         {% element p %}
-            {% blocktrans %}That link has stopped working &mdash; it may already have been used. You can <a href="{{ email_url }}">ask for a fresh one</a>.{% endblocktrans %}
+            {% blocktrans %}That link has expired or has already been used. <a href="{{ email_url }}">Request a new one</a>.{% endblocktrans %}
         {% endelement %}
     {% endif %}
 {% endblock content %}

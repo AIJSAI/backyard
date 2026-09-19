@@ -247,7 +247,7 @@ def _page(raw: str) -> str:
 
 def test_the_join_page_names_the_household_the_link_joins_them_to() -> None:
     body = " ".join(_page(_household("The Ferraras", slug="ferraras")).split())
-    assert "You're joining <strong>The Ferraras</strong>." in body, (
+    assert "You are joining <strong>The Ferraras</strong>." in body, (
         "the page still does not say what the person is being asked to join"
     )
 
@@ -286,7 +286,7 @@ def test_the_username_field_says_what_to_put_in_it(invite_to_pod: tuple[Pod, str
     it carried no hint at all."""
     _, raw = invite_to_pod
     body = " ".join(_page(raw).split())
-    assert "What you type to sign in. Your first name is fine." in body
+    assert "Use your first name." in body
     # Tied to the field, not merely present on the page: an unlinked sentence is not read
     # out to somebody who reaches the box with a screen reader.
     assert 'aria-describedby="username-help"' in body
@@ -300,10 +300,7 @@ def test_the_password_field_gives_the_same_advice_as_the_get_back_in_page(
     about choosing a password arrived AFTER one was rejected, as a validator error."""
     _, raw = invite_to_pod
     body = " ".join(_page(raw).split())
-    assert (
-        "Use something you will remember. Three or four unrelated words work well and are "
-        "easy to type on a phone." in body
-    )
+    assert "Choose a memorable password." in body
     assert 'aria-describedby="password-help"' in body
 
 
@@ -358,7 +355,7 @@ def test_the_show_control_is_delivered_the_only_way_this_product_allows(
     # script's own source because nothing in this suite runs JavaScript; the browser-level
     # proof is the phone walk (test_onboarding_mobile.py drives the same page).
     assert 'toggle.type = "button"' in body
-    assert '"Show password"' in body and '"Hide password"' in body
+    assert '"Show Password"' in body and '"Hide Password"' in body
 
 
 def test_the_password_still_posts_over_the_same_route_untouched(

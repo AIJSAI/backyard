@@ -1,20 +1,31 @@
 {% extends "core/base.html" %}
 {% comment %} Screen one of the welcome. Two sentences, then two full-width controls a
    thumb cannot miss. Nothing else goes on this screen: it is the only moment in the
-   product where somebody is reading rather than looking for something. {% endcomment %}
+   product where somebody is reading rather than looking for something.
+
+   BOTH SENTENCES ARE THE OWNER'S, verbatim from VOICE.md. The first replaces "This is a
+   private place for our family. No ads, no strangers, and nothing that will chase you." —
+   a mood, in the first person plural, ending on a promise about something the product does
+   not do. The second is the audience sentence: household first, then the two ways to reach
+   further, which is the one thing a newcomer has to understand before they post. It is
+   also the one place in the welcome where "family" earns its place, because a side of the
+   family is what has to be named. {% endcomment %}
 {% block title %}Welcome{% endblock %}
 {% block body %}
-  <h1>You&rsquo;re in{% if member.display_name %}, {{ member.display_name }}{% endif %}</h1>
-  <p>This is a private place for our family. No ads, no strangers, and nothing that will
-    chase you.</p>
-  <p>Post when you feel like it. What you write goes to your household, unless you choose
-    a wider group as you write it.</p>
+  {% comment %} The first name, like everywhere else the product speaks TO somebody: the sign-in flash
+     is "Signed in as Priya." and the footer is "Need help? Contact James." `short_name`
+     exists for exactly this (models.py: "Welcome back, Priya" is how people talk; "Ask Jim
+     Whitfield" is how a directory does). This greeted a new relative with their full name. {% endcomment %}
+  <h1>Welcome{% if member.short_name %}, {{ member.short_name }}{% endif %}</h1>
+  <p>A private, ad-free network to stay connected with everyone.</p>
+  <p>Posts are shared with your household. To reach more people, choose a side of the
+    family or a group when posting.</p>
 
   <p><a class="btn" href="{% url 'welcome_family_email' %}">Next</a></p>
   {% comment %} Skip is a POST, so a link prefetch cannot dismiss the welcome before it
      has been read — the same rule the orientation card was under. {% endcomment %}
   <form method="post" action="{% url 'welcome_skip' %}">
     {% csrf_token %}
-    <button type="submit" class="btn-secondary">Skip to the family</button>
+    <button type="submit" class="btn-secondary">Skip</button>
   </form>
 {% endblock %}

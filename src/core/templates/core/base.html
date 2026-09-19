@@ -345,23 +345,35 @@ aside.orientation, aside.prompt, aside.date-banner, .notice, .empty { max-width:
 img.digest-photo { display: block; width: 100%; height: auto; margin: 0.8rem 0;
   border-radius: var(--radius-sm); background: var(--surface-sunk); }
 
-/* The footer used to open with a tagline nothing in the product pinned, set above a
-   BOLDER help line, so the least important sentence on the page was also the loudest.
-   The tagline is gone and the help sentence is the footer. Its words are deliberately
-   NOT quoted here: this comment ships inside every page's <style>, so quoting a string
-   the founder asked to cut would keep sending it to every client on every load — and
-   would defeat a grep meant to prove it was gone. */
-footer.site { border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 0.82rem; }
-footer.site .wrap { padding-top: 1.1rem; padding-bottom: 1.1rem; }
-/* Sign out, at the end of the footer. Quiet: it is the rarest thing anybody does in a
-   family's photo album, and it left the nav so five items fit one line at 360px. */
-footer.site a.sign-out { font-size: 0.88rem; }
-footer.site a { color: var(--ink-soft); }
-footer.site .wrap { display: flex; flex-wrap: wrap; justify-content: center;
-  text-align: center; gap: 0.35rem 1.25rem; }
+/* THE FOOTER. The owner read it on 2026-09-19 and called it unprofessional and
+   unfinished, across the whole site, and it was three things at once: a centred sentence
+   with the account action dropped into the middle of the same wrapping row, no visible
+   separation from the page above it, and — on the sign-in pages — two more links left in
+   a paragraph under the card instead. One row now, with a real top rule and real padding:
+   the help sentence at the start, the links at the end, the two pushed apart rather than
+   crowded together. At phone width they stack, left-aligned, which is the only honest way
+   to put two groups on a 390px line. The markup is core/_footer.html; only the words that
+   the founder asked to cut are deliberately NOT quoted in this comment, because this
+   <style> ships inside every page and quoting them would keep serving them. */
+footer.site { border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 0.85rem; }
+footer.site .wrap { display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: space-between; gap: 0.35rem 1.5rem;
+  padding-top: 1.35rem; padding-bottom: 1.35rem; }
 /* SC 3.2.6 wants this findable, not shouted: regular weight, same quiet ink as the
-   rest of the page furniture. */
+   rest of the page furniture. It is text, never a link — there is no help route. */
 footer.site .help { font-weight: 400; color: var(--ink-soft); }
+/* The account action, or the two public pages: one group, evenly spaced, at the end of
+   the row. A group rather than loose children, so the gap between the help line and the
+   links is the row's gap and the gap BETWEEN the links is their own. */
+footer.site .footer-links { display: flex; flex-wrap: wrap; align-items: center;
+  gap: 0 1.25rem; }
+/* LINKS THAT LOOK LIKE LINKS: underlined, in the page's quiet ink so the footer stays
+   the quietest band on the screen, and 44px tall so a thumb can hit one (SC 2.5.5).
+   inline-flex + min-height rather than padding, so the band does not grow with them. */
+footer.site a { color: var(--ink-soft); font-weight: 700;
+  text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px;
+  display: inline-flex; align-items: center; min-height: 44px; }
+footer.site a:hover { color: var(--green); }
 
 /* The rail's wayfinding is a real navigation landmark. Where the rail holds
    only links the rail element IS the <nav>; on the feed the <nav> sits inside
@@ -462,7 +474,12 @@ label + input, label + select, label + textarea { margin-top: 0; }
 /* A submit never touches the field above it — and never touches the "back" link
    BELOW it either, which is what happened on every settings page: a solid green
    button with a bold underlined link jammed four pixels under its bottom edge. */
+/* `fieldset > button` as well as the two `fieldset +` cases: core/welcome_email.html puts
+   its three frequency buttons INSIDE the fieldset that carries their one <legend>, so they
+   are not `form > button` and were losing the gap. On a narrow phone, where they wrap, that
+   left three controls touching flush. */
 form > button, form > input[type=submit], form > .btn,
+fieldset > button,
 fieldset + button, fieldset + input[type=submit] { margin-top: 0.5rem; }
 form + p, form + .rail { margin-top: 1.5rem; }
 input[type=checkbox], input[type=radio] { display: inline-block; width: auto; max-width: none;
@@ -491,6 +508,21 @@ select { appearance: none; -webkit-appearance: none;
 fieldset { border: 1.5px solid var(--line); border-radius: var(--radius-sm);
   max-width: var(--field-measure); margin: 0 0 0.95rem; padding: 0.6rem 1rem 1rem; }
 legend { font-weight: 700; padding: 0 0.4rem; color: var(--ink); font-size: 0.9rem; }
+
+/* HELPER TEXT IS ONE THING. `.hint` is the only helper-text class in the product: one
+   size, one colour, one rhythm, sitting under the control it explains and tied to it with
+   aria-describedby where a template does that. It had NO rule at all until now — seven
+   templates wrote `class="hint"` and three wrote `class="field-help"`, and neither name
+   matched a line of CSS, so every helper sentence in the app rendered as a full-size body
+   paragraph floating under a form. That is the "unfinished" the owner was reading.
+   `.field-help` was carried for one pass as a transitional alias and is gone: the three
+   lines in core/join.html that used it now say `hint`, and nothing else ever did.
+   A hint is at most two short sentences: if it needs three, the screen is wrong. */
+.hint { margin: -0.6rem 0 1rem; max-width: var(--field-measure);
+  color: var(--ink-soft); font-size: 0.88rem; line-height: 1.5; }
+/* Inside a card or a fieldset the control already fills its container, so the hint does
+   too — a 32rem hint inside a 40rem card leaves a band of dead space beside it. */
+.composer .hint, .card .hint, fieldset .hint { max-width: none; }
 
 /* A row of fields that describe ONE value — a birthday's month, day and year. Three
    full-width 48px boxes stacked down the page for a ten-character date was the single
@@ -553,7 +585,7 @@ button.danger, .inline button.danger, .btn-danger {
   border-color: color-mix(in srgb, var(--danger) 55%, transparent);
 }
 /* The quiet alternative beside a primary. Cancelling a wide send was a FILLED green
-   button identical in weight to "Yes, share with Dad's side", so on the one screen in
+   button identical in weight to "Share With Dad's Side", so on the one screen in
    the product that asks a privacy question the two answers looked the same. A ghost:
    no fill, quiet ink, a real border so it is still plainly a control. */
 button.btn-quiet, .btn-quiet {
@@ -591,6 +623,27 @@ a.back {
 a.back::before { content: "\2190"; font-weight: 700; }
 a.back:hover { color: var(--green); text-decoration: underline; }
 p.back-link { margin: 0 0 1rem; }
+
+/* THE SETTINGS LIST IS A LIST. `.settings-link` is written on nine rows of the Settings
+   page and matched no line of CSS anywhere — the same defect `.hint` had, and with the
+   same result: every row rendered as a body paragraph with body-paragraph spacing, so
+   nine one-word links occupied a scroll of their own. Now that the copy pass has stripped
+   each row down to nothing but its link, they want list rhythm and a rule between them.
+   Still <p> rather than <ul>: the markup is what tests and scripts select on, and the
+   look, not the element, is what was wrong. A row is a 44px tap target (SC 2.5.5). */
+p.settings-link { margin: 0; border-top: 1px solid var(--line); }
+p.settings-link:first-of-type { border-top: 0; }
+/* The list starts straight after the profile form: without this its first row sat
+   against the Save button. */
+form + p.settings-link { margin-top: 1.75rem; }
+p.settings-link > a {
+  display: flex; align-items: center; min-height: 44px; padding: 0.15rem 0;
+  text-decoration: none; font-weight: 600;
+}
+p.settings-link > a:hover { color: var(--green); text-decoration: underline; }
+/* The heading that opens the second group ("Your Account") sits between two rows, so it
+   carries the gap the rows no longer do. */
+p.settings-link + h2 { margin-top: 1.6rem; }
 
 /* ---- notices, errors, flags ------------------------------------------------- */
 .notice, .errors {
@@ -636,6 +689,8 @@ ul.errorlist li::before { content: "\26a0\00a0\00a0"; font-weight: 700; color: v
 }
 .messages .msg + .msg { margin-top: 0.6rem; }
 .messages .msg::before { content: "\2713\00a0\00a0"; font-weight: 700; color: var(--green); }
+/* An info message states a rule; it is not a success, so it carries no tick. */
+.messages .msg.info::before { content: none; }
 .messages .msg.error, .messages .msg.warning {
   border-color: color-mix(in srgb, var(--danger) 40%, transparent); background: var(--danger-tint);
 }
@@ -650,6 +705,11 @@ ul.errorlist li::before { content: "\26a0\00a0\00a0"; font-weight: 700; color: v
   letter-spacing: 0.02em; vertical-align: middle;
 }
 .role { background: var(--green-tint); color: var(--green-deep); }
+/* The sign-in email page: an address row wraps on a phone, and its three actions sit
+   on one wrapping row under the list. */
+label.inline-check.email-row { flex-wrap: wrap; }
+.email-actions { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; margin: 0.75rem 0 2rem; }
+.email-actions button { margin: 0; }
 @media (prefers-color-scheme: dark) { .role { color: var(--green); } }
 :root[data-theme="light"] .role { color: var(--green-deep); }
 :root[data-theme="dark"] .role { color: var(--green); }
@@ -712,6 +772,9 @@ ul.errorlist li::before { content: "\26a0\00a0\00a0"; font-weight: 700; color: v
    is exactly the old behaviour, and the tab order is unchanged because focus-within
    expands the moment the textarea takes focus. */
 .composer-extras { margin-top: 1rem; }
+/* A composer with no extras wrapper (the welcome step's first post) puts the picker
+   straight after the textarea, whose bottom margin is zero: the button touched the box. */
+.composer > .media-picker { margin-top: 1rem; }
 .composer:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) .composer-extras {
   display: none;
 }
@@ -756,7 +819,12 @@ ul.errorlist li::before { content: "\26a0\00a0\00a0"; font-weight: 700; color: v
 .media-picker.js:has(input[type=file]:focus-visible) > .picker-button {
   outline: 3px solid var(--ring); outline-offset: 2px;
 }
-.media-hint { margin: 0.55rem 0 0; font-size: 0.82rem; color: var(--ink-soft); }
+/* The picker's hint is helper text like every other, so it is the one size and the one
+   colour (`.hint` above). Only the margin differs, and it has to: `.hint` pulls itself up
+   0.6rem to sit tight under a FIELD, and this one sits under a button that already has its
+   own gap below it. */
+.media-hint { margin: 0.55rem 0 0; max-width: var(--field-measure);
+  color: var(--ink-soft); font-size: 0.88rem; line-height: 1.5; }
 /* What you picked, before you post it. The only feedback used to be a filename inside
    the native control, so nobody could confirm they had chosen the right picture. */
 ul.media-previews { list-style: none; display: flex; flex-wrap: wrap;
@@ -919,7 +987,7 @@ ul.comments:has(> li.empty:only-child) { border-left: 0; padding-left: 0; margin
   min-height: 44px;                      /* was min-height:auto (~28px) */
   padding: 0.35rem 1rem; font-size: 0.84rem; border-radius: 999px;
 }
-/* A DESTRUCTIVE ACTION LEAVES THE PRIMARY ROW. `Open thread`, `Edit` and `Delete`
+/* A DESTRUCTIVE ACTION LEAVES THE PRIMARY ROW. `Open Post`, `Edit` and `Delete`
    rendered as three identical bold green links 36px apart on every post its author owns,
    so a thumb aiming at the thread could land on the one that erases a photograph. They
    are pushed to the far end of the row, set in danger ink at regular weight, and carry
@@ -1142,9 +1210,16 @@ caption { text-align: left; color: var(--ink-soft); margin-bottom: 0.5rem; }
 th, td { text-align: left; padding: 0.65rem 0.6rem; border-bottom: 1px solid var(--line); }
 /* Style the FIRST row's th too: members_metrics.html has no <thead> today
    (fix recommended in the handoff README), so this selector pair covers both. */
+/* NO text-transform. The guide is explicit — "Write the capitals in the source text
+   itself. Never CSS text-transform" — and every <th> in this product is already correct
+   Title Case ("Member", "How Often", "Last Few Sends"), so the rule was taking correct
+   source and shouting it: MEMBER, HOW OFTEN, LAST FEW SENDS. ALL CAPS is not Title Case.
+   The size comes up and the tracking comes down to keep the header row distinct as an
+   eyebrow without the shout; at 0.72rem with 0.08em it was also the least legible type in
+   the product. */
 thead th, table tr:first-child th {
-  border-bottom: 2px solid var(--green); font-size: 0.72rem;
-  text-transform: uppercase; letter-spacing: 0.08em; color: var(--green-deep); background: none;
+  border-bottom: 2px solid var(--green); font-size: 0.78rem;
+  letter-spacing: 0.04em; color: var(--green-deep); background: none;
 }
 @media (prefers-color-scheme: dark) { thead th, table tr:first-child th { color: var(--green); } }
 :root[data-theme="light"] thead th, :root[data-theme="light"] table tr:first-child th { color: var(--green-deep); }
@@ -1164,7 +1239,7 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
   background: var(--amber-tint); border-radius: var(--radius-sm);
   padding: 0.45rem 0.8rem; margin-bottom: 0.85rem;
 }
-.handover input[readonly] { background: var(--surface-sunk); font-family: var(--font-mono); font-size: 0.86rem; }
+.handover input[readonly], #setup_key { background: var(--surface-sunk); font-family: var(--font-mono); font-size: 0.86rem; }
 .handover-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; margin: 0.7rem 0; }
 .qr {
   display: flex; justify-content: center; padding: 1rem;
@@ -1317,6 +1392,10 @@ ul.contacts > li { padding: 0.15rem 0; }
     padding-top: 0.55rem; padding-bottom: 0.55rem; }
   header.site nav.site-nav { margin-left: 0; width: 100%;
     justify-content: space-between; gap: 0 0.75rem; }
+  /* The footer stacks rather than wraps. `space-between` on a wrapped row leaves the
+     help sentence alone on the first line and the links pushed to the far right of the
+     second, which is the orphaned fragment the owner was looking at. */
+  footer.site .wrap { flex-direction: column; align-items: flex-start; gap: 0; }
 }
 
 /* ONE LINE AT 360px, WITH FIVE ITEMS (walk item 11). An admin had six — Feed, Groups,
@@ -1405,8 +1484,14 @@ ul.contacts > li { padding: 0.15rem 0; }
   td { display: flex; justify-content: space-between; align-items: baseline;
     gap: 1rem; border-bottom: 1px solid var(--line); padding: 0.45rem 0; text-align: right; }
   tr > td:last-child { border-bottom: 0; }
-  td::before { content: attr(data-label); font-weight: 700; font-size: 0.74rem;
-    letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); text-align: left; }
+  /* The same ban, and this is the instance that actually shows on a phone: under 40rem
+     every table reflows to cards and this pseudo-element printed each cell's data-label in
+     ALL CAPS — MEMBER, ADDRESS, HOW OFTEN, STATUS, LAST FEW SENDS, and HOUSEHOLDS AND
+     GROUPS THAT POSTED wrapping across the card. Every data-label in the product is
+     already Title Case. It is every admin table the two new admins will use, at the width
+     they will use it. */
+  td::before { content: attr(data-label); font-weight: 700; font-size: 0.8rem;
+    letter-spacing: 0.02em; color: var(--ink-soft); text-align: left; }
   /* Admin lists: rows become stacked blocks; action forms stop right-floating. */
   ul.members > li, ul.pods > li, ul.invites > li,
   ul.digests > li, ul.quarantine > li, ul.yards > li { display: block; }
@@ -1485,7 +1570,7 @@ ul.contacts > li { padding: 0.15rem 0; }
   {% block extra_head %}{% endblock %}
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
+  <a class="skip-link" href="#main">Skip To Content</a>
   {% comment %} The site header is a block so the signed-out entrance surfaces can drop
      it: those pages carry their own centred brand lockup, and rendering both put the
      wordmark on screen twice. {% endcomment %}
@@ -1562,53 +1647,10 @@ ul.contacts > li { padding: 0.15rem 0; }
     {% endif %}
     {% block body %}{% endblock %}
   </main>
-  <footer class="site">
-    <div class="wrap">
-      {% comment %} WCAG 2.2 SC 3.2.6 Consistent Help: a help mechanism in the same
-         relative position on every page that has one. There is NO help route in this
-         app and none is being added — a link to a page that does not exist is worse
-         than no link — so the mechanism is the sentence itself, naming the real person
-         who can act. For a family instance that is the honest answer: whoever runs it
-         is a relative, not a support desk.
-
-         The trailing clause "— they can fix it" was cut in the visual pass: it asserts
-         nothing the first half does not already say. {% endcomment %}
-      {% comment %} The help line names a PERSON. "whoever in the family set this up" is
-         true and impersonal, and on a family's app it read like a support page; the
-         person is a relative and has a name, so the footer says it. The name comes from
-         the instance admin's display name in the DATABASE at render time
-         (core/context_processors.help_contact_name) — this repository is public and a
-         relative's name does not belong in it.
-
-         THE FALLBACK is what a logged-out reader gets (walk item 12 empties the name for
-         anybody who has not been let in), and it used to be "whoever in the family set
-         this up" — which the owner read back on the walk and called strange: it describes
-         a role nobody in a family uses, and it is nobody a relative could ring. Everybody
-         who reaches this product reached it through a person who handed them a link, so
-         the sentence says that person. It is still the substring the two SC 3.2.6 tests
-         are pinned on. {% endcomment %}
-      <span class="help">Stuck? Ask {% if help_contact %}{{ help_contact }}{% else %}the person who invited you{% endif %}.</span>
-      {% comment %} The AGPL section 13 source offer used to live here, on all thirty-odd
-         screens including a grandparent's. Section 13 requires that a network user be
-         OFFERED the source; it does not require that the offer be the second-loudest line
-         on a family's photo album. It now lives on /about/, one tap from Settings and from
-         the sign-in page, and test_agpl_source_offer.py walks both routes.
-
-         THE HELP AFFORDANCE ITSELF IS NEVER A LINK — that is the invariant, and
-         test_accessibility_modes.py and test_plain_pages.py both hold it: there is no help
-         route in this app, and a link to a page that does not exist is worse than no link
-         (WCAG 2.2 SC 3.2.6). It used to be stated as "this footer carries no links at
-         all", which was the same thing while the footer held nothing else.
-
-         Sign out is now the one exception, for signed-in readers only (walk item 11). It
-         is an action rather than a help mechanism, it sits AFTER the help line so the
-         help affordance keeps its position on every surface, and a signed-out footer is
-         byte-for-byte what it always was. {% endcomment %}
-      {% if user.is_authenticated %}
-        <a class="sign-out" href="{% url 'account_logout' %}">Sign out</a>
-      {% endif %}
-    </div>
-  </footer>
+  {% comment %} The footer is one component, shared with the entrance layout and offered
+     to the standalone pages, so its words and its shape cannot drift apart across the
+     site again. Everything it decides, and why, is written in the include. {% endcomment %}
+  {% include "core/_footer.html" %}
   {% if user.is_authenticated %}
     <script nonce="{{ request.csp_nonce }}">
       // Register the minimal service worker so member pages are installable

@@ -234,7 +234,7 @@ def test_the_confirmation_counts_the_picture_that_comes_with_a_shared_link(
     assert preview.photos == 2, "a link card was counted as somebody's photograph"
 
     body = world.client.post(world.remove_url(), {"content": removal.DELETE}).content.decode()
-    assert "little picture a web page brings with it" in body
+    assert "they shared, erased from the server" in body
     assert "<strong>1</strong>" in body
 
     with django_capture_on_commit_callbacks(execute=True):  # type: ignore[operator]
@@ -249,4 +249,4 @@ def test_a_member_with_no_link_cards_is_told_nothing_about_them(world: World) ->
     explains an internal concept to somebody who has no reason to learn it."""
     body = world.client.post(world.remove_url(), {"content": removal.DELETE}).content.decode()
     assert removal.preview_deletion(world.leaver).link_images == 0
-    assert "little picture a web page brings with it" not in body
+    assert "they shared, erased from the server" not in body

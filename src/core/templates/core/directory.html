@@ -1,36 +1,37 @@
 {% extends "core/base.html" %}
 {% load avatars %}
-{% block title %}Family directory{% endblock %}
+{% block title %}Directory{% endblock %}
 {% block body %}
-  <h1>Family directory</h1>
+  <h1>Directory</h1>
   {% comment %} The page's own actions. "Back to the feed" came out: the header nav has
      carried Feed on every page since v3.1, so the rail was repeating it. {% endcomment %}
   {% comment %} Three bold green links in a row, all the same weight, one of which was
      "Export my data" — a thing a relative does approximately never, sitting level with
      the two they might. Plain words, and the rarest one last. {% endcomment %}
-  <nav class="rail" aria-label="Your profile and data">
+  <nav class="rail" aria-label="Your Profile And Data">
     <p>
-      <a href="{% url 'profile_edit' %}">My profile</a> &middot;
+      {% comment %} Second person throughout, because that is the voice the rest of the
+         product speaks in and "Download my things" sat beside "Download Your Data" on
+         How It Works. {% endcomment %}
+      <a href="{% url 'profile_edit' %}">Your Profile</a> &middot;
       {% comment %} Says "contacts" and not "vCard": the filename is the format, the
          link is what it does to your phone. {% endcomment %}
-      <a href="{% url 'directory_vcards' %}">Save everyone to my contacts</a> &middot;
-      <a href="{% url 'export_data' %}">Download my things</a>
+      <a href="{% url 'directory_vcards' %}">Save Everyone To Your Contacts</a> &middot;
+      <a href="{% url 'export_data' %}">Download Your Data</a>
     </p>
   </nav>
 
   {% comment %} BY-13, moved here from the feed. One standing fact about who does what,
      on the page you open when you are thinking about who is here. {% endcomment %}
   {% if show_invite_help %}
-    <p class="muted">Adding people is an admin&rsquo;s job. {% if inviter %}To add
-      someone, ask <strong>{{ inviter.short_name }}</strong> &mdash; they can make you a
-      link.{% else %}To add someone, ask {% if help_contact %}{{ help_contact }}{% else %}whoever
-      in the family set this up{% endif %}.{% endif %}</p>
+    <p class="muted">Only an admin can add people. Ask {% if inviter %}<strong>{{ inviter.short_name }}</strong>{% elif help_contact %}{{ help_contact }}{% else %}the person who invited you{% endif %}
+      for an invite link.</p>
   {% endif %}
 
   {% comment %} A search box and the button that runs it are one control. Stacked, the
      button read as an unrelated action sitting under an unrelated field. {% endcomment %}
   <form method="get" action="{% url 'directory' %}" class="search-row">
-    <label class="visually-hidden" for="q">Search by name</label>
+    <label class="visually-hidden" for="q">Search By Name</label>
     <input id="q" type="search" name="q" value="{{ q }}" placeholder="Search by name">
     <button type="submit">Search</button>
   </form>

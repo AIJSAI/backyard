@@ -1,0 +1,6 @@
+{% load i18n %}{% comment %} PROJECT OVERRIDE of django-allauth's account/messages/unverified_primary_email.txt.
+
+   Raised on "Use this one" against an address nobody has confirmed yet. "Your primary
+   email address must be verified." states a rule; this states the next step. The word is
+   "confirm" because that is what the badge beside the address and the email itself both
+   say. {% endcomment %}{% blocktrans %}Confirm that address first. Tap the link in the email sent to it.{% endblocktrans %}

@@ -7,11 +7,12 @@
    refuses the route, so that link sent a new relative to a dead end on the first
    screen of the product.
 
-   Changed in a SECOND way by the v3.2 visual pass: all three "Sign In" strings (the
-   document title, the h1, the submit button) are now "Sign in". Every other heading
-   and button in the product is sentence case
-   ("Your backyard", "Family directory", "Create pod"); Title Case here was the
-   library's house style, not this one.
+   Changed in a SECOND way by the 2026-09-19 copy pass: the three "Sign in" strings (the
+   document title, the h1, the submit button) are back to "Sign In", and the passkey button
+   with them. The v3.2 visual pass had lowered them to match the sentence-case headings the
+   rest of the product used at the time; the owner has since ruled that every heading,
+   button and title in the product Capitalises Every Word, so the whole product moved and
+   this page is no longer the exception either way.
 
    Everything else is the package's markup verbatim, so the form, the passkey
    button and the login-by-code path keep working. This file is pinned by
@@ -19,12 +20,15 @@
    there fail rather than the drift going unnoticed. {% endcomment %}
 {% load i18n %}
 {% load allauth account %}
+{% comment %} The one entrance page a stranger reaches, so the one that says how people get
+   in. The layout leaves this block empty for every other page. {% endcomment %}
+{% block entrance_lede %}<p class="lede">Backyard is invite-only. Open your invite link to join.</p>{% endblock entrance_lede %}
 {% block head_title %}
-    {% trans "Sign in" %}
+    {% trans "Sign In" %}
 {% endblock head_title %}
 {% block content %}
     {% element h1 %}
-        {% trans "Sign in" %}
+        {% trans "Sign In" %}
     {% endelement %}
     {% if not SOCIALACCOUNT_ONLY %}
         {% url 'account_login' as login_url %}
@@ -37,7 +41,7 @@
             {% endslot %}
             {% slot actions %}
                 {% element button type="submit" tags="prominent,login" %}
-                    {% trans "Sign in" %}
+                    {% trans "Sign In" %}
                 {% endelement %}
             {% endslot %}
         {% endelement %}
@@ -48,12 +52,12 @@
         {% element button_group vertical=True %}
             {% if PASSKEY_LOGIN_ENABLED %}
                 {% element button type="submit" form="mfa_login" id="passkey_login" tags="prominent,login,outline,primary" %}
-                    {% trans "Sign in with a passkey" %}
+                    {% trans "Sign In With A Passkey" %}
                 {% endelement %}
             {% endif %}
             {% if LOGIN_BY_CODE_ENABLED %}
                 {% element button href=request_login_code_url tags="prominent,login,outline,primary" %}
-                    {% trans "Send me a sign-in code" %}
+                    {% trans "Send A Sign-In Code" %}
                 {% endelement %}
             {% endif %}
         {% endelement %}

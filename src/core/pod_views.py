@@ -87,7 +87,9 @@ def pod_create(request: HttpRequest) -> HttpResponse:
         # evidence it worked was a row they had to go and find — and a member who did not
         # find it pressed Create again. The NAME is in the sentence for that reason: it is
         # what tells them the row they are looking at is the one they just made.
-        messages.success(request, f"{created.name} is ready.")
+        # The other fifteen flash messages are a short past-tense sentence; this was the
+        # only one shaped as a label and a colon, and the name is on the page below it.
+        messages.success(request, f"{created.name} created.")
     return redirect("pod_list")
 
 

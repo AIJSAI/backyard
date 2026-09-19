@@ -1,17 +1,20 @@
 {% extends "core/base.html" %}
-{% block title %}Change {{ target.display_name }}'s household{% endblock %}
+{% block title %}Change Household For {{ target.display_name }}{% endblock %}
 {% block body %}
-  <h1>Change {{ target.display_name }}'s household</h1>
-  <p class="back-link"><a class="back" href="{% url 'members' %}">Family members</a></p>
+  {% comment %} "For <name>" rather than the possessive "<name>'s household": a heading is
+     Title Case and a name a person typed is never re-cased, and "'s" is a word the rule
+     would have to capitalise. The person is still named, which is the thing that
+     matters on a page that changes what somebody can see. {% endcomment %}
+  <h1>Change Household For {{ target.display_name }}</h1>
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Back To Members</a></p>
 
   {% comment %} Plain words, and the side of the family named on every household. The person
      reading this is a relative who was made an admin last week; "The Fletchers" in a
      dropdown does not tell them which side of the family they are about to hand over, and
      that is the one thing this page has to get right. {% endcomment %}
-  <p class="notice">A household is who somebody lives with. Which households a person is in
-  decides which sides of the family they can see — the posts, the photographs and the people
-  in them. Each change here is one step, and the next page says exactly what will change
-  before anything happens.</p>
+  <p class="notice">A household is who somebody lives with. The households they are in
+  decide which sides of the family they can see, including every post and photograph
+  already on them.</p>
 
   {% if errors %}
     <div class="errors" role="alert">
@@ -19,7 +22,7 @@
     </div>
   {% endif %}
 
-  <h2>Add them to a household</h2>
+  <h2>Add To A Household</h2>
   {% if joinable %}
     <form method="post" action="{% url 'change_household' target.id %}">
       {% csrf_token %}
@@ -31,27 +34,31 @@
              "side". Families name a side with the word already in it — "Mom's side" —
              so appending it rendered "Mom's side side" on the live instance, on every
              screen that did this. {% endcomment %}
-          <option value="{{ pod.id }}">{{ pod.name }} — {% for side in sides %}{{ side.name }}{% if not forloop.last %} and {% endif %}{% endfor %}</option>
+          <option value="{{ pod.id }}">{{ pod.name }} ({% for side in sides %}{{ side.name }}{% if not forloop.last %}, {% endif %}{% endfor %})</option>
         {% endfor %}
       </select>
-      {% comment %} Both forms on this page submit a step called "Continue"; the hidden
-         half of the label is what tells somebody using a screen reader which one this is.
-      {% endcomment %}
-      <button type="submit">Continue<span class="visually-hidden"> to adding them to this household</span></button>
+      {% comment %} Verb plus object, which is what the guide says a button is — and it is
+         what the page's own third button already does ("Take Them Out Of ..."). Both forms
+         here said "Continue" with the distinguishing words in a visually-hidden span, so a
+         sighted admin at 390px saw the same control twice and had to work out which form
+         it belonged to from a heading they had scrolled past. Naming the object serves the
+         screen reader too, so the hidden half is no longer needed. Both still lead to the
+         same confirmation step. {% endcomment %}
+      <button type="submit">Add To This Household</button>
     </form>
   {% else %}
     <p class="muted">There is no other household to add them to. Make one below.</p>
   {% endif %}
 
-  <h2>Make a new household for them</h2>
+  <h2>New Household</h2>
   <form method="post" action="{% url 'change_household' target.id %}">
     {% csrf_token %}
     <input type="hidden" name="act" value="create">
-    <label for="household-name">What to call it</label>
+    <label for="household-name">Name</label>
     <input id="household-name" name="household_name" maxlength="100" autocomplete="off"
            placeholder="The Fletchers">
     <fieldset>
-      <legend>Which side of the family it belongs to</legend>
+      <legend>Sides Of The Family</legend>
       {% comment %} Checkboxes, not one select: a household can belong to BOTH sides — that
          is the household that bridges the two, which the whole privacy design is built
          around. {% endcomment %}
@@ -61,10 +68,11 @@
         </label>
       {% endfor %}
     </fieldset>
-    <button type="submit">Continue<span class="visually-hidden"> to making this new household</span></button>
+    {# The second of the two, under New Household. Same reason as the first. #}
+    <button type="submit">Create Household And Add</button>
   </form>
 
-  <h2>Take them out of a household</h2>
+  <h2>Remove From A Household</h2>
   {% if current %}
     <ul class="pods">
       {% for pod, pod_sides, is_last in current %}
@@ -74,21 +82,21 @@
           {% if is_last %}
             {% comment %} No button at all, rather than one that is refused on tap: a link
                that lies is worse than a missing one. {% endcomment %}
-            <p class="muted">This is their only household, so they cannot be taken out of it.
-            Somebody in no household cannot see anyone, or be seen by anyone. Add them to
-            another household first, or remove them from the family on the members page.</p>
+            <p class="muted">This is their only household, and somebody in no household
+            cannot see anyone or be seen. Add them to another household first, or remove
+            them from Backyard on the Members page.</p>
           {% else %}
             <form method="post" action="{% url 'change_household' target.id %}">
               {% csrf_token %}
               <input type="hidden" name="act" value="remove">
               <input type="hidden" name="pod_id" value="{{ pod.id }}">
-              <button type="submit">Take them out of {{ pod.name }}</button>
+              <button type="submit">Take Them Out Of {{ pod.name }}</button>
             </form>
           {% endif %}
         </li>
       {% endfor %}
     </ul>
   {% else %}
-    <p class="muted">{{ target.display_name }} is not in a household you look after.</p>
+    <p class="muted">{{ target.display_name }} is not in a household you manage.</p>
   {% endif %}
 {% endblock %}

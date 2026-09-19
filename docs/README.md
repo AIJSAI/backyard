@@ -59,7 +59,7 @@ sequenceDiagram
     participant A as Backyard
     participant Admin as Whoever set it up
 
-    Admin->>A: Members → Nana → Elder link
+    Admin->>A: Members → Nana → No-Login Link
     A-->>Admin: one URL, shown once
     Admin->>N: hands it over in person, or prints the QR
 
@@ -69,7 +69,7 @@ sequenceDiagram
     Note over N,A: the token is now out of the address bar,<br/>out of history, out of screenshots
 
     N->>A: reads the feed, taps ❤️
-    Note over N,A: no password, ever<br/>replying to the family email opens the app AT the thread
+    Note over N,A: no password, ever<br/>and never enrolled in Email Updates
 
     Admin->>A: Regenerate (lost phone, forwarded link)
     A->>A: bump Nana's generation
@@ -83,10 +83,11 @@ that one click kills everything derived from it.
 **This diagram used to end "replies by email", and that was never true of an elder.** An
 elder has no user account by design (TM-10), and the digest opt-in page is `@login_required`
 and self-only (`src/core/digesting_views.py`, `@login_required` on `digest_settings`) — so
-she is never enrolled in the family email and never receives one to reply to. What the
-digest offers a *member* is a "Reply in Backyard" link straight to the thread
+she is never enrolled in Email Updates and never receives one to reply to. What an email
+update offers a *member* is a "Reply In Backyard" link to the thread
 (`src/core/templates/core/email/digest.txt`), which is the founder's S-503 ruling. `README.md`
-was corrected months ago; this diagram was missed, which is why both are named here.
+was corrected months ago; this diagram carried the claim until the 2026-09-19 copy pass,
+which is why both are named here.
 
 ### 3. What happens to a photograph
 

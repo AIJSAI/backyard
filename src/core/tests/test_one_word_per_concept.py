@@ -1,181 +1,148 @@
 """One word per concept, held by a guard rather than by care.
 
-The product used three words for a household (pod / household / house), two for a side of
-the family (yard / side of the family), three for the Family email (digest / weekly email /
-Digest delivery), and printed "elder path", "token" and "instance" at relatives. The worst
-of it was one tap wide: the composer said "Our house", the feed said "your household", and
-the confirmation screen one tap later said "not only your pod".
+THE TRUE STORY OF THIS FILE, because the first version of it told a shorter one.
 
-A first-time relative cannot build a mental model when the same object is renamed on every
-screen — and the control that decides who sees their phone number was labelled "People in
-my yards", with no screen in the product defining a yard.
+A builder ruled a vocabulary on 2026-09-19 and wrote it into this guard: household, side
+of the family, "the Family email", no-login link, this Backyard. It fixed a real defect —
+the product had three words for a household and two for a side — and it was still a
+builder choosing words for a family he is not in.
 
-The vocabulary, ruled 2026-09-19:
+The OWNER read every string the product shows a person, later the same day, and overruled
+it. He called the writing "quick junk filler", "AI fluff" and "really far from polished",
+and the ruling that matters here is that "the Family email" is not the answer either:
+"Never the word digest" AND "not the Family email either — pick something better." The
+feature is **Email Updates**. He also asked for much less "family" everywhere ("Yes it's
+family but let's not make it all family branded"), and struck out the filler, the idioms
+and the reassurance he found on the first ten screens, by name.
 
-    household          never pod, never house
-    side of the family never yard
-    the Family email   never digest
-    no-login link      never elder path, never token
-    this Backyard      never instance
+So the vocabulary below is HIS, not the builder's, and the words this guard once
+recommended as replacements are among the words it now bans. That is the whole reason the
+docstring says so: a guard that quietly swapped one ruling for another would leave the next
+reader thinking the first one had been wrong on its own terms, and it was not — it was
+overruled.
 
-Model fields, URL names, class names and Python identifiers are NOT covered and are not
-supposed to be: `Pod`, `Yard` and `DigestSubscription` are what the code calls these
-things, and renaming them would be a migration, not a copy pass. What is covered is
-everything a person reads — a template's visible text, and the body and subject of every
-e-mail this product can send.
+The vocabulary, as ruled on 2026-09-19:
 
-HOW IT READS A TEMPLATE. Comments (both syntaxes), <style>, <script>, template tags and
-template variables are removed before the search, so `{% url 'pod_list' %}`,
-`class="pods"`, `name="pod_id"` and `{{ pod.name }}` are invisible to it and the words a
-person reads are all that is left. "Backyard" contains "yard" and survives, because the
-search is on word boundaries.
+    household           never pod, never house
+    side of the family  never yard
+    Email Updates       never digest, never "the Family email"
+    no-login link       never elder path, never token
+    this Backyard       never instance
+
+WHAT IS COVERED. Everything a person reads: a template's visible text, every model choice
+LABEL (which a template scan cannot see, because the template only says `{{ ... }}`), the
+role descriptions on the roster, and the subject and body of every e-mail this product can
+send. The stripping all three copy guards share is `copy_scan.py`; the voice and the
+capitalisation live in their own files beside this one.
+
+RUN IT ON ONE FILE. The template sweep is parametrised by template, so a group working on
+its own screens can run `pytest -k "welcome_email.html"` and see only its own.
 """
 
 from __future__ import annotations
 
 import pathlib
-import re
 
 import pytest
 
-_SRC = pathlib.Path(__file__).resolve().parents[2]
-_TEMPLATE_ROOTS = (_SRC / "core" / "templates", _SRC / "templates")
+from core.tests.copy_scan import (
+    ALLOWED,
+    BANNED,
+    TEMPLATE_ROOTS,
+    prose,
+    script_strings,
+    template_key,
+    templates,
+    visible_text,
+    vocabulary_offences,
+)
 
-# The banned words, each with the word the product uses instead. The message a failure
-# prints is the replacement, because "pod is banned" is not actionable and
-# "pod -> household" is.
-BANNED: dict[str, str] = {
-    "pod": "household (or group, for an ad-hoc one)",
-    "pods": "households (or groups)",
-    # "house" was DOCUMENTED as banned above and missing from this dict, so the guard
-    # could not see the placeholders that still said "e.g. Our house" — which is exactly
-    # the kind of gap an allowlist-shaped check rots into. Review caught it.
-    "house": "household",
-    "houses": "households",
-    "yard": "side of the family",
-    "yards": "sides of the family",
-    "digest": "the Family email",
-    "digests": "Family emails",
-    "instance": "this Backyard",
-    "instances": "Backyards",
-    "token": "link",
-    "tokens": "links",
-    "elder path": "no-login link",
-    "elder link": "no-login link",
-}
-
-# ALLOWLIST. Kept small and each entry says who reads that surface and why the word is
-# the honest one there. It is a per-(file, word) exemption, never a whole-file pass.
-#
-# Only one entry, and it is an operator surface: the weekly health e-mail goes to the
-# instance admin and to nobody else, and it is about the SERVER — the box, its disk, its
-# backups. "This Backyard" would be a worse word there, because the thing being reported
-# on is not the family's page, it is the machine underneath it.
-ALLOWED: dict[str, set[str]] = {
-    "core/email/health.txt": {"instance"},
-}
+_TEMPLATES = templates()
+_KEYS = [template_key(path) for path in _TEMPLATES]
 
 
-# Attributes whose VALUE is copy a person reads or hears: the grey hint inside an empty
-# box, the name a screen reader announces, a tooltip, a picture's description. Stripping
-# tags wholesale took these with the ids and the class names, which is how "e.g. Our
-# house" survived the vocabulary pass on the setup screen.
-_VISIBLE_ATTRS = re.compile(r'\b(?:placeholder|aria-label|title|alt)="([^"]*)"', re.I)
-
-
-def _visible_text(source: str) -> str:
-    """What a person actually reads on the page.
-
-    Everything a browser does not render as words comes out first: both comment
-    syntaxes, <style> and <script> bodies, template tags and variables, and finally HTML
-    tags — which takes every attribute with them, so an id, a class, a form field name
-    and a `{% url %}` route name cannot trip this guard. The four attributes above are
-    lifted back out before that happens, because their values are read aloud or shown.
-    """
-    text = re.sub(r"\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}", " ", source, flags=re.S)
-    text = re.sub(r"\{#.*?#\}", " ", text, flags=re.S)
-    text = re.sub(r"<style[^>]*>.*?</style>", " ", text, flags=re.S | re.I)
-    text = re.sub(r"<script[^>]*>.*?</script>", " ", text, flags=re.S | re.I)
-    text = re.sub(r"\{\{.*?\}\}", " ", text, flags=re.S)
-    text = re.sub(r"\{%.*?%\}", " ", text, flags=re.S)
-    spoken = " ".join(_VISIBLE_ATTRS.findall(text))
-    return re.sub(r"<[^>]+>", " ", text) + " " + spoken
-
-
-def _prose(text: str) -> str:
-    """An e-mail body with its URLs removed.
-
-    A link in a plain-text e-mail is visible, but the PATH inside it is a route name —
-    `/digest/unsubscribe/<token>/` — and routes are code identifiers, which this guard
-    deliberately does not police. Renaming them would be a redirect problem, not a copy
-    one, and would break every link already sitting in somebody's inbox. What is left
-    after this is the sentences.
-    """
-    return re.sub(r"https?://\S+", " ", text)
-
-
-def _offences(text: str, allowed: set[str]) -> list[str]:
-    found: list[str] = []
-    for word, replacement in BANNED.items():
-        if word in allowed:
-            continue
-        if re.search(rf"\b{re.escape(word)}\b", text, re.I):
-            found.append(f"{word!r} (say: {replacement})")
-    return found
-
-
-def _templates() -> list[pathlib.Path]:
-    paths: list[pathlib.Path] = []
-    for root in _TEMPLATE_ROOTS:
-        for pattern in ("*.html", "*.txt"):
-            paths.extend(root.rglob(pattern))
-    return sorted(paths)
-
-
-def test_no_template_shows_a_banned_word_to_a_person() -> None:
-    offenders: list[str] = []
-    for path in _templates():
-        key = str(path.relative_to(path.parents[1] if path.parent.name else path.parent))
-        # The key is the path as a reader would name it: "core/email/health.txt",
-        # "account/email/base_message.txt". Computed from the template ROOT, so it does
-        # not move when the repository does.
-        for root in _TEMPLATE_ROOTS:
-            if root in path.parents:
-                key = str(path.relative_to(root))
-                break
-        hits = _offences(_visible_text(path.read_text()), ALLOWED.get(key, set()))
-        if hits:
-            offenders.append(f"{key}: {', '.join(hits)}")
-    assert not offenders, (
-        "the product's internal nouns are back in text a relative reads. One word per "
-        "concept:\n  " + "\n  ".join(offenders)
+@pytest.mark.parametrize("path", _TEMPLATES, ids=_KEYS)
+def test_no_template_shows_a_banned_word_to_a_person(path: pathlib.Path) -> None:
+    key = template_key(path)
+    hits = vocabulary_offences(visible_text(path.read_text()), ALLOWED.get(key, set()))
+    assert not hits, (
+        f"{key} shows a relative a word the owner struck out. One word per concept:\n  "
+        + "\n  ".join(hits)
     )
+
+
+@pytest.mark.parametrize("path", _TEMPLATES, ids=_KEYS)
+def test_no_word_a_script_writes_onto_the_page_is_a_banned_one(path: pathlib.Path) -> None:
+    """The sweep above cannot see these: `<script>` is stripped before it reads a word.
+
+    A script still writes words a person reads — a button's label, an error sentence, the
+    name a screen reader announces — and `copy_scan.script_strings` is the narrow reader
+    for them. Same vocabulary, same allowlist, so "the digest is sending" typed into a
+    `textContent` fails exactly as it would in an `<h1>`.
+    """
+    key = template_key(path)
+    allowed = ALLOWED.get(key, set())
+    faults = [
+        f"{where} {text!r}: " + "; ".join(hits)
+        for where, text in script_strings(path.read_text())
+        if (hits := vocabulary_offences(text, allowed))
+    ]
+    assert not faults, f"{key} has a script writing a struck-out word:\n  " + "\n  ".join(faults)
+
+
+def test_the_script_reader_is_not_vacuous() -> None:
+    """It finds the shapes it claims to, and still ignores everything else in a script."""
+    assert script_strings('<script>el.textContent = "Turn On The Digest";</script>')
+    assert script_strings("<script>el.innerText = 'Your Pods';</script>")
+    assert script_strings('<script>b.setAttribute("aria-label", "Remove This Photo");</script>')
+    assert script_strings(
+        '<script type="application/json">{"confirmDelete": "Are You Sure?"}</script>'
+    )
+    assert vocabulary_offences(
+        script_strings('<script>el.textContent = "The Digest";</script>')[0][1]
+    )
+    # A comment, a selector, a class name, a MIME type and a data value are not copy.
+    assert not script_strings("<script>// the digest is sent by the worker\n</script>")
+    assert not script_strings("<script>/* a pod is a household */ var x = 1;</script>")
+    assert not script_strings("<script>document.querySelector('.pods');</script>")
+    assert not script_strings("<script>el.className = 'yard';</script>")
+    assert not script_strings("<script>canvas.toBlob(r, 'image/jpeg', 0.85);</script>")
+    assert not script_strings("<script>if (el.getAttribute('data-when') === 'date') {}</script>")
+    assert not script_strings("<script>el.textContent = file.name;</script>")
+    assert not script_strings("<script>el.textContent = '';</script>")
 
 
 def test_the_guard_is_not_vacuous() -> None:
     """Prove it can fail, and prove the stripping it depends on is real.
 
-    Without this, a regex that matched nothing — or a `_visible_text` that stripped the
+    Without this, a regex that matched nothing — or a `visible_text` that stripped the
     whole document — would report a clean product forever.
     """
-    assert _offences(_visible_text("<p>Start a pod that is just your group</p>"), set())
-    assert _offences(_visible_text("<h1>Your yards</h1>"), set())
-    assert _offences(_visible_text("<p>Turn on the digest</p>"), set())
-    assert _offences(_visible_text("<p>This is the elder path.</p>"), set())
-    assert not _offences(_visible_text("<h1>Your backyard</h1>"), set())
-    assert _offences(_visible_text('<input placeholder="e.g. Our house">'), set())
-    assert _offences(_visible_text('<a aria-label="Your pods">Groups</a>'), set())
+    assert vocabulary_offences(visible_text("<p>Start a pod that is just your group</p>"))
+    assert vocabulary_offences(visible_text("<h1>Your yards</h1>"))
+    assert vocabulary_offences(visible_text("<p>Turn on the digest</p>"))
+    assert vocabulary_offences(visible_text("<p>Do you want the Family email?</p>"))
+    assert vocabulary_offences(visible_text("<p>This is the elder path.</p>"))
+    assert vocabulary_offences(visible_text("<p>You look after a side of the family.</p>"))
+    assert vocabulary_offences(visible_text("<p>Post when you feel like it.</p>"))
+    assert vocabulary_offences(visible_text("<p>Members are taken straight to the feed.</p>"))
+    assert vocabulary_offences(visible_text("<p>Tell us the name they will see.</p>"))
+    assert not vocabulary_offences(visible_text("<h1>Your Backyard</h1>"))
+    assert not vocabulary_offences(visible_text("<p>Your household will see this.</p>"))
+    assert vocabulary_offences(visible_text('<input placeholder="e.g. Our house">'))
+    assert vocabulary_offences(visible_text('<a aria-label="Your pods">Groups</a>'))
     # ...and cannot fail for the wrong reasons.
-    assert not _offences(_visible_text('<a href="/pods/" class="pods">Groups</a>'), set())
-    assert not _offences(_visible_text("{% url 'pod_list' %}{{ pod.name }}"), set())
-    assert not _offences(_visible_text("{% comment %}the pod list{% endcomment %}"), set())
-    assert not _offences(_visible_text("{# a yard is a side of the family #}"), set())
-    assert not _offences(_visible_text("<style>ul.pods { margin: 0 }</style>"), set())
+    assert not vocabulary_offences(visible_text('<a href="/pods/" class="pods">Groups</a>'))
+    assert not vocabulary_offences(visible_text("{% url 'pod_list' %}{{ pod.name }}"))
+    assert not vocabulary_offences(visible_text("{% comment %}the pod list{% endcomment %}"))
+    assert not vocabulary_offences(visible_text("{# a yard is a side of the family #}"))
+    assert not vocabulary_offences(visible_text("<!-- the digest token -->"))
+    assert not vocabulary_offences(visible_text("<style>ul.pods { margin: 0 }</style>"))
 
 
 def test_the_template_sweep_actually_sees_the_product() -> None:
     """Guard the guard. A broken glob scans nothing and passes."""
-    names = {p.name for p in _templates()}
+    names = {p.name for p in _TEMPLATES}
     assert len(names) > 30, f"only {len(names)} templates found; the globs are wrong"
     for expected in ("feed.html", "members.html", "digest.txt", "base_message.txt"):
         assert expected in names, f"{expected} was not scanned"
@@ -186,33 +153,36 @@ def test_every_allowlist_entry_still_points_at_a_real_file_and_a_real_word() -> 
     nothing — the failure mode `_UNLINKED_BY_DESIGN` already taught this repository once,
     where an entry named a route that did not exist and had been a no-op since it was
     written."""
-    known = set()
-    for root in _TEMPLATE_ROOTS:
-        for pattern in ("*.html", "*.txt"):
-            known |= {str(p.relative_to(root)) for p in root.rglob(pattern)}
+    known = {template_key(path) for path in _TEMPLATES}
     for key, words in ALLOWED.items():
         assert key in known, f"the allowlist names {key}, which is not a template"
         assert words <= set(BANNED), f"the allowlist for {key} names a word nothing bans"
-        text = _visible_text((_SRC / "core" / "templates" / key).read_text())
-        assert _offences(text, set()), (
+        path = next(p for p in _TEMPLATES if template_key(p) == key)
+        assert vocabulary_offences(visible_text(path.read_text())), (
             f"the allowlist excuses {key}, and that file no longer uses any banned word. "
             "Delete the entry rather than leaving a standing exemption behind."
         )
 
 
+def test_the_template_roots_are_both_real() -> None:
+    """The keys, the allowlist and every `-k` filter are computed from these."""
+    for root in TEMPLATE_ROOTS:
+        assert root.is_dir(), f"{root} is not a directory; the scan is looking at nothing"
+
+
 # --- the model choice labels ----------------------------------------------------------
 #
-# A template scan cannot see these either. `{{ member.get_role_display }}` renders a
-# string that lives in models.py, so the roster badge, the role select and "What the roles
-# mean" all read "Yard admin" and "Instance admin" while the guard above reported a clean
-# product — the template says `{{ ... }}` and `_visible_text` strips it, correctly, because
-# the word is not IN the template. Found on the 2026-09-19 walk, on the one screen where a
-# relative is handed the admin controls.
+# A template scan cannot see these. `{{ member.get_role_display }}` renders a string that
+# lives in models.py, so the roster badge, the role select and "What the roles mean" all
+# read whatever the model says while the template scan reports a clean product — the
+# template says `{{ ... }}` and the stripper removes it, correctly, because the word is not
+# IN the template. Found on the 2026-09-19 walk, on the one screen where a relative is
+# handed the admin controls.
 #
 # The VALUES are not covered and must not be: `yard_admin` and `instance_admin` are what
 # the database stores and what every permission predicate compares against, and renaming
-# them would be a migration of live rows, not a copy pass. Only the second element of each
-# pair — the label a person reads — is scanned.
+# them would be a migration of live rows. Only the second element of each pair — the label
+# a person reads — is scanned.
 
 
 def _choice_labels() -> list[tuple[str, str]]:
@@ -221,11 +191,25 @@ def _choice_labels() -> list[tuple[str, str]]:
     field added later is covered without anybody remembering to add it here."""
     from django.apps import apps
 
+    from core import admin_views, removal
+
     pairs: list[tuple[str, str]] = []
     for model in apps.get_app_config("core").get_models():
         for field in model._meta.get_fields():
             for _value, label in getattr(field, "choices", None) or ():
                 pairs.append((f"{model.__name__}.{field.name}", str(label)))
+    # NOT model fields, and read by an admin beside three radio buttons on the most
+    # destructive act in the product: what happens to a removed member's writing, and the
+    # sentence that confirms it. `{{ label }}` in members.html is invisible to the template
+    # sweep for the same reason get_FOO_display is.
+    pairs.extend(("removal.CONTENT_CHOICES", label) for _value, label in removal.CONTENT_CHOICES)
+    pairs.extend(
+        ("admin_views._WHAT_HAPPENED_TO_THEIR_POSTS", text)
+        for text in admin_views._WHAT_HAPPENED_TO_THEIR_POSTS.values()
+    )
+    # The contact-field labels, built in profiles.viewable_profile and rendered through
+    # {{ field.label }}: Python literals, the same hole.
+    pairs.extend(("profiles.viewable_profile", label) for label in ("Phone", "Email", "Address"))
     return pairs
 
 
@@ -233,13 +217,30 @@ def test_no_model_choice_label_shows_a_banned_word_to_a_person() -> None:
     offenders = [
         f"{where}: {label!r} — {', '.join(hits)}"
         for where, label in _choice_labels()
-        if (hits := _offences(label, set()))
+        if (hits := vocabulary_offences(label))
     ]
     assert not offenders, (
-        "a choice LABEL carries one of the product's internal nouns. These render straight "
-        "at a relative through get_FOO_display, so a clean template scan proves nothing "
-        "about them. Rename the label, never the stored value:\n  " + "\n  ".join(offenders)
+        "a choice LABEL carries a word the owner struck out. These render straight at a "
+        "relative through get_FOO_display, so a clean template scan proves nothing about "
+        "them. Rename the label, never the stored value:\n  " + "\n  ".join(offenders)
     )
+
+
+def test_no_role_description_shows_a_banned_word_to_a_person() -> None:
+    """The sentences under "What the roles mean" on the roster, which are prose in
+    models.py and invisible to every template scan for the same reason as the labels.
+
+    "You look after a side of the family" is the exact sentence the owner rewrote to "You
+    are a Side Admin. You can add and remove members on your side.", so "look after" is on
+    the banned list and this is the surface it was on."""
+    from core.models import Member
+
+    offenders = [
+        f"{role}: {text!r} — {', '.join(hits)}"
+        for role, text in Member.ROLE_DESCRIPTIONS.items()
+        if (hits := vocabulary_offences(text))
+    ]
+    assert not offenders, "a role description carries a struck word:\n  " + "\n  ".join(offenders)
 
 
 def test_the_choice_sweep_actually_sees_the_product() -> None:
@@ -250,19 +251,19 @@ def test_the_choice_sweep_actually_sees_the_product() -> None:
     where = {w for w, _ in pairs}
     assert "Member.role" in where, "the roles were not scanned, and they are the reason"
     labels = {label for w, label in pairs if w == "Member.role"}
-    assert {"Side admin", "Family admin"} <= labels, labels
+    assert {"Side Admin", "Family Admin"} <= labels, labels
 
 
 # --- the e-mails --------------------------------------------------------------------
 #
-# A template scan cannot see a subject line assembled in Python, and the digest's subject
-# was one: "<side>: your family digest". These build the real messages and read them.
+# A template scan cannot see a subject line assembled in Python, and the periodic e-mail's
+# subject is one. These build the real messages and read them.
 
 
 @pytest.mark.django_db
-def test_the_family_email_carries_no_banned_word_in_subject_or_body() -> None:
-    """The whole message as it leaves: subject, plain text, and the HTML part mail
-    clients actually render."""
+def test_the_email_updates_message_carries_no_banned_word_in_subject_or_body() -> None:
+    """The whole message as it leaves: subject, plain text, and the HTML part mail clients
+    actually render."""
     import datetime
 
     from django.utils import timezone
@@ -288,12 +289,13 @@ def test_the_family_email_carries_no_banned_word_in_subject_or_body() -> None:
         digest_token=digest_links.mint(issue),
         unsubscribe_token="unsub-raw-value",
     )
-    # Non-vacuity: the message really does carry the family's content, so a clean scan
-    # is a scan of a real email rather than of an empty string.
+    # Non-vacuity: the message really does carry the family's content, so a clean scan is a
+    # scan of a real email rather than of an empty string.
     assert "A photo from the weekend" in built.text
     for part, name in ((built.subject, "subject"), (built.text, "text body")):
-        assert not _offences(_prose(str(part)), set()), f"the Family email's {name}: {part[:200]!r}"
-    assert not _offences(_prose(_visible_text(built.html)), set()), "the Family email's HTML"
+        hits = vocabulary_offences(prose(str(part)))
+        assert not hits, f"the email update's {name}: {part[:200]!r}"
+    assert not vocabulary_offences(prose(visible_text(built.html))), "the email update's HTML"
 
 
 @pytest.mark.django_db
@@ -316,8 +318,8 @@ def test_the_address_confirmation_email_carries_no_banned_word() -> None:
     assert len(mail.outbox) == 1
     message = mail.outbox[0]
     assert "confirm" in message.body.lower()  # non-vacuity: it is the confirmation
-    assert not _offences(_prose(str(message.subject)), set()), message.subject
-    assert not _offences(_prose(str(message.body)), set()), message.body
+    assert not vocabulary_offences(prose(str(message.subject))), message.subject
+    assert not vocabulary_offences(prose(str(message.body))), message.body
 
 
 @pytest.mark.django_db(transaction=True)
@@ -366,30 +368,5 @@ def test_the_account_email_allauth_sends_at_join_carries_no_banned_word() -> Non
     )
     assert "cousinreed" not in message.body, "the e-mail prints the member's username"
     assert "register an account" not in message.body
-    assert not _offences(_prose(str(message.subject)), set()), message.subject
-    assert not _offences(_prose(str(message.body)), set()), message.body
-
-
-def test_no_exclamation_marks_in_the_product_copy() -> None:
-    """Tone, ruled the same day: calm, warm, short. Nothing shouts.
-
-    Scoped to visible text for the same reason as the words above, and to the templates
-    this product wrote — the two `{% element %}` layers allauth ships are not ours.
-    """
-    offenders: list[str] = []
-    for path in _templates():
-        for root in _TEMPLATE_ROOTS:
-            if root in path.parents:
-                key = str(path.relative_to(root))
-                break
-        else:  # pragma: no cover - the loop above always matches
-            key = path.name
-        # `[!]` is the weekly health e-mail's marker beside a line that wants the
-        # instance admin's attention — a flag in a fixed-width report, not a raised
-        # voice. Removed before the check rather than allowlisting the whole file, so a
-        # real exclamation mark in that e-mail would still be caught.
-        text = _visible_text(path.read_text()).replace("[!]", "")
-        if "!" in text:
-            context = text[max(0, text.index("!") - 60) : text.index("!") + 10]
-            offenders.append(f"{key}: ...{' '.join(context.split())}")
-    assert not offenders, "product copy does not shout:\n  " + "\n  ".join(offenders)
+    assert not vocabulary_offences(prose(str(message.subject))), message.subject
+    assert not vocabulary_offences(prose(str(message.body))), message.body

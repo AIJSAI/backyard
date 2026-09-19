@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>Your family</title>
+  <title>Your Backyard</title>
   <style>
 /* elder_feed.html <style> replacement — design v3 (Signage).
    STANDALONE by design: no base.html tokens, deliberately light-only.
@@ -55,6 +55,10 @@ button.on { background: #1e5c46; color: #ffffff; }
 button:focus-visible, a:focus-visible { outline: 3px solid #8a5a12; outline-offset: 3px; }
 .post { border-top: 2px solid #d9e0da; padding: 24px 0; }
 .byline { color: #4c5a52; margin: 0 0 12px; }
+/* Whose link this is, under the top bar. Same quiet colour as a post's byline (#4c5a52 on
+   #ffffff, 7.26:1) because it is the same kind of thing: a fact about the page, not news
+   from a grandchild. It scales with the big-text toggle like everything else here. */
+.for-reader { margin: 12px 0 0; color: #4c5a52; }
 .post p { margin: 0 0 18px; }
 /* A post keeps the shape it was typed in here too. It is the surface most likely to
    carry a recipe off a card, or an address, and a grandmother reading a run-on
@@ -97,12 +101,37 @@ p.clip-status { margin: 18px 0; color: #4c5a52; }
     <strong>
       {# Flat one-colour Homestead mark (navy), decorative. #}
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.4 L20.6 10.8 V20.6 H3.4 V10.8 Z M9.7 20.6 V14.8 A2.3 2.3 0 0 1 14.3 14.8 V20.6 Z" fill="currentColor"/></svg>
-      Hello, {{ member.kinship_name|default:member.display_name }}
+      {% comment %} "Hello, Nana" until the copy pass. A greeting is the one thing on this
+         page she cannot act on, and this is the surface with the strictest word budget in
+         the product. What the top of a page is for is saying which page it is, and the
+         glossary has one name for the feed on every surface. There is no account switcher
+         here and no second identity to tell apart: she arrived on a link that is hers.
+      {% endcomment %}
+      Your Backyard
     </strong>
     <form method="post" action="{% url 'elder_text_size' %}">{% csrf_token %}
-      <button type="submit">{% if big_text %}Regular text{% else %}Bigger text{% endif %}</button>
+      <button type="submit">{% if big_text %}Regular Text{% else %}Bigger Text{% endif %}</button>
     </form>
   </div>
+
+  {% comment %} WHOSE LINK THIS IS. "Hello, Nana" was rightly cut as a greeting she cannot
+     act on, but it carried the only statement of whose page this was, and this is the one
+     surface where a name is load-bearing rather than decorative: a no-login link reads and
+     sends love AS its holder, and on the shared tablet this page exists for, two
+     grandparents with two links open a byte-identical page. Love sent from the wrong link
+     is attributed to the wrong person and she cannot undo it.
+
+     A FACT, not a greeting: "For <name>", with nothing around it. The kinship name first
+     because that is what this family actually calls her and what the reactions further
+     down already print; her first name as the fallback, never the full one, which wraps to
+     three lines at the enlarged size. Guarded on truthiness so a member with neither
+     renders nothing rather than a sentence with a hole in it.
+
+     UNDER the top bar, not inside it: `.top` is a space-between flex row, so a third child
+     would land between the title and the Bigger Text button. {% endcomment %}
+  {% if member.kinship_name or member.short_name %}
+    <p class="for-reader">For {{ member.kinship_name|default:member.short_name }}</p>
+  {% endif %}
 
   {% for post in posts %}
     <article class="post" id="post-{{ post.id }}">
@@ -137,15 +166,27 @@ p.clip-status { margin: 18px 0; color: #4c5a52; }
             {% comment %} Both non-done states used to render NOTHING here, so a clip that
                failed left her looking at a post that plainly refers to a video she cannot
                see, with no explanation. The feed has said this for three waves; the elder
-               page did not. {% endcomment %}
-            <p class="clip-status">This video couldn't be shown.</p>
+               page did not.
+
+               WORD FOR WORD with core/feed.html and core/post_detail.html. This page had
+               its own two sentences for the same two states, which is a second name for
+               one thing — and the plainer of the two registers is not obviously this one:
+               "Check back in a few minutes" asks a reader with no other page to go to for
+               a judgement about time. {% endcomment %}
+            <p class="clip-status">This video could not be processed.</p>
           {% else %}
-            <p class="clip-status">A video is on its way — check back in a few minutes.</p>
+            <p class="clip-status">This video is still processing.</p>
           {% endif %}
         {% endif %}
       {% endfor %}
       {% for comment in post.comments.all|slice:":5" %}
-        <p class="reply"><strong>{{ comment.author.display_name }}</strong>{% if comment.via_email %} (by email){% endif %}{% if comment.body %} said: {{ comment.body }}{% else %} sent photos{% endif %}</p>
+        {% comment %} "Via Email", the same badge the post page and the digest page carry.
+           The comment here claimed the three surfaces were unified while this one still
+           said "(via email)" in lower case against their "Via Email" — one object, two
+           spellings, on the page the guide is most protective of. This surface is
+           standalone and has no `.via-email` component, so it is the WORDS that match,
+           without the pill. {% endcomment %}
+        <p class="reply"><strong>{{ comment.author.display_name }}</strong>{% if comment.via_email %} (Via Email){% endif %}{% if comment.body %} said: {{ comment.body }}{% else %} sent photos{% endif %}</p>
         {% comment %} S-404. Deliberately <img src> and NOT wrapped in a link, exactly as
            the post's own photos are: test_elder_wcag asserts every href on this page is
            the elder feed itself (S-601, no dead ends), so a full-size link would red the
@@ -172,7 +213,7 @@ p.clip-status { margin: 18px 0; color: #4c5a52; }
       <div class="love" id="love-{{ post.id }}">
         <form method="post" action="{% url 'elder_react' post.id %}">{% csrf_token %}
           <button type="submit" {% if post.id in my_reactions %}class="on"{% endif %}>
-            {% if post.id in my_reactions %}&#10084; You love this{% else %}&#9825; Send love{% endif %}
+            {% if post.id in my_reactions %}&#10084; You Love This{% else %}&#9825; Send Love{% endif %}
           </button>
         </form>
         {% for reaction in post.reactions.all %}
@@ -181,18 +222,26 @@ p.clip-status { margin: 18px 0; color: #4c5a52; }
       </div>
     </article>
   {% empty %}
-    <p class="post">Nothing new right now. Your family's posts will appear here.</p>
+    {% comment %} An empty state is one line saying what is empty plus the one action. There is no
+       action on this surface, so the second sentence only restated the first. {% endcomment %}
+    <p class="post">Nothing new right now.</p>
   {% endfor %}
-  <p class="back-wrap"><a class="back" href="{% url 'elder_feed' %}">Back to the top of your family's page</a></p>
+  <p class="back-wrap"><a class="back" href="{% url 'elder_feed' %}">Back To The Top</a></p>
   {% comment %} The same help line the rest of the product carries, naming the relative who
      runs this Backyard rather than "whoever set this up". Owner direction 2026-09-19: the
      grandparent's page gets it too, because she is the person most likely to be stuck and
      least likely to guess who to ring.
 
+     ONE COMPONENT, from `core/_footer.html`, in its `standalone` shape: the sentence in a
+     <p class="source-note"> and nothing else. This page used to hand-write that sentence,
+     which is how it came to read "Stuck? Ask ..." for a week after every other surface said
+     "Need help? Contact ...". The standalone shape emits no <footer> and no links, so this
+     template's own CSS still styles it and it stays within S-601.
+
      TEXT, NOT A LINK. S-601 gives this surface no way off itself: every href here must be
      the elder feed, so nothing here can strand her somewhere she cannot get back from. The
      name comes from the database at render time, never a literal in this public repo. {% endcomment %}
-  <p class="source-note">Stuck? Ask {% if help_contact %}{{ help_contact }}{% else %}the person who invited you{% endif %}.</p>
+  {% include "core/_footer.html" with standalone=True %}
   {% comment %} THE LICENCE OFFER IS NOT ON THIS PAGE, and its absence is the decision.
 
      It used to be: two lines of AGPL-3.0-or-later and a GitHub URL, under the help line,

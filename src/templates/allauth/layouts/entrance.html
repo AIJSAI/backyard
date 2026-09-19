@@ -14,7 +14,15 @@
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.4 L20.6 10.8 V20.6 H3.4 V10.8 Z M9.7 20.6 V14.8 A2.3 2.3 0 0 1 14.3 14.8 V20.6 Z" fill="currentColor"/></svg>
       Backyard
     </a>
-    <p class="lede">This Backyard is invite-only. If someone in the family sent you a link, open it to join.</p>
+    {% comment %} EMPTY BY DEFAULT, and only account/login.html fills it. Every other page in
+       this shell is read by somebody who is ALREADY a member: resetting a password,
+       confirming an address, taking the second sign-in step, proving it is them, or reading
+       that their access was removed. "Open your invite link to join" is the wrong
+       instruction for all of them. Gating on `user.is_authenticated` was not enough: the
+       second step and the emailed confirmation are both read signed out. It sits outside
+       `content`, which is why it is a block of its own. (account/account_inactive.html used to
+       empty this block explicitly; it no longer needs to.) {% endcomment %}
+    {% block entrance_lede %}{% endblock %}
     {% comment %} The card is new in the v3.2 visual pass. Without it the entrance was a
        27rem column centred inside the shell while the footer sat at the shell's left
        edge, so the one screen carrying two elements had two different left margins.
@@ -22,15 +30,12 @@
     <div class="entrance-card">
       {% block content %}{% endblock %}
     </div>
-    {% comment %} The two quiet pages, offered where somebody who cannot get in can still
-       reach them. "About this Backyard" is also where the AGPL section 13 source offer
-       lives now that it is no longer printed under every photograph in the product —
-       test_agpl_source_offer.py walks this link rather than grepping for the URL, so a
-       change that leaves a network user with no route to the source fails the build.
-       {% endcomment %}
-    <p class="lede">
-      <a href="{% url 'how_it_works' %}">How this works</a> &middot;
-      <a href="{% url 'about' %}">About this Backyard</a>
-    </p>
+    {% comment %} The two quiet pages used to sit HERE, in a stray paragraph under the
+       card, and nowhere else on any signed-out surface. They are ordinary footer links
+       and they are now in the shared footer (core/_footer.html), which this layout
+       inherits from core/base.html along with every other page. "About" is where the
+       AGPL section 13 source offer lives; test_agpl_source_offer.py walks the link from
+       this page rather than grepping for the URL, so a change that leaves a network user
+       with no route to the source still fails the build. {% endcomment %}
   </div>
 {% endblock %}

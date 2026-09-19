@@ -182,7 +182,7 @@ def _done_video_asset(post: Post) -> MediaAsset:
 
 def test_validate_rejects_oversize(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(transcoding, "MAX_VIDEO_BYTES", 100)
-    with pytest.raises(media.MediaRejected, match="too large"):
+    with pytest.raises(media.MediaRejected, match="MB or smaller"):
         media.validate_video(b"\x00" * 200)
 
 
@@ -195,7 +195,7 @@ def test_validate_rejects_non_isobmff() -> None:
 def test_validate_rejects_overlong(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(transcoding, "MAX_VIDEO_DURATION_S", 0.5)
     raw = _make_video(tmp_path / "long.mp4", duration=2.0, with_location=False)
-    with pytest.raises(media.MediaRejected, match="too long"):
+    with pytest.raises(media.MediaRejected, match="seconds or shorter"):
         media.validate_video(raw)
 
 
@@ -381,7 +381,7 @@ def test_compose_rejects_oversize_video_upfront_with_no_post(
         {"body": "too big", "pod_id": world.m_pod.id, "videos": upload},
     )
     assert resp.status_code == 200  # re-rendered feed with the error, not a redirect
-    assert b"too large" in resp.content
+    assert b"MB or smaller" in resp.content
     assert Post.objects.count() == before  # the post was never created
     assert not MediaAsset.objects.filter(media_kind=MediaAsset.VIDEO).exists()
 

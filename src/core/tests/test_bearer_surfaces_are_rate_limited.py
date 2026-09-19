@@ -151,8 +151,12 @@ def test_the_refusal_is_the_products_own_page_not_a_bare_429(world: dict[str, An
     assert response.status_code == 429
     body = response.content.decode()
     assert "Too Many Requests" not in body, "this is allauth's bare fallback page"
-    assert "Just a moment" in body, body[:400]
-    assert "Nothing is wrong" in body
+    # The copy pass of 2026-09-19 renamed the page. The heading is deliberately NOT
+    # allauth's "Too Many Requests", because that phrase is how the assertion above tells
+    # the two pages apart; and the old page's "Nothing is wrong, and nothing you did was
+    # lost" went with it, as reassurance that was also not reliably true on a refused POST.
+    assert "Too Many Attempts" in body, body[:400]
+    assert "Wait a minute, then open it again." in body
     # The product's vocabulary, in the words a person READS: whole words, from the
     # rendered text only. `base.html` carries the whole stylesheet inline, so scanning the
     # raw HTML flags its `.pods` CSS class and the guard fails on something nobody sees.

@@ -1,0 +1,80 @@
+{% extends "mfa/webauthn/base.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's mfa/webauthn/authenticator_list.html.
+
+   The list of passkeys. Three of its strings were jargon a relative cannot act on: a
+   column called "Usage", and the badges "Passkey" / "Security key" / "Unspecified" beside
+   each row, which name a WebAuthn distinction rather than say what the key does. What the
+   badge actually reports is whether that key signs you in on its own or only as a second
+   step, so it says that.
+
+   One string in the stock file was never even translated: a bare "Not used." sitting in
+   the markup. It is a written sentence now, like the ones around it.
+
+   The table carries `data-label` on every cell, which the stock one did not: below 40rem
+   base.html reflows every table into stacked cards and prints that attribute as each
+   value's name, so without it this page was three unlabelled lines on a phone.
+
+   `.role` and `.flag` are this product's own badge classes — the same two the roster puts
+   beside a person's name — rather than allauth's `{% element badge %}`, which renders a
+   bare `<strong>` nothing here styles. {% endcomment %}
+{% load humanize i18n %}
+{% block content %}
+    <h1>{% trans "Passkeys" %}</h1>
+    {% if authenticators|length == 0 %}
+        <p>{% trans "No passkeys yet." %}</p>
+    {% else %}
+        <table class="passkeys">
+            <thead>
+                <tr>
+                    <th>{% trans "Passkey" %}</th>
+                    <th>{% trans "Added" %}</th>
+                    <th>{% trans "Change" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for authenticator in authenticators %}
+                    <tr>
+                        <td data-label="{% trans 'Passkey' %}">
+                            {{ authenticator }}
+                            {% if authenticator.wrap.is_passwordless is True %}
+                                <span class="role">{% trans "Signs You In On Its Own" %}</span>
+                            {% elif authenticator.wrap.is_passwordless is False %}
+                                <span class="role">{% trans "Second Step Only" %}</span>
+                            {% endif %}
+                            {% comment %} NOTHING in the third case. It used to print an
+                               amber "Not Known" flag — the badge this design system uses
+                               for an expired invite and a revoked link — beside a passkey
+                               the browser had just registered successfully. `is_passwordless`
+                               is None when the WebAuthn response did not report the
+                               attribute: that is a fact about the browser, not about the
+                               passkey or the family, the member can do nothing with it,
+                               and an alarm-coloured badge says they should. The other two
+                               states still say what they are. {% endcomment %}
+                        </td>
+                        <td data-label="{% trans 'Added' %}">
+                            {% comment %} "Sep 19, 2026", the one date shape in this product (it is
+                               pinned as DATE_FORMAT in core/templatetags/times.py).
+                               SHORT_DATE_FORMAT printed 09/19/2026 here, a second format
+                               for one object, and an ambiguous one outside the US. The
+                               plain filter rather than {% when_date %} because this
+                               allauth override does not include core/_localise_times.html,
+                               and the server's own zone is the right answer on an account
+                               page. {% endcomment %}
+                            {{ authenticator.created_at|date:"M j, Y" }}.
+                            {% if authenticator.last_used_at %}
+                                {% blocktranslate with last_used=authenticator.last_used_at|naturaltime %}Last used {{ last_used }}.{% endblocktranslate %}
+                            {% else %}
+                                {% trans "Never used." %}
+                            {% endif %}
+                        </td>
+                        <td data-label="{% trans 'Change' %}" class="actions">
+                            <a href="{% url 'mfa_edit_webauthn' pk=authenticator.pk %}">{% trans "Rename" %}</a>
+                            <a class="destructive" href="{% url 'mfa_remove_webauthn' pk=authenticator.pk %}">{% trans "Remove" %}</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+    <p><a class="btn" href="{% url 'mfa_add_webauthn' %}">{% trans "Add A Passkey" %}</a></p>
+{% endblock %}

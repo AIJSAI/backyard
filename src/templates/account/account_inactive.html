@@ -17,9 +17,9 @@
 
    No "Back to sign in" link, unlike the other entrance overrides. Those are for somebody
    who can still get in and needs a way back to the form; this reader cannot, and a link
-   straight back to the thing that just refused them is an invitation to keep trying. The
-   entrance layout still offers How this works and About this Backyard underneath, which
-   are the two pages that answer "what was this".
+   back to the thing that just refused them is an invitation to keep trying. The footer
+   still offers How It Works and About underneath, which are the two pages that answer
+   "what was this".
 
    Copy only otherwise: same layout, same blocks, same `{% element %}` tags as the
    package's version, so an allauth upgrade changes this page the way it changes the
@@ -28,13 +28,13 @@
 {% load i18n %}
 {% load allauth %}
 {% block head_title %}
-    {% trans "No longer a member" %}
+    {% trans "No Longer A Member" %}
 {% endblock head_title %}
 {% block content %}
     {% element h1 %}
-        {% trans "You are no longer part of this Backyard" %}
+        {% trans "No Longer A Member" %}
     {% endelement %}
     {% element p %}
-        {% trans "If that is a surprise, talk to the person who invited you." %}
+        {% trans "Your access has been removed. If that is unexpected, contact the person who invited you." %}
     {% endelement %}
 {% endblock content %}

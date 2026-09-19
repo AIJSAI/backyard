@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
-{% block title %}Join your family on Backyard{% endblock %}
+{% block title %}Join Backyard{% endblock %}
 {% block body %}
-  <h1>Join your family</h1>
+  <h1>Join Backyard</h1>
   {% comment %} The household is NAMED here, and it was not before: the page said "You were
      invited" and then asked for a name, a username and a password without ever saying what
      was being joined. Somebody who opens a link a relative texted them has no other way to
@@ -12,17 +12,30 @@
      The NAME and nothing else. Anybody holding the link can open this page without having
      been let in, so it never prints who is IN the household — the same rule
      test_a_stranger_is_told_no_names.py pins for the public surfaces. Guarded on truthiness
-     because a household with an empty name would otherwise render "You're joining .", which
+     because a household with an empty name would otherwise render "You are joining .", which
      reads as a broken page rather than a missing one.
 
      The sentence that used to close this paragraph, "You can add a passkey once you are in",
      went with the same walk. "Passkey" is the product's own jargon, it was the third thing a
      relative ever read here, and it describes something they cannot do on this screen — they
-     meet the control later, in settings, where it is explained. {% endcomment %}
-  <p class="muted">
-    {% if household %}You're joining <strong>{{ household }}</strong>. {% endif %}Pick the
-    name your family will see and a way to sign back in.
-  </p>
+     meet the control later, in settings, where it is explained.
+
+     WHAT IS LEFT IS THE HOUSEHOLD AND NOTHING ELSE. The sentence that followed it, "Pick the
+     name your family will see and a way to sign back in", described the three labelled boxes
+     directly beneath it to an adult who has filled in a signup form before. With no household
+     name there is now no paragraph at all, rather than a paragraph that only narrates the
+     form. {% endcomment %}
+  {% comment %} WHAT THIS IS, before anybody types a password into it. This is the screen
+     almost every relative actually arrives on — a link somebody texted them — and it asked
+     for a name, a username and a password without once saying what they were joining; the
+     explanation arrived a screen later, on Welcome, after they had committed. The landing
+     page carries the owner's own sentence and no relative ever sees the landing page, so
+     the sentence belongs here too. It is the owner's, verbatim, and the allowed use of the
+     word "family" (rule 4). {% endcomment %}
+  <p class="muted">A private, invite-only family network.</p>
+  {% if household %}
+    <p class="muted">You are joining <strong>{{ household }}</strong>.</p>
+  {% endif %}
 
   {% if errors %}
     <div class="errors">
@@ -38,45 +51,66 @@
      in none of them. The password is deliberately NOT re-rendered. {% endcomment %}
   <form method="post">
     {% csrf_token %}
-    <label for="display_name">Your name</label>
+    <label for="display_name">Name</label>
     <input type="text" id="display_name" name="display_name" autocomplete="name"
            value="{{ typed.display_name }}" required>
 
     {% comment %} "Username" arrived with no hint at all, on the one screen where the word is
-       a decision and not a fact: a relative who has never chosen one does not know whether
-       it is an address, a nickname, or something the family will see. It is neither — it is
-       the thing they will type into the sign-in box — and their first name is a perfectly
-       good answer, which is worth saying out loud because the box looks like it wants
-       something more official. {% endcomment %}
+       a decision and not a fact: the box looks as though it wants something official, and a
+       relative who has never chosen one hesitates over it. One sentence answers that. The
+       sentence in front of it, "What you type to sign in", explained the word "username" to
+       somebody who has signed in to things for fifteen years. {% endcomment %}
     <label for="username">Username</label>
     <input type="text" id="username" name="username" autocomplete="username"
            value="{{ typed.username }}" aria-describedby="username-help" required>
-    <p class="field-help" id="username-help">
-      What you type to sign in. Your first name is fine.
+    {% comment %} An instruction, not reassurance. "Your first name is fine." was the guide's
+       banned register ("it's fine to") and answered a question nobody asked; the sentence
+       before it, "What you type to sign in", explained the word "username" to somebody who
+       has signed in to things for fifteen years. What actually stops the hesitation is
+       being told what to put. {% endcomment %}
+    <p class="hint" id="username-help">
+      Use your first name.
     </p>
 
     {% comment %} The password had no guidance either, so the only advice this product ever
        gave about choosing one arrived AFTER it was rejected, as a Django validator error.
-       These are the get-back-in page's words, deliberately word for word (core/recover.html):
-       a relative who joins today and is walked through recovery in two years should read one
-       sentence, not two that disagree.
+       The sentence is the owner's, verbatim (VOICE.md: "Password hint, whole: Choose a
+       memorable password."), and it replaces the three-clause version that also explained
+       how to invent a passphrase and why phones like one.
 
        The Show control is built by the script at the foot of this page rather than shipped
        in this markup. See the comment there. {% endcomment %}
     <label for="password">Password</label>
     <input type="password" id="password" name="password" autocomplete="new-password"
            aria-describedby="password-help" required>
-    <p class="field-help" id="password-help">
-      Use something you will remember. Three or four unrelated words work well and are
-      easy to type on a phone.
+    <p class="hint" id="password-help">
+      Choose a memorable password.
     </p>
 
-    <label for="email">Email <span class="optional">(optional)</span></label>
-    <input type="email" id="email" name="email" autocomplete="email" maxlength="254"
-           value="{{ typed.email }}" aria-describedby="email-help">
-    <p class="field-help" id="email-help">
-      The only way to get back in on your own if you forget your password. We will ask
-      next whether you want the Family email; this is where it would go.
+    {% comment %} What the address is FOR, in the same words the confirmation page and the
+       sign-in email page use for the same two things. It used to promise "the Family
+       email", a name the owner ruled out, and to explain a question the next screen asks
+       anyway.
+
+       THE SECOND SENTENCE IS ON THE KEEP LIST and is why this hint is two sentences rather
+       than one: leaving the box empty is the one decision on this form a relative cannot
+       undo alone, and nothing else in the product tells them so at the moment they make it
+       (test_join_email_recovery.py holds it). {% endcomment %}
+    {% comment %} `type="text"` with `inputmode="email"`, NOT `type="email"`. The browser's
+       own validation bubble — "Please include an '@' in the email address." in Chrome's
+       font, covering this hint and the Join button — was the only validation a relative got
+       on the first screen they ever see, and because the browser blocks the submit, the red
+       panel this page already renders never appeared and join.py's own "Enter a valid email
+       address." was never read. That is the stock framework styling leaking through, on the
+       highest-stakes screen in the product. join.py calls django.core.validators.
+       validate_email on every submit, so nothing is unchecked; `inputmode` keeps the @
+       keyboard on a phone. {% endcomment %}
+    <label for="email">Email Address <span class="optional">(Optional)</span></label>
+    <input type="text" inputmode="email" id="email" name="email" autocomplete="email"
+           maxlength="254" value="{{ typed.email }}" aria-describedby="email-help">
+    <p class="hint" id="email-help">
+      Used for password reset and email updates. Without one, you have to ask an admin
+      for a Sign-In Link.
     </p>
 
     <button type="submit">Join</button>
@@ -102,7 +136,7 @@
 
      type="button", never "submit": the control sits inside the join form, and a default
      submit here would post a half-filled form the moment somebody tried to read what they
-     had typed. The LABEL carries the state — "Show password" becomes "Hide password" — so a
+     had typed. The LABEL carries the state — "Show Password" becomes "Hide Password" — so a
      screen reader hears the next action rather than a bare "button", and what is announced
      is what is printed on it (SC 2.5.3). Focus deliberately stays on the control after a
      tap: moving it back to the field would leave somebody who cannot see the field with no
@@ -116,11 +150,11 @@
       toggle.type = "button";
       toggle.className = "btn-quiet";
       toggle.setAttribute("aria-controls", "password");
-      toggle.textContent = "Show password";
+      toggle.textContent = "Show Password";
       toggle.addEventListener("click", function () {
         var showing = field.type === "text";
         field.type = showing ? "password" : "text";
-        toggle.textContent = showing ? "Show password" : "Hide password";
+        toggle.textContent = showing ? "Show Password" : "Hide Password";
       });
       hint.insertAdjacentElement("afterend", toggle);
     })();

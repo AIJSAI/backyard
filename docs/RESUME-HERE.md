@@ -84,7 +84,7 @@ Three things worth knowing before you need them:
 
 - **There is no key escrow.** Lose `BACKYARD_BACKUP_PASSPHRASE` and every archive taken with
   it is unreadable by anyone, permanently.
-- **A restore is a security event.** It kills every elder link, digest link, reply address
+- **A restore is a security event.** It kills every no-login link, email-update link, reply address
   and session the archive carried, and it brings back anybody removed since the backup.
 - **A restore does not migrate.** Restart `web` and `worker` afterwards and require
   `manage.py migrate --check` to exit 0 before telling anyone the instance is up.

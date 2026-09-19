@@ -2,14 +2,14 @@
 
 What was there before: join asked for a name, a username, a password and an email,
 dropped the newcomer on the feed, and a green card at the top of it explained which
-sides of the family they were in. It never said what this place IS, never offered the
-Family email, and never helped with a first post — so the three things a relative
-actually needs on day one were the three things nobody told them.
+sides of the family they were in. It never said what this place IS, never offered email
+updates, and never helped with a first post — so the three things a relative actually
+needs on day one were the three things nobody told them.
 
 Three screens, in the order a person asks the questions:
 
   1. what this is          — two sentences, and nothing else on the screen
-  2. the Family email      — weekly, monthly, or no thanks, address already filled in
+  2. Email Updates         — weekly, monthly or off, address already filled in
   3. say hello             — a composer with a line already written, entirely optional
 
 Every screen is skippable, and skipping is a real control with a real target, not a
@@ -100,12 +100,11 @@ def welcome_skip(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def welcome_family_email(request: HttpRequest) -> HttpResponse:
-    """Screen two: the Family email, offered once, at the only moment anyone is thinking
+    """Screen two: Email Updates, offered once, at the only moment anyone is thinking
     about it.
 
-    Choosing weekly or monthly enrolls through the ordinary opt-in path. Choosing
-    "No thanks" writes nothing at all and is never raised again; Settings can turn it on
-    later.
+    Choosing Weekly or Monthly enrolls through the ordinary opt-in path. Choosing Off
+    writes nothing at all and is never raised again; Settings can turn it on later.
 
     THE CONTENT-FREE CONFIRMATION IS NOW TRUE OF A DIFFERENT ADDRESS ONLY. This docstring
     used to say the address "still gets its one content-free confirmation email" without
@@ -113,7 +112,7 @@ def welcome_family_email(request: HttpRequest) -> HttpResponse:
     screen: the address is prefilled from the join form, so it is usually the member's own
     sign-in address, and for that one `subscribe` sends nothing and lets the account
     confirmation already in their inbox confirm both. A DIFFERENT address still gets its
-    own mail.
+    own mail. Screen three is where the member is told which of the two happened.
 
     What is unchanged either way is the property T-EMAIL-6 is about: nothing from the
     family flows to an address until somebody has proven they hold it.
@@ -130,7 +129,7 @@ def welcome_family_email(request: HttpRequest) -> HttpResponse:
     if cadence is None:
         # Neither a cadence nor a refusal: a hand-made or half-submitted form. Ask again
         # rather than guessing which answer they meant about their own inbox.
-        context["error"] = "Choose how often you would like it, or choose No thanks."
+        context["error"] = "Select a frequency."
         return render(request, "core/welcome_email.html", context)
 
     # NOT truncated, and not checked for a bare "@". This is the address a Family email
@@ -138,7 +137,7 @@ def welcome_family_email(request: HttpRequest) -> HttpResponse:
     # it goes through the join form's validator — the same words, the same rules, and a
     # refusal rather than a quiet rewrite of what they typed.
     address = request.POST.get("address", "").strip()
-    problems = email_errors(address) if address else ["Tell us where to send it."]
+    problems = email_errors(address) if address else ["Enter your email address."]
     if problems:
         context["address"] = address
         context["error"] = problems[0]
@@ -164,8 +163,8 @@ def welcome_hello(request: HttpRequest) -> HttpResponse:
     member = _acting_member(request)
     _mark_welcomed(member)
     # WHAT SCREEN TWO ACTUALLY DID, said on screen three (walk item 22). A relative picked
-    # "weekly", tapped through, and this page said nothing about it — so the one thing
-    # standing between them and the Family email, a link sitting unread in their inbox,
+    # Weekly, tapped through, and this page said nothing about it — so the one thing
+    # standing between them and their email updates, a link sitting unread in their inbox,
     # was never mentioned anywhere in the product. They would find out in a week, by not
     # getting one.
     #
@@ -194,9 +193,9 @@ def welcome_hello(request: HttpRequest) -> HttpResponse:
             "family_email_address": subscription.address if subscription else "",
             "family_email_confirmed": bool(subscription and subscription.confirmed_at),
             # SAME TRUTH AS THE SETTINGS PAGE: a live confirm token is the only evidence
-            # that a mail was actually sent from here. Without this the screen said "We
-            # sent one email to <address>" on the same-address path (walk item 24), where
-            # this product sends nothing — the tap that starts the Family email is the
+            # that a mail was actually sent from here. Without this the screen claimed a
+            # confirmation email had been sent on the same-address path (walk item 24),
+            # where this product sends nothing — the tap that starts email updates is the
             # account confirmation already in their inbox from joining a minute earlier.
             # Naming the wrong e-mail sends a relative looking for one that never arrives.
             "family_email_mail_sent": bool(subscription and subscription.confirm_token_digest),

@@ -1,4 +1,9 @@
-{% load i18n %}{% autoescape off %}{% block content %}{% endblock content %}
+{% comment %} The "--" separator before the standing line, which four of the seven e-mails
+   already carry: core/emailing.py appends `\n\n--\n<footer>` to everything it sends, and
+   these three allauth messages render their own footer and closed with a blank line
+   instead. Somebody who gets a password reset and an email update saw two products.
+{% endcomment %}{% load i18n %}{% autoescape off %}{% block content %}{% endblock content %}
 
-{% blocktrans %}This is Backyard, your family's own page. Nobody here will ever ask you for a password or a link by email.{% endblocktrans %}
+--
+{% blocktrans %}Backyard will never ask for your link or password by email.{% endblocktrans %}
 {% endautoescape %}

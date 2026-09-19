@@ -1,0 +1,33 @@
+{% extends "core/base.html" %}
+{% comment %} 403 — the refusal page, and until 2026-09-19 there was no such file.
+   django.views.defaults.permission_denied looks for `403.html` by name and, not finding
+   one, served its built-in ERROR_PAGE_TEMPLATE: an unstyled Times-New-Roman page reading
+   "403 Forbidden" over an empty paragraph, with no header, no footer and no way back.
+   That was what a family member got for tapping something they may not do. No handler403
+   is registered anywhere; adding this file is the whole fix, because Django's default
+   handler already renders it.
+
+   THE EXCEPTION MESSAGE IS NOT PRINTED, and that is deliberate rather than an omission.
+   The default handler passes `{"exception": str(exception)}` into this template, and the
+   refusals raised across the product read like "‹first name› is not in ‹household›" and
+   "You can only post to a pod you belong to" — one names two people to whoever is
+   standing there, the other says an internal noun out loud. The product's own refusals
+   are worded for a screen, not for an exception string, and until they are they stay
+   unread. One plain sentence instead, the same as 404.html and 429.html.
+
+   Rendered with the request (the default handler passes it), so the context processors
+   run and the page carries the shared chrome and footer. It renders signed out as well
+   as signed in, the same way 404.html does — which is the common case, because most
+   denials in this product answer 404 by design (TM-2) and the ones that reach here are
+   raised after a session exists. {% endcomment %}
+{% block title %}You Do Not Have Access{% endblock %}
+{% block body %}
+  <div class="page-center">
+    <h1>You Do Not Have Access</h1>
+    <p class="muted">Your account does not have permission to do that.</p>
+    {% comment %} "Go To Your Backyard" is offered to a reader who may have no Backyard: a relative
+       whose invite link expired lands here, and the button goes to the landing page. Say
+       where it goes. The same conditional is on all four signed-out-reachable error pages. {% endcomment %}
+    <p><a class="btn" href="/">{% if user.is_authenticated %}Go To Your Backyard{% else %}Go To Backyard{% endif %}</a></p>
+  </div>
+{% endblock %}

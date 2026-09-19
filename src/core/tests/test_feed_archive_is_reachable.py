@@ -55,7 +55,7 @@ def test_a_short_feed_still_says_you_are_all_caught_up(world: dict[str, object])
     _fill(pod, member, 3)
     page = client.get(reverse("feed")).content.decode()
     assert _CAUGHT_UP in page
-    assert "Show older posts" not in page
+    assert "Show Older Posts" not in page
 
 
 def test_a_long_feed_does_not_claim_the_member_has_seen_everything(
@@ -67,7 +67,7 @@ def test_a_long_feed_does_not_claim_the_member_has_seen_everything(
     _fill(pod, member, _PAGE_SIZE + 25)
     page = client.get(reverse("feed")).content.decode()
     assert _CAUGHT_UP not in page, "the feed claimed the end while 25 posts were unreachable"
-    assert "Show older posts" in page
+    assert "Show Older Posts" in page
 
 
 def test_the_oldest_post_is_actually_reachable_by_paging(world: dict[str, object]) -> None:
@@ -87,7 +87,7 @@ def test_the_oldest_post_is_actually_reachable_by_paging(world: dict[str, object
     for _ in range(10):  # generous bound; the walk must terminate well inside it
         page = client.get(url).content.decode()
         seen.update(f"post-{i:03d}" for i in range(total) if f"post-{i:03d}" in page)
-        if "Show older posts" not in page:
+        if "Show Older Posts" not in page:
             break
         cursor = page.split("?before=")[1].split('"')[0]
         url = f"{reverse('feed')}?before={cursor}"
@@ -99,10 +99,10 @@ def test_the_oldest_post_is_actually_reachable_by_paging(world: dict[str, object
     # The last page is genuinely the end and says so — but NOT with "You are all caught
     # up", which is a claim about the TOP of the feed (F9). At the bottom of a walk
     # backwards through the family's history it said the opposite of what was true.
-    assert "That is the beginning." in page
+    assert "Nothing older than this." in page
     assert _CAUGHT_UP not in page
     # ...and it IS still said where it is true: the top of a feed with nothing older.
-    assert _CAUGHT_UP in client.get(reverse("feed")).content.decode() or "Show older" in (
+    assert _CAUGHT_UP in client.get(reverse("feed")).content.decode() or "Show Older" in (
         client.get(reverse("feed")).content.decode()
     )
 

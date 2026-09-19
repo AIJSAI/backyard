@@ -39,6 +39,14 @@ User = get_user_model()
 _BACKEND = "django.contrib.auth.backends.ModelBackend"
 _NAME = "Jim Whitfield"
 _FIRST = "Jim"
+# The shared footer's help line, as the copy pass of 2026-09-19 rewrote it. Its words are
+# core/_footer.html's; what this file is about is WHO is named in it.
+_HELP = f"Need help? Contact {_FIRST}."
+# ONE CONSTANT AGAIN. The grandparent's page is standalone (S-601 gives it no href but its
+# own, so it inherits no footer) and used to hand-write its own copy of this sentence,
+# which is how it came to read "Stuck? Ask Jim." for as long as it did. It now includes
+# core/_footer.html in the `standalone=True` shape, so there is one sentence in one file
+# and this file has no second constant to keep in step.
 
 
 def _family() -> tuple[Pod, Member]:
@@ -100,8 +108,8 @@ def test_about_says_a_relative_runs_it_without_saying_which_one() -> None:
     # Whitespace-normalised: the sentence wraps across lines in the template, which is how
     # it should be written and not something a test should pin.
     html = " ".join(Client().get(reverse("about")).content.decode().split())
-    assert "A relative set this up and looks after it." in html
-    assert "ask the person who invited you" in html
+    assert "A relative set this up and runs it." in html
+    assert "Contact the person who invited you" in html
 
 
 # --- the readers who have been let in -------------------------------------------------
@@ -115,7 +123,7 @@ def test_a_signed_in_member_is_told_who_to_ask() -> None:
     client = Client()
     client.force_login(user, backend=_BACKEND)
 
-    assert f"Stuck? Ask {_FIRST}." in client.get(reverse("feed")).content.decode()
+    assert _HELP in client.get(reverse("feed")).content.decode()
     # ...and on the public pages too, once they are signed in.
     assert f"Ask {_FIRST}" in client.get(reverse("how_it_works")).content.decode()
 
@@ -130,16 +138,14 @@ def test_the_grandparents_no_login_page_still_names_him() -> None:
     client = Client()
     client.get(reverse("elder_enter", args=[elder_tokens.mint(nana)]))
     html = client.get(reverse("elder_feed")).content.decode()
-    assert f"Stuck? Ask {_FIRST}." in html
+    assert _HELP in html
 
 
 def test_an_invite_page_names_him() -> None:
     pod, admin = _family()
     _invite, raw = invites.mint_invite(pod, admin)
     html = Client().get(reverse("join", args=[raw])).content.decode()
-    assert f"Stuck? Ask {_FIRST}." in html, (
-        "somebody opening an invite a relative sent them is not a stranger"
-    )
+    assert _HELP in html, "somebody opening an invite a relative sent them is not a stranger"
 
 
 def test_a_get_back_in_link_names_him() -> None:
@@ -152,7 +158,7 @@ def test_a_get_back_in_link_names_him() -> None:
     raw = recovery.issue(member, issued_by=admin)
 
     html = Client().get(reverse("recover", args=[raw])).content.decode()
-    assert f"Stuck? Ask {_FIRST}." in html
+    assert _HELP in html
 
 
 def test_a_bogus_token_on_every_token_surface_names_nobody() -> None:
@@ -220,9 +226,7 @@ def test_a_real_token_on_every_token_surface_does_name_them() -> None:
 
     # An invite.
     _invite, invite_raw = invites.mint_invite(pod, admin)
-    assert (
-        f"Stuck? Ask {_FIRST}." in Client().get(reverse("join", args=[invite_raw])).content.decode()
-    )
+    assert _HELP in Client().get(reverse("join", args=[invite_raw])).content.decode()
 
     # A get-back-in link.
     locked = Member.objects.create(
@@ -230,19 +234,16 @@ def test_a_real_token_on_every_token_surface_does_name_them() -> None:
     )
     PodMembership.objects.create(member=locked, pod=pod)
     recovery_raw = recovery.issue(locked, issued_by=admin)
-    assert (
-        f"Stuck? Ask {_FIRST}."
-        in Client().get(reverse("recover", args=[recovery_raw])).content.decode()
-    )
+    assert _HELP in Client().get(reverse("recover", args=[recovery_raw])).content.decode()
 
     # The no-login link, and the session it becomes.
     nana = Member.objects.create(display_name="Nana")
     PodMembership.objects.create(member=nana, pod=pod)
     elder = Client()
     elder.get(reverse("elder_enter", args=[elder_tokens.mint(nana)]))
-    assert f"Stuck? Ask {_FIRST}." in elder.get(reverse("elder_feed")).content.decode()
+    assert _HELP in elder.get(reverse("elder_feed")).content.decode()
 
-    # The Family email's own confirm link — the surface the reviewer measured as wrong the
+    # The Email Updates confirm link — the surface the reviewer measured as wrong the
     # other way round, where a real holder used to get the anonymous fallback.
     subscription = DigestSubscription.objects.create(
         member=locked,
@@ -255,11 +256,11 @@ def test_a_real_token_on_every_token_surface_does_name_them() -> None:
     assert subscription.pk
     confirm = Client().get(reverse("digest_confirm", args=["raw-confirm"]))
     assert confirm.status_code == 200
-    assert f"Stuck? Ask {_FIRST}." in confirm.content.decode()
+    assert _HELP in confirm.content.decode()
 
     unsub = Client().get(reverse("digest_unsubscribe", args=["raw-unsub"]))
     assert unsub.status_code == 200
-    assert f"Stuck? Ask {_FIRST}." in unsub.content.decode()
+    assert _HELP in unsub.content.decode()
 
 
 def test_the_flag_is_off_until_a_view_sets_it() -> None:

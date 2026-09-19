@@ -1,8 +1,8 @@
 {% extends "core/base.html" %}
 {% load times %}
-{% block title %}From your Family email{% endblock %}
+{% block title %}A Post And Its Replies{% endblock %}
 {% block body %}
-  <p class="back-link"><a class="back" href="{% url 'digest_web' token %}">Back to the rest</a></p>
+  <p class="back-link"><a class="back" href="{% url 'digest_web' token %}">Back To The Email Update</a></p>
   <article class="post">
     <p class="byline">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %} · {% when post.created_at %}</p>
     <p class="post-body">{{ post.body|urlize }}</p>
@@ -22,7 +22,10 @@
   </article>
   <section class="comments">
     {% for comment in comments %}
-      <p class="post-body"><strong>{{ comment.author.display_name }}</strong>{% if comment.via_email %} <span class="via-email">(via email)</span>{% endif %}{% if comment.body %}: {{ comment.body|urlize }}{% else %}: sent photos{% endif %}</p>
+      {% comment %} `.via-email` is the badge component base.html draws with an envelope
+         glyph, so the brackets inside it were a second frame around a thing already
+         framed. Same text as the badge on core/post_detail.html. {% endcomment %}
+      <p class="post-body"><strong>{{ comment.author.display_name }}</strong>{% if comment.via_email %} <span class="via-email">Via Email</span>{% endif %}{% if comment.body %}: {{ comment.body|urlize }}{% else %}: sent photos{% endif %}</p>
       {% comment %} S-404: reply photos on the credential-free digest surface. The ?d=
          token rides every media URL here, and Reader.visible_media narrows reply media
          to this issue's posts so the token cannot widen into a general media credential.

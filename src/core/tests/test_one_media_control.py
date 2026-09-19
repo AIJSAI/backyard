@@ -80,7 +80,7 @@ def test_the_composer_offers_exactly_one_media_control(world: dict[str, object])
     assert page.count('type="file"') == 1, "two pickers is the control this replaced"
     assert 'name="media"' in page
     assert 'accept="image/*,video/*"' in page, "one native sheet, both kinds"
-    assert "Add photos or a video" in page
+    assert "Add Photos Or A Video" in page
     # REJECTED by the owner: it forces the camera open and hides the photo library.
     # Matched as the ATTRIBUTE, not the bare word: the design system explains the decision
     # in a CSS comment, and that comment ships inline on every page.
@@ -103,7 +103,7 @@ def test_it_degrades_to_a_plain_working_picker(world: dict[str, object]) -> None
     the script and must not be in the served HTML."""
     page = _page(world, reverse("feed"))
     assert 'class="media-picker" data-media-picker' in page, "not enhanced until the script says"
-    assert '<label class="picker-button" for="media">Add photos or a video</label>' in page
+    assert '<label class="picker-button" for="media">Add Photos Or A Video</label>' in page
     assert '<ul class="media-previews" data-media-previews hidden>' in page
     # The script is same-origin inline and carries the request's CSP nonce, or the browser
     # refuses it and the fallback above is what everybody gets.
@@ -141,7 +141,7 @@ def _picker_script(page: str) -> str:
 
 
 def test_the_limits_reach_the_dom_where_the_script_reads_them(world: dict[str, object]) -> None:
-    """The walk: pick three photos, tap "Add photos or a video" again to add two more, and
+    """The walk: pick three photos, tap "Add Photos Or A Video" again to add two more, and
     the first three are gone — a native file input REPLACES its selection, so a family
     posting a birthday in batches loses the earlier batch with no message and no thumbnail.
     The script now merges the new pick into the old one, which means the script is a place
@@ -186,13 +186,13 @@ def test_a_pick_that_runs_past_a_limit_is_said_in_the_servers_own_words(
         "nowhere for the over-limit sentence to land, or it does not ship hidden and empty"
     )
     script = _picker_script(page)
-    assert "could not be added — " in script and " is the limit for one post." in script, (
+    assert "could not be added. " in script and "A post can carry " in script, (
         "the client says something other than what the server says"
     )
     # Calm, warm, short: the tone ruled for every surface a relative reads. The template
     # guard in test_one_word_per_concept strips <script> bodies, so this copy is only
     # covered here.
-    for sentence in ("could not be added", "is the limit for one post"):
+    for sentence in ("could not be added", "A post can carry"):
         assert "!" not in sentence
 
 
@@ -265,7 +265,7 @@ def test_a_file_that_lies_about_itself_is_rejected_by_the_gate_it_lands_in(
         ),
     )
     assert not Post.objects.filter(body="hello").exists(), "a lying upload created a post"
-    assert "not a video we can play" in response.content.decode()  # type: ignore[attr-defined]
+    assert "not a video Backyard can play" in response.content.decode()  # type: ignore[attr-defined]
 
 
 # --- HEIC ------------------------------------------------------------------------
@@ -343,7 +343,7 @@ def test_a_heic_that_dies_mid_decode_is_a_message_not_a_server_error(
     post = Post.objects.get(body="hello")
     assert post.media.count() == 0
     said = _said(response)
-    assert "could not be added" in said and "not a picture Backyard could read" in said
+    assert "could not be added" in said and "not an image Backyard can read" in said
     # Plain words, not the exception that caused it.
     for leak in ("RuntimeError", "EOFError", "libheif", "Traceback"):
         assert leak not in said
@@ -473,7 +473,7 @@ def test_the_count_ceiling_is_unchanged_and_spoken_plainly(world: dict[str, obje
     )
     post = Post.objects.get(body="hello")
     assert post.media.filter(media_kind=MediaAsset.PHOTO).count() == _MAX_PHOTOS
-    assert f"{_MAX_PHOTOS} is the limit for one post" in _said(response)
+    assert f"A post can carry {_MAX_PHOTOS} photos" in _said(response)
 
 
 def test_the_size_ceiling_is_unchanged_and_spoken_plainly(world: dict[str, object]) -> None:
@@ -484,7 +484,7 @@ def test_the_size_ceiling_is_unchanged_and_spoken_plainly(world: dict[str, objec
         ),
     )
     said = _said(response)
-    assert "too large to add" in said and "MB is the limit each" in said
+    assert "too large to add" in said and "MB or smaller" in said
     # Plain words, never a machine phrase: no MIME types, no byte counts, no error codes,
     # no exception names. This is the sentence a relative reads when a photo did not make
     # it, and it is the only thing standing between them and silent data loss.

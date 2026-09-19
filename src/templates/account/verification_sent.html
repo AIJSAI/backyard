@@ -1,19 +1,20 @@
 {% extends "account/base_entrance.html" %}
 {% comment %} PROJECT OVERRIDE. "Verify Your Email Address", "finalize the signup process",
-   and a closing "Please contact us" with no "us" and nothing to tap. {% endcomment %}
+   and a closing "Please contact us" with no "us" and nothing to tap.
+
+   One paragraph, and it is the owner's own rewrite of this screen (VOICE.md's calibration
+   table). The second paragraph it used to carry — "If it has not arrived in a few minutes,
+   ask <name>." — is the footer's help line said again, four lines above the footer. {% endcomment %}
 {% load i18n %}
 {% load allauth %}
 {% block head_title %}
-    {% trans "Check your email" %}
+    {% trans "Check Your Email" %}
 {% endblock head_title %}
 {% block content %}
     {% element h1 %}
-        {% trans "Check your email" %}
+        {% trans "Check Your Email" %}
     {% endelement %}
     {% element p %}
-        {% blocktrans %}We have sent one email to that address. Tap the link in it and you are done. Check your spam folder if it is not in your inbox.{% endblocktrans %}
-    {% endelement %}
-    {% element p %}
-        {% if help_contact %}If it has not arrived in a few minutes, ask {{ help_contact }}.{% else %}{% blocktrans %}If it has not arrived in a few minutes, ask whoever in the family set this up.{% endblocktrans %}{% endif %}
+        {% blocktrans %}A confirmation email has been sent to that address. Check your spam folder if it does not arrive.{% endblocktrans %}
     {% endelement %}
 {% endblock content %}

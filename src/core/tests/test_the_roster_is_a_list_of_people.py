@@ -149,7 +149,7 @@ def test_a_bridging_relative_a_side_admin_cannot_touch_says_why() -> None:
     row = _row_for(html, "Jo Reed")
 
     assert "member-manage" not in row, "the row offers Manage with nothing behind it"
-    assert "Also on the other side of the family" in row
+    assert "Also on the other side" in row
     # It names the person who CAN, so the side admin knows who to ask rather than
     # tapping at a row that will never answer.
     assert family_admin.short_name in row, row
@@ -214,7 +214,7 @@ def test_the_explanation_degrades_when_no_admin_can_be_named() -> None:
     client = Client()
     client.force_login(side_admin_user, backend=_BACKEND)
     row = _row_for(client.get(reverse("members")).content.decode(), "Jo Reed")
-    assert "so only" in row and "the family admin" in row
+    assert "so only" in row and "the Family Admin" in row
     assert "so only  can change" not in " ".join(row.split()), "the sentence lost its subject"
 
 

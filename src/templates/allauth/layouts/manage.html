@@ -5,7 +5,11 @@
 
    Wraps `auth_shell`, not `content`: every allauth leaf defines `content`, so a
    wrapper around it is discarded. See the note in base.html. {% endcomment %}
+{% comment %} The way back wears the product's ONE back treatment — `p.back-link` + `a.back`,
+   the same pair post_detail.html uses — rather than a bare anchor with a hand-typed arrow.
+   The arrow is drawn by the class, so it is not in the text a screen reader announces.
+   {% endcomment %}
 {% block auth_shell %}
-  <p><a href="{% url 'feed' %}">&larr; Back to the feed</a></p>
+  <p class="back-link"><a class="back" href="{% url 'feed' %}">Back To The Feed</a></p>
   {% block content %}{% endblock %}
 {% endblock %}

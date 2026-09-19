@@ -330,11 +330,11 @@ one by one, because a list under that heading is read as current:
   `member` foreign keys are `CASCADE`, so the record dies with its subject (issue 181, item 1).
   There is still no general audit log.
 - ~~**The privacy note never reaches the family**: `family-privacy-note.md` is referenced by
-  zero files under `src/`.~~ **CLOSED.** The promises are in the product: the "How this works"
+  zero files under `src/`.~~ **CLOSED.** The promises are in the product: the "How It Works"
   page carries them in words, reachable from Settings, from the sign-in page and from the
   welcome, and `src/core/tests/test_plain_pages.py` fails if the page and the note stop
   agreeing.
-- ~~**AGPL §13 source-offer unsatisfied**~~ **CLOSED** — the "About this Backyard" page carries
+- ~~**AGPL §13 source-offer unsatisfied**~~ **CLOSED** — the "About" page carries
   the licence and the source offer, guarded by `src/core/tests/test_agpl_source_offer.py`.
 
 ### Ordering error in §0 above — spent
@@ -461,9 +461,10 @@ And the product had **no sign-out link at all**.
   can: she has `user=None` by design and digest enrolment is `@login_required` and self-only.
   ~~**Still open.**~~ **CLOSED 2026-09-19 in the docs-truth pass** — `README.md` was corrected
   at the time and `docs/README.md`'s elder diagram was the half that was missed for six weeks.
-  It now says replying to the family email opens the app at the thread, with the reason under
-  the diagram. Nobody replies by email today, elder or not: #101 removed the reply address
-  from the digest body because it is a bearer credential.
+  It now says she is never enrolled in Email Updates, with the reason under the diagram
+  (corrected again in the 2026-09-19 copy pass, which found the note still claiming a reply
+  path). Nobody replies by email today, elder or not: #101 removed the reply address from
+  the mail body because it is a bearer credential.
 
 ### 7.5 The elder path (#137)
 

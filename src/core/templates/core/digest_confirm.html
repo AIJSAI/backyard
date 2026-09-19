@@ -1,9 +1,12 @@
 {% extends "core/base.html" %}
-{% block title %}Confirm your address{% endblock %}
+{% comment %} One act, one name. account/email_confirm.html titles the same act "Confirm Your Email
+   Address" and its button reads "Confirm Email Address"; this page said "Confirm Your
+   Address" and "Confirm Address", which is a second name for one thing. {% endcomment %}
+{% block title %}Confirm Your Email Address{% endblock %}
 {% block body %}
   {% if done %}
-    <h1>You are all set</h1>
-    <p>This address is confirmed. The family email will arrive when there is something in it.</p>
+    <h1>Address Confirmed</h1>
+    <p>Email updates will be sent to this address.</p>
     {% comment %} A dead end, until the 2026-09-19 walk: the page said the address was
        confirmed and then offered nothing at all — no link, no nav (this surface is reached
        signed-out, so the header's nav is not rendered), and a back button that returns to a
@@ -31,15 +34,15 @@
        their way in is the link they already hold — and it is not a reason to leave
        everybody else at a dead end.
 
-       The same words as the last welcome screen ("Go to the family"), because it is the
-       same journey and one action should not have two names. {% endcomment %}
-    <p><a class="btn" href="{% url 'feed' %}">Go to the family</a></p>
+       The glossary's name for the destination, not a second one: the feed page is Your
+       Backyard on every surface that sends somebody to it. {% endcomment %}
+    <p><a class="btn" href="{% url 'feed' %}">Go To Your Backyard</a></p>
   {% else %}
-    <h1>Is this your address?</h1>
-    <p>Somebody asked for a family email to be sent to this address.</p>
+    <h1>Is This Your Address?</h1>
+    <p>Somebody asked for email updates to be sent to this address.</p>
     <form method="post">
       {% csrf_token %}
-      <button type="submit">Yes, send it here</button>
+      <button type="submit">Confirm Email Address</button>
     </form>
   {% endif %}
 {% endblock %}

@@ -450,8 +450,8 @@ def test_a_new_household_needs_a_name_and_at_least_one_side(
     sideless = _propose(client, cousin, act="create", household_name="Nowhere", yard_ids=[])
 
     assert nameless.status_code == 200 and sideless.status_code == 200
-    assert "Give the household a name." in nameless.content.decode()
-    assert "Pick at least one side of the family." in sideless.content.decode()
+    assert "Enter a household name." in nameless.content.decode()
+    assert "Choose at least one side." in sideless.content.decode()
     assert not Pod.objects.filter(name="Nowhere").exists()
     assert _households(cousin) == {_pod(world, "first").id}
 
@@ -519,8 +519,8 @@ def test_the_page_says_what_a_removal_costs_beyond_the_feed(
     world: dict[str, Member | Pod | Yard],
 ) -> None:
     """The confirm step has to state the credential consequences too, because they are not
-    guessable: the person is signed out everywhere, their weekly email stops, and
-    invitations into that side that nobody has used yet stop working."""
+    guessable: the person is signed out on every device, the links in the email updates
+    they already hold stop working, and so does any unused invite into that side."""
     bridging, far = _who(world, "bridging"), _pod(world, "far")
 
     body = _propose(
@@ -528,8 +528,8 @@ def test_the_page_says_what_a_removal_costs_beyond_the_feed(
     ).content.decode()
 
     assert "signed out" in body
-    assert "weekly email" in body
-    assert "invitation" in body
+    assert "email updates" in body
+    assert "invite" in body
 
 
 def test_a_second_submit_of_a_spent_confirmation_does_not_act_twice(
@@ -847,18 +847,21 @@ def test_the_confirm_page_says_a_household_carries_its_own_private_posts(
     world: dict[str, Member | Pod | Yard],
 ) -> None:
     """An add that gains no SIDE still hands over the household's pod-only posts (S-204) and
-    whatever its members — the children included — scoped to "just our household" (S-903).
-    The page used to say, in as many words, that nothing changed."""
+    whatever its members — the children included — scoped to My Household (S-903). The page
+    used to say, in as many words, that nothing changed."""
     cousin, second = _who(world, "cousin"), _pod(world, "second")
 
     body = _propose(
         _client_for(_who(world, "owner")), cousin, act="add", pod_id=second.id
     ).content.decode()
+    # Whitespace-normalised: the sentence wraps in the template, and the field's own
+    # visibility choice ("My Household") is what it has to name.
+    flat = " ".join(body.split())
 
     assert _block(body, "sides-gained") == ""  # same side: no new side is gained
-    assert "kept to itself" in body
-    assert "just our household" in body
-    assert "does not change which sides of the family" not in body
+    assert "kept to itself" in flat
+    assert "set to My Household" in flat
+    assert "does not change which sides of the family" not in flat
 
 
 @pytest.mark.django_db(transaction=True)

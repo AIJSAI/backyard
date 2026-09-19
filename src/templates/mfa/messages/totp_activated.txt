@@ -1,0 +1,4 @@
+{% load i18n %}{% comment %} PROJECT OVERRIDE of django-allauth's mfa/messages/totp_activated.txt.
+
+   "Authenticator app activated." The button that raised it says Turn On The Authenticator
+   App, and a confirmation answers the button it followed. {% endcomment %}{% blocktrans %}Authenticator app set up.{% endblocktrans %}

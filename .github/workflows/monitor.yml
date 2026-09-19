@@ -194,6 +194,11 @@ jobs:
           # problems it found, and the run that found them. $problems already ends in a
           # newline.
           message() { printf '%s\n\n%s\nRun: %s\n' "$1" "$problems" "$RUN_URL"; }
+          # The last line of both e-mails: why it arrived, which is the one thing a person
+          # reading an unexpected alarm at 7am cannot work out for themselves. It says the
+          # two state changes rather than "how to stop it" — an alarm nobody can switch off
+          # from the message is the point of it.
+          MAIL_FOOTER="This email is sent when the alarm opens and when it clears."
           ALARM_NOTE="This issue IS the alarm. It stays open while the problem lasts: later runs comment on it at most once a day rather than opening another, and the monitor closes it when the instance is well again. Closing it by hand is fine -- if the problem is still there, the next run opens a new one."
 
           # ------------------------------------------------------------- the e-mail leg
@@ -292,14 +297,19 @@ jobs:
               # returns, so the record exists whether or not the mail does. The daily
               # reminder comment above deliberately sends nothing -- once a day into an
               # inbox is how an alarm gets muted, and the issue already says "still wrong".
-              if issue_url=$(gh issue create --title "Backyard needs attention" --label "$LABEL" \
-                --body "$(message "@${OWNER} — the monitor that runs outside the instance found a problem."
+              # The title is Title Case because it is also the e-mail's subject, and the
+              # subject is the one line the owner reads on a phone. Nothing MATCHES on it:
+              # the open alarm is found by its `monitor-alarm` label (`gh issue list
+              # --label` above), so the words here are free to be the words that read best.
+              if issue_url=$(gh issue create --title "Backyard Needs Attention" --label "$LABEL" \
+                --body "$(message "@${OWNER} Backyard has a problem. Found by the monitor that runs outside the instance."
                           printf '\n%s\n' "$ALARM_NOTE")"); then
                 echo "opened $issue_url"
-                send_alert_mail "Backyard needs attention" \
-                  "$(printf '%s\n\n%s\nRun: %s\nIssue: %s\n' \
-                       "The monitor that runs outside the instance found a problem." \
-                       "$problems" "$RUN_URL" "$issue_url")"
+                send_alert_mail "Backyard Needs Attention" \
+                  "$(printf '%s\n\n%s\nRun: %s\nIssue: %s\n%s\n' \
+                       "Backyard has a problem. Found by the monitor that runs outside the instance." \
+                       "$problems" "$RUN_URL" "$issue_url" \
+                       "$MAIL_FOOTER")"
               else
                 fail_alarm "could not open the alarm issue"
               fi
@@ -310,16 +320,17 @@ jobs:
               # Commented THEN closed, in that order: the comment is the record of when it
               # recovered, and a closed issue with no closing note reads like somebody
               # dismissed the alarm by hand.
-              recovered="Recovered: the health endpoint answers ok, and the certificate has more than 14 days left."
+              recovered="Backyard is well again. The health endpoint answers ok and the certificate has more than 14 days left."
               if gh issue comment "$issue_number" \
                    --body "$(printf '%s\n\nRun: %s\n' "$recovered" "$RUN_URL")"; then
                 # The SECOND and last state change that e-mails: the alarm is over. Sent
                 # after the close succeeds, so the mail only ever describes a state the
                 # repository is actually in.
                 if gh issue close "$issue_number"; then
-                  send_alert_mail "Backyard is well again" \
-                    "$(printf '%s\n\nRun: %s\nIssue: %s\n' \
-                         "$recovered" "$RUN_URL" "$ISSUES_URL/$issue_number")"
+                  send_alert_mail "Backyard Is Well Again" \
+                    "$(printf '%s\n\nRun: %s\nIssue: %s\n%s\n' \
+                         "$recovered" "$RUN_URL" "$ISSUES_URL/$issue_number" \
+                         "$MAIL_FOOTER")"
                 else
                   fail_alarm "could not close alarm issue #$issue_number"
                 fi

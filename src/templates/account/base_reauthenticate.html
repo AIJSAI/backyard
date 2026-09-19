@@ -1,0 +1,43 @@
+{% extends "account/base_entrance.html" %}
+{% comment %} PROJECT OVERRIDE of django-allauth's account/base_reauthenticate.html.
+
+   The shell every "prove it is you again" screen sits in — the password one, the
+   authenticator-code one and the passkey one. allauth asks for this before anything that
+   changes how you sign in, so a relative who taps "Add a passkey" in Settings meets this
+   page first, and until the copy pass it said "Confirm Access" over "Please reauthenticate
+   to safeguard your account." — a word this product uses nowhere and a sentence written
+   for whoever built the library.
+
+   THE ALTERNATIVES ARE WORDED HERE, BY ID. Their text ("Use your password", "Use
+   authenticator app or code", "Use a security key") is built in allauth's adapter, in
+   Python, not in any template — so a copy pass that only reads templates cannot see them,
+   and this product's own adapter is not this pass's file to edit. The ids are the
+   library's and stable; anything unrecognised falls through to whatever allauth called it,
+   which is a visible wrong word rather than a blank button. {% endcomment %}
+{% load allauth i18n %}
+{% block head_title %}
+    {% trans "Confirm It Is You" %}
+{% endblock head_title %}
+{% block content %}
+    <h1>{% trans "Confirm It Is You" %}</h1>
+    <p>{% trans "Confirm who you are before changing how you sign in." %}</p>
+    {% block reauthenticate_content %}{% endblock %}
+    {% if reauthentication_alternatives %}
+        <h2>{% trans "Other Ways" %}</h2>
+        {% for alt in reauthentication_alternatives %}
+            <p>
+                <a class="btn-secondary" href="{{ alt.url }}">
+                    {% if alt.id == "reauthenticate" %}
+                        {% trans "Use Your Password" %}
+                    {% elif alt.id == "mfa_reauthenticate" %}
+                        {% trans "Use A Code" %}
+                    {% elif alt.id == "mfa_reauthenticate:webauthn" %}
+                        {% trans "Use A Passkey" %}
+                    {% else %}
+                        {{ alt.description }}
+                    {% endif %}
+                </a>
+            </p>
+        {% endfor %}
+    {% endif %}
+{% endblock content %}

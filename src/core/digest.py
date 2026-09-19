@@ -161,7 +161,10 @@ def build_digest(
                 if post.author.kinship_name
                 else post.author.display_name
             ),
-            date_text=timezone.localtime(post.created_at).strftime("%B %-d"),
+            # "Sep 18", the product's one date shape: core/templatetags/times.py pins
+            # DATE_FORMAT as "M j, Y" and every screen writes the month abbreviated. This
+            # was the only surface spelling it out in full.
+            date_text=timezone.localtime(post.created_at).strftime("%b %-d"),
             body=post.body,
             url=emailing.absolute_url(f"/d/{digest_token}/posts/{post.id}/"),
             # Count the member's OWN photos only (through the scoping layer, TM-2): a
@@ -196,8 +199,12 @@ def build_digest(
         )
     )
 
-    window_start = timezone.localtime(issue.window_start).strftime("%B %-d")
-    window_end = timezone.localtime(issue.window_end).strftime("%B %-d")
+    # The same abbreviation, and this pair also sets the SUBJECT LINE, which the glossary
+    # pins as "New In <Side>: <Mon D> To <Mon D>". It read "New In Whitfield side:
+    # September 12 To September 19" — the most-seen string the product sends, and the only
+    # place in it using a fourth date format.
+    window_start = timezone.localtime(issue.window_start).strftime("%b %-d")
+    window_end = timezone.localtime(issue.window_end).strftime("%b %-d")
     window_text = f"{window_start} to {window_end}"
     blocks: tuple[DigestBlock, ...] = (
         HeaderBlock(yard_name=yard.name, window_text=window_text),
@@ -222,8 +229,11 @@ def build_digest(
         # Belt (#37 review LOW-4): DigestEmail is header-safe as a VALUE, not
         # only when the send seam happens to strip it.
         # The subject is what a relative sees in their inbox list, so it says what is
-        # inside rather than naming the machinery that sent it.
-        subject=emailing.strip_control(f"{yard.name}: what the family has been up to"),
+        # inside: which side, and the days it covers. Title Case like every other subject,
+        # except for the side's own name, which is a word a relative typed and is never
+        # re-cased. The window is written out again here rather than reusing `window_text`
+        # because that one sits inside a sentence in the body and this one is a heading.
+        subject=emailing.strip_control(f"New In {yard.name}: {window_start} To {window_end}"),
         text=render_to_string("core/email/digest.txt", context),
         html=render_to_string("core/email/digest.html", context),
         blocks=blocks,

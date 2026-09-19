@@ -160,4 +160,4 @@ def test_the_view_has_no_dead_end_shape(elder_page: str) -> None:
 def test_the_bigger_text_control_is_present(elder_page: str) -> None:
     # S-601's bigger-text toggle: a real control on the surface.
     assert reverse("elder_text_size") in elder_page
-    assert "Bigger text" in elder_page or "Regular text" in elder_page
+    assert "Bigger Text" in elder_page or "Regular Text" in elder_page

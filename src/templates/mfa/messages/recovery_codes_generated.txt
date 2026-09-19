@@ -1,0 +1,7 @@
+{% load i18n %}{% comment %} PROJECT OVERRIDE of django-allauth's mfa/messages/recovery_codes_generated.txt.
+
+   "A new set of recovery codes has been generated." plus, when the codes are shown once
+   only, "Save them  in a secure location now — they won't be shown again." — which has a
+   double space in the library's own file and an em dash this product does not use. Both
+   sentences are kept: the second is a KEEP, because a code list nobody wrote down is a
+   locked-out relative later. {% endcomment %}{% blocktrans %}New recovery codes created.{% endblocktrans %}{% if MFA_RECOVERY_CODES_SHOW_ONCE %} {% blocktrans %}Save them somewhere safe now. They are not shown again.{% endblocktrans %}{% endif %}

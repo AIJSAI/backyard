@@ -114,7 +114,7 @@ def test_family_side_requires_a_name(world: World) -> None:
     before = Yard.objects.count()
     resp = _create_yard(client, "   ")
     assert resp.status_code == 200
-    assert "Give the family side a name." in resp.content.decode()
+    assert "Enter a side name." in resp.content.decode()
     assert Yard.objects.count() == before
 
 

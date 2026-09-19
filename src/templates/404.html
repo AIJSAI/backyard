@@ -2,15 +2,18 @@
 {% comment %} 404 — a NORMAL surface here: authorization denials answer 404 by
    design (TM-2), so family members will see this after a revoked or expired
    link. Calm, no blame, no technical words. {% endcomment %}
-{% block title %}Not here — Backyard{% endblock %}
+{% block title %}Page Not Found{% endblock %}
 {% block body %}
   {% comment %} `.page-center` is the design system's own rule for this shape (base.html);
      it carried three inline style attributes instead, which is the one place in the
      product a layout decision lived outside the stylesheet. {% endcomment %}
   <div class="page-center">
-    <h1>There&rsquo;s nothing at this address</h1>
-    <p class="muted">The page may have moved, or the link may have expired or been revoked — expired family links land here too.</p>
-    <p class="muted">If someone sent you this link, ask them for a fresh one.</p>
-    <p><a class="btn" href="/">Go to your backyard</a></p>
+    <h1>Page Not Found</h1>
+    <p class="muted">This page does not exist, or the link has expired. If somebody sent
+      you the link, ask them for a new one.</p>
+    {% comment %} "Go To Your Backyard" is offered to a reader who may have no Backyard: a relative
+       whose invite link expired lands here, and the button goes to the landing page. Say
+       where it goes. The same conditional is on all four signed-out-reachable error pages. {% endcomment %}
+    <p><a class="btn" href="/">{% if user.is_authenticated %}Go To Your Backyard{% else %}Go To Backyard{% endif %}</a></p>
   </div>
 {% endblock %}

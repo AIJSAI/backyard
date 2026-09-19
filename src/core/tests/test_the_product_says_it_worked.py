@@ -55,7 +55,7 @@ def test_posting_says_so_on_the_page_the_member_lands_on(world: dict[str, object
         reverse("compose"), {"body": "Pie tonight", "pod_id": pod.id}, follow=True
     )
     body = page.content.decode()
-    assert "Posted. Your family can see it now." in body
+    assert "Posted." in body
     # Rendered through the flash component that already exists, not a bespoke banner.
     assert 'class="messages"' in body and 'role="status"' in body
 
@@ -67,7 +67,7 @@ def test_replying_says_so_too(world: dict[str, object]) -> None:
     page = _client(world).post(
         reverse("add_comment", args=[post.id]), {"body": "lovely"}, follow=True
     )
-    assert "Your reply is up." in page.content.decode()
+    assert "Reply posted." in page.content.decode()
 
 
 # --- F5: the draft survives leaving the confirmation ------------------------------
@@ -87,7 +87,7 @@ def _start_a_wide_post(world: dict[str, object], body: str) -> str:
 def test_the_confirmation_offers_one_primary_and_a_quiet_way_out(
     world: dict[str, object],
 ) -> None:
-    """Cancel was a FILLED green button identical in weight to "Yes, share with …", so the
+    """Cancel was a FILLED green button identical in weight to "Share With …", so the
     two answers to a privacy question looked the same; and the post being confirmed sat in
     an unstyled forty-pixel browser indent."""
     page = _start_a_wide_post(world, "Camp dump, finally")
@@ -102,7 +102,7 @@ def test_walking_away_from_the_confirmation_keeps_the_post(world: dict[str, obje
     # header nav or a phone call would take her.
     feed = _client(world).get(reverse("feed")).content.decode()
     assert "Camp dump, finally" in feed, "her words were thrown away"
-    assert "Your unfinished post is still here." in feed
+    assert "Your draft is still here." in feed
     # ...and the composer opens with them showing rather than behind a tap.
     assert "is-open" in feed
 
@@ -112,7 +112,7 @@ def test_cancelling_is_the_one_thing_that_drops_it(world: dict[str, object]) -> 
     _client(world).post(reverse("compose_cancel"), {})
     feed = _client(world).get(reverse("feed")).content.decode()
     assert "Camp dump, finally" not in feed
-    assert "Your unfinished post is still here." not in feed
+    assert "Your draft is still here." not in feed
 
 
 def test_posting_it_drops_it_too(world: dict[str, object]) -> None:
@@ -132,7 +132,7 @@ def test_posting_it_drops_it_too(world: dict[str, object]) -> None:
     )
     assert Post.objects.filter(body="Camp dump, finally").count() == 1
     feed = _client(world).get(reverse("feed")).content.decode()
-    assert "Your unfinished post is still here." not in feed
+    assert "Your draft is still here." not in feed
 
 
 def test_a_bounced_compose_still_carries_its_own_words_back(world: dict[str, object]) -> None:
@@ -145,7 +145,7 @@ def test_a_bounced_compose_still_carries_its_own_words_back(world: dict[str, obj
         .post(reverse("compose"), {"body": "x" * 6000, "pod_id": pod.id})
         .content.decode()
     )
-    assert "a little long" in page
+    assert "characters or fewer" in page
     assert "x" * 6000 in page
 
 
@@ -180,7 +180,7 @@ def test_the_restored_draft_brings_back_the_household_it_was_written_for(
     """Restoring the words and silently re-defaulting the audience is the wrong half to
     keep. Without the pod, the select falls back to whatever the member can see FIRST, so
     a note composed for a few people is re-aimed at a bigger group while the page says
-    "Your unfinished post is still here" — and pod choice is never confirmed, because TM-3
+    "Your draft is still here" — and pod choice is never confirmed, because TM-3
     keys on the side of the family, not the household."""
     yard, member = world["yard"], world["member"]
     assert isinstance(yard, Yard) and isinstance(member, Member)

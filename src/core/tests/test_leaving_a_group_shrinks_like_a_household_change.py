@@ -234,7 +234,7 @@ def test_the_refusal_names_the_admin_from_the_database_not_from_this_repository(
 
     with pytest.raises(pods.PodLeaveRefused) as caught:
         pods.leave_pod(member=member, pod=group)
-    assert "whoever looks after your family's Backyard" in str(caught.value)
+    assert "Ask an admin to put you in a household" in str(caught.value)
 
     keeper_user = User.objects.create_user(username="keeper")
     Member.objects.create(display_name="Alex Keeper", user=keeper_user, role=Member.INSTANCE_ADMIN)
