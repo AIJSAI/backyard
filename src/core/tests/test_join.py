@@ -42,10 +42,12 @@ def _post(raw: str, **overrides: str) -> HttpResponse:
 def test_valid_invite_creates_member_in_pod_and_logs_in(invite_to_pod: tuple[Pod, str]) -> None:
     pod, raw = invite_to_pod
     response = _post(raw)
-    # S-101 acceptance: completing signup lands DIRECTLY in the pod feed, not the bare
-    # root or a community-setup screen.
+    # S-101 acceptance: completing signup lands DIRECTLY inside the family, not on the
+    # bare root and not on a community-setup screen. The first screen is the welcome
+    # (owner direction 7), which is three sentences and a Skip, and whose last control is
+    # the feed — it asks for nothing the account needs.
     assert response.status_code == 302
-    assert response.headers["Location"] == reverse("feed")
+    assert response.headers["Location"] == reverse("welcome")
     member = Member.objects.get(display_name="New Cousin")
     assert PodMembership.objects.filter(member=member, pod=pod).exists()
     assert member.user is not None
@@ -57,15 +59,25 @@ def test_valid_invite_creates_member_in_pod_and_logs_in(invite_to_pod: tuple[Pod
 def test_signup_then_following_the_redirect_shows_the_pod_feed(
     invite_to_pod: tuple[Pod, str],
 ) -> None:
-    """The whole S-101 promise end to end at the view layer: redeem, then the very next
-    page IS the feed (no setup screen in between), and it renders the member's pod."""
+    """The whole S-101 promise end to end at the view layer: redeem, then the welcome,
+    then the feed — no setup screen anywhere in between, and the feed renders the
+    member's household.
+
+    Skipping is walked rather than assumed: "skippable at every step" is only true if
+    the skip leaves a complete member standing in a working feed.
+    """
     pod, raw = invite_to_pod
     client = Client()
     data = {"display_name": "New Cousin", "username": "newcousin", "password": "aX9!mnpq2ffz"}
     response = client.post(reverse("join", args=[raw]), data, follow=True)
     assert response.status_code == 200
-    assert response.request["PATH_INFO"] == reverse("feed")  # landed on the feed itself
+    assert response.request["PATH_INFO"] == reverse("welcome")
     assert b"community" not in response.content.lower()  # never a create-a-community screen
+
+    skipped = client.post(reverse("welcome_skip"), follow=True)
+    assert skipped.status_code == 200
+    assert skipped.request["PATH_INFO"] == reverse("feed")  # the feed itself
+    assert pod.name.encode() in skipped.content or b"Share something" in skipped.content
 
 
 def test_get_shows_form_for_live_invite(invite_to_pod: tuple[Pod, str]) -> None:

@@ -171,7 +171,18 @@ def test_the_project_template_root_shadows_nothing_unintended() -> None:
     """DIRS is searched before app dirs, so ANY file added under src/templates/
     silently outranks the app's or a library's version of that name — including
     core/elder_feed.html, the tightest capability ceiling in the product. Pin the
-    whole set rather than four names."""
+    whole set rather than four names.
+
+    The allauth overrides are COPY ONLY: every form, field name, action button and
+    redirect field in them is the package's markup, and each file says in its own
+    comment what it changed and why. Adding one to this set is a deliberate act, which
+    is the point of pinning the set rather than a handful of names.
+
+    .txt is included now as well as .html. The e-mail bodies allauth sends are templates
+    too — the confirmation mail went out as "Hello from backyard.family! You're receiving
+    this email because user james has given your email address to register an account" —
+    and a glob that saw only .html could not have noticed one being shadowed.
+    """
     import pathlib
 
     root = pathlib.Path(__file__).resolve().parents[2] / "templates"
@@ -179,10 +190,33 @@ def test_the_project_template_root_shadows_nothing_unintended() -> None:
         "403_csrf.html",
         "404.html",
         "500.html",
+        # Copy-only overrides of allauth's own pages: Title Case, "Email:", dead-end
+        # "contact us" endings, and an account-system voice on a family's app.
         "account/login.html",
+        "account/logout.html",
+        "account/email.html",
+        "account/email_confirm.html",
+        "account/verification_sent.html",
+        "account/password_reset.html",
+        "account/password_reset_done.html",
+        "account/password_reset_from_key.html",
+        "account/password_reset_from_key_done.html",
+        "account/snippets/warn_no_email.html",
         "allauth/layouts/base.html",
         "allauth/layouts/entrance.html",
         "allauth/layouts/manage.html",
+        # The e-mails, and the flash message allauth raises on sign-in.
+        "account/messages/logged_in.txt",
+        "account/email/base_message.txt",
+        "account/email/base_notification.txt",
+        "account/email/email_confirmation_subject.txt",
+        "account/email/email_confirmation_message.txt",
+        "account/email/password_reset_key_subject.txt",
+        "account/email/password_reset_key_message.txt",
+        "account/email/unknown_account_subject.txt",
+        "account/email/unknown_account_message.txt",
     }
-    found = {str(p.relative_to(root)) for p in root.rglob("*.html")}
+    found = {
+        str(p.relative_to(root)) for pattern in ("*.html", "*.txt") for p in root.rglob(pattern)
+    }
     assert found == allowed, f"unexpected project-root template(s): {found ^ allowed}"

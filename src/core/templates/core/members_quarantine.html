@@ -1,8 +1,8 @@
 {% extends "core/base.html" %}
-{% block title %}Held email replies{% endblock %}
+{% block title %}Replies we couldn't post{% endblock %}
 {% block body %}
-  <h1>Held email replies</h1>
-  <p><a href="{% url 'members' %}">Back to members</a></p>
+  <h1>Replies we couldn&rsquo;t post</h1>
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Back to Family members</a></p>
   <p class="muted">Replies that could not be posted safely. Handle each with the family
   member directly, then clear it; nothing here was posted or delivered.</p>
   <ul class="quarantine">

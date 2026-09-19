@@ -78,10 +78,17 @@ def _drive_join_to_feed(
         page.fill('input[name="password"]', "aX9!mnpq2ffz")
         page.click('button[type="submit"]')
 
-        # Completing signup lands DIRECTLY in the pod feed (S-101 acceptance).
-        page.wait_for_url(f"{base_url}/feed/")
+        # Completing signup lands on the WELCOME (owner direction 7, 2026-09-19): three
+        # short screens, skippable at every one. It is not a setup wizard — it asks for
+        # nothing the account needs — and the whole point of walking it on a real phone is
+        # that skipping out of it has to leave a finished member in a working feed.
+        page.wait_for_url(f"{base_url}/welcome/")
+        expect(page.get_by_text("private place for our family")).to_be_visible()
+        page.click("text=Skip to the family")
+
         # And they are standing IN the pod feed: the composer and the pod-mate's existing
-        # post both render for the brand-new account.
+        # post both render for the brand-new account (S-101 acceptance).
+        page.wait_for_url(f"{base_url}/feed/")
         expect(page.get_by_placeholder("Share something with your family")).to_be_visible()
         expect(page.get_by_text(welcome_body)).to_be_visible()
     finally:
@@ -186,6 +193,8 @@ def _drive_invite_mint_handover_and_redeem(
         newcomer.fill('input[name="username"]', f"{engine}reed")
         newcomer.fill('input[name="password"]', _PW)
         newcomer.click('button[type="submit"]')
+        newcomer.wait_for_url(f"{base_url}/welcome/")
+        newcomer.click("text=Skip to the family")
         newcomer.wait_for_url(f"{base_url}/feed/")
         expect(newcomer.get_by_placeholder("Share something with your family")).to_be_visible()
     finally:

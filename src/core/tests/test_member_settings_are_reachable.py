@@ -167,6 +167,15 @@ _UNLINKED_BY_DESIGN = {
     # Reached only partway through a flow this crawl cannot drive with GETs.
     "compose_cancel": "the Cancel button on the widen-audience confirm step, which only "
     "exists after a POST that proposes widening",
+    # The welcome (owner direction 7). Shown ONCE, reached from the redirect that
+    # completing the join form performs, and deliberately linked from nowhere afterwards:
+    # a product that keeps offering a newcomer's explainer to the family who have already
+    # read it is the nagging this wave exists to remove. Its own last control is the feed,
+    # and test_welcome.py walks the whole path from the invite link.
+    "welcome": "the first screen after joining; nothing links back to it once seen",
+    "welcome_family_email": "the second screen of that same one-time flow",
+    "welcome_hello": "the third screen of that same one-time flow",
+    "welcome_skip": "the Skip button on those screens",
     # --- allauth's URLconf ---------------------------------------------------------
     # This block used to be one line of exemption in the assertion itself: the route set
     # was built from `get_resolver().url_patterns` only, described as "an included URLconf

@@ -1,0 +1,11 @@
+{% load i18n allauth %}
+{% comment %} PROJECT OVERRIDE of allauth's warn-no-email snippet.
+
+   It read: "Warning: You currently do not have any email address set up. You should really
+   add an email address so you can receive notifications, reset your password, etc." Three
+   problems on a family's app — it shouts "Warning" at somebody who has done nothing wrong,
+   it says "you should really", and it promises notifications this product does not send.
+   One sentence saying what the address is FOR. {% endcomment %}
+{% element p %}
+    {% trans "You have not given an email address. Adding one is the only way to get back in on your own if you forget your password." %}
+{% endelement %}

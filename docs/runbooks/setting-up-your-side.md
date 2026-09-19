@@ -6,6 +6,10 @@ have to do it.
 **The one rule that matters:** post something to your whole side of the family *before* you
 hand anyone a grandparent link. See "A grandparent" below for why.
 
+> The short version of this document is now a page inside the product:
+> **`Members`** → **`A guide for the two of you`**. Read that on your phone; read this
+> when you want the detail.
+
 ---
 
 ## Before anything else: getting in
@@ -110,8 +114,8 @@ them.
 
 **"Is it going to send me things?"** No. Nothing is pushed at anyone by default. The only
 thing anyone can turn on is a nudge when someone replies to their own post — under
-`Settings` → `Notifications`. There is also a weekly email digest, off until you switch it
-on, under `Settings`.
+`Settings` → `Notifications`. There is also the Family email, off until somebody switches
+it on, under `Settings`; a week when nobody posted sends nothing at all.
 
 ---
 
@@ -131,10 +135,10 @@ on, under `Settings`.
   cannot change them — each of those has its own "who can see this" setting that belongs to
   the person it is about, and standing in to fix a name is not a reason to read them.
 - **You handed a grandparent link to the wrong person.** Mint a new one for that grandparent
-  immediately — find them on **`Members`** and use **`Elder link`** on their row. Minting a
+  immediately — find them on **`Members`** and use **`No-login link`** on their row. Minting a
   new one kills the old one straight away.
 
-  `Elder link` only appears for grandparents in **households you are in yourself**. That is
+  `No-login link` only appears for grandparents in **households you are in yourself**. That is
   deliberate: the link is a working no-login credential for everything that person can see,
   so minting one for a household you are not in would hand you its contents. If you cannot
   see the control for someone, ask whoever runs the server.

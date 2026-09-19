@@ -19,6 +19,26 @@ itself up and telling somebody when it cannot.
 
 ### Added
 
+- **A welcome, once, when somebody joins.** Three short screens instead of a green card on
+  the feed: what this place is (private, just our family, no ads, no strangers), whether
+  they want a family email (weekly, monthly, or no thanks, with the address they just
+  typed already filled in), and a composer with a first line already written. Skippable at
+  every step, and skipping leaves a finished member standing in their feed. The family who
+  are already here never see it.
+- **"How this works", one plain page.** Who sees what you post, who can join and how, what
+  the Family email is and how to stop it, what happens to your photos and how to delete
+  them, who to ask for help, and what to do if you forget your password. It is also the
+  family's privacy note: the one per-person thing this software keeps is whether you
+  stopped by in a given week, a yes or a no, and the page says so in those words. Reachable
+  from Settings, from the sign-in page and from the welcome.
+- **"About this Backyard"**, a quiet page carrying the licence and the source offer, one
+  tap from Settings and from the sign-in page.
+- **A day-one guide for the two new admins, in the product.** One screen, reachable from
+  the roster: invite a household, give a grandparent a no-login link (and post something to
+  their side of the family first, so the page they open is not empty), get somebody back in
+  who is locked out, remove somebody and what happens to their posts, and who to ask. It
+  existed only as a file in this repository, which is nowhere for the people it is written
+  for.
 - **There is a person behind every name.** A calm coloured circle with someone's initials
   now sits beside their name wherever it leads something — a post, a reply, a row in the
   directory, their own page. The colour is picked from the person, so the same relative
@@ -135,6 +155,32 @@ itself up and telling somebody when it cannot.
 
 ### Changed
 
+- **One word per concept, everywhere a relative reads.** The product used three words for a
+  household (pod, household, house), two for a side of the family (yard, side of the
+  family) and three for the weekly email (digest, weekly email, Digest delivery), and put
+  "elder path", "token" and "instance" in front of people. It is now household, side of the
+  family, the Family email, no-login link and this Backyard — in every template, in the
+  control that decides who sees your phone number, and in the subject and body of every
+  email the product sends. A test fails the build if one of the old words comes back.
+- **The footer says who to ask, by name.** "Stuck? Ask whoever in the family set this up"
+  became "Stuck? Ask <name>", read from whoever runs the instance at the moment the page is
+  drawn. The grandparents' page carries it too. The licence and source-code line left that
+  footer for the About page; it was the second-loudest sentence on every screen in the
+  product, a page of family photographs included.
+- **The sign-out, password-reset and email-address pages are in this product's voice.**
+  They were the library's, in Title Case, with a field labelled "Email:" and a
+  password-reset flow that ended on "Please contact us if you have any trouble" — with no
+  "us", no link, and no other way out for somebody who cannot sign in. So were the emails:
+  the address confirmation went out as "Hello from backyard.family! You're receiving this
+  email because user james has given your email address to register an account".
+- **The Family email is weekly or monthly.** Daily is no longer offered; anyone who already
+  chose it keeps it.
+- **A returning member opens the feed and sees the family.** Signing in used to stack four
+  things above the composer: "Successfully signed in as priya.", the orientation card, a
+  loose paragraph about whose job inviting is, and the add-an-email card. The flash greets
+  the person by the name the family gave them, the card is now the welcome, and the
+  inviting sentence moved to the directory and to How this works — the two places somebody
+  goes looking for it.
 - **A post keeps the shape it was typed in.** Line breaks were collapsed, so a recipe off
   a card, an address or a packing list arrived as one run-on sentence. Fixed everywhere a
   post or a reply is shown: the feed, a thread, the grandparents' page, the family email
@@ -188,6 +234,29 @@ itself up and telling somebody when it cannot.
   a public URL, disk headroom and backup age are an operations map for whoever asks first.
 
 ### Fixed
+
+- **A quiet week sends no email.** A confirmed subscription produced a Family email every
+  period whether or not anyone had posted — a greeting, a date line and a footer with no
+  family in it. A window with nothing in it now sends nothing, records nothing as
+  delivered, and stays open, so anything written during that quiet stretch arrives in the
+  next one. The window is looked at twice, the second time at the built email itself, so
+  a post deleted while the run is working cannot produce that empty mail either.
+- **A side of the family is called what it was named.** Every screen that listed one
+  appended the word "side" to it, so a side named "Mom's side" read "Mom's side side".
+- **The roster's role control showed the wrong role, on every row.** It rendered the roles
+  an admin could grant, with nothing marked as selected, so it always displayed the first
+  option and every ordinary relative's row read as though they were already an admin — next
+  to a pill saying "Member". It now opens on the member's current role and says that
+  choosing it changes nothing.
+- **A member's row no longer breaks at phone width.** Below 40rem the row is a stack rather
+  than a flex line that centred "No-login link" against the two-control form beside it.
+- **The invite result no longer shows a second, empty invite form** under the link it just
+  made, with an identical button.
+- **The outstanding-invites list is a card per household** instead of one run-on line of
+  five unrelated pieces wrapping around a button.
+- **"Connection health" stopped printing a repository file path** at a non-technical
+  relative, along with "aggregates", "per yard" and "datum". It is "How the family is using
+  it" now, and says what it counts in a sentence.
 
 - **A removed member is no longer offered a "get back in" link.** Their row stays on the
   instance admin's list, so the control rendered — and the link worked right up to the

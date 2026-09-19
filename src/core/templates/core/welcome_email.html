@@ -1,0 +1,36 @@
+{% extends "core/base.html" %}
+{% comment %} Screen two. The Family email offered once, at the only moment anybody is
+   thinking about it, with the address already filled in from the join form.
+
+   Three buttons, not a select plus a submit: the choice IS the action, and a phone
+   keyboard opening over a dropdown is one more thing to get wrong. "No thanks" is the
+   same size as the other two — a refusal that is harder to press than an acceptance is
+   not a real choice. {% endcomment %}
+{% block title %}The Family email{% endblock %}
+{% block body %}
+  <h1>Want a family email?</h1>
+  <p>Backyard can send you what the family has been up to. A quiet week sends nothing.</p>
+
+  {% if error %}<div class="errors"><p>{{ error }}</p></div>{% endif %}
+
+  <form method="post" action="{% url 'welcome_family_email' %}">
+    {% csrf_token %}
+    <label for="address">Send it to</label>
+    <input id="address" type="email" name="address" value="{{ address }}" maxlength="254"
+           autocomplete="email" placeholder="you@example.com">
+    <p class="muted">We send one email to check the address is yours. Nothing from the
+      family goes out until you tap the link in it.</p>
+
+    <button type="submit" name="choice" value="weekly">Once a week</button>
+    <button type="submit" name="choice" value="monthly" class="btn-secondary">Once a month</button>
+    <button type="submit" name="choice" value="no" class="btn-secondary">No thanks</button>
+  </form>
+
+  <p class="muted">You can change this later under Settings, and every email we send has
+    a link at the bottom that stops them.</p>
+
+  <form method="post" action="{% url 'welcome_skip' %}">
+    {% csrf_token %}
+    <button type="submit" class="btn-secondary">Skip to the family</button>
+  </form>
+{% endblock %}

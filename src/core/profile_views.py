@@ -18,7 +18,7 @@ from django.http import FileResponse, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.text import slugify
 
-from . import export, permissions, profiles, scoping, vcards
+from . import export, invites, permissions, profiles, scoping, vcards
 from .feed_views import _acting_member
 from .models import Member, Pod, Yard
 
@@ -99,7 +99,22 @@ def directory(request: HttpRequest) -> HttpResponse:
         )
         for other in members[:200]
     ]
-    return render(request, "core/directory.html", {"member": member, "profiles": rows, "q": query})
+    return render(
+        request,
+        "core/directory.html",
+        {
+            "member": member,
+            "profiles": rows,
+            "q": query,
+            # BY-13: whose job inviting is. It used to be a loose paragraph on the FEED,
+            # on every visit forever, which is neither where somebody wonders about it nor
+            # a thing that changes. This is the page you open when you are thinking about
+            # who is here, so the answer to "how do I add somebody" belongs on it. An
+            # admin is the somebody else, so they are not told to go and ask one.
+            "show_invite_help": not permissions.is_admin(member),
+            "inviter": None if permissions.is_admin(member) else invites.inviter_of(member),
+        },
+    )
 
 
 # What a profile page shows of somebody's writing: enough to prove there is a person

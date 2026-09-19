@@ -1148,7 +1148,7 @@ td.delivery, .delivery { font-variant-numeric: tabular-nums; }
   border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.2rem 1.35rem; margin: 1rem 0 1.4rem;
 }
 .handover::before {
-  content: "Shown once — anyone with this link can act as its holder";
+  content: "Shown once. Anyone who has this link can use it, so send it only to them.";
   display: inline-flex; align-items: center;
   font-size: 0.78rem; font-weight: 700; color: var(--amber);
   background: var(--amber-tint); border-radius: var(--radius-sm);
@@ -1496,7 +1496,10 @@ ul.contacts > li { padding: 0.15rem 0; }
            surface in the product. {% endcomment %}
         <nav class="site-nav" aria-label="Backyard">
           <a href="{% url 'feed' %}"{% if request.resolver_match.url_name == 'feed' %} aria-current="page"{% endif %}>Feed</a>
-          <a href="{% url 'pod_list' %}"{% if request.resolver_match.url_name == 'pod_list' %} aria-current="page"{% endif %}>Pods</a>
+          {% comment %} "Pods" was the product's own word for a thing the family has two
+             names for. The page behind it lists the member's households and their small
+             groups, so the label says what is there. {% endcomment %}
+          <a href="{% url 'pod_list' %}"{% if request.resolver_match.url_name == 'pod_list' %} aria-current="page"{% endif %}>Groups</a>
           <a href="{% url 'directory' %}"{% if request.resolver_match.url_name == 'directory' %} aria-current="page"{% endif %}>Directory</a>
           <a href="{% url 'profile_edit' %}"{% if request.resolver_match.url_name == 'profile_edit' %} aria-current="page"{% endif %}>Settings</a>
           {% if viewer_is_admin %}
@@ -1533,24 +1536,24 @@ ul.contacts > li { padding: 0.15rem 0; }
          is a relative, not a support desk.
 
          The trailing clause "— they can fix it" was cut in the visual pass: it asserts
-         nothing the first half does not already say. The pinned substring
-         "Ask whoever in the family set this up" is intact, so the two tests in
-         test_accessibility_modes.py still hold this sentence without being moved. {% endcomment %}
-      <span class="help">Stuck? Ask whoever in the family set this up.</span>
-      {% comment %} AGPL section 13: a network user must be OFFERED the source. This app is
-         AGPL-3.0-or-later and told a remote user nothing at all — no licence, no repository,
-         nothing in any served page. The offer has to be in the running program, not only in
-         the repository, because the person owed it is the one using it over a network and may
-         never see the repository.
+         nothing the first half does not already say. {% endcomment %}
+      {% comment %} The help line names a PERSON. "whoever in the family set this up" is
+         true and impersonal, and on a family's app it read like a support page; the
+         person is a relative and has a name, so the footer says it. The name comes from
+         the instance admin's display name in the DATABASE at render time
+         (core/context_processors.help_contact_name) — this repository is public and a
+         relative's name does not belong in it. With no instance admin the old sentence
+         stands, and it is the substring the two SC 3.2.6 tests are pinned on. {% endcomment %}
+      <span class="help">Stuck? Ask {% if help_contact %}{{ help_contact }}{% else %}whoever in the family set this up{% endif %}.</span>
+      {% comment %} The AGPL section 13 source offer used to live here, on all thirty-odd
+         screens including a grandparent's. Section 13 requires that a network user be
+         OFFERED the source; it does not require that the offer be the second-loudest line
+         on a family's photo album. It now lives on /about/, one tap from Settings and from
+         the sign-in page, and test_agpl_source_offer.py walks both routes.
 
-         TEXT, not an anchor, matching the elder surface. This footer is asserted to carry no
-         links at all (test_accessibility_modes.py, WCAG 2.2 SC 3.2.6): the help affordance is
-         a sentence rather than a link, because a link to a help page that does not exist is
-         worse than none. A licence link is not that affordance — but loosening a WCAG
-         invariant so this line can be clickable would be trading a real guarantee for a
-         convenience, and section 13 asks that the source be OFFERED, not hyperlinked. {% endcomment %}
-      <span class="source">Backyard is free software (AGPL-3.0-or-later).
-        Source code: github.com/AIJSAI/backyard</span>
+         No link is added HERE: this footer is asserted to carry no links at all
+         (test_accessibility_modes.py, WCAG 2.2 SC 3.2.6), because the help affordance is a
+         sentence rather than a link to a help page that does not exist. {% endcomment %}
     </div>
   </footer>
   {% if user.is_authenticated %}

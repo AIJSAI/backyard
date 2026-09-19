@@ -1,0 +1,90 @@
+{% extends "core/base.html" %}
+{% comment %} The one plain page (owner direction 8). It is three things at once and has to
+   stay all three: the answer to what a relative asks on day one, the family's
+   plain-language privacy note (S-705 / GAP-7 — the yes/no weekly presence is disclosed
+   here, in words, not only in docs/family-privacy-note.md), and the ground the admins'
+   day-one guide stands on.
+
+   VOCABULARY IS THE POINT. household, side of the family, the Family email, no-login link,
+   this Backyard — and none of the internal nouns. test_one_word_per_concept.py fails the
+   build if one comes back. Phone-first: short sections, no nesting, every link a real
+   target the size of a thumb. {% endcomment %}
+{% block title %}How this works{% endblock %}
+{% block body %}
+  <h1>How this works</h1>
+  <p class="muted">A private place for our family. No ads, no strangers, nothing that nags.
+    Post when you feel like it.</p>
+
+  <h2>Who sees what I post</h2>
+  <p>Everything you write goes to <strong>your household</strong> — the people who share
+    your home, or whoever was set up alongside you. Nobody else sees it.</p>
+  <p>When you want more people to see something, you choose a wider group as you write it,
+    and Backyard asks you to confirm before it goes.</p>
+  <p>A side of the family is one branch of it, with its own feed. Most of us are on one
+    side and see only that one. Some households sit in both &mdash; the ones who are
+    related to everybody &mdash; and they see both sides. That is the only way anything
+    crosses: through the people who belong to both, never from one side to the other on
+    its own.</p>
+
+  <h2>Who can join, and how</h2>
+  <p>Only by invitation. Someone who looks after this Backyard makes a link and sends it to
+    you; you open it, pick a name and a password, and you are in. There is no way to sign
+    up from the outside, and nothing here is public.</p>
+  <p>Adding people is an admin&rsquo;s job, so if you would like somebody brought in,
+    ask {% if help_contact %}{{ help_contact }}{% else %}whoever in the family set this
+    up{% endif %} and they will make you a link to pass on.</p>
+  <p>A grandparent who would rather not deal with passwords can be given a
+    <strong>no-login link</strong> instead. It opens straight onto a large-text page of the
+    family's posts with one button to send love. Anyone holding that link can use it, so it
+    is handed over in person or by a private message.</p>
+
+  <h2>The Family email</h2>
+  <p>If you want one, Backyard can email you what the family has been up to, weekly or
+    monthly. It is off unless you turn it on, it goes only to an address you have
+    confirmed, and a week when nobody posted sends you nothing at all.</p>
+  <p>Every one of those emails has a link at the bottom that stops them. You can also stop
+    them here at any time, and stopping the email never removes you from the family.</p>
+  {% if user.is_authenticated %}
+    <p><a class="btn" href="{% url 'digest_settings' %}">The Family email</a></p>
+  {% endif %}
+
+  <h2>My photos</h2>
+  <p>Photos live on this family's own server and are shown only to the people the post was
+    for. They are not sent to any other company, they are not used to train anything, and
+    they are never scanned or sold.</p>
+  <p>You can delete any post of yours: open it, choose Delete, and its photos are removed
+    from the server for good. The one thing nobody can recall is a copy that already went
+    out in a Family email, the same as any email you have already sent.</p>
+  <p>You can also take a copy of everything you have written and every photo you have
+    added, whenever you like.</p>
+  {% if user.is_authenticated %}
+    <p><a class="btn" href="{% url 'export_data' %}">Download my things</a></p>
+  {% endif %}
+
+  <h2>What this place keeps about me</h2>
+  <p>One thing, and this is it: once a week, whether you stopped by. Just a yes or a no.
+    It is there so the family can tell this place is still alive.</p>
+  <p>Backyard does not record what you read, how long you stayed, or what you tapped.
+    There is no per-person activity list anywhere in it. The only numbers anyone can see
+    are totals for a whole side of the family, never one of us on our own.</p>
+
+  <h2>If I forget my password</h2>
+  <p>If you gave an email address, use <strong>Forgot your password?</strong> on the
+    sign-in page and Backyard will email you a way back in.</p>
+  <p>If you did not give one, ask {% if help_contact %}{{ help_contact }}{% else %}whoever
+    in the family set this up{% endif %}. They can make you a one-time link that lets you
+    choose a new password. It is worth adding an email address now so you never need to
+    ask.</p>
+  {% if user.is_authenticated %}
+    <p><a class="btn" href="{% url 'account_email' %}">Add my sign-in email</a></p>
+  {% else %}
+    <p><a class="btn" href="{% url 'account_login' %}">Go to sign in</a></p>
+  {% endif %}
+
+  <h2>If something looks wrong</h2>
+  <p>Ask {% if help_contact %}{{ help_contact }}{% else %}whoever in the family set this
+    up{% endif %}. This is run by a relative, not a company, and nothing here is so
+    important that it cannot wait until they have a minute.</p>
+
+  <p class="page-action"><a href="{% url 'about' %}">About this Backyard</a></p>
+{% endblock %}

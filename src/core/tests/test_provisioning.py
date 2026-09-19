@@ -101,7 +101,7 @@ def test_page_shows_the_grant_before_generation(world: World) -> None:
         .get(reverse("provision_elder", args=[world.nana.id]))
         .content.decode()
     )
-    assert "elder path" in body  # names the surface
+    assert "no-login link" in body  # names the surface in the words the family uses
     assert "Maternal" in body  # the exact yard the token will grant
     assert "Maternal cousins" in body  # and pod
     assert "cannot edit profiles" in body  # the ceiling stated to the helper

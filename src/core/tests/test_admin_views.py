@@ -137,7 +137,12 @@ def test_roster_visibly_flags_supervised_members_to_admins(world: dict[str, obje
     """S-703: a supervised member is visibly flagged on the admin roster, so an
     admin can tell a managed child from a full member at a glance. Asserts the
     rendered markup, not just the model flag (the model-level flag is covered by
-    test_create_supervised_flags_and_parents_the_child)."""
+    test_create_supervised_flags_and_parents_the_child).
+
+    ONE badge, not two. The row used to carry the role pill and a second amber flag
+    side by side, both saying the same thing in different words — and the pill said
+    "Supervised member", which is the matrix's vocabulary rather than a family's. The
+    role label is the badge now, and it says "Child account"."""
     admin = world["admin"]
     parent = world["member_a"]
     pod_a = world["pod_a"]
@@ -147,10 +152,11 @@ def test_roster_visibly_flags_supervised_members_to_admins(world: dict[str, obje
     assert response.status_code == 200
     content = response.content.decode()
     assert "Kiddo" in content  # the supervised child appears on the roster at all
-    flag = '<span class="flag">supervised</span>'
-    assert flag in content  # and is flagged
-    # exactly one flag: the supervised child, never the full members (MemberA/AAdmin/Admin)
-    assert content.count(flag) == 1
+    badge = '<span class="role">Child account</span>'
+    assert badge in content  # and is flagged
+    # exactly one: the supervised child, never the full members (MemberA/AAdmin/Admin)
+    assert content.count(badge) == 1
+    assert '<span class="flag">' not in content, "the row carries two badges for one fact"
 
 
 # --- a yard admin does not get a member's delivery address in full ---

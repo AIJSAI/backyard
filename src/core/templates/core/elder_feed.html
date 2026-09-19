@@ -183,6 +183,15 @@ p.clip-status { margin: 18px 0; color: #4c5a52; }
     <p class="post">Nothing new right now. Your family's posts will appear here.</p>
   {% endfor %}
   <p class="back-wrap"><a class="back" href="{% url 'elder_feed' %}">Back to the top of your family's page</a></p>
+  {% comment %} The same help line the rest of the product carries, naming the relative who
+     runs this Backyard rather than "whoever set this up". Owner direction 2026-09-19: the
+     grandparent's page gets it too, because she is the person most likely to be stuck and
+     least likely to guess who to ring.
+
+     TEXT, NOT A LINK. S-601 gives this surface no way off itself: every href here must be
+     the elder feed, so nothing here can strand her somewhere she cannot get back from. The
+     name comes from the database at render time, never a literal in this public repo. {% endcomment %}
+  <p class="source-note">Stuck? Ask {% if help_contact %}{{ help_contact }}{% else %}whoever in the family set this up{% endif %}.</p>
   {% comment %} The AGPL section 13 source offer, repeated here because this template is
      STANDALONE by design and does not extend base.html. An offer that renders on every page
      except the one an elder actually uses is not an offer to her -- and she is the network
@@ -195,7 +204,16 @@ p.clip-status { margin: 18px 0; color: #4c5a52; }
 
      Section 13 requires that a network user be OFFERED the source; it does not require the
      offer be clickable. A URL she can read, type, or show to someone is an offer. The
-     obligation is met and the surface keeps its shape. {% endcomment %}
+     obligation is met and the surface keeps its shape.
+
+     KEPT ON 2026-09-19, deliberately, while the same line came OFF every other screen in
+     the product. Owner direction 1 moved the licence to /about/, one tap from Settings and
+     from the sign-in page — and this is the one surface that can reach neither. She has no
+     account, no nav and, by S-601, no href on this page but the page itself. Deleting the
+     line here would not move the offer somewhere quieter; it would leave the one network
+     user who cannot go and look for it with no offer at all. It is 0.72em, in the quiet
+     ink, below everything else on the page, which is as far out of her way as it goes.
+     {% endcomment %}
   <p class="source-note">Backyard is free software (AGPL-3.0-or-later).
     Source code: github.com/AIJSAI/backyard</p>
 </main>

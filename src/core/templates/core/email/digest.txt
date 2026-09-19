@@ -1,6 +1,6 @@
 {% autoescape off %}{{ separator }}
 
-{{ header.yard_name }}: your family digest
+{{ header.yard_name }}: what the family has been up to
 {{ header.window_text }}
 
 {% for block in post_blocks %}{{ block.author_line }} on {{ block.date_text }}:
@@ -9,8 +9,6 @@
 Open this post: {{ block.url }}
 {% if block.reply_url %}Reply in Backyard (you can add photos there): {{ block.reply_url }}
 {% endif %}
-
-{% empty %}A quiet stretch; nothing new this time.
 
 {% endfor %}{% if dates_block %}Coming up in the next week:
 {% for entry in dates_block.entries %}  {{ entry.name_line }}'s {{ entry.kind }} ({{ entry.date_text }})

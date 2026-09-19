@@ -247,7 +247,7 @@ def test_metrics_panel_is_instance_admin_only(world: World) -> None:
     assert _client_for(world.poster).get(reverse("member_metrics")).status_code == 403
     assert _client_for(yard_admin).get(reverse("member_metrics")).status_code == 403
     body = _client_for(instance_admin).get(reverse("member_metrics")).content.decode()
-    assert "Connection health" in body and "Maternal" in body
+    assert "How the family is using it" in body and "Maternal" in body
 
 
 # --- folds from the #40 security review ---
