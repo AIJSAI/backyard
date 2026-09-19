@@ -142,6 +142,8 @@ def _no_longer_claims_enforcement(path: str) -> None:
         "mandatory admin 2fa",
         "mandatory admin two-factor",
         "enforced in the wizard so a password-only admin never exists",
+        "enforced in the wizard",
+        "require a passkey or totp",
     ):
         # The corrected sentences quote the old claim on purpose, to say it was wrong.
         for line in text.splitlines():
@@ -154,6 +156,7 @@ def _no_longer_claims_enforcement(path: str) -> None:
                         "never implemented",
                         "never shipped",
                         "no longer claimed",
+                        "superseded",
                         "did not",
                     )
                 ), f"{path} still asserts {claim!r}: {line.strip()[:160]}"
@@ -168,6 +171,7 @@ def _no_longer_claims_enforcement(path: str) -> None:
         "docs/PATH-TO-100.md",
         "docs/RESUME-HERE.md",
         "docs/security/story-deltas.json",
+        "stories/stories.yaml",
         "src/core/breakglass.py",
         "src/core/management/commands/break_glass.py",
     ],
