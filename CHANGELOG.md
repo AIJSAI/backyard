@@ -22,20 +22,30 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   runner's `--debug-sql`, and Postgres overrides the one shared call site), so the reason to
   take them is that a scanner does not do reachability analysis and a red required check
   blocks every other fix behind it.
-- **The Postgres image moves from 18.4 to 18.6**, which closes 27 upstream CVEs, ten of them
-  scored 8.8 for arbitrary code execution. The container publishes no port and shares no
-  network with the edge, so the only things that can speak SQL to it are the app and the
-  worker — this is the layer beneath a compromised app rather than a door onto it. Two of
-  the ten are worth naming anyway, because they fire through `pg_dump` rather than through a
-  query: the entrypoint runs `pg_dump` before every migration, on every boot. A minor
-  Postgres upgrade needs no dump and restore; the new digest is pulled on the next `up -d`.
+- **The Postgres image moves from 18.4 to 18.6**, which closes 28 upstream CVEs, 14 of them
+  scored 8.8. The container publishes no port and shares no network with the edge, so the
+  only things that can speak SQL to it are the app and the worker — this is the layer
+  beneath a compromised app rather than a door onto it. The bump also refreshes the `psql`
+  the self-host guide has you run by hand against the box. What it does NOT close are the
+  two 8.8 entries that fire through `pg_dump` (CVE-2026-19385, CVE-2026-18408): every dump
+  and restore this product takes — the entrypoint's pre-flight backup on every boot,
+  `backup_instance`, `restore_instance` — runs the `postgresql-client-18` installed in the
+  APP image, not the client in this container, so those two close only on the `build --pull`
+  below. A minor Postgres upgrade needs no dump and restore; the new digest is pulled on the
+  next `up -d`.
 - **The Caddy image is refreshed** to a current Alpine base. Same Caddy v2.11.4 binary.
-- **The documented upgrade now builds with `--pull`.** The app image installs `pg_dump` and
-  `ffmpeg` in a layer above the application code, so nothing an upgrade changes could reach
-  it: both binaries stayed at their first-build versions for the life of an instance, on the
-  process that decodes uploaded video and the one that takes your pre-flight backup. The
-  Upgrades section of the self-host guide now says why, and the handover runbook does the
-  same for the last build before somebody else owns the box.
+- **Every documented redeploy now builds with `--pull`, chained to the `up`.** The app image
+  installs `pg_dump` and `ffmpeg` in a layer above the application code, so nothing an
+  upgrade changes could reach it: both binaries stayed at their first-build versions for the
+  life of an instance, on the process that decodes uploaded video and the one that takes
+  your pre-flight backup. `--pull` re-resolves the base tag and rebuilds that layer whenever
+  upstream has published a new `python:3.13-slim`; when it has not and you are acting on an
+  advisory anyway, `build --pull --no-cache` is the only command that forces it, and the
+  self-host guide now says so. The `&&` matters as much as the `--pull`: as two separate
+  lines, a failed build was followed by an `up -d` that quietly started the previous image.
+  Fixed in the self-host guide's Upgrades section, the handover runbook, and the overlay's
+  own header; a new test pins every documented deploy as a first install or a redeploy, so
+  the next one cannot be missed.
 
 ## [0.1.2] — 2026-08-07
 

@@ -6,8 +6,12 @@
 # thing that can invalidate it and reinstall the pg client and ffmpeg at current versions.
 # A deploy gets that by building with `--pull` (docs/runbooks/self-host.md, Upgrades); an
 # ordinary `docker compose up --build` does not pull, keeps the cached layer, and stays
-# fast. Pin a digest here and both parser binaries freeze at whatever the box first built,
-# for the life of the instance — which is the opposite of what pinning is for.
+# fast. Pinning a digest here would not freeze the binaries forever — it would move their
+# refresh to a pin bump in a release commit, which is what the two compose pins get. It
+# would, though, put that refresh behind somebody remembering, and nobody remembered those
+# two for the two months they existed. So this one floats, and the trade is named rather
+# than implied: a deploy builds on whatever the tag resolves to that day, unreviewed — the
+# app-image half of T-UPGRADE-1, accepted here and not mitigated.
 FROM python:3.13-slim
 
 ENV PYTHONUNBUFFERED=1 \

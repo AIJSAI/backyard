@@ -13,12 +13,18 @@ services:
   postgres:
     # Pinned by digest (T-UPGRADE-1): tag + digest, never a floating tag alone. A digest is
     # opaque, so the version it resolves to is recorded beside it — otherwise nothing here
-    # distinguishes a current pin from one two security cycles stale, which is how the
-    # previous pin sat at 18.4 for two and a half months. This one is PostgreSQL 18.6.
+    # distinguishes a current pin from a stale one, which is how the previous pin sat at
+    # 18.4 (released 2026-05-14) from 2026-07-20 until this bump, five weeks of it behind
+    # 18.6. This one is PostgreSQL 18.6; there is no 18.5.
     # Moving inside the 18.x line is a minor upgrade, so it needs no dump and restore:
     # "A dump/restore is not required for those running 18.X" (release notes, Migration to
-    # Version 18.6). Its three conditional steps do not apply here — no logical decoding, no
-    # GIN indexes, and no contrib extensions are created anywhere in this repo.
+    # Version 18.6). Every conditional that section attaches to that sentence was checked and
+    # none applies here: its three security entries need logical-decoding output plugins
+    # (none), contrib/pgcrypto PGP data (not installed), and psql scripts with a failing
+    # COPY ... FROM STDIN (none in this repo); there are no GIN indexes to re-ANALYZE and no
+    # btree_gist/ltree indexes to reindex; and the pre-18.2 clause cannot apply because this
+    # pin has never been anything but 18.4. Both images are alpine3.24, so the collation
+    # hazard TS-PG-8 names (a libc or ICU change under an existing volume) is not in play.
     image: postgres:18-alpine@sha256:6c538e7206ea40ff740ef27883529390a690b6ead6ba96b44c67a9f7c638e8fd
     restart: unless-stopped
     logging: *default-logging
