@@ -114,7 +114,10 @@ def test_confirm_flow_is_get_page_then_post(world: World) -> None:
     digesting.subscribe(world.nana, address="nana@example.com", cadence="weekly")
     token = _confirm_link_token()
     url = reverse("digest_confirm", args=[token])
-    client = Client()  # the address holder needs no login (email-link surface)
+    # The page needs no sign-in to LOAD (it came out of an inbox); confirming needs the
+    # member's own session. See test_only_the_member_confirms_email_updates.py.
+    assert Client().get(url).status_code == 200
+    client = _client_for(world.nana)
     assert client.get(url).status_code == 200  # loading never confirms...
     world.nana.refresh_from_db()
     assert DigestSubscription.objects.get(member=world.nana).confirmed_at is None
@@ -125,8 +128,11 @@ def test_confirm_flow_is_get_page_then_post(world: World) -> None:
 def test_confirm_token_is_single_use_and_failures_are_uniform(world: World) -> None:
     digesting.subscribe(world.nana, address="nana@example.com", cadence="weekly")
     token = _confirm_link_token()
+    assert _client_for(world.nana).post(reverse("digest_confirm", args=[token])).status_code == 200
+    # Read as the stranger the uniformity is for: a signed-in page carries per-request
+    # values (the sign-out form's CSRF token), so only an anonymous pair can be compared
+    # byte for byte.
     client = Client()
-    assert client.post(reverse("digest_confirm", args=[token])).status_code == 200
     replay = client.get(reverse("digest_confirm", args=[token]))
     unknown = client.get(reverse("digest_confirm", args=["never-was-a-token"]))
     assert replay.status_code == unknown.status_code == 404
@@ -396,13 +402,13 @@ def test_the_confirmed_page_offers_a_way_on_and_the_question_does_not(world: Wor
     """
     digesting.subscribe(world.nana, address="nana@example.com", cadence="weekly")
     url = reverse("digest_confirm", args=[_confirm_link_token()])
-    client = Client()  # no login: the link came out of an inbox, possibly on another device
-
-    asking = client.get(url).content.decode()
+    # The question loads with no sign-in: the link came out of an inbox, possibly on
+    # another device. Answering it takes the member's own session.
+    asking = Client().get(url).content.decode()
     assert "Is This Your Address?" in asking  # non-vacuity: this really is the question
     assert "Go To Your Backyard" not in asking
 
-    confirmed = client.post(url).content.decode()
+    confirmed = _client_for(world.nana).post(url).content.decode()
     assert "Address Confirmed" in confirmed
     assert "Go To Your Backyard" in confirmed
     assert f'href="{reverse("feed")}"' in confirmed
@@ -411,15 +417,16 @@ def test_the_confirmed_page_offers_a_way_on_and_the_question_does_not(world: Wor
 def test_the_way_on_does_not_dead_end_a_signed_out_reader(world: World) -> None:
     """Why the feed and not the sign-in page: it works for both readers.
 
-    Signed out — the likely case, since the link came from an inbox — login_required sends
-    them to sign-in carrying the feed in `next`, so one sign-in lands them where the link
-    said. Signed in, on the phone they joined on, they go straight there. Either way it is
-    a screen with something on it, which is what "not a dead end" means.
+    Somebody who opens the confirmed page's link later, signed out, is sent to sign-in
+    carrying the feed in `next`, so one sign-in lands them where the link said. Signed in,
+    on the phone they joined on, they go straight there. Either way it is a screen with
+    something on it, which is what "not a dead end" means. (Confirming itself now needs the
+    member's session, so the page is produced by one; the link is then walked signed out.)
     """
     digesting.subscribe(world.nana, address="nana@example.com", cadence="weekly")
     url = reverse("digest_confirm", args=[_confirm_link_token()])
+    confirmed = _client_for(world.nana).post(url).content.decode()
     client = Client()
-    confirmed = client.post(url).content.decode()
 
     # Walk it as the reader does: take the href off the page rather than naming a route
     # here, so this follows whatever the page actually offers.
