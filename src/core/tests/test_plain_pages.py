@@ -124,11 +124,18 @@ def test_it_names_the_person_to_ask_when_there_is_one() -> None:
     assert "Whitfield" not in body, "the help line uses the first name only"
 
 
-def test_it_falls_back_to_the_old_sentence_when_nobody_is_named() -> None:
+def test_it_falls_back_to_a_sentence_when_nobody_is_named() -> None:
     """A fresh instance, or an operator account created by the setup wizard with no
-    display name. The sentence must still read as a sentence."""
-    body = Client().get(reverse("how_it_works")).content.decode()
-    assert "whoever in the family set this up" in body
+    display name. The sentence must still read as a sentence.
+
+    Whitespace-normalised since R2-1: this page's own three fallbacks wrap across lines in
+    the template, so the un-normalised form of this assertion was only ever passing on the
+    shared footer — which is a different sentence on a different surface.
+    """
+    body = " ".join(Client().get(reverse("how_it_works")).content.decode().split())
+    assert body.count("whoever in the family set this up") == 3, (
+        "this page's own three fallbacks are what it is about; the footer is asserted separately"
+    )
 
 
 # --- the footer's help line -----------------------------------------------------------
@@ -166,6 +173,44 @@ def test_the_grandparents_page_carries_the_same_help_line() -> None:
     html = client.get(reverse("elder_feed")).content.decode()
     assert "Stuck? Ask Jim." in html
     assert 'href="https://github' not in html
+
+
+def test_the_help_line_a_logged_out_reader_gets_names_the_person_who_invited_them() -> None:
+    """R2-1. Walk item 12 empties the name for anybody who has not been let in, so the
+    FALLBACK is what a stranger, a locked-out relative and a grandmother on a bare
+    instance actually read. It said "Ask whoever in the family set this up", which the
+    owner read back on the walk and called strange: it names a role no family uses, and
+    nobody a relative could ring. Everyone who reaches this product reached it through a
+    person who sent them a link, so the sentence says that person.
+
+    Asserted on the sign-in page, which is the one screen a locked-out member reads, and
+    on the footer specifically — the other pages carry their own longer sentences and are
+    not this line.
+    """
+    _family()
+    footer_pages = (reverse("account_login"), reverse("account_reset_password"))
+    for route in footer_pages:
+        html = Client().get(route).content.decode()
+        footer = html[html.index("<footer") : html.index("</footer>")]
+        assert "Stuck? Ask the person who invited you." in footer, (
+            f"{route} does not carry the fallback help line: {footer}"
+        )
+        assert "whoever in the family set this up" not in footer
+
+
+def test_the_grandparents_page_falls_back_to_the_same_sentence() -> None:
+    """The elder page is not inside the shared footer — S-601 gives it its own — so its
+    copy of the help line is a second place the old wording could survive."""
+    pod = _family()
+    nana = Member.objects.create(display_name="Nana")
+    PodMembership.objects.create(member=nana, pod=pod)
+    raw = elder_tokens.mint(nana)
+
+    client = Client()
+    client.get(reverse("elder_enter", args=[raw]))
+    html = client.get(reverse("elder_feed")).content.decode()
+    assert "Stuck? Ask the person who invited you." in html
+    assert "whoever in the family set this up" not in html
 
 
 def test_the_help_line_survives_an_admin_with_a_one_word_name() -> None:
@@ -303,4 +348,4 @@ def test_a_removed_instance_admin_is_never_the_person_to_ask() -> None:
     assert "Stuck? Ask Ada." in html
 
     removal.remove_member(successor, content=removal.KEEP)
-    assert "whoever in the family set this up" in reader.get(reverse("feed")).content.decode()
+    assert "Stuck? Ask the person who invited you." in reader.get(reverse("feed")).content.decode()

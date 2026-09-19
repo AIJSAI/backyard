@@ -1578,9 +1578,16 @@ ul.contacts > li { padding: 0.15rem 0; }
          person is a relative and has a name, so the footer says it. The name comes from
          the instance admin's display name in the DATABASE at render time
          (core/context_processors.help_contact_name) — this repository is public and a
-         relative's name does not belong in it. With no instance admin the old sentence
-         stands, and it is the substring the two SC 3.2.6 tests are pinned on. {% endcomment %}
-      <span class="help">Stuck? Ask {% if help_contact %}{{ help_contact }}{% else %}whoever in the family set this up{% endif %}.</span>
+         relative's name does not belong in it.
+
+         THE FALLBACK is what a logged-out reader gets (walk item 12 empties the name for
+         anybody who has not been let in), and it used to be "whoever in the family set
+         this up" — which the owner read back on the walk and called strange: it describes
+         a role nobody in a family uses, and it is nobody a relative could ring. Everybody
+         who reaches this product reached it through a person who handed them a link, so
+         the sentence says that person. It is still the substring the two SC 3.2.6 tests
+         are pinned on. {% endcomment %}
+      <span class="help">Stuck? Ask {% if help_contact %}{{ help_contact }}{% else %}the person who invited you{% endif %}.</span>
       {% comment %} The AGPL section 13 source offer used to live here, on all thirty-odd
          screens including a grandparent's. Section 13 requires that a network user be
          OFFERED the source; it does not require that the offer be the second-loudest line
