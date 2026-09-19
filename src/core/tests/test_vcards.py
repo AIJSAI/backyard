@@ -499,7 +499,8 @@ def test_an_empty_profile_does_not_offer_an_empty_contact_card(world: World) -> 
 
 def test_every_card_carries_the_grouping_category(world: World) -> None:
     """The category is how twenty contacts that arrived together are found, or removed, as
-    a group in a phone. It reads "Backyard" since 0.1.5 (it was "Backyard family"); changing
-    it again would split the group for anybody who has already imported, so it is pinned."""
+    a group in a phone. It reads "Backyard" since the copy pass (it was "Backyard family";
+    see the CHANGELOG). Changing it again would split the group for anybody who has already
+    imported, so it is pinned."""
     card = _card_for(world.author, world.pod_mate).replace("\r\n ", "")
     assert "CATEGORIES:Backyard" in card.split("\r\n")

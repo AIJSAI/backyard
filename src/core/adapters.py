@@ -110,7 +110,10 @@ class MFAAdapter(DefaultMFAAdapter):  # type: ignore[misc]  # allauth is untyped
         # and on Remove This Passkey? the name is the only thing telling them apart. Take
         # the lowest number no existing key of this type is using.
         taken = {
-            authenticator.wrap().name
+            # .data.get, not .wrap().name: the authenticator-app and recovery-code wrappers
+            # carry no name at all and this hook accepts any type. A row with no name takes
+            # part in nothing rather than 500-ing the Add A Passkey page.
+            authenticator.data.get("name")
             for authenticator in Authenticator.objects.filter(user_id=user.pk, type=type)
         }
         number = 1
@@ -119,7 +122,8 @@ class MFAAdapter(DefaultMFAAdapter):  # type: ignore[misc]  # allauth is untyped
         return f"Passkey {number}"
 
     def build_totp_svg(self, url: str) -> str:
-        """The authenticator-app QR as INLINE SVG, marked safe here and nowhere else.
+        """The authenticator-app QR as INLINE SVG: one of the two audited mark_safe sites over
+        qr_svg output (the other, and the reasoning, is core/handover.py).
 
         allauth's template puts this SVG in an <img> as a `data:` URI, and this product's
         Content-Security-Policy is `img-src 'self' blob:` on purpose (core/middleware.py

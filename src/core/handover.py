@@ -2,9 +2,10 @@
 link and hand it over (the elder token, S-104; the household invite, S-201).
 
 - ``qr_svg``: an inline SVG QR of a handover URL, with no raster, script, or
-  network dependency, so the printable artifact embeds directly. The only input is
-  our own CSPRNG token inside the configured BASE_URL, never user text, so the SVG
-  path geometry carries nothing to escape.
+  network dependency, so the printable artifact embeds directly. Callers pass a URL
+  that may contain user text (the authenticator-app label is the member's own e-mail
+  address); qrcode renders it as path geometry and never as characters, so nothing
+  in the URL reaches the markup.
 - ``fresh_intent`` / ``consume_intent``: a single-use session nonce so a browser
   refresh (a replayed POST) re-renders WITHOUT minting again. The raw token never
   goes in the session, only the nonce does, so the token still appears exactly
@@ -66,10 +67,12 @@ def qr_svg(url: str) -> str:
 def link_artifacts(link: str) -> dict[str, object]:
     """The hand-over values every mint surface shows once — the one-time link, its inline
     printable QR, and the host that link actually opens at — so a caller merges them into
-    its template context. The ``mark_safe`` on the QR lives ONLY here: its sole input is our
-    CSPRNG token inside the configured BASE_URL, rendered as qrcode's own path geometry,
-    never reflected user text, so the S308 justification is centralised in one auditable
-    place.
+    its template context. ``mark_safe`` over ``qr_svg`` output lives in exactly TWO audited
+    places, here and ``core.adapters.MFAAdapter.build_totp_svg``, and both rest on the same
+    property, which is about the RENDERER and not the input: qrcode's SvgPathImage emits
+    only path geometry, so no character of the encoded URL reaches the markup. (This one's
+    input is our CSPRNG token inside BASE_URL; the authenticator-app one embeds the
+    member's own e-mail address, which is why the property has to be the renderer's.)
 
     ``link_host`` is read back off the minted link rather than off settings, so what the
     page states is what was actually put in the QR. It is the only feedback an admin gets

@@ -207,6 +207,9 @@ def _choice_labels() -> list[tuple[str, str]]:
         ("admin_views._WHAT_HAPPENED_TO_THEIR_POSTS", text)
         for text in admin_views._WHAT_HAPPENED_TO_THEIR_POSTS.values()
     )
+    # The contact-field labels, built in profiles.viewable_profile and rendered through
+    # {{ field.label }}: Python literals, the same hole.
+    pairs.extend(("profiles.viewable_profile", label) for label in ("Phone", "Email", "Address"))
     return pairs
 
 

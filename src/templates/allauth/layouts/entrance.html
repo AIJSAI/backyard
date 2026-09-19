@@ -20,7 +20,8 @@
        that their access was removed. "Open your invite link to join" is the wrong
        instruction for all of them. Gating on `user.is_authenticated` was not enough: the
        second step and the emailed confirmation are both read signed out. It sits outside
-       `content`, which is why it is a block of its own. {% endcomment %}
+       `content`, which is why it is a block of its own. (account/account_inactive.html used to
+       empty this block explicitly; it no longer needs to.) {% endcomment %}
     {% block entrance_lede %}{% endblock %}
     {% comment %} The card is new in the v3.2 visual pass. Without it the entrance was a
        27rem column centred inside the shell while the footer sat at the shell's left

@@ -89,7 +89,7 @@ sentences:
   needs three, the screen is wrong.
 - **Buttons are verb plus object**: "Create Link", "Save Changes", "Send Email", "Delete
   Post". A single verb is right where the object is the screen itself and every mainstream
-  product writes it that way: "Post", "Reply", "Search", "Join", "Add". The way out is
+  product writes it that way: "Post", "Reply", "Search", "Join". The way out is
   always "Cancel".
 - **Labels are nouns**: "Name", "Email Address", "Password", "How Often". No questions as
   labels. Placeholders only for format examples, with two conventional exceptions: a
@@ -121,7 +121,7 @@ sentences:
 | You can change this later under Settings, and every email we send has a link at the bottom that stops them. | Change this anytime in Settings. |
 | Only if you feel like it. Your household will see this. | Optional. Visible to your household. |
 | You look after a side of the family. | You are a Side Admin. You can add and remove members on your side. |
-| Confirming means we can send you a way back in if you ever forget your password, and it starts the Family email if one has been pointed at this address. | Confirm this address to use it for password reset. If it is your primary address and you turned on email updates, they start too. (Longer than the owner's draft on purpose: the link starts email updates only for a primary address, and a mail must say what its link does.) |
+| Confirming means we can send you a way back in if you ever forget your password, and it starts the Family email if one has been pointed at this address. | Confirm that this address is yours. If it is your primary address and you turned on email updates at this address, they start once it is confirmed. (Longer than the owner's draft on purpose: a mail must say what its link does, and the link starts email updates only in that one case. It does not promise password reset, which django-allauth already sends to an unconfirmed address; see the tracked issue.) |
 | We have sent one email to that address. Tap the link in it and you are done. Check your spam folder if it is not in your inbox. | A confirmation email has been sent to \<address\>. Check your spam folder if it does not arrive. |
 | (password hint, several sentences) | Choose a memorable password. |
 | Welcome to your family's Backyard … members are taken straight to … | Welcome To Backyard / A private, invite-only family network. Open your invite link to join. |

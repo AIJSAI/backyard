@@ -11,9 +11,10 @@
    FOR rather than what it is ("You can store this secret and use it to reinstall your
    authenticator app at a later time.").
 
-   The picture, the read-only key box, the `code` field name and the form action are the
-   package's. What the picture's ALT text says is not: allauth puts the key itself in there,
-   which repeats, character by character, the box directly underneath it. {% endcomment %}
+   The read-only key box, the `code` field name and the form action are the package's. The
+   picture is NOT: allauth draws it as a `data:` <img> whose ALT text is the key itself,
+   character for character repeating the box underneath. It is inline SVG here, described
+   once by the wrapper's aria-label. See core.adapters.MFAAdapter.build_totp_svg. {% endcomment %}
 {% load i18n %}
 {% block head_title %}
     {% trans "Set Up An Authenticator App" %}

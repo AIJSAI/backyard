@@ -15,7 +15,7 @@
     {% if confirmation %}
         {% if can_confirm %}
             {% element p %}
-                {% if confirmation.email_address.primary %}{% blocktrans with confirmation.email_address.email as email %}Confirm {{ email }} to use it for password reset. If you turned on email updates, they start too.{% endblocktrans %}{% else %}{% blocktrans with confirmation.email_address.email as email %}Confirm {{ email }} to use it for password reset.{% endblocktrans %}{% endif %}
+                {% if confirmation.email_address.primary %}{% blocktrans with confirmation.email_address.email as email %}Confirm that {{ email }} is yours. If you turned on email updates at this address, they start once it is confirmed.{% endblocktrans %}{% else %}{% blocktrans with confirmation.email_address.email as email %}Confirm that {{ email }} is yours.{% endblocktrans %}{% endif %}
             {% endelement %}
             {% url 'account_confirm_email' confirmation.key as action_url %}
             {% element form method="post" action=action_url %}

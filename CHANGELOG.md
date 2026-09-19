@@ -81,17 +81,23 @@ a point somebody deliberately stopped at, with a full green gate behind it.
     also stopped Email Updates without saying so. Each mail now names its own switch.
   - Three CSS rules upper-cased text the source writes in Title Case, including every
     table label at phone width. Removed.
-  - The authenticator-app page said "Scan this QR code" above an empty box: django-allauth
-    draws the code as a `data:` image, which this product's own Content-Security-Policy
-    refuses on purpose. It is drawn inline now, the way the hand-over pages draw theirs,
-    and the setup key beside it can be selected and copied (it was a disabled field).
+  - The authenticator-app page said "Scan this QR code" above a line of fallback text where
+    the code should be: django-allauth draws the code as a `data:` image, which this
+    product's own Content-Security-Policy refuses on purpose. It is drawn inline now, the
+    way the hand-over pages draw theirs, and the setup key beside it can be selected and
+    copied (it was a disabled field).
   - A generated passkey name could repeat after one was removed, leaving two rows called
     "Passkey 2" with identical Remove pages. New names take the lowest unused number.
-  - "Backyard is invite-only. Open your invite link to join." printed on every sign-in
-    layout page, including the second sign-in step and the emailed address confirmation,
-    whose readers are already members. It is on the sign-in page only.
-  - The address-confirmation mail and page said confirming enables email updates. That is
-    true only for a primary address that has them turned on, and they say so now.
+  - "Backyard is invite-only. Open your invite link to join." printed on every signed-out
+    page in the sign-in layout, including the second sign-in step and the emailed address
+    confirmation, whose readers are already members. It is on the sign-in page only.
+  - The address-confirmation mail and page said confirming enables password reset and email
+    updates. Email updates start only for a primary address that has them turned on at that
+    address, and they say so now. They no longer promise password reset, which
+    django-allauth already sends to an unconfirmed address.
+  - The Email Updates settings page accepted any text with an "@" in it and cut a long
+    address at 254 characters. It uses the same validator as joining: a malformed address
+    is refused and nothing is stored or mailed.
   - Saving Notifications said nothing. It says "Saved.", like every other save.
   - A downloaded video is named `video.mp4` rather than `clip.mp4`.
   - Your Sign-In Email rendered a radio on its own line above an address run together with

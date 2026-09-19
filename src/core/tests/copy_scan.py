@@ -373,7 +373,10 @@ _BUTTON_ANCHOR = re.compile(
 # five account templates yielded zero targets, including the sign-in page's three "Sign In"
 # strings. The tag's own body is the copy, so it is read like the element it becomes.
 _ELEMENT = re.compile(
-    r"\{%\s*element\s+(h1|h2|h3|h4|button|legend|label|th|summary)\b[^%]*%\}(.*?)\{%\s*endelement\s*%\}",
+    # (?:[^%]|%(?!\}))* rather than [^%]*: an attribute value may contain a percent sign
+    # ("width:100%"), and a tag that fails to match drops its copy with no signal.
+    r"\{%\s*element\s+(h1|h2|h3|h4|button|legend|label|th|summary)\b(?:[^%]|%(?!\}))*%\}"
+    r"(.*?)\{%\s*endelement\s*%\}",
     re.S | re.I,
 )
 # A badge is copy the guide names ("badge text"), and an <option> is a label a person
@@ -398,13 +401,13 @@ def _element_text(inner: str) -> str:
 
 def title_case_targets(source: str) -> list[tuple[str, str]]:
     """(where, text) for every string the capitalisation rule covers in one template."""
-    # The allauth element tags are read from the source BEFORE template syntax is stripped,
-    # because stripping is what made them invisible.
+    text = without_noise(source)
+    # The allauth element tags are read BEFORE template syntax is stripped, because
+    # stripping is what made them invisible; from `text`, so never out of a script or style.
     targets: list[tuple[str, str]] = [
         (f"{{% element {element.lower()} %}}", _element_text(inner))
-        for element, inner in _ELEMENT.findall(without_comments(source))
+        for element, inner in _ELEMENT.findall(text)
     ]
-    text = without_noise(source)
     for element in _TITLE_CASE_ELEMENTS:
         pattern = re.compile(rf"<{element}\b[^>]*>(.*?)</{element}>", re.S | re.I)
         for inner in pattern.findall(text):

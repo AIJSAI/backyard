@@ -402,7 +402,13 @@ def test_the_authenticator_app_page_draws_a_qr_the_content_security_policy_allow
     assert response.status_code == 200
     html = response.content.decode()
     assert '<div class="qr"' in html
-    assert "<svg" in html, "the QR is not drawn inline"
+    # SCOPED TO THE QR DIV. `"<svg" in html` is satisfied by the header's brand lockup, so
+    # it passed even with build_totp_svg's mark_safe removed and the page showing the
+    # escaped source as text: the exact regression this guard is named for.
+    qr = html[html.index('<div class="qr"') :]
+    qr = qr[: qr.index("</div>")]
+    assert "<svg" in qr and "<path" in qr, f"the QR is not drawn inline: {qr[:200]!r}"
+    assert "&lt;svg" not in html, "the SVG was escaped; build_totp_svg lost its mark_safe"
     assert "data:image" not in html, "a data: image is refused by img-src 'self' blob:"
     key = html[html.index('id="setup_key"') :]
     key = key[: key.index(">")]

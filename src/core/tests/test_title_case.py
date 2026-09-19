@@ -138,6 +138,13 @@ def test_the_guard_is_not_vacuous() -> None:
         ("<summary>What the roles mean</summary>", "<summary>"),
         ("<nav><a href='/'>Back to the feed</a></nav>", "nav link"),
         ("<a class='btn primary' href='/'>Go to sign in</a>", "link styled as a button"),
+        ("{% element h1 %}say hello{% endelement %}", "{% element h1 %}"),
+        (
+            '{% element button type="submit" style="width:100%" %}save changes{% endelement %}',
+            "{% element button %}",
+        ),
+        ('<span class="role">side admin</span>', "badge"),
+        ('<option value="x">no change</option>', "<option>"),
     ):
         found = title_case_targets(markup)
         assert found, f"{expected} was not found in {markup!r}"
@@ -149,6 +156,14 @@ def test_the_guard_is_not_vacuous() -> None:
     assert not title_case_targets("{% comment %}<h1>a heading in prose</h1>{% endcomment %}")
     assert not title_case_targets("<style>h1 { font-size: 2rem }</style>")
     assert not title_case_targets("<script>const h = '<h1>hi</h1>';</script>")
+    assert not title_case_targets("<script>'{% element h1 %}hi{% endelement %}'</script>")
+    # A slot inside an element is markup, not copy, and the body is still read.
+    assert any(
+        where == "{% element button %}" and text == "save it"
+        for where, text in title_case_targets(
+            "{% element button %}{% slot label %}save it{% endslot %}{% endelement %}"
+        )
+    )
 
 
 def test_it_never_re_cases_what_a_person_typed_or_a_machine_owns() -> None:
