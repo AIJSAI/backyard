@@ -3,8 +3,24 @@ name: monitor
 # The instance cannot be its own alarm. Every watcher it has runs ON it: the weekly health
 # email is a worker periodic, so a dead worker silences the thing whose job is to break
 # silence, and a box that is off, unplugged or out of disk sends nothing at all and looks
-# exactly like a quiet week. This job runs on GitHub's infrastructure, outside the box, and
-# its only product is failure: GitHub emails the owner when a scheduled run fails.
+# exactly like a quiet week. This job runs on GitHub's infrastructure, outside the box.
+#
+# HOW IT ALARMS, and why it is not "fail the run": a failing scheduled run e-mails the owner
+# once per run, so a condition that PERSISTS -- a nightly backup that has been refusing for
+# a week, a certificate nobody is renewing -- sends 48 identical e-mails a day, and the
+# reliable outcome of that is a muted repository, which takes the UNREACHABLE alarm with it.
+# Throttling by clock was worse: it made the alarm depend on a particular run landing in a
+# particular window, and GitHub's scheduler is best-effort, so a delayed or dropped run
+# meant NO alarm that day at all.
+#
+# So the alarm is an ISSUE, and it is idempotent. Every run checks BOTH halves (the health
+# endpoint and the certificate) and collects what it finds. Problems open ONE issue labelled
+# `monitor-alarm` -- which e-mails the owner, once, because it mentions them -- and later
+# runs add a comment to that same issue at most once a day rather than opening another. When
+# everything is well again the issue is commented and closed, so the absence of an open
+# `monitor-alarm` issue is itself the "all clear". The job then EXITS 0: a red check run is
+# reserved for the alarm mechanism failing, because an alarm that cannot alarm is the one
+# thing nothing else would ever tell you.
 #
 # KNOWN CAVEAT, in the workflow rather than only in the pull request that added it: GitHub
 # disables scheduled workflows in a PUBLIC repository after 60 days with no repository
@@ -14,12 +30,16 @@ name: monitor
 on:
   schedule:
     # Every 30 minutes. GitHub-hosted minutes are free on a public repository, and the
-    # schedule is best-effort: runs are queued, not guaranteed on the minute.
+    # schedule is best-effort: runs are queued, not guaranteed on the minute. Nothing here
+    # depends on WHICH run happens any more, which is the point of the issue alarm.
     - cron: "*/30 * * * *"
   workflow_dispatch:
 
+# Read the repository, write issues. The alarm is an issue, so `issues: write` is what makes
+# the mechanism work at all; nothing here needs to write code, and it never checks any out.
 permissions:
   contents: read
+  issues: write
 
 jobs:
   probe:
@@ -28,18 +48,30 @@ jobs:
     if: github.repository == 'AIJSAI/backyard'
     runs-on: ubuntu-latest
     steps:
-      # ONE job, on purpose. Two jobs would be two check runs and two emails for one
-      # outage, and the certificate question is only meaningful about the host the health
-      # check just asked.
-      - name: Health endpoint, then certificate lifetime
+      # ONE job, on purpose. Two jobs would be two check runs for one outage, and the
+      # certificate question is only meaningful about the host the health check just asked.
+      - name: Health endpoint and certificate lifetime, alarmed on one issue
         env:
           # A repository VARIABLE, not a secret, and not committed here: the instance's
           # hostname is the family's, and this repository is public. Set it to the health
           # URL (Settings -> Secrets and variables -> Actions -> Variables):
           #   BACKYARD_MONITOR_URL = https://your-instance.example/healthz
           MONITOR_URL: ${{ vars.BACKYARD_MONITOR_URL }}
+          # The gh CLI reads both of these from the environment.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          # Mentioning the owner is what turns the issue into an e-mail.
+          OWNER: ${{ github.repository_owner }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          # `set +e` EXPLICITLY, and it is load-bearing: GitHub runs a step's script with
+          # `bash -e` by default, and under it the first failed probe would end the run
+          # before the certificate half — which is the bug this file was rewritten to fix.
+          # A failed probe is this job's DATA, not its error.
+          set +e
+
+          LABEL=monitor-alarm
 
           if [ -z "${MONITOR_URL:-}" ]; then
             echo "BACKYARD_MONITOR_URL is not set on this repository, so there is nothing to"
@@ -47,6 +79,13 @@ jobs:
             exit 0
           fi
 
+          # Every problem this run found, one per line, in the order they were checked.
+          # NOTHING here names the host: the issue body is public, and the instance's
+          # hostname is the family's address.
+          problems=""
+          note() { problems="${problems}- ${1}"$'\n'; }
+
+          # ---------------------------------------------------------------- health endpoint
           # Retries, because a single timeout is not an outage: a restart, a deploy or one
           # dropped packet would otherwise page the owner. Five attempts across ~100s.
           body=""
@@ -60,80 +99,123 @@ jobs:
           done
 
           if [ -z "$body" ]; then
-            echo "UNREACHABLE: the health endpoint did not answer in five attempts over ~100"
-            echo "seconds. The instance is down, the box is off, or DNS/TLS is broken."
-            exit 1
+            note "UNREACHABLE: the health endpoint did not answer in five attempts over ~100 seconds. The instance is down, the box is off, or DNS/TLS is broken."
+          else
+            # The endpoint answers `ok` or `degraded` and nothing else (core/views.healthz);
+            # the detail is deliberately not published, so this reads the one word and the
+            # operator reads the weekly email — or /healthz signed in as the instance admin.
+            case "$body" in
+              *'"status": "ok"'*|*'"status":"ok"'*)
+                echo "health: ok"
+                ;;
+              *degraded*)
+                note "DEGRADED: the instance is up and says something is wrong. That is one of: no backup has ever completed, the nightly backup is failing, the disk is nearly full, or the TLS certificate is nearly expired. Sign in as the instance admin and open /healthz, or read the weekly health email."
+                ;;
+              *)
+                note "UNEXPECTED ANSWER: the health endpoint answered something this check does not recognise. Either the URL points somewhere else now, or something is answering in front of the instance."
+                ;;
+            esac
           fi
 
-          # The endpoint answers `ok` or `degraded` and nothing else (core/views.healthz);
-          # the detail is deliberately not published, so this reads the one word and the
-          # operator reads the weekly email — or /healthz signed in as the instance admin.
-          case "$body" in
-            *'"status": "ok"'*|*'"status":"ok"'*)
-              echo "health: ok"
-              ;;
-            *degraded*)
-              echo "DEGRADED: the instance is up and says something is wrong. That is one of:"
-              echo "no backup has ever completed, the nightly backup is failing, the disk is"
-              echo "nearly full, or the TLS certificate is nearly expired. Sign in as the"
-              echo "instance admin and open /healthz, or read the weekly health email."
-              # Degraded PERSISTS -- an instance with no backup passphrase is degraded every
-              # half hour forever -- so failing on all 48 runs a day would put 48 identical
-              # e-mails in the owner's inbox, and the reliable outcome of that is a muted
-              # repository, which silences the UNREACHABLE alarm too. A degraded instance
-              # therefore fails ONCE a day, on the first run after 07:00 UTC, and is logged
-              # the rest of the time. Unreachable still fails every run: that one is an
-              # outage, not a condition.
-              if [ "$(date -u +%H)" = "07" ] && [ "$(date -u +%M)" -lt 30 ]; then
-                exit 1
-              fi
-              echo "(logged only -- the 07:0x UTC run is the one that e-mails.)"
-              exit 0
-              ;;
-            *)
-              echo "UNEXPECTED: the health endpoint answered something this check does not"
-              echo "recognise. Either the URL points somewhere else now, or something is"
-              echo "answering in front of the instance."
-              exit 1
-              ;;
-          esac
-
-          # The certificate half. Caddy renews at roughly 30 days remaining on a 90-day
-          # certificate, so 14 days left means renewal has been failing for two weeks —
-          # and an expired certificate is a full-page browser warning for every relative at
+          # ---------------------------------------------------------------- certificate
+          # Runs whatever the health half found. A degraded instance is EXACTLY when a
+          # lapsing certificate goes unnoticed, and this is the only check on it that lives
+          # outside the box. Caddy renews at roughly 30 days remaining on a 90-day
+          # certificate, so 14 days left means renewal has been failing for two weeks — and
+          # an expired certificate is a full-page browser warning for every relative at
           # once, which is the one outage a non-technical family cannot route around.
-          host=$(printf '%s' "$MONITOR_URL" | sed -E 's#^[a-zA-Z]+://##; s#[/?].*$##; s#:[0-9]+$##')
           case "$MONITOR_URL" in
-            https://*) ;;
+            https://*)
+              host=$(printf '%s' "$MONITOR_URL" | sed -E 's#^[a-zA-Z]+://##; s#[/?].*$##; s#:[0-9]+$##')
+              # `timeout`, because s_client has no timeout of its own: a host that accepts
+              # the TCP connection and then stalls the handshake would hold this scheduled
+              # job open instead of failing and telling somebody (#166 review).
+              not_after=$(echo \
+                | timeout 20 openssl s_client -servername "$host" -connect "$host:443" 2>/dev/null \
+                | openssl x509 -noout -enddate 2>/dev/null \
+                | cut -d= -f2) || true
+
+              if [ -z "$not_after" ]; then
+                note "CERTIFICATE UNREADABLE: the TLS certificate could not be read (no answer, a stalled handshake, or nothing serving TLS). Look before assuming it is a blip."
+              # Explicit, so an unparseable date fails with a sentence rather than as
+              # arithmetic on an empty string, which would report a wildly negative number.
+              elif ! expires_at=$(date -u -d "$not_after" +%s 2>/dev/null); then
+                note "CERTIFICATE DATE UNREADABLE: openssl returned something \`date\` could not parse. Check the endpoint by hand before assuming this is the checker."
+              else
+                remaining=$(( (expires_at - $(date -u +%s)) / 86400 ))
+                echo "certificate: $remaining days remaining"
+                if [ "$remaining" -lt 14 ]; then
+                  note "CERTIFICATE EXPIRING: $remaining days left. Automatic renewal should have happened around 30 days out, so it is failing. Check the caddy container's logs; an expired certificate takes the whole instance away from everyone."
+                fi
+              fi
+              ;;
             *)
               echo "the monitored URL is not https, so there is no certificate to check"
-              exit 0
               ;;
           esac
 
-          not_after=$(echo \
-            | openssl s_client -servername "$host" -connect "$host:443" 2>/dev/null \
-            | openssl x509 -noout -enddate 2>/dev/null \
-            | cut -d= -f2) || true
+          # ---------------------------------------------------------------- the alarm
+          # From here on, a failure is a failure of the ALARM, and that is the only thing
+          # this job exits nonzero for.
+          alarm_failed=0
+          fail_alarm() { echo "ALARM MECHANISM FAILED: $1"; alarm_failed=1; }
+          # Every message this workflow writes has the same shape: an opening line, the
+          # problems it found, and the run that found them. $problems already ends in a
+          # newline.
+          message() { printf '%s\n\n%s\nRun: %s\n' "$1" "$problems" "$RUN_URL"; }
+          ALARM_NOTE="This issue IS the alarm. It stays open while the problem lasts: later runs comment on it at most once a day rather than opening another, and the monitor closes it when the instance is well again. Closing it by hand is fine -- if the problem is still there, the next run opens a new one."
 
-          if [ -z "$not_after" ]; then
-            echo "CERTIFICATE UNREADABLE: the health check passed but the TLS certificate"
-            echo "could not be read. Look before assuming it is a blip."
-            exit 1
+          open_issue=$(gh issue list --label "$LABEL" --state open --limit 1 \
+            --json number,updatedAt --jq '.[0] | select(.) | "\(.number) \(.updatedAt)"') \
+            || { fail_alarm "could not list existing $LABEL issues"; open_issue=""; }
+          issue_number=${open_issue%% *}
+          issue_updated=${open_issue#* }
+
+          if [ -n "$problems" ]; then
+            printf 'problems found:\n%s' "$problems"
+            if [ -n "$issue_number" ]; then
+              # `updatedAt` moves when a comment is added, so this is "the newest comment,
+              # or the issue itself if nobody has commented" without paging the comments.
+              # An unparseable date reads as ancient, which errs towards commenting.
+              updated_epoch=$(date -u -d "$issue_updated" +%s 2>/dev/null) || updated_epoch=0
+              age=$(( $(date -u +%s) - updated_epoch ))
+              if [ "$age" -gt 86400 ]; then
+                gh issue comment "$issue_number" \
+                  --body "$(message "Still wrong, as of this run:")" \
+                  || fail_alarm "could not comment on alarm issue #$issue_number"
+              else
+                echo "alarm issue #$issue_number was updated $age seconds ago; staying quiet"
+              fi
+            elif [ "$alarm_failed" -eq 0 ]; then
+              # The label may not exist yet — on a fresh clone of this repository, or simply
+              # before the first outage. Creating it is part of the alarm working, not a
+              # setup step somebody has to have remembered. `--force` so an existing label
+              # is an update rather than an error; this workflow is the label's only author.
+              gh label create "$LABEL" --color B60205 --force \
+                --description "The outside-the-box monitor found something wrong" \
+                || fail_alarm "could not create the $LABEL label"
+              gh issue create --title "Backyard needs attention" --label "$LABEL" \
+                --body "$(message "@${OWNER} — the monitor that runs outside the instance found a problem."
+                          printf '\n%s\n' "$ALARM_NOTE")" \
+                || fail_alarm "could not open the alarm issue"
+            fi
+          else
+            echo "everything this monitor can see is well"
+            if [ -n "$issue_number" ]; then
+              # Commented THEN closed, in that order: the comment is the record of when it
+              # recovered, and a closed issue with no closing note reads like somebody
+              # dismissed the alarm by hand.
+              recovered="Recovered: the health endpoint answers ok, and the certificate has more than 14 days left."
+              if gh issue comment "$issue_number" \
+                   --body "$(printf '%s\n\nRun: %s\n' "$recovered" "$RUN_URL")"; then
+                gh issue close "$issue_number" \
+                  || fail_alarm "could not close alarm issue #$issue_number"
+              else
+                fail_alarm "could not comment the recovery on alarm issue #$issue_number"
+              fi
+            fi
           fi
 
-          # Explicit, so an unparseable date fails with a sentence rather than as arithmetic
-          # on an empty string, which would report a wildly negative number of days left.
-          expires_at=$(date -u -d "$not_after" +%s) || {
-            echo "CERTIFICATE DATE UNREADABLE: openssl returned something date could not"
-            echo "parse. Check the endpoint by hand before assuming this is the checker."
-            exit 1
-          }
-          remaining=$(( (expires_at - $(date -u +%s)) / 86400 ))
-          echo "certificate: $remaining days remaining"
-          if [ "$remaining" -lt 14 ]; then
-            echo "CERTIFICATE EXPIRING: $remaining days left. Automatic renewal should have"
-            echo "happened around 30 days out, so it is failing. Check the caddy container's"
-            echo "logs; an expired certificate takes the whole instance away from everyone."
-            exit 1
-          fi
+          # 0 while the alarm worked, whatever it had to say. A persistent outage is one
+          # issue and one e-mail a day, not 48 failed runs; a broken alarm is loud.
+          exit "$alarm_failed"
