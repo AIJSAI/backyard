@@ -67,6 +67,13 @@ _LOAD_BEARING = {
         "into a job that holds a database and a checkout; without the verification this step "
         "runs whatever the CDN served that morning"
     ),
+    '> "$RUNNER_TEMP/runserver.log" 2>&1 &': (
+        "the redirect that keeps the elder token out of a PUBLIC log. `runserver` writes an "
+        "access line per request and the sweep fetches `/t/<token>/`, so without this the "
+        "request path -- which IS the credential -- is printed into the Actions output. "
+        "Deleting the redirect changes no test and turns no context red, which is precisely "
+        "why it is pinned here"
+    ),
     "manage.py check --deploy": "the production-posture check (TS-DJ-10)",
     "scripts/check_signoff.py": (
         "the DCO check on the commits a PR adds. CONTRIBUTING promises every commit is "

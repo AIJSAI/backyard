@@ -362,10 +362,19 @@ jobs:
           uv run python manage.py collectstatic --noinput --verbosity 0
           # The seed's output goes to a FILE, not the log. It prints a live elder token, and
           # this log is public -- the same rule the edge follows about token-carrying request
-          # paths (TS-EDGE-LOG). Only the counts are echoed.
+          # paths (TS-EDGE-LOG). Only the counts are echoed. stderr is deliberately NOT
+          # redirected: a traceback here carries no token (the token is printed on stdout, at
+          # the end) and a silent seeding failure would be blind to debug.
           uv run python manage.py shell < scripts/demo_seed.py > "$RUNNER_TEMP/seed.log"
           grep '^SEEDED' "$RUNNER_TEMP/seed.log"
-          uv run python manage.py runserver 127.0.0.1:8765 --noreload &
+          # BOTH STREAMS TO A FILE, and this is the load-bearing redirect. `runserver` writes
+          # a `django.server` access line per request, the sweep then fetches `/t/<token>/`,
+          # and an inherited stdout puts that request path -- which IS the credential -- into
+          # a public Actions log. Exactly the leak TS-EDGE-LOG describes at the edge, one
+          # layer down, in the step whose own comments invoke the rule. The file is never
+          # cat'd back out for the same reason.
+          uv run python manage.py runserver 127.0.0.1:8765 --noreload \
+            > "$RUNNER_TEMP/runserver.log" 2>&1 &
           for _ in $(seq 1 30); do
             curl -sf http://127.0.0.1:8765/accounts/login/ >/dev/null 2>&1 && break
             sleep 2
