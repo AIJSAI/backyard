@@ -270,8 +270,19 @@ otherwise resurrect the credentials of someone you removed.
 cd backyard
 git fetch --tags
 git checkout v0.1.2          # or whichever tag CHANGELOG.md says you want
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.prod.yml build --pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
+
+**`build --pull`, as a separate step.** `up -d --build` builds from whatever base image the
+box already has cached, and the app image installs two long-lived binaries on top of that
+base — the `pg_dump` client that takes your pre-flight backup, and the `ffmpeg` that decodes
+video somebody sent your family. Neither layer is reached by a change to the app, so without
+`--pull` they stay at the versions of the day you first built, however many times you
+upgrade. `--pull` re-resolves the base and rebuilds them; `up -d --build` cannot, and `up`
+has no flag that does (its `--pull` is about pre-built images, not about your build). Use
+`--no-cache` only if you are chasing a specific broken layer — it also discards the Python
+dependency layer and turns a one-minute upgrade into several.
 
 **Not `git pull`.** You cloned a tag, so you are on a detached HEAD, and this is not a
 detail — it is the difference between upgrading and believing you upgraded. Both shapes

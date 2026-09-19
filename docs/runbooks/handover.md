@@ -52,8 +52,12 @@ python -c "import secrets; print(secrets.token_urlsafe(64))"   # put in DJANGO_S
 # 3. The three Postgres role passwords
 python -c "import secrets; print(secrets.token_urlsafe(24))"   # x3
 
-# 4. Bring it back up and confirm it serves
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+# 4. Bring it back up and confirm it serves. `build --pull` and not `up --build`: this is the
+#    last build before somebody else owns the box, so the base image — and with it the pg_dump
+#    client and ffmpeg — gets refreshed rather than served from the local cache. See the
+#    Upgrades section of self-host.md for why that layer is otherwise unreachable.
+docker compose -f docker-compose.yml -f docker-compose.prod.yml build --pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 curl -sSf https://YOUR-DOMAIN/manifest.webmanifest > /dev/null && echo "serving"
 ```
 
