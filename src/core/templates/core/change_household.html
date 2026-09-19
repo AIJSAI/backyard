@@ -30,7 +30,10 @@
           <option value="{{ pod.id }}">{{ pod.name }} — {% for side in sides %}{{ side.name }}{% if not forloop.last %} and {% endif %}{% endfor %} side</option>
         {% endfor %}
       </select>
-      <button type="submit">Continue</button>
+      {% comment %} Both forms on this page submit a step called "Continue"; the hidden
+         half of the label is what tells somebody using a screen reader which one this is.
+      {% endcomment %}
+      <button type="submit">Continue<span class="visually-hidden"> to adding them to this household</span></button>
     </form>
   {% else %}
     <p class="muted">There is no other household to add them to. Make one below.</p>
@@ -54,12 +57,12 @@
         </label>
       {% endfor %}
     </fieldset>
-    <button type="submit">Continue</button>
+    <button type="submit">Continue<span class="visually-hidden"> to making this new household</span></button>
   </form>
 
   <h2>Take them out of a household</h2>
   {% if current %}
-    <ul class="households">
+    <ul class="pods">
       {% for pod, pod_sides, is_last in current %}
         <li>
           <p><strong>{{ pod.name }}</strong>

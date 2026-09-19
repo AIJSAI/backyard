@@ -82,7 +82,13 @@ def change_household(request: HttpRequest, member_id: int) -> HttpResponse:
     proposal = _proposal(request, actor, target)
     intent_key = f"household_intent:{target.id}"
     if handover.consume_intent(request, intent_key, request.POST.get("intent")):
-        _carry_out(actor, target, proposal)
+        try:
+            _carry_out(actor, target, proposal)
+        except households.HouseholdChangeRefused as refusal:
+            # The world moved between the confirm page and this submit — another admin
+            # added them, or took away the household that made this one not their last.
+            # An honest sentence on the page they came from, not a 500.
+            return render(request, "core/change_household.html", _choices(actor, target, [refusal]))
         return redirect("members")
     try:
         # Asked here as well as inside the act, so nobody is shown a confirm page for
@@ -132,9 +138,8 @@ def _proposal(request: HttpRequest, actor: Member, target: Member) -> _Proposal:
             yards=yards,
             gained=[yard for yard in yards if yard.id not in already],
         )
-    pod = get_object_or_404(
-        households.households_in_reach(actor), pk=handover.int_or_404(request.POST.get("pod_id", ""))
-    )
+    pod_id = handover.int_or_404(request.POST.get("pod_id", ""))
+    pod = get_object_or_404(households.households_in_reach(actor), pk=pod_id)
     if act == ADD:
         return _Proposal(act=ADD, pod=pod, gained=households.sides_gained(target, pod))
     return _Proposal(act=REMOVE, pod=pod, lost=households.sides_lost(target, pod))

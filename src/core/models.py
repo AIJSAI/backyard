@@ -323,9 +323,7 @@ class HouseholdChange(models.Model):
     REMOVED = "removed"
     ACTION_CHOICES = [(ADDED, "Added to a household"), (REMOVED, "Taken out of a household")]
 
-    member = models.ForeignKey(
-        Member, on_delete=models.CASCADE, related_name="household_changes"
-    )
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="household_changes")
     # CASCADE, matching `Invite.pod`: a record about a household that no longer exists has
     # no subject left to describe.
     pod = models.ForeignKey(Pod, on_delete=models.CASCADE, related_name="household_changes")

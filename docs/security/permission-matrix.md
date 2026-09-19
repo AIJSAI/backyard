@@ -133,6 +133,44 @@ admin or a peer instance admin, so the roster offers the link on those rows. It 
 nothing they do not already hold via remove and re-role, and it is written down here
 rather than implied away.
 
+`can_change_household(actor, target)` and `can_change_household_membership(actor, target,
+pod)`: may the actor put this person into a household, or take them out of one (BY-14)?
+
+Two halves, because the act has two subjects. **The person** is `is_admin` **and**
+`can_manage_member`, so every rule in the table above applies unchanged — a yard admin acts
+only on a plain member of their own side, never on a peer admin, never on a bridging member,
+never on themselves. `is_admin` is not redundant beside `can_manage_member`: that predicate
+is True for a managing parent of *any* role (TM-10), which is right for editing their child's
+profile and wrong here, because placing somebody in a household hands over a whole side of
+the family's feed. **The household** is `can_issue_invite`, which is the same authority asked
+in the same direction — may this admin put a person into this pod — and already carries the
+non-vacuous subset rule (every one of the household's sides inside the actor's own; a pod in
+no side is nobody's to fill). Households only: an ad-hoc group is its members' own (S-204).
+
+**This is the surface where isolation is granted, not just enforced**, which is why the route
+has a confirm step that names the sides of the family the person will start or stop seeing,
+in those words, before anything happens.
+
+**No self-administration, and it costs something.** `can_manage_member` denies
+`actor.pk == target.pk` for everybody, so on a single-admin instance the founder cannot place
+*himself* into a household on a side he has just created — the cure is the succession path
+(appoint a second instance admin, who can). The alternative would be a control that lets one
+person hand themselves a seat in the other side of the family's private feed with one tap and
+no second party, which is the thing yard isolation exists to prevent. Written down here
+rather than implied away.
+
+**Taking somebody out is a membership SHRINK**, so it fires the full TM-1 revocation act
+(`revocation.revoke_member_credentials`) *before* the membership row is deleted — the H-1
+ordering contract, because the invite scope is resolved from live memberships. The blast
+radius is stated on the confirm page rather than hidden: signed out everywhere, the weekly
+email off until they switch it back on, and unused invitations into that side voided.
+**The last household is never removable**: a member in no household resolves nobody through
+the guard, including themselves, so the page says so instead of offering a control that
+refuses. Somebody who is really leaving goes through removal (S-702).
+
+Each act writes one `HouseholdChange` row — who, whom, which household, when — the
+`Invite.created_by` / `RecoveryToken.issued_by` ledger shape, not a general audit log.
+
 ## Provenance
 
 Grants are the mandatory path for these actions, the same way `scoping.py` is

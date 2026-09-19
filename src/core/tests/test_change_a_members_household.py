@@ -122,7 +122,9 @@ def _url(target: Member) -> str:
 
 def _propose(client: Client, target: Member, **data: object) -> HttpResponse:
     """The first POST. It may only ever render — never act."""
-    return client.post(_url(target), data)
+    response = client.post(_url(target), data)
+    assert isinstance(response, HttpResponse)
+    return response
 
 
 def _carry_out(client: Client, target: Member, **data: object) -> HttpResponse:
@@ -131,7 +133,9 @@ def _carry_out(client: Client, target: Member, **data: object) -> HttpResponse:
     assert first.status_code == 200, first.status_code
     match = _INTENT.search(first.content.decode())
     assert match is not None, "the confirm step rendered no form to submit"
-    return client.post(_url(target), {**data, "intent": match.group(1)})
+    response = client.post(_url(target), {**data, "intent": match.group(1)})
+    assert isinstance(response, HttpResponse)
+    return response
 
 
 def _households(member: Member) -> set[int]:
@@ -318,7 +322,7 @@ def test_a_get_never_changes_anything(world: dict[str, Member | Pod | Yard]) -> 
     cousin, first, second = _who(world, "cousin"), _pod(world, "first"), _pod(world, "second")
     client = _client_for(_who(world, "owner"))
 
-    page = client.get(_url(cousin), {"act": "add", "pod_id": second.id, "intent": "anything"})
+    page = client.get(_url(cousin), {"act": "add", "pod_id": str(second.id), "intent": "anything"})
 
     assert page.status_code == 200
     assert _households(cousin) == {first.id}
@@ -362,9 +366,7 @@ def test_a_supervised_child_follows_the_existing_custody_rule(
     cousin, first, second = _who(world, "cousin"), _pod(world, "first"), _pod(world, "second")
     child = supervised.create_supervised_member(parent=cousin, display_name="A Child", pod=first)
 
-    response = _propose(
-        _client_for(_who(world, "side_admin")), child, act="add", pod_id=second.id
-    )
+    response = _propose(_client_for(_who(world, "side_admin")), child, act="add", pod_id=second.id)
 
     assert response.status_code == 403, response.status_code
     assert not PodMembership.objects.filter(member=child, pod=second).exists()
