@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from urllib.parse import urlsplit
+
+from config.base_url_guard import is_local_url, validate_base_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -39,16 +40,20 @@ ALLOWED_HOSTS = [h for h in _hosts.split(",") if h]
 # production (threat model TM-8 / T-EDGE-1); enforced once the token service lands.
 BASE_URL = os.environ.get("BACKYARD_BASE_URL", "http://localhost:8000").rstrip("/")
 
+# The hand-over guard (design walk 2026-09-19): BACKYARD_BASE_URL unset on an instance a
+# family actually reaches means every invite, elder link and digest link is handed out dead,
+# with nothing on any screen to say so. config/base_url_guard.py carries the rule and the
+# reasoning; it runs first so an empty value is named as empty rather than as "non-local".
+validate_base_url(base_url=BASE_URL, allowed_hosts=ALLOWED_HOSTS, debug=DEBUG)
+
 # DEBUG serves tracebacks with settings to anyone; it must never be on for a real deployment.
 # Extend the refuse-to-boot posture to it (threat model TS-DJ-10): a public HTTPS base URL with
 # DEBUG on is a misconfiguration we hard-fail rather than serve.
-# The HOSTNAME, parsed and compared exactly -- not a substring search. `"localhost" in
-# BASE_URL` is true for `http://localhost.evil.com`, and `"127.0.0.1" in BASE_URL` for
-# `http://127.0.0.1.evil.com`: an attacker-registrable domain that merely CONTAINS the
-# word would have been classified local and bypassed both hard-fails below, reopening
-# exactly the misconfiguration they exist to close.
-_HOSTNAME = (urlsplit(BASE_URL).hostname or "").lower()
-_is_local = _HOSTNAME in {"localhost", "127.0.0.1", "::1"}
+# The HOSTNAME, parsed and compared exactly -- not a substring search, see is_local_url: an
+# attacker-registrable domain that merely CONTAINS "localhost" or "127.0.0.1" would otherwise
+# be classified local and bypass both hard-fails below, reopening exactly the misconfiguration
+# they exist to close.
+_is_local = is_local_url(BASE_URL)
 
 if DEBUG and not _is_local:
     raise RuntimeError(

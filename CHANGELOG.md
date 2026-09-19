@@ -54,6 +54,37 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   fields behind that word are visible to a signed-in instance admin and to nobody else: at
   a public URL, disk headroom and backup age are an operations map for whoever asks first.
 
+### Fixed
+
+- **Regenerating a grandparent's link revoked every outstanding household invite on their
+  side of the family.** Inviting a household and handing out a no-login elder link are the
+  two things a new admin does in the same sitting, and doing them in that order silently
+  killed the first: the invite showed as revoked, its Revoke button disappeared, and the
+  family who had already been texted the link got "There's nothing at this address." Nobody
+  was told. Revoking those invites is right when a member is being REMOVED — it is how a
+  removed ex is kept from walking back in through somebody else's invite — and wrong when
+  the person is still here and only their own link is being replaced. Removal is unchanged;
+  regeneration now leaves alone the invites OTHER admins issued, and still kills everything
+  the member actually holds: the old link, their sessions, their digest links, their
+  reply-by-email addresses, and any invite they minted themselves — because a new link is
+  also what you make after a lost phone, and an invite created while somebody else held it
+  would otherwise outlive the rotation. The page that shows the new link now points at the
+  list of open invites for exactly that case.
+- **Every link the app hands out is built from one setting, and a wrong value was
+  invisible.** `BACKYARD_BASE_URL` is what every invite, elder link and digest link is built
+  from. Left unset or stale, all of them still look perfectly normal on the screen that
+  mints them — and every single one is dead for whoever receives it, with nothing in the app
+  saying so. Two changes: an instance configured to serve a real domain now refuses to start
+  when the variable is unset, points at localhost, is not an absolute http(s) address, or
+  names a host this instance does not serve — the stale case, after a domain move — naming
+  the variable in the error (a purely local instance and the production overlay, which
+  derives the value from `BACKYARD_DOMAIN`, are unaffected). **Upgrading:** if you set
+  `DJANGO_ALLOWED_HOSTS` by hand, set `BACKYARD_BASE_URL` before you upgrade, or the app
+  will refuse to start and say why in `docker compose logs web`. And
+  every page that mints a link now says, under it, "This link opens at &lt;host&gt;." — so a
+  wrong address is caught by the person handing the link over, not by the grandmother who
+  was texted it.
+
 ### Security
 
 - **Django 5.2.17 and sqlparse 0.6.0.** Ten advisories across the two, and the `deps` gate —
