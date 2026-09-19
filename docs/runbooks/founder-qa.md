@@ -99,6 +99,16 @@ that; the names do not.
 > founder under "Deliberately NOT marked" before you type `--yes`. If it does not, stop:
 > marking is reversible (`--undo --yes`), and the wipe that follows is not.
 
+### If the wipe names a post written by someone real
+
+Ask its author to delete it from the feed (or take it down yourself). That is enough: a post
+or reply that has already been deleted does not block, because its photographs were purged
+when it was deleted, no reader can see it, and nothing in the product can bring it back. Its
+TEXT does stay in the database until the wipe runs, so take the backup first if anybody might
+want those words later. The dry run counts those rows under
+`already-deleted posts and replies by real people`. A LIVE post or reply by a real person
+always stops the command, and so does a deleted one that somehow still carries a photograph.
+
 ### If a removed relative is blocking the wipe: `--include-departed`
 
 Somebody removed from a fixture household keeps their Member row and loses every

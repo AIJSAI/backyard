@@ -65,6 +65,11 @@ _MARKED_MODELS = (Yard, Pod, Member)
 # this exact line and the two drifting apart is how a receipt stops being readable.
 REAL_REACTION_LABEL = "reactions by real people"
 
+# The other preview line that is not a model count: posts and replies a real person wrote
+# that were ALREADY deleted through the product before this wipe ran. They do not block
+# (`_refuse_if_it_reaches_real_data` says why), so they have to be said out loud instead.
+ALREADY_DELETED_LABEL = "already-deleted posts and replies by real people"
+
 
 class DemoDataError(RuntimeError):
     """Refused: the requested wipe would have reached something a real person made."""
@@ -220,8 +225,35 @@ def _refuse_if_it_reaches_real_data(collected: dict[Any, list[Any]], marker: str
         (Post, "author_id", "post"),
         (Comment, "author_id", "reply"),
     )
+    # A row that was ALREADY DELETED through the product is not something this wipe would
+    # destroy: it is a tombstone. Measured on a live instance, 2026-09-19: the refusal told
+    # the operator to "move or delete that content first (its author can, from the feed)",
+    # the author did exactly that, and the wipe refused again on the same two posts — because
+    # every delete in this product is a soft delete (`deleted_at`), this guard read the
+    # unfiltered table, and so the cure it prescribed could never satisfy it. The only ways
+    # left were a shell or abandoning the wipe.
+    #
+    # Every path that stamps `deleted_at` purges the photographs in the SAME transaction, so
+    # no committed state holds a tombstone and its pictures: `commenting.delete_comment`,
+    # `moderation.take_down_comment` and `removal._delete_content` purge in the SERVICE, while
+    # the two POST paths purge one line later in the VIEW (`feed_views.delete_post` and
+    # `feed_views.take_down_post` call `media.purge_post_media`, and ATOMIC_REQUESTS makes the
+    # pair atomic) — so a future NON-VIEW caller of `posting.delete_post` or
+    # `moderation.take_down_post` would stamp without purging. No reader can see a tombstone
+    # (every query filters `deleted_at__isnull=True`) and the product has no restore. So the
+    # tombstone is let through and COUNTED (`ALREADY_DELETED_LABEL`) — unless a media row
+    # still hangs off it, in which case a path did not purge and the pictures are still real:
+    # that one blocks exactly as a live post does. That condition is the backstop for the
+    # view/service split above. Do not remove it, and do not "simplify" it away when the
+    # purge moves.
+    still_has_media = _rows_that_still_carry_media(collected)
     for authored_model, attribute, noun in authored:
         for instance in collected.get(authored_model, []):
+            if (
+                instance.deleted_at is not None
+                and (authored_model, instance.pk) not in still_has_media
+            ):
+                continue
             if getattr(instance, attribute) not in doomed_members:
                 trespass.append(
                     f"a {noun} written by someone real ({authored_model.__name__} pk={instance.pk})"
@@ -234,7 +266,13 @@ def _refuse_if_it_reaches_real_data(collected: dict[Any, list[Any]], marker: str
             f"{', '.join(trespass[:10])}.\n\nSomething real is living inside the fixture "
             "family — most often because a person posted into a demo pod. Move or delete "
             "that content first (its author can, from the feed); this command will not "
-            "decide for you which of somebody's photographs were only a rehearsal.\n\n"
+            "decide for you which of somebody's photographs were only a rehearsal. A post or "
+            "reply that was ALREADY deleted through the product does not block, and the dry "
+            f"run reports those as {ALREADY_DELETED_LABEL!r} — UNLESS it still carries a media "
+            "row, which means some path stamped the deletion without purging the pictures. If "
+            "a row named above is already deleted, that is what happened: it cannot be deleted "
+            "a second time from the feed, so get the photographs off it (or take a backup and "
+            "remove the row) rather than forcing the wipe.\n\n"
             "Reactions are not on this list and never block: a real person's reaction on "
             "fixture content is not words or photographs, it means nothing once the post it "
             "sits on is gone, and once that post is down there is no screen left on which "
@@ -308,6 +346,43 @@ def _refuse_if_it_strands_anyone(collected: dict[Any, list[Any]], marker: str) -
         )
 
 
+def _rows_that_still_carry_media(collected: dict[Any, list[Any]]) -> set[tuple[Any, int]]:
+    """(model, pk) of every post and reply in the closure that still has a media row.
+
+    A soft-deleted row is only a tombstone if its photographs really went. Every delete path
+    purges them, so this set is empty for a tombstone in practice; it exists so that a path
+    which forgot to purge keeps a real person's pictures inside the refusal rather than
+    inside the blast radius.
+    """
+    carrying: set[tuple[Any, int]] = set()
+    for asset in collected.get(MediaAsset, []):
+        if asset.post_id is not None:
+            carrying.add((Post, asset.post_id))
+        if asset.comment_id is not None:
+            carrying.add((Comment, asset.comment_id))
+    return carrying
+
+
+def _already_deleted_by_real_people(collected: dict[Any, list[Any]]) -> list[Any]:
+    """Tombstones in the closure whose author this wipe is NOT deleting.
+
+    The rows `_refuse_if_it_reaches_real_data` lets through because they were deleted
+    through the product before the wipe ran. Counted for the same reason real people's
+    reactions are: a row that neither blocks nor appears anywhere is how a blast radius gets
+    confirmed unseen.
+    """
+    doomed_members = {member.pk for member in collected.get(Member, [])}
+    still_has_media = _rows_that_still_carry_media(collected)
+    return [
+        instance
+        for model in (Post, Comment)
+        for instance in collected.get(model, [])
+        if instance.deleted_at is not None
+        and instance.author_id not in doomed_members
+        and (model, instance.pk) not in still_has_media
+    ]
+
+
 def _reactions_by_real_people(collected: dict[Any, list[Any]]) -> list[Any]:
     """Reactions in the closure left by somebody this wipe is NOT deleting.
 
@@ -346,6 +421,7 @@ def preview(marker: str = SEED_MARKER) -> Counter[str]:
         counts[model._meta.label] = len(instances)
     counts["auth.User"] = _doomed_user_ids(marker).__len__()
     counts[REAL_REACTION_LABEL] = len(_reactions_by_real_people(collected))
+    counts[ALREADY_DELETED_LABEL] = len(_already_deleted_by_real_people(collected))
     return +counts  # drop zero entries
 
 
@@ -455,6 +531,10 @@ def wipe(marker: str = SEED_MARKER) -> Counter[str]:
         if not collected:
             return Counter()
         user_ids = _doomed_user_ids(marker)
+        # The two lines the preview promised that are not model counts. A receipt that drops
+        # them makes the dry run unreconcilable against what was actually destroyed.
+        removed[REAL_REACTION_LABEL] = len(_reactions_by_real_people(collected))
+        removed[ALREADY_DELETED_LABEL] = len(_already_deleted_by_real_people(collected))
 
         # Files first, rows second. `_purge` defers the unlink to on_commit, so a rollback
         # cannot leave live rows pointing at deleted files.

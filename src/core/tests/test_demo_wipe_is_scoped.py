@@ -30,7 +30,7 @@ from django.db import connection
 from django.utils import timezone
 from PIL import Image
 
-from core import demo_data, media
+from core import commenting, demo_data, media, posting
 from core.models import (
     Comment,
     InboundQuarantine,
@@ -659,6 +659,151 @@ def test_a_reply_by_someone_real_on_a_fixture_post_still_stops_the_wipe(
 
     assert Comment.objects.filter(pk=their_reply.pk).exists(), "it deleted despite refusing"
     assert Pod.objects.filter(pk=two_families["demo"].pod.pk).exists(), "it deleted anyway"
+
+
+@pytest.mark.django_db
+def test_a_post_its_real_author_already_deleted_no_longer_stops_the_wipe(
+    two_families: dict[str, Family],
+) -> None:
+    """The refusal's own advice has to be able to satisfy it.
+
+    Measured on a live instance, 2026-09-19. The wipe refused on two posts a real person had
+    written inside the fixture household and said "move or delete that content first (its
+    author can, from the feed)". The author deleted both, from the feed. The wipe refused
+    again, on the same two primary keys: every delete in this product is a soft delete, the
+    guard read the unfiltered table, and so the cure it prescribed could never work. What
+    was left was a shell or giving up on the wipe.
+
+    A tombstone is not something this wipe would destroy: its photographs were purged when
+    it was deleted, no reader can see it, and nothing can restore it.
+    """
+    real_person, _ = _a_real_person_inside_the_fixture_pod(two_families)
+    their_post = Post.objects.create(
+        author=real_person, pod=two_families["demo"].pod, body="a rehearsal they took back"
+    )
+    posting.delete_post(actor=real_person, post=their_post)
+
+    planned = demo_data.preview(MARKER)
+    assert planned[demo_data.ALREADY_DELETED_LABEL] == 1, "let through but never said out loud"
+
+    demo_data.wipe(MARKER)
+    assert not Post.objects.filter(pk=their_post.pk).exists()
+    assert Member.objects.filter(pk=real_person.pk).exists(), "the real person went with it"
+
+
+@pytest.mark.django_db
+def test_a_reply_its_real_author_already_deleted_no_longer_stops_the_wipe(
+    two_families: dict[str, Family],
+) -> None:
+    """The same rule on the reply path, which has its own service and its own purge."""
+    real_person, demo_post = _a_real_person_inside_the_fixture_pod(two_families)
+    their_reply = Comment.objects.create(post=demo_post, author=real_person, body="taken back")
+    commenting.delete_comment(actor=real_person, comment=their_reply)
+
+    assert demo_data.preview(MARKER)[demo_data.ALREADY_DELETED_LABEL] == 1
+    demo_data.wipe(MARKER)
+    assert not Comment.objects.filter(pk=their_reply.pk).exists()
+
+
+@pytest.mark.django_db
+def test_a_deleted_post_that_still_carries_a_photograph_still_stops_the_wipe(
+    two_families: dict[str, Family],
+) -> None:
+    """A tombstone is only a tombstone if the pictures really went.
+
+    Every delete path purges the media with the row, so this state should not exist. It is
+    built by hand here (the stamp without the purge) because the point of the check is the
+    day some path forgets: a real person's photographs must stay inside the refusal and not
+    inside the blast radius.
+    """
+    real_person, _ = _a_real_person_inside_the_fixture_pod(two_families)
+    their_post = Post.objects.create(
+        author=real_person, pod=two_families["demo"].pod, body="deleted, but the photo stayed"
+    )
+    media.ingest_photo(post=their_post, raw=_jpeg())
+    Post.objects.filter(pk=their_post.pk).update(deleted_at=timezone.now())
+
+    with pytest.raises(demo_data.DemoDataError, match="post written by someone real"):
+        demo_data.wipe(MARKER)
+    assert MediaAsset.objects.filter(post=their_post).exists(), "it deleted despite refusing"
+
+
+@pytest.mark.django_db
+def test_a_deleted_reply_that_still_carries_a_photograph_still_stops_the_wipe(
+    two_families: dict[str, Family],
+) -> None:
+    """The same backstop on the REPLY arm of `_rows_that_still_carry_media`.
+
+    `asset.comment_id` is a second arm and nothing exercised it: with the post arm covered
+    alone, deleting this one leaves every test green while a real person's reply photographs
+    move from inside the refusal to inside the blast radius.
+    """
+    real_person, demo_post = _a_real_person_inside_the_fixture_pod(two_families)
+    their_reply = Comment.objects.create(
+        post=demo_post, author=real_person, body="deleted, but the photo stayed"
+    )
+    media.ingest_photo(post=None, comment=their_reply, raw=_jpeg())
+    Comment.objects.filter(pk=their_reply.pk).update(deleted_at=timezone.now())
+
+    with pytest.raises(demo_data.DemoDataError, match="reply written by someone real"):
+        demo_data.wipe(MARKER)
+    assert MediaAsset.objects.filter(comment=their_reply).exists(), "it deleted despite refusing"
+
+
+@pytest.mark.django_db
+def test_a_live_reply_by_someone_real_under_a_deleted_post_still_stops_the_wipe(
+    two_families: dict[str, Family],
+) -> None:
+    """Deleting a POST does not stamp its replies, and one person's decision to take their
+    words back is not a decision about somebody else's."""
+    real_person, _ = _a_real_person_inside_the_fixture_pod(two_families)
+    other = Member.objects.create(display_name="Other Real", seeded_by="")
+    PodMembership.objects.create(member=other, pod=two_families["real"].pod)
+    PodMembership.objects.create(member=other, pod=two_families["demo"].pod)
+    their_post = Post.objects.create(
+        author=real_person, pod=two_families["demo"].pod, body="a rehearsal they took back"
+    )
+    someone_elses_reply = Comment.objects.create(post=their_post, author=other, body="still theirs")
+    posting.delete_post(actor=real_person, post=their_post)
+
+    with pytest.raises(demo_data.DemoDataError, match="reply written by someone real"):
+        demo_data.wipe(MARKER)
+    assert Comment.objects.filter(pk=someone_elses_reply.pk).exists(), "it deleted anyway"
+
+
+@pytest.mark.django_db
+def test_the_receipt_carries_the_lines_the_dry_run_promised(
+    two_families: dict[str, Family],
+) -> None:
+    """What was previewed has to be reconcilable against what was destroyed."""
+    real_person, _ = _a_real_person_inside_the_fixture_pod(two_families)
+    their_post = Post.objects.create(
+        author=real_person, pod=two_families["demo"].pod, body="a rehearsal they took back"
+    )
+    posting.delete_post(actor=real_person, post=their_post)
+
+    planned = demo_data.preview(MARKER)
+    removed = demo_data.wipe(MARKER)
+    assert removed[demo_data.ALREADY_DELETED_LABEL] == planned[demo_data.ALREADY_DELETED_LABEL] == 1
+
+
+@pytest.mark.django_db
+def test_the_dry_run_says_in_words_what_the_already_deleted_line_is(
+    two_families: dict[str, Family],
+) -> None:
+    """A bare number beside a label reads as information, not as rows about to be deleted."""
+    real_person, _ = _a_real_person_inside_the_fixture_pod(two_families)
+    their_post = Post.objects.create(
+        author=real_person, pod=two_families["demo"].pod, body="a rehearsal they took back"
+    )
+    posting.delete_post(actor=real_person, post=their_post)
+
+    out = io.StringIO()
+    call_command("wipe_demo_data", "--dry-run", stdout=out)
+    said = out.getvalue()
+    assert demo_data.ALREADY_DELETED_LABEL in said
+    assert "LIVE post or reply still stops this command" in said
+    assert Post.objects.filter(pk=their_post.pk).exists(), "a dry run deleted something"
 
 
 @pytest.mark.django_db

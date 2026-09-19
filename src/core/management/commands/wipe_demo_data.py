@@ -76,6 +76,18 @@ class Command(BaseCommand):
                 "person's own post or reply DOES stop this command."
             )
 
+        if demo_data.ALREADY_DELETED_LABEL in planned:
+            self.stdout.write(
+                f"\n`{demo_data.ALREADY_DELETED_LABEL}` is posts and replies a real person wrote "
+                "inside the fixture households and that were ALREADY deleted through the product "
+                "(by their author, by a take-down, or when their author was removed) — a "
+                "breakdown of the lines above, not extra rows. Their photographs were purged "
+                "when they were deleted, no reader can see them, and the product has no way to "
+                "bring one back — but the WORDS are still in this database until this command "
+                "runs, so take a backup first if anybody might ever want them. A real person's "
+                "LIVE post or reply still stops this command."
+            )
+
         if options["dry_run"]:
             self.stdout.write(self.style.WARNING("\nDry run. Nothing was deleted."))
             return

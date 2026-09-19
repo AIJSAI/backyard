@@ -13,7 +13,18 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
-Nothing yet.
+### Fixed
+
+- **The demo wipe's own advice could never satisfy it.** It refused on a post a real person
+  had written inside a fixture household and said to delete it first ("its author can, from
+  the feed"). The author did, and it refused again on the same post: every delete here is a
+  soft delete, and the guard read the unfiltered table. A post or reply that was ALREADY
+  deleted through the product (by its author, by a take-down, or when its author was
+  removed) no longer blocks, and the dry run counts those rows under
+  `already-deleted posts and replies by real people` and says in words what that line is.
+  A deleted row that still carries a photograph blocks exactly as a live one does, and a
+  real person's live post or reply still stops the command. Found by running the wipe's dry
+  run on a live instance.
 
 ## [0.1.3] — 2026-09-19
 

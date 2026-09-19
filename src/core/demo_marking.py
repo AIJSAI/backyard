@@ -50,8 +50,14 @@ THREE hold, and each one is there for a different reason:
    not name — or an account created and never placed — was selected, and the wipe then
    deleted their Member row AND their auth account, under a heading telling the operator
    that everything they ever wrote was fixture data. It also bought nothing, because the
-   only rows that block the wipe are a post or a reply inside the closure. So the ticket is
-   exactly the thing the flag exists to clear, and nobody else is reachable by it.
+   only rows that block the wipe are a LIVE post or reply inside the closure, or a deleted
+   one that still carries media (`demo_data._refuse_if_it_reaches_real_data`; a bare
+   tombstone stopped blocking). So the ticket is still the SHAPE of the obstruction this
+   flag exists to clear, and it is now deliberately a little wider than it: somebody whose
+   only rows inside are tombstones is selectable here while blocking nothing. Where a person
+   wrote is what this asks. For the operator that means a refusal no longer implies this
+   flag: reach for it only when the dry run actually names their row, or to clear people who
+   were removed from the fixture family and would otherwise be left behind by the wipe.
 
    A REACTION is evidence AGAINST and never evidence FOR. It is not authorship — that is
    why `_refuse_if_it_reaches_real_data` stopped refusing on one — so it cannot be the
@@ -141,8 +147,11 @@ def _departed_with_a_footprint_only_inside(pod_ids: set[int]) -> list[Member]:
     deleted; but one OUTSIDE still says this person has a life beyond the fixture family.
 
     SOFT-DELETED ROWS COUNT as a footprint. `removal` with "delete their posts" stamps
-    `deleted_at` and leaves the row, and the wipe's own guard reads the same unfiltered
-    table, so a post the family can no longer see is still a post that is somewhere.
+    `deleted_at` and leaves the row, so a post the family can no longer see is still
+    evidence of WHERE somebody wrote: outside the set it keeps them safe, inside it is the
+    proof that they were part of the fixture family. (The wipe's own guard no longer blocks
+    on a tombstone — see `demo_data._refuse_if_it_reaches_real_data` — but where a person
+    wrote does not change because they later deleted it.)
 
     A SUPERVISED CHILD WHO IS STAYING vetoes their parent. `Member.managing_parent` is
     SET_NULL, so deleting the parent would leave a real child with nobody recorded as
