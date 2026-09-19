@@ -37,6 +37,10 @@ from .staged_uploads import STAGING_TTL
 
 _SESSION_KEY = "pending_draft"
 
+# What one draft may occupy in the session. The composer's own ceiling (feed_views._MAX_BODY),
+# stated by value rather than imported, to keep this module free of a view import.
+MAX_DRAFT_BODY = 5000
+
 
 @dataclass(frozen=True)
 class PendingDraft:
@@ -49,9 +53,16 @@ class PendingDraft:
 
 def hold(request: HttpRequest, *, body: str, pod_id: int | None, handle: str | None) -> None:
     """Remember an unfinished post. Overwrites any earlier one: a member composes one
-    post at a time, and the newest attempt is the one they meant."""
+    post at a time, and the newest attempt is the one they meant.
+
+    The body is clamped before it is written. The branch that holds a draft most often is
+    the ERROR branch, and "that post is a little long" is one of those errors — so the one
+    input guaranteed to be over the cap was the one being copied verbatim into a
+    database-backed session row and re-rendered on every feed request for the whole TTL.
+    staged_uploads bounds its bytes; this is the same posture for the words.
+    """
     request.session[_SESSION_KEY] = {
-        "body": body,
+        "body": body[:MAX_DRAFT_BODY],
         "pod_id": pod_id,
         "handle": handle,
         "held_at": timezone.now().isoformat(),

@@ -34,9 +34,13 @@ def initials(name: str) -> str:
 
     First and last word, because that is how a family reads a name ("Rose Whitfield" ->
     RW). A single word gives one letter rather than two from the same word: "RO" reads as
-    a truncation, "R" reads as a monogram. A name with no letters at all (a member called
-    entirely in an alphabet with no case, or in emoji) falls back to the bullet rather
-    than rendering an empty circle.
+    a truncation, "R" reads as a monogram.
+
+    The fallback is narrow on purpose: ONLY a name that is empty or entirely whitespace
+    gives the bullet, because that is the only input with no character to show. Anything
+    else keeps its own first character — a script with no case (`.upper()` is a no-op
+    there) or an emoji renders as itself, which is still that person's mark and is better
+    than a bullet standing in for a name the product does have.
     """
     words = [word for word in name.split() if word]
     if not words:

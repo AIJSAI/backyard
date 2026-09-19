@@ -115,10 +115,13 @@ itself up and telling somebody when it cannot.
 ### Changed
 
 - **A post keeps the shape it was typed in.** Line breaks were collapsed, so a recipe off
-  a card, an address or a packing list arrived as one run-on sentence, and a web address
-  in a post was not tappable. Fixed on the feed, in a thread, on the grandparents' page
-  and in the family email and its web view. (The grandparents' page keeps the address as
-  readable text rather than a link, deliberately: nothing on that page leads off it.)
+  a card, an address or a packing list arrived as one run-on sentence. Fixed everywhere a
+  post or a reply is shown: the feed, a thread, the grandparents' page, the family email
+  and the web page that email links to. A web address in a post is tappable on the feed,
+  in a thread and on that web page. It is deliberately left as plain text in two places:
+  the grandparents' page, because nothing on it leads off it, and the family email
+  itself, where a mail client linkifies an address for you and every link we emit stays
+  on this instance.
 - **Delete is no longer sitting next to Open thread.** Three identical green links a
   thumb's width apart meant an accidental tap could destroy a photograph. Destructive
   actions now sit at the far end of the row, in their own colour and weight.

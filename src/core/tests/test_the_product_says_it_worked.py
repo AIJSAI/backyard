@@ -20,6 +20,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 
+from core import drafts
 from core.models import Member, Pod, PodMembership, Post, Yard
 
 pytestmark = pytest.mark.django_db
@@ -146,6 +147,60 @@ def test_a_bounced_compose_still_carries_its_own_words_back(world: dict[str, obj
     )
     assert "a little long" in page
     assert "x" * 6000 in page
+
+
+def test_the_held_draft_is_bounded_before_it_reaches_the_session(
+    world: dict[str, object],
+) -> None:
+    """The branch that holds a draft most often is the ERROR branch, and "that post is a
+    little long" is one of those errors — so the one input guaranteed to be over the cap
+    was the one copied verbatim into a database-backed session row, re-read on every
+    request for six hours and re-rendered into the textarea each time. staged_uploads
+    bounds its bytes; this is the same posture for the words."""
+    pod = world["pod"]
+    assert isinstance(pod, Pod)
+    _client(world).post(reverse("compose"), {"body": "x" * 200_000, "pod_id": pod.id})
+
+    session = _client(world).session
+    held = session["pending_draft"]["body"]
+    assert len(held) == drafts.MAX_DRAFT_BODY
+    # The member still sees everything they typed on the page they are looking at: the
+    # error path carries the body straight to the template, not through the session.
+    assert (
+        "x" * 200_000
+        in _client(world)
+        .post(reverse("compose"), {"body": "x" * 200_000, "pod_id": pod.id})
+        .content.decode()
+    )
+
+
+def test_the_restored_draft_brings_back_the_household_it_was_written_for(
+    world: dict[str, object],
+) -> None:
+    """Restoring the words and silently re-defaulting the audience is the wrong half to
+    keep. Without the pod, the select falls back to whatever the member can see FIRST, so
+    a note composed for a few people is re-aimed at a bigger group while the page says
+    "Your unfinished post is still here" — and pod choice is never confirmed, because TM-3
+    keys on the side of the family, not the household."""
+    yard, member = world["yard"], world["member"]
+    assert isinstance(yard, Yard) and isinstance(member, Member)
+    second = Pod.objects.create(name="The cousins", kind=Pod.HOUSEHOLD)
+    second.yards.set([yard])
+    PodMembership.objects.create(member=member, pod=second)
+
+    _client(world).post(
+        reverse("compose"),
+        {"body": "Just for the cousins", "pod_id": second.id, "audience_yards": [yard.id]},
+    )
+    feed = _client(world).get(reverse("feed")).content.decode()
+    assert f'<option value="{second.id}" selected>' in feed, "the draft came back re-aimed"
+
+    # ...and a pod they have since left is not trusted back out of the session: the
+    # composer opens on its ordinary default instead.
+    PodMembership.objects.filter(member=member, pod=second).delete()
+    feed = _client(world).get(reverse("feed")).content.decode()
+    assert "selected" not in feed
+    assert "Just for the cousins" in feed, "the words still come back"
 
 
 def test_one_members_draft_is_never_another_members(world: dict[str, object]) -> None:

@@ -964,7 +964,15 @@ ul.comments:has(> li.empty:only-child) { border-left: 0; padding-left: 0; margin
    because the template served the 400px thumbnail. This serves the full stored rendition
    (core/media._FULL_MAX), uncropped, one to a row. */
 .photos-full { display: flex; flex-direction: column; gap: 0.7rem; margin: 0.9rem 0; }
-.photos-full a { display: block; text-align: center; }
+/* Each photograph gets a reserved box BEFORE it loads. Without one an unloaded <img> at
+   height:auto is zero pixels tall, so a twenty-photo thread stacks inside a single
+   screenful, every image counts as near the viewport, and loading="lazy" fetches all
+   twenty full renditions at once on a phone — the opposite of what it is for. `auto`
+   means the reservation is used only until the real size is known, so a short landscape
+   photo leaves no gap under it, which a fixed width/height pair could not manage across
+   photographs of different shapes. A browser without it renders exactly as before. */
+.photos-full a { display: block; text-align: center;
+  content-visibility: auto; contain-intrinsic-size: auto 22rem; }
 .photos-full img {
   display: block; width: auto; max-width: 100%; height: auto; max-height: 36rem;
   margin-inline: auto; border-radius: var(--radius-sm); border: 1px solid var(--line);

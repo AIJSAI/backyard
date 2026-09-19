@@ -41,10 +41,23 @@ from .models import Comment, MediaAsset, Post
 # phone just took and being told Backyard could not read it (BY-14). The client
 # conversion stays, because converting before upload still saves the bytes; it is now an
 # optimisation rather than the only path.
-pillow_heif.register_heif_opener()
+# Only the PRIMARY image is ever re-encoded, so the container's other parse surfaces are
+# switched off at registration rather than left at libheif's defaults: embedded
+# thumbnails, depth maps and auxiliary images (Apple's portrait matte) are separate item
+# streams that would otherwise be parsed by the same native code for nothing. Their pixels
+# can never reach a stored asset — _reencode reads the primary frame alone — so this costs
+# the product nothing and removes three item types from the attack surface libheif exposes
+# INSIDE the web process (TS-DJ-12, TS-PP-10, TS-CO-5).
+pillow_heif.register_heif_opener(thumbnails=False, depth_images=False, aux_images=False)
 
 # Formats accepted at open.
 _ALLOWED_INPUT_FORMATS = frozenset({"JPEG", "PNG", "WEBP", "GIF", "HEIF"})
+# What an iPhone photograph actually is, and nothing else in the HEIF family. Measured: a
+# real HEIC reports custom_mimetype "image/heic". The AVIF arm is UNVERIFIED — this build
+# of pillow-heif bundles no AV1 decoder, so an "image/avif" file could not be produced to
+# check what it reports; the exclusion is by construction (it is not in this set) rather
+# than by measurement.
+_ALLOWED_HEIF_MIME = frozenset({"image/heic", "image/heif"})
 # Error, not warn, above this bound (TS-PP-3). Sized above a normal phone photo but
 # tight enough that the decoded RGB bitmap (~3 bytes/pixel, doubled by transpose and
 # convert) cannot exhaust a small self-hosted VM across the three gunicorn workers
@@ -99,14 +112,39 @@ def _decode(raw: bytes, *, max_pixels: int | None = None) -> Image.Image:
             # and undoes the reason pillow is floored at >=12.3.
             if img.format not in _ALLOWED_INPUT_FORMATS:
                 raise MediaRejected(f"format {img.format!r} not accepted")
+            # `format` is the CONTAINER for pillow-heif: one name, "HEIF", covers every brand
+            # its sniffer accepts (heic, heix, mif1 ...), so the allowlist above cannot tell a
+            # phone's HEVC still from any other codec the bundled libheif happens to decode —
+            # a set decided by the wheel, not by this repo, and free to widen under a patch
+            # bump inside the pinned range. Narrow it to the one thing HEIF was added for.
+            if (
+                img.format == "HEIF"
+                and getattr(img, "custom_mimetype", "") not in _ALLOWED_HEIF_MIME
+            ):
+                raise MediaRejected("format not accepted")
             if max_pixels is not None and img.width * img.height > max_pixels:
                 # Header dimensions are known after open, before any pixel is decoded, so
                 # this rejects the allocation rather than surviving it.
                 raise MediaRejected("image dimensions exceed the preview budget")
             img.load()  # force a full decode so a truncated or bomb file fails here
+            # ...and re-check the size AFTER the decode, because for a container format the
+            # declared canvas is not the decoded one: pillow-heif reassigns the image size
+            # from the bitstream during load ("Size of Image can change during decoding"),
+            # while Pillow's bomb check ran once, at open, against the ispe box. libheif's
+            # own security limits usually refuse the mismatch first; this makes OUR ceiling
+            # the thing that holds rather than a library default we do not control.
+            if img.width * img.height > _MAX_PIXELS:
+                raise MediaRejected("image too large")
         except (Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
             raise MediaRejected("image too large") from exc
-        except (UnidentifiedImageError, OSError, ValueError) as exc:
+        except (UnidentifiedImageError, OSError, ValueError, EOFError, RuntimeError) as exc:
+            # A native decoder does not confine itself to Pillow's exception vocabulary.
+            # libheif surfaces its own security-limit refusals as RuntimeError and a
+            # truncated HEVC bitstream as EOFError, and neither is an OSError. Before this
+            # line, a crafted or merely corrupt HEIC escaped as a 500 from compose AFTER
+            # the post had been created (the view is non-atomic), so the post went live
+            # without its photographs and the member got a server error instead of the
+            # sentence that says which photo did not make it.
             raise MediaRejected("undecodable image") from exc
     return img
 

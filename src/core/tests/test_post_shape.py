@@ -178,3 +178,52 @@ def test_autoescaping_holds_on_every_surface(world: dict[str, object], surface: 
     # the quote that would have closed the attribute really is escaped rather than gone.
     assert "alert(1)" in page or "alert(2)" in page
     assert "&quot;onmouseover=&quot;" in page or "&#x27;onmouseover=&#x27;" in page
+
+
+def test_autoescaping_holds_on_the_credential_free_digest_page(world: dict[str, object]) -> None:
+    """The /d/ page is the lowest-trust surface in the product — no login, the credential in
+    the URL, opened from an email by whoever has the link — and it is the one this PR made
+    carry clickable member-typed links. It gets the same assertion the logged-in surfaces
+    get, which the parametrize above did not reach.
+    """
+    import datetime
+
+    from core import digest_links
+    from core.models import DigestIssue
+
+    post = _post(world, _HOSTILE)
+    pod, member = world["pod"], world["member"]
+    assert isinstance(pod, Pod) and isinstance(member, Member)
+    yard = pod.yards.first()
+    assert yard is not None
+    issue = DigestIssue.objects.create(
+        member=member,
+        yard=yard,
+        window_start=post.created_at - datetime.timedelta(days=1),
+        window_end=post.created_at + datetime.timedelta(days=1),
+    )
+    page = Client().get(reverse("digest_web", args=[digest_links.mint(issue)])).content.decode()
+    assert "<script>alert" not in page
+    assert "&lt;script&gt;" in page
+    assert not re.search(r"<[^>]*\bonmouseover\b[^>]*>", page)
+    assert "alert(1)" in page or "alert(2)" in page
+
+
+def test_the_emailed_digest_keeps_the_breaks_and_deliberately_not_the_links() -> None:
+    """The same rule as the elder page, for the same reason one step further out: a link in
+    an email body is the surface with the least context around it and the most forwarding,
+    the family's mail client will linkify a bare address itself if it wants to, and
+    test_digest asserts every href we emit in that email is on this instance's own origin.
+
+    Asserted on the TEMPLATE SOURCE because the rule is about what we emit, not about what
+    renders — the exclusion was true but rested on nobody editing the line in a later
+    "consistency" pass.
+    """
+    import pathlib
+
+    source = (
+        pathlib.Path(__file__).resolve().parents[1] / "templates" / "core" / "email" / "digest.html"
+    ).read_text()
+    assert "block.body }}" in source, "the emailed body moved; re-point this assertion"
+    assert "urlize" not in source, "the emailed digest must stay link-free"
+    assert "white-space: pre-wrap" in source, "...but it must still keep the line breaks"

@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import io
 import re
+import struct
+from unittest import mock
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -188,6 +190,163 @@ def test_heic_goes_through_the_same_gate_as_everything_else() -> None:
         media._decode(_image_bytes("HEIF")[:40])
     with pytest.raises(media.MediaRejected):
         media._decode(b"BM" + b"\x00" * 200)  # a BMP: decodable by Pillow, not allowlisted
+
+
+def _heic_that_opens_and_fails_at_load() -> bytes:
+    """A HEIC whose `ispe` box is rewritten to disagree with the coded size.
+
+    It parses — `Image.open` cheerfully reports the box's 16x16 — and then libheif refuses
+    the real bitstream from inside `load()`, as a **RuntimeError**. That is the shape the
+    gate missed: not a Pillow exception at all.
+
+    The frame is deliberately 640x480 and not the 64x48 the other fixtures use. libheif's
+    refusal is a pixel-count SECURITY LIMIT (65536), so a small frame slips under it and
+    comes back as a plain ValueError, which the gate always caught — a fixture that size
+    made this test pass with the fix reverted. Measured before it was trusted.
+    """
+    buf = io.BytesIO()
+    Image.new("RGB", (640, 480), (30, 92, 70)).save(buf, format="HEIF")
+    raw = bytearray(buf.getvalue())
+    box = raw.find(b"ispe")
+    assert box != -1, "no ispe box: the fixture no longer builds a real HEIF container"
+    struct.pack_into(">II", raw, box + 8, 16, 16)
+    return bytes(raw)
+
+
+def test_a_heic_that_dies_mid_decode_is_a_message_not_a_server_error(
+    world: dict[str, object],
+) -> None:
+    """The failure this whole PR exists to end, one layer down.
+
+    libheif does not confine itself to Pillow's exception vocabulary: a security-limit
+    refusal comes out of `load()` as RuntimeError and a truncated HEVC bitstream as
+    EOFError, and neither is an OSError, so neither was caught. `compose` is
+    `@transaction.non_atomic_requests` and `posting.create_post` has already COMMITTED by
+    the time the photos are attached — so before the fix a relative uploading a corrupt
+    phone photo got a 500, and the post went live without its photographs and without a
+    word about them. Driven through the real view, because the 500 is a property of where
+    the decode sits, not of `_decode` alone.
+    """
+    response = _compose(
+        world,
+        media=SimpleUploadedFile(
+            "IMG_0002.HEIC", _heic_that_opens_and_fails_at_load(), content_type="image/heic"
+        ),
+    )
+    assert response.status_code == 302, "a corrupt photo must not be a server error"  # type: ignore[attr-defined]
+    post = Post.objects.get(body="hello")
+    assert post.media.count() == 0
+    said = _said(response)
+    assert "could not be added" in said and "not a picture Backyard could read" in said
+    # Plain words, not the exception that caused it.
+    for leak in ("RuntimeError", "EOFError", "libheif", "Traceback"):
+        assert leak not in said
+
+
+def test_the_same_cure_covers_the_reply_and_the_link_preview(world: dict[str, object]) -> None:
+    """The other two callers of the decode gate, asserted where they actually differ.
+
+    A reply attaches through the same `_attach_photos`, which catches MediaRejected only,
+    so it had the identical 500-after-the-write shape. `ingest_link_preview_image` runs on
+    the WORKER and swallows MediaRejected to fall back to a card with no image — so before
+    the fix, an attacker-controlled `og:image` served as HEIF killed the job instead.
+    """
+    from core import media
+
+    pod, member = world["pod"], world["member"]
+    assert isinstance(pod, Pod) and isinstance(member, Member)
+    corrupt = _heic_that_opens_and_fails_at_load()
+
+    post = Post.objects.create(author=member, pod=pod, body="a thread")
+    client = world["client"]
+    assert isinstance(client, Client)
+    reply = client.post(
+        reverse("add_comment", args=[post.id]),
+        {"body": "look", "media": SimpleUploadedFile("x.HEIC", corrupt, content_type="image/heic")},
+    )
+    assert reply.status_code == 302, "a corrupt reply photo must not be a server error"
+    assert post.comments.count() == 1 and post.comments.get().media.count() == 0
+
+    # The worker's path degrades to a card with no image rather than raising.
+    assert media.ingest_link_preview_image(post=post, raw=corrupt) is None
+
+
+def test_a_bomb_is_refused_before_its_bitmap_is_allocated() -> None:
+    """TS-PP-3. The ceiling is ours, not a library default: assert it on a real decode so
+    that raising, removing or shadowing _MAX_PIXELS reddens something.
+
+    Nothing in the suite touched this before — removing the limit entirely left every test
+    green — which matters more now that a second, container-shaped decoder is registered:
+    pillow-heif reassigns the image size from the bitstream during `load()`, so Pillow's
+    one bomb check, taken at `open()` against the declared `ispe` canvas, was measured
+    passing on a lie.
+    """
+    from PIL import Image
+
+    from core import media
+
+    assert Image.MAX_IMAGE_PIXELS == media._MAX_PIXELS, "the process-wide cap is not ours"
+    buf = io.BytesIO()
+    Image.new("RGB", (1, 1)).save(buf, format="PNG")
+    original, Image.MAX_IMAGE_PIXELS = Image.MAX_IMAGE_PIXELS, 0
+    try:
+        with pytest.raises(media.MediaRejected, match="image too large"):
+            media._decode(buf.getvalue())
+    finally:
+        Image.MAX_IMAGE_PIXELS = original
+
+
+def test_the_ceiling_is_re_checked_after_the_decode_not_only_at_open() -> None:
+    """The half of TS-PP-3 that a container format broke.
+
+    Pillow runs its bomb check once, inside `Image.open`, against the size the header
+    DECLARES. pillow-heif then reassigns that size from the bitstream during `load()` —
+    its own source says "Size of Image can change during decoding" — and Pillow never
+    looks again. Measured on this branch: an `ispe` box rewritten to 16x16 on a real
+    640x480 HEIC made `Image.open` report 16x16, so the ceiling was cleared by a lie and
+    held only because libheif's own security limit happened to refuse the mismatch first,
+    which is a library default this repo does not own and can change under a patch bump.
+
+    A stub, deliberately: the point under test is OUR re-check, and the only way to reach
+    it is an image that grows across `load()` — which is exactly what the real decoder
+    does, and what no honest fixture can produce once libheif refuses it first.
+    """
+    from core import media
+
+    class _GrowsDuringLoad:
+        format = "PNG"
+        width = height = 4  # what the header claims; sails past the check at open
+
+        def load(self) -> None:
+            self.width = self.height = 40_000  # 1.6e9 pixels, ~53x the ceiling
+
+    with mock.patch.object(Image, "open", return_value=_GrowsDuringLoad()):
+        with pytest.raises(media.MediaRejected, match="image too large"):
+            media._decode(b"whatever")
+
+
+def test_only_the_iphone_heif_mimetypes_are_admitted() -> None:
+    """`format` is the CONTAINER for pillow-heif — one name, "HEIF", for every brand its
+    sniffer accepts — so the format allowlist alone cannot tell a phone's HEVC still from
+    whatever else the bundled libheif was compiled to decode, a set the wheel decides and
+    is free to widen under a patch bump. A real HEIC still passes; the narrowing is what
+    keeps that true."""
+    from core import media
+
+    assert media._decode(_image_bytes("HEIF")).format == "HEIF"
+    assert "image/heic" in media._ALLOWED_HEIF_MIME
+
+    # The narrowing is live: a HEIF-format image reporting anything else is refused.
+    class _Pretender:
+        format = "HEIF"
+        custom_mimetype = "image/avif"
+        width = height = 1
+
+        def load(self) -> None: ...
+
+    with mock.patch.object(Image, "open", return_value=_Pretender()):
+        with pytest.raises(media.MediaRejected, match="not accepted"):
+            media._decode(b"whatever")
 
 
 # --- limits ----------------------------------------------------------------------

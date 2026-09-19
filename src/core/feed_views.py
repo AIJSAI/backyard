@@ -165,10 +165,23 @@ def _render_feed(
     # never on an archive page, where there is no composer to fill.
     pending = drafts.peek(request) if cursor is None else None
     restored_draft = False
+    draft_pod_id: int | None = None
     if pending is not None and not draft_body and staged_handle is None:
         draft_body = pending.body
         staged_handle = pending.handle
         restored_draft = True
+        # The pod comes back WITH the words, or the restore quietly changes who the post is
+        # for: the select would otherwise fall back to the first pod this member can see, so
+        # a note written for the four cousins is re-aimed at the whole household while the
+        # page says "Your unfinished post is still here". Re-validated here and never trusted
+        # from the session — a pod the member has since left simply does not match, and the
+        # composer opens on its ordinary default instead. compose() still re-checks it at
+        # POST through require_visible_pod; this is the display half of the same rule.
+        if (
+            pending.pod_id is not None
+            and scoping.visible_pods(member).filter(id=pending.pod_id).exists()
+        ):
+            draft_pod_id = pending.pod_id
 
     # Muted pods drop out of this member's feed only (S-205); the posts stay reachable
     # by direct link, so mute is a display choice, not an authorization change.
@@ -255,6 +268,8 @@ def _render_feed(
             # files themselves cannot survive the round trip; the handle can).
             "staged_handle": staged_handle,
             "draft_body": draft_body,
+            # The audience half of the restore (see above); the template preselects it.
+            "draft_pod_id": draft_pod_id,
             "staged_notice": staged_notice,
             # Drives the "Your unfinished post is still here / Discard it" row, which is
             # the ONLY way a member can drop a draft from the feed — it has to sit outside

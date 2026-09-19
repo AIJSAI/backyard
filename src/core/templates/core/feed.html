@@ -130,7 +130,10 @@
           <div>
             <label for="pod_id">Post to</label>
             <select id="pod_id" name="pod_id" required>
-              {% for pod in pods %}<option value="{{ pod.id }}">{{ pod.name }}</option>{% endfor %}
+              {% comment %} `selected` is the audience half of a restored draft: without it a
+                 resumed post silently re-aims at the first pod the member can see, while the
+                 page says everything came back. {% endcomment %}
+              {% for pod in pods %}<option value="{{ pod.id }}"{% if pod.id == draft_pod_id %} selected{% endif %}>{{ pod.name }}</option>{% endfor %}
             </select>
           </div>
           <fieldset>
