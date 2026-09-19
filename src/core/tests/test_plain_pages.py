@@ -148,12 +148,13 @@ def test_the_footer_names_the_person_who_runs_this_backyard() -> None:
     _instance_admin(pod, "Jim Whitfield")
     html = _a_relative_signed_in(pod).get(reverse("feed")).content.decode()
     footer = html[html.index("<footer") : html.index("</footer>")]
-    assert "Stuck? Ask Jim." in footer
+    assert "Need help? Contact Jim." in footer
     # The HELP AFFORDANCE is never a link — that is the SC 3.2.6 invariant, and it used to
     # be stated as "the footer has no links" because the footer held nothing else. Sign out
-    # joined it for signed-in readers on 2026-09-19 (walk item 11), AFTER the help line, so
-    # the help mechanism keeps its position on every surface. A signed-out footer still has
-    # no links at all, which the test below asserts.
+    # joined it for signed-in readers on 2026-09-19 (walk item 11), and the copy pass the
+    # same day brought How It Works and About into the signed-out footer. All of them sit
+    # AFTER the help line, so the help mechanism keeps its position on every surface, and
+    # the span is what is asserted rather than its neighbours.
     help_line = footer[footer.index('class="help"') : footer.index("</span>")]
     assert "<a " not in help_line, "the help affordance became a link; SC 3.2.6 depends on it"
 
@@ -161,7 +162,15 @@ def test_the_footer_names_the_person_who_runs_this_backyard() -> None:
 def test_the_grandparents_page_carries_the_same_help_line() -> None:
     """Owner direction 1, "same on the elder page" — she is the person most likely to be
     stuck and least likely to guess who to ring. Text, never a link: S-601 allows this
-    surface no href but its own."""
+    surface no href but its own.
+
+    THE SENTENCE HERE IS STILL THE PRE-COPY-PASS ONE. The elder page is standalone, so it
+    inherits no footer and carries its own copy of the line, and the 2026-09-19 copy pass
+    rewrote the shared footer first (core/_footer.html now offers a `standalone=True`
+    shape for exactly this page). Until this page includes it, "same help line" means the
+    same PERSON, not yet the same words — which is why this assertion and the footer's
+    above no longer read alike.
+    """
     pod = _family()
     _instance_admin(pod, "Jim Whitfield")
     nana = Member.objects.create(display_name="Nana")
@@ -192,7 +201,7 @@ def test_the_help_line_a_logged_out_reader_gets_names_the_person_who_invited_the
     for route in footer_pages:
         html = Client().get(route).content.decode()
         footer = html[html.index("<footer") : html.index("</footer>")]
-        assert "Stuck? Ask the person who invited you." in footer, (
+        assert "Need help? Contact the person who invited you." in footer, (
             f"{route} does not carry the fallback help line: {footer}"
         )
         assert "whoever in the family set this up" not in footer
@@ -215,11 +224,11 @@ def test_the_grandparents_page_falls_back_to_the_same_sentence() -> None:
 
 def test_the_help_line_survives_an_admin_with_a_one_word_name() -> None:
     """A display name with no space in it is already its own first name; splitting on one
-    would be how this ends up rendering "Stuck? Ask ."."""
+    would be how this ends up rendering "Need help? Contact ."."""
     pod = _family()
     _instance_admin(pod, "Nana")
     html = _a_relative_signed_in(pod).get(reverse("feed")).content.decode()
-    assert "Stuck? Ask Nana." in html
+    assert "Need help? Contact Nana." in html
 
 
 # --- about ------------------------------------------------------------------------------
@@ -339,13 +348,14 @@ def test_a_removed_instance_admin_is_never_the_person_to_ask() -> None:
     reader = _a_relative_signed_in(pod)
 
     # Denominator: the first admin by pk is the one named while they are still here.
-    assert "Stuck? Ask Jim." in reader.get(reverse("feed")).content.decode()
+    assert "Need help? Contact Jim." in reader.get(reverse("feed")).content.decode()
 
     removal.remove_member(admin, content=removal.KEEP)
 
     html = reader.get(reverse("feed")).content.decode()
-    assert "Stuck? Ask Jim." not in html, "the footer still names a removed admin"
-    assert "Stuck? Ask Ada." in html
+    assert "Need help? Contact Jim." not in html, "the footer still names a removed admin"
+    assert "Need help? Contact Ada." in html
 
     removal.remove_member(successor, content=removal.KEEP)
-    assert "Stuck? Ask the person who invited you." in reader.get(reverse("feed")).content.decode()
+    html = reader.get(reverse("feed")).content.decode()
+    assert "Need help? Contact the person who invited you." in html

@@ -117,13 +117,25 @@ def test_sign_out_is_still_one_tap_away_from_anywhere() -> None:
     assert reverse("account_logout") in account
 
 
-def test_a_signed_out_footer_carries_no_links_at_all() -> None:
-    """The SC 3.2.6 property, unchanged: the help affordance is a sentence, and on the
-    surfaces a locked-out person reads there is nothing else in the footer either."""
+def test_a_signed_out_footer_offers_the_two_public_pages_and_no_sign_out() -> None:
+    """The SC 3.2.6 property is unchanged — the help affordance is a sentence — but what
+    sits beside it is not.
+
+    This used to assert the signed-out footer held no anchor at all. The copy pass of
+    2026-09-19 moved How It Works and About into it: they were a stray paragraph under the
+    sign-in card and appeared on no other signed-out surface, which is the "unprofessional
+    and unfinished" the owner was reading. They are ordinary navigation, so the assertion
+    is now the real property — the two pages are offered, the help line is still text, and
+    a footer on a page nobody has signed in to never offers a way to sign out.
+    """
     _world()
     html = Client().get(reverse("account_login")).content.decode()
     footer = html[html.index("<footer") : html.index("</footer>")]
-    assert "<a " not in footer, footer
+    assert reverse("how_it_works") in footer, footer
+    assert reverse("about") in footer, footer
+    assert reverse("account_logout") not in footer, footer
+    help_line = footer[footer.index('class="help"') : footer.index("</span>")]
+    assert "<a " not in help_line, help_line
 
 
 # --- item 15 --------------------------------------------------------------------------

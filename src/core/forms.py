@@ -3,9 +3,12 @@
 Only copy, and only on the two surfaces a family member reaches without being signed
 in. They shipped the library's developer-facing strings verbatim: "Login:",
 "Password:", "Remember Me:", "Email:", with Django's default colon suffix, on a
-product where every other string is written for a relative ("Share something with
-your family", "Your backyard", "Stuck? Ask ..."). Nothing about the fields,
+product where every other string is written for a relative. Nothing about the fields,
 validation, or the auth path changes here; `label_suffix` and the labels do.
+
+The labels are Title Case, like every other form label in the product (the copy pass,
+2026-09-19: "Capitalise Every Word" in labels, headings and buttons). A label is a NOUN
+and not a question, and it says only what the box wants.
 
 The colon is not a nitpick. "Email:" was the ONLY label in the product with one, on
 the password-reset page — the screen somebody reaches when they are already locked
@@ -34,7 +37,7 @@ class LoginForm(AllauthLoginForm):  # type: ignore[misc]  # allauth is untyped
         # that renames a field degrades to the library's label rather than a
         # KeyError on the sign-in page.
         if "login" in self.fields:
-            self.fields["login"].label = "Your username or email"
+            self.fields["login"].label = "Username Or Email"
             # WHOEVER JUST USED A GET-BACK-IN LINK ARRIVES HERE WITH AN EMPTY BOX.
             #
             # That link exists for the relatives who have no email address on file — so
@@ -61,7 +64,10 @@ class LoginForm(AllauthLoginForm):  # type: ignore[misc]  # allauth is untyped
         if "password" in self.fields:
             self.fields["password"].label = "Password"
         if "remember" in self.fields:
-            self.fields["remember"].label = "Keep me signed in on this device"
+            # "on this device" is what a browser checkbox always means, and saying it back
+            # to an adult who has used phones for fifteen years is the filler the copy pass
+            # was called for.
+            self.fields["remember"].label = "Keep Me Signed In"
 
 
 class ResetPasswordForm(AllauthResetPasswordForm):  # type: ignore[misc]  # allauth is untyped
@@ -75,7 +81,7 @@ class ResetPasswordForm(AllauthResetPasswordForm):  # type: ignore[misc]  # alla
         kwargs.setdefault("label_suffix", "")
         super().__init__(*args, **kwargs)
         if "email" in self.fields:
-            self.fields["email"].label = "Email address"
+            self.fields["email"].label = "Email Address"
             # The placeholder repeated the label word for word, which is the shape that
             # leaves somebody staring at a box whose hint vanishes the moment they type.
             self.fields["email"].widget.attrs["placeholder"] = "you@example.com"

@@ -39,6 +39,14 @@ User = get_user_model()
 _BACKEND = "django.contrib.auth.backends.ModelBackend"
 _NAME = "Jim Whitfield"
 _FIRST = "Jim"
+# The shared footer's help line, as the copy pass of 2026-09-19 rewrote it. Its words are
+# core/_footer.html's; what this file is about is WHO is named in it.
+_HELP = f"Need help? Contact {_FIRST}."
+# The grandparent's page is standalone (S-601 gives it no href but its own, so it inherits
+# no footer) and still carries the pre-copy-pass sentence in its own markup. Named apart
+# from _HELP so the divergence is visible rather than hidden inside a shared constant —
+# both collapse back into one the day core/elder_feed.html includes core/_footer.html.
+_ELDER_HELP = f"Stuck? Ask {_FIRST}."
 
 
 def _family() -> tuple[Pod, Member]:
@@ -115,7 +123,7 @@ def test_a_signed_in_member_is_told_who_to_ask() -> None:
     client = Client()
     client.force_login(user, backend=_BACKEND)
 
-    assert f"Stuck? Ask {_FIRST}." in client.get(reverse("feed")).content.decode()
+    assert _HELP in client.get(reverse("feed")).content.decode()
     # ...and on the public pages too, once they are signed in.
     assert f"Ask {_FIRST}" in client.get(reverse("how_it_works")).content.decode()
 
@@ -130,16 +138,14 @@ def test_the_grandparents_no_login_page_still_names_him() -> None:
     client = Client()
     client.get(reverse("elder_enter", args=[elder_tokens.mint(nana)]))
     html = client.get(reverse("elder_feed")).content.decode()
-    assert f"Stuck? Ask {_FIRST}." in html
+    assert _ELDER_HELP in html
 
 
 def test_an_invite_page_names_him() -> None:
     pod, admin = _family()
     _invite, raw = invites.mint_invite(pod, admin)
     html = Client().get(reverse("join", args=[raw])).content.decode()
-    assert f"Stuck? Ask {_FIRST}." in html, (
-        "somebody opening an invite a relative sent them is not a stranger"
-    )
+    assert _HELP in html, "somebody opening an invite a relative sent them is not a stranger"
 
 
 def test_a_get_back_in_link_names_him() -> None:
@@ -152,7 +158,7 @@ def test_a_get_back_in_link_names_him() -> None:
     raw = recovery.issue(member, issued_by=admin)
 
     html = Client().get(reverse("recover", args=[raw])).content.decode()
-    assert f"Stuck? Ask {_FIRST}." in html
+    assert _HELP in html
 
 
 def test_a_bogus_token_on_every_token_surface_names_nobody() -> None:
@@ -220,9 +226,7 @@ def test_a_real_token_on_every_token_surface_does_name_them() -> None:
 
     # An invite.
     _invite, invite_raw = invites.mint_invite(pod, admin)
-    assert (
-        f"Stuck? Ask {_FIRST}." in Client().get(reverse("join", args=[invite_raw])).content.decode()
-    )
+    assert _HELP in Client().get(reverse("join", args=[invite_raw])).content.decode()
 
     # A get-back-in link.
     locked = Member.objects.create(
@@ -230,17 +234,14 @@ def test_a_real_token_on_every_token_surface_does_name_them() -> None:
     )
     PodMembership.objects.create(member=locked, pod=pod)
     recovery_raw = recovery.issue(locked, issued_by=admin)
-    assert (
-        f"Stuck? Ask {_FIRST}."
-        in Client().get(reverse("recover", args=[recovery_raw])).content.decode()
-    )
+    assert _HELP in Client().get(reverse("recover", args=[recovery_raw])).content.decode()
 
     # The no-login link, and the session it becomes.
     nana = Member.objects.create(display_name="Nana")
     PodMembership.objects.create(member=nana, pod=pod)
     elder = Client()
     elder.get(reverse("elder_enter", args=[elder_tokens.mint(nana)]))
-    assert f"Stuck? Ask {_FIRST}." in elder.get(reverse("elder_feed")).content.decode()
+    assert _ELDER_HELP in elder.get(reverse("elder_feed")).content.decode()
 
     # The Family email's own confirm link — the surface the reviewer measured as wrong the
     # other way round, where a real holder used to get the anonymous fallback.
@@ -255,11 +256,11 @@ def test_a_real_token_on_every_token_surface_does_name_them() -> None:
     assert subscription.pk
     confirm = Client().get(reverse("digest_confirm", args=["raw-confirm"]))
     assert confirm.status_code == 200
-    assert f"Stuck? Ask {_FIRST}." in confirm.content.decode()
+    assert _HELP in confirm.content.decode()
 
     unsub = Client().get(reverse("digest_unsubscribe", args=["raw-unsub"]))
     assert unsub.status_code == 200
-    assert f"Stuck? Ask {_FIRST}." in unsub.content.decode()
+    assert _HELP in unsub.content.decode()
 
 
 def test_the_flag_is_off_until_a_view_sets_it() -> None:
