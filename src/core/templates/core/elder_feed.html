@@ -1,4 +1,4 @@
-<!doctype html>
+{% load static %}<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -16,7 +16,28 @@
    Only the accent colour changes from v2 (navy #234a78 -> green #1e5c46);
    byline moves from #565b64 to #4c5a52 (7.26:1). The top bar wraps cleanly
    at 320px (flex-wrap). */
-body { font-family: Georgia, "Iowan Old Style", Palatino, serif;
+
+/* THE SAME TYPEFACE AS THE REST OF THE PRODUCT. This page was set in Georgia
+   while every other surface uses Atkinson Hyperlegible -- a face designed
+   specifically for low-vision readers -- so the ONE screen built for the
+   least-sighted person in the family was the only one not using it. The
+   @font-face block is repeated here rather than shared because this template is
+   standalone by design and extends nothing; the files are the same two the
+   design system serves, same-origin, already allowed by the CSP (no font-src
+   directive, so 'self' applies). A missing font falls back to the identical
+   system humanist stack base.html names. */
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  src: url("{% static 'backyard/fonts/atkinson-hyperlegible-regular.woff2' %}") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  src: url("{% static 'backyard/fonts/atkinson-hyperlegible-bold.woff2' %}") format("woff2");
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+body { font-family: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI",
+       Roboto, "Helvetica Neue", Arial, sans-serif;
        background: #ffffff; color: #1a1a1a;
        margin: 0; font-size: {% if big_text %}26px{% else %}21px{% endif %};
        line-height: 1.65; }
@@ -35,6 +56,14 @@ button:focus-visible, a:focus-visible { outline: 3px solid #8a5a12; outline-offs
 .post { border-top: 2px solid #d9e0da; padding: 24px 0; }
 .byline { color: #4c5a52; margin: 0 0 12px; }
 .post p { margin: 0 0 18px; }
+/* A post keeps the shape it was typed in here too. It is the surface most likely to
+   carry a recipe off a card, or an address, and a grandmother reading a run-on
+   sentence where four lines were meant cannot tell it was ever anything else. */
+p.post-body, p.reply { white-space: pre-wrap; }
+/* Where "Send love" lands her: the block holding the button and the hearts, NOT the
+   top of the article, which on a post with photographs put the confirmation she was
+   promised about sixteen hundred pixels below where she arrived. */
+.love { scroll-margin-top: 16px; }
 form { margin: 0; }
 article span { display: inline-block; color: #4c5a52; margin: 10px 14px 0 0; }
 a.back { color: #1e5c46; font-weight: 700; }
@@ -76,8 +105,15 @@ p.clip-status { margin: 18px 0; color: #4c5a52; }
 
   {% for post in posts %}
     <article class="post" id="post-{{ post.id }}">
-      <p class="byline">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %} &middot; {{ post.created_at|date }}</p>
-      <p>{{ post.body }}</p>
+      {% comment %} One date format across the product: this page said "Sept. 18, 2026"
+         (Django's `date` default) while every member surface said "Sep 18". {% endcomment %}
+      <p class="byline">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %} &middot; {{ post.created_at|date:"M j, Y" }}</p>
+      {% comment %} `pre-wrap` but deliberately NO `urlize`, unlike every other surface:
+         S-601 gives this page no way off itself — every href here is the elder feed —
+         so turning a URL somebody typed into a tappable link would be the one thing
+         that could strand a grandmother on a stranger's website with no idea how she
+         got there. She can still read the address. {% endcomment %}
+      <p class="post-body">{{ post.body }}</p>
       {% comment %} Photos, at last. Deliberately <img src> and NOT wrapped in a link:
          test_elder_wcag asserts every href on this page is the elder feed itself
          (S-601, no dead ends), so a full-size link would red the build. She sees the
@@ -128,14 +164,20 @@ p.clip-status { margin: 18px 0; color: #4c5a52; }
         {# Plain text, never a link: S-601 forbids anywhere to get lost from this page. #}
         <p class="reply more">and {{ post.comments.all|length|add:"-5" }} more replies</p>
       {% endif %}
-      <form method="post" action="{% url 'elder_react' post.id %}">{% csrf_token %}
-        <button type="submit" {% if post.id in my_reactions %}class="on"{% endif %}>
-          {% if post.id in my_reactions %}&#10084; You love this{% else %}&#9825; Send love{% endif %}
-        </button>
-      </form>
-      {% for reaction in post.reactions.all %}
-        <span>&#10084; {{ reaction.member.kinship_name|default:reaction.member.display_name }}</span>
-      {% endfor %}
+      {% comment %} D52. `elder_views.elder_react` redirects to THIS id, not to the
+         article's: anchoring at the top of the post put her ~1600px above the very
+         confirmation she had just been promised, so tapping "Send love" looked to her
+         like nothing happening at all. {% endcomment %}
+      <div class="love" id="love-{{ post.id }}">
+        <form method="post" action="{% url 'elder_react' post.id %}">{% csrf_token %}
+          <button type="submit" {% if post.id in my_reactions %}class="on"{% endif %}>
+            {% if post.id in my_reactions %}&#10084; You love this{% else %}&#9825; Send love{% endif %}
+          </button>
+        </form>
+        {% for reaction in post.reactions.all %}
+          <span>&#10084; {{ reaction.member.kinship_name|default:reaction.member.display_name }}</span>
+        {% endfor %}
+      </div>
     </article>
   {% empty %}
     <p class="post">Nothing new right now. Your family's posts will appear here.</p>

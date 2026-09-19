@@ -6,7 +6,10 @@
   {% for post in posts %}
     <article class="post">
       <p class="byline">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %} · {{ post.created_at|date }}</p>
-      <p>{{ post.body }}</p>
+      {% comment %} The same shape the feed keeps (C3): their line breaks survive and a
+         link they typed is tappable. `urlize` autoescapes, so this opens no injection
+         path on a surface that has no login behind it. {% endcomment %}
+      <p class="post-body">{{ post.body|urlize }}</p>
       {% comment %} Photos, reachable without a login. The digest page has no session,
          so each image re-presents the capability as ?d=<token>; serve_media resolves it
          and runs the SAME audience check. Query-string tokens are redacted from request

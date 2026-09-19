@@ -158,8 +158,16 @@ def test_error_blocks_are_distinguishable_from_notices_without_colour() -> None:
     forced colours."""
     css = _style()
     assert ".errors::before" in css, "an error block must carry a non-colour severity cue"
+    # `ul.errorlist` is the component django-allauth and every Django form actually
+    # emit, and it had no rule at all — so the commonest error in the product rendered
+    # as a browser-default bullet. It carries the same glyph and the same heavier
+    # forced-colours border as `.errors`, and this asserts BOTH by name: the pair are
+    # one component wearing two selectors, and only one of them was ever tested.
+    assert "ul.errorlist li::before" in css, "the shipped error list needs the cue too"
     body = _block("@media (forced-colors: active)")
-    assert ".errors { border: 2px solid CanvasText; }" in body, "errors must outweigh a notice"
+    assert ".errors, ul.errorlist { border: 2px solid CanvasText; }" in body, (
+        "errors must outweigh a notice"
+    )
 
 
 def test_the_handover_qr_opts_out_of_forced_colours() -> None:

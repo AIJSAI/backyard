@@ -17,6 +17,7 @@ import tempfile
 import warnings
 from pathlib import Path
 
+import pillow_heif
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.core.files.storage import Storage
@@ -27,13 +28,23 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from . import transcoding
 from .models import Comment, MediaAsset, Post
 
-# Formats accepted at open. HEIC is deliberately absent (the wave-3 pillow-heif decision):
-# the composer's client-side resize (feed.html) converts HEIC to JPEG in browsers that can
-# decode it (Safari/iOS) before upload, and a HEIC that reaches here undecoded — from a
-# browser that could not convert it — is rejected rather than passed through. v1 relies on
-# that client conversion and does NOT ship the pillow-heif dependency; revisit only if the
-# seed pod hits raw-HEIC rejections in practice.
-_ALLOWED_INPUT_FORMATS = frozenset({"JPEG", "PNG", "WEBP", "GIF"})
+# HEIC/HEIF, which is what an iPhone photograph actually is. Registering the opener adds
+# one more format to Image.open; everything after it — the allowlist, the bomb limit, the
+# re-encode to JPEG, the metadata strip — is unchanged, so a HEIC is subject to exactly
+# the gate every other upload is and never reaches storage in its original form.
+#
+# This REVERSES the wave-3 decision not to ship pillow-heif. That decision rested on the
+# composer's client-side canvas conversion (core/_composer_media.html) doing the job
+# first, and it does — on Safari/iOS. On Chrome, Firefox and Android `createImageBitmap`
+# cannot decode a HEIC, the script falls through to "let the server decide", and the
+# server's decision was to reject it outright: a family member picking the picture their
+# phone just took and being told Backyard could not read it (BY-14). The client
+# conversion stays, because converting before upload still saves the bytes; it is now an
+# optimisation rather than the only path.
+pillow_heif.register_heif_opener()
+
+# Formats accepted at open.
+_ALLOWED_INPUT_FORMATS = frozenset({"JPEG", "PNG", "WEBP", "GIF", "HEIF"})
 # Error, not warn, above this bound (TS-PP-3). Sized above a normal phone photo but
 # tight enough that the decoded RGB bitmap (~3 bytes/pixel, doubled by transpose and
 # convert) cannot exhaust a small self-hosted VM across the three gunicorn workers

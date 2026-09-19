@@ -26,6 +26,7 @@ from django.views.decorators.http import require_POST
 
 from . import (
     commenting,
+    drafts,
     media,
     moderation,
     notifications,
@@ -145,6 +146,7 @@ def _render_feed(
     # compose and the WORDS did not — while the page said "Your uploaded photos are still
     # attached", which reads as a reassurance that everything survived.
     draft_body: str = "",
+    staged_notice: str = "",
     cursor: tuple[datetime.datetime, int] | None = None,
 ) -> HttpResponse:
     """Render the feed: the member's visible posts newest-first, each marked as their
@@ -155,6 +157,17 @@ def _render_feed(
     boundary = member.feed_last_seen_at
     if advance_seen:
         Member.objects.filter(pk=member.pk).update(feed_last_seen_at=timezone.now())
+
+    # F5: a post somebody walked away from on the confirmation page is still theirs. The
+    # caller's own draft wins — a compose that bounced for correction is carrying the very
+    # words the member is looking at — so this only fills an otherwise empty composer, and
+    # never on an archive page, where there is no composer to fill.
+    pending = drafts.peek(request) if cursor is None else None
+    restored_draft = False
+    if pending is not None and not draft_body and staged_handle is None:
+        draft_body = pending.body
+        staged_handle = pending.handle
+        restored_draft = True
 
     # Muted pods drop out of this member's feed only (S-205); the posts stay reachable
     # by direct link, so mute is a display choice, not an authorization change.
@@ -231,6 +244,16 @@ def _render_feed(
             # files themselves cannot survive the round trip; the handle can).
             "staged_handle": staged_handle,
             "draft_body": draft_body,
+            "staged_notice": staged_notice,
+            # Drives the "Your unfinished post is still here / Discard it" row, which is
+            # the ONLY way a member can drop a draft from the feed — it has to sit outside
+            # the composer's own <form>, because forms do not nest.
+            "restored_draft": restored_draft,
+            # Said in words beside the one media control, so the limits are readable with
+            # the enhancement script off, and named from the constants rather than typed
+            # into the template where they would drift the first time either moved.
+            "max_photos": _MAX_PHOTOS,
+            "max_videos": _MAX_VIDEOS,
         },
     )
 
@@ -247,6 +270,9 @@ def compose_cancel(request: HttpRequest) -> HttpResponse:
     if request.method != "POST":
         raise Http404
     staged_uploads.discard(request, request.POST.get("staged_uploads") or None)
+    # An EXPLICIT cancel is one of the only two events that release the held draft (F5,
+    # core/drafts.py): everything else that leaves the confirmation keeps it.
+    drafts.clear(request)
     return redirect("feed")
 
 
@@ -287,9 +313,10 @@ def compose(request: HttpRequest) -> HttpResponse:
     # over-cap or unplayable clip rejects the whole compose with a clear message and
     # never lands as a post with a silently-missing video (S-402). Photos, by contrast,
     # are best-effort and attached after creation.
-    video_raws, video_errors = _validate_videos(request.FILES.getlist("videos"))
+    picked_photos, picked_videos = _split_media(request.FILES.getlist("media"))
+    video_raws, video_errors = _validate_videos(request.FILES.getlist("videos") + picked_videos)
     errors.extend(video_errors)
-    photo_raws, media_notices = _read_photos(request.FILES.getlist("photos"))
+    photo_raws, media_notices = _read_photos(request.FILES.getlist("photos") + picked_photos)
 
     # A second pass through the composer (the TM-3 confirmation) arrives with an EMPTY
     # request.FILES — a plain form cannot carry files — so the bytes come back from
@@ -322,6 +349,11 @@ def compose(request: HttpRequest) -> HttpResponse:
         # Hold the media server-side across the hop. Without this the confirmation page
         # was where photos went to die: it is an ordinary form with no file inputs, so
         # the re-POST carried nothing and the post was created empty.
+        handle = staged_uploads.stage(request, photos=photo_raws, videos=video_raws)
+        # ...and hold the WORDS on the same terms (F5). The photos survived this hop and
+        # the paragraph did not, so leaving the confirmation any way other than answering
+        # it threw the post away — on the one screen a person deliberately pauses on.
+        drafts.hold(request, body=body, pod_id=pod.id, handle=handle)
         return render(
             request,
             "core/compose_confirm.html",
@@ -331,9 +363,7 @@ def compose(request: HttpRequest) -> HttpResponse:
                 "audience_yards": audience_yards,
                 "audience_names": ", ".join(y.name for y in audience_yards),
                 "member_count": reach.count(),
-                "staged_handle": staged_uploads.stage(
-                    request, photos=photo_raws, videos=video_raws
-                ),
+                "staged_handle": handle,
                 "staged_photo_count": len(photo_raws),
                 "staged_video_count": len(video_raws),
             },
@@ -342,13 +372,20 @@ def compose(request: HttpRequest) -> HttpResponse:
     if errors:
         # The compose is going back for correction and the bytes must not be lost in the
         # meantime, so re-stage them and carry the handle through the re-rendered form.
+        handle = staged_uploads.stage(request, photos=photo_raws, videos=video_raws)
+        drafts.hold(request, body=body, pod_id=pod.id, handle=handle)
         return _render_feed(
             request,
             member,
             advance_seen=False,
             errors=errors,
-            staged_handle=staged_uploads.stage(request, photos=photo_raws, videos=video_raws),
+            staged_handle=handle,
             draft_body=body,
+            staged_notice=(
+                "Your photos are still attached — fix the note above and post again."
+                if handle
+                else ""
+            ),
         )
 
     post = posting.create_post(author=member, pod=pod, audience_yards=audience_yards, body=body)
@@ -361,6 +398,13 @@ def compose(request: HttpRequest) -> HttpResponse:
     attach_link_preview.defer(post_id=post.id)
     media_notices.extend(_attach_photos(photo_raws, post=post))
     _attach_videos(video_raws, post=post)
+    # The draft has become the post it was a draft of (F5).
+    drafts.clear(request)
+    # SAY IT WORKED. Tapping Post reloaded the feed with no message of any kind, and the
+    # new post lands ~1700px below the fold on a phone, so nothing visibly changed —
+    # while the product cheerfully announced "Successfully signed in as …", the least
+    # important event it knows about. A relative with no confirmation taps Post twice.
+    messages.success(request, "Posted. Your family can see it now.")
     # Anything the post did NOT get is said out loud on the feed the member lands on.
     # Silence here is the failure mode: a post appears, looks fine, and is missing photos
     # nobody will ever mention.
@@ -411,6 +455,41 @@ def delete_post(request: HttpRequest, post_id: int) -> HttpResponse:
         media.purge_post_media(post)  # hard-delete the photo files too (T-MEDIA-6)
         return redirect("feed")
     return render(request, "core/delete_confirm.html", {"post": post})
+
+
+# What a phone names a clip, for the one case where the browser declares no content type
+# at all. Lowercased suffixes; the check is a routing hint, never a validation.
+_VIDEO_SUFFIXES = (".mov", ".mp4", ".m4v", ".qt")
+
+
+def _split_media(files: list[UploadedFile]) -> tuple[list[UploadedFile], list[UploadedFile]]:
+    """Route ONE picker's files to the photo gate or the video gate.
+
+    The composer is a single control now (owner direction 4: "Add photos or a video",
+    `accept="image/*,video/*"`), because two stacked pickers made a place to say something
+    read as an upload form, and because "Files" is the wrong word on a phone. Both kinds
+    therefore arrive under one field name and something has to decide which is which.
+
+    `photos` and `videos` stay the server's own two fields: they map to two genuinely
+    different gates (Pillow decode-and-re-encode versus ISOBMFF magic plus ffprobe), and a
+    caller that already knows what it is sending should say so. `media` is the browser's
+    one-control convenience on top of them.
+
+    Both signals used here — the declared content type and the filename — are
+    client-controlled, so this is ROUTING and never validation. A file that lies about
+    itself is rejected by the gate it lands in: an HTML polyglot called `.mov` fails the
+    magic check, and a real clip declared as an image fails to decode.
+    """
+    photos: list[UploadedFile] = []
+    videos: list[UploadedFile] = []
+    for uploaded in files:
+        declared = (uploaded.content_type or "").lower()
+        name = (uploaded.name or "").lower()
+        if declared.startswith("video/") or name.endswith(_VIDEO_SUFFIXES):
+            videos.append(uploaded)
+        else:
+            photos.append(uploaded)
+    return photos, videos
 
 
 def _read_photos(files: list[UploadedFile]) -> tuple[list[bytes], list[str]]:
@@ -604,6 +683,10 @@ def _render_post_detail(
             # Admins get the takedown affordance on this (visible) post and its comments
             # (S-713); the thread only renders items the member can see.
             "is_moderator": permissions.is_admin(member),
+            # The reply form's one media control says its limits in words; same constants
+            # as the composer's, so the two can never disagree.
+            "max_photos": _MAX_PHOTOS,
+            "max_videos": _MAX_VIDEOS,
         },
     )
 
@@ -672,9 +755,10 @@ def add_comment(request: HttpRequest, post_id: int) -> HttpResponse:
     # S-404: a reply carries photos and clips exactly as a post does — the SAME readers,
     # the same caps, the same ingest gate. A second set of limits here would drift from
     # the composer's the first time either moved.
-    video_raws, video_errors = _validate_videos(request.FILES.getlist("videos"))
+    picked_photos, picked_videos = _split_media(request.FILES.getlist("media"))
+    video_raws, video_errors = _validate_videos(request.FILES.getlist("videos") + picked_videos)
     errors.extend(video_errors)
-    photo_raws, media_notices = _read_photos(request.FILES.getlist("photos"))
+    photo_raws, media_notices = _read_photos(request.FILES.getlist("photos") + picked_photos)
 
     if not body and not photo_raws and not video_raws:
         # A reply that is only a photograph is a real reply, so the body is required only
@@ -689,6 +773,9 @@ def add_comment(request: HttpRequest, post_id: int) -> HttpResponse:
     comment = commenting.create_comment(author=member, post=post, body=body)
     media_notices.extend(_attach_photos(photo_raws, comment=comment))
     _attach_videos(video_raws, comment=comment)
+    # Same silence as the composer had, same cure (C4): a reply lands below whatever
+    # thread is already there, so on a long one nothing visibly happened.
+    messages.success(request, "Your reply is up.")
     if media_notices:
         # Same posture as the composer: a partial attach is REPORTED, never dropped in
         # silence. The reply itself already landed, so these are notices, not errors.

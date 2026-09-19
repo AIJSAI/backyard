@@ -157,7 +157,13 @@ def elder_react(request: HttpRequest, post_id: int) -> HttpResponse:
     # threw her to the first post every time, so on the fourth item down, sending love meant
     # losing her place and scrolling back — with larger text, that is a lot of scrolling. The
     # fragment costs nothing and keeps S-601 intact: it is still the elder feed's own URL.
-    return redirect(f"{reverse('elder_feed')}#post-{post.pk}")
+    #
+    # To the BUTTON, not to the post (D52). `#post-N` anchors at the top of the article,
+    # ABOVE its full-width uncropped photographs, so the confirmation she was promised —
+    # the filled "You love this" and her name in the hearts — landed ~1600px below where
+    # she arrived. The screen jumped and, as far as she could tell, nothing happened; she
+    # taps again, or decides it is broken. `#love-N` is on the reaction block itself.
+    return redirect(f"{reverse('elder_feed')}#love-{post.pk}")
 
 
 @require_POST

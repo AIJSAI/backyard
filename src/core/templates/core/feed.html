@@ -48,6 +48,21 @@
     <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
   {% endif %}
 
+  {% if restored_draft %}
+    {% comment %} F5. The post they started is still here, and this is the ONLY way to
+       drop it from the feed — it has to sit outside the composer's own <form>, because
+       HTML forms do not nest. Cancelling here releases the staged photographs too, which
+       is why it POSTs to the same route the confirmation's Cancel does. {% endcomment %}
+    <div class="notice draft-notice">
+      <p>Your unfinished post is still here.</p>
+      <form method="post" action="{% url 'compose_cancel' %}">
+        {% csrf_token %}
+        {% if staged_handle %}<input type="hidden" name="staged_uploads" value="{{ staged_handle }}">{% endif %}
+        <button type="submit" class="btn-quiet">Discard it</button>
+      </form>
+    </div>
+  {% endif %}
+
   {% comment %} `is-open` overrides the composer's default collapsed state (base.html): a
      compose that bounced back, or an unfinished draft picked back up, must open with its
      words and its photos already showing rather than behind a tap. {% endcomment %}

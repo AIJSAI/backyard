@@ -96,7 +96,15 @@ def test_the_oldest_post_is_actually_reachable_by_paging(world: dict[str, object
 
     assert "post-000" in seen, "the oldest post is still unreachable"
     assert len(seen) == total, f"paging lost posts: saw {len(seen)} of {total}"
-    assert _CAUGHT_UP in page  # the last page is genuinely the end, and says so
+    # The last page is genuinely the end and says so — but NOT with "You are all caught
+    # up", which is a claim about the TOP of the feed (F9). At the bottom of a walk
+    # backwards through the family's history it said the opposite of what was true.
+    assert "That is the beginning." in page
+    assert _CAUGHT_UP not in page
+    # ...and it IS still said where it is true: the top of a feed with nothing older.
+    assert _CAUGHT_UP in client.get(reverse("feed")).content.decode() or "Show older" in (
+        client.get(reverse("feed")).content.decode()
+    )
 
 
 def test_paging_into_the_archive_does_not_mark_the_new_posts_as_read(
