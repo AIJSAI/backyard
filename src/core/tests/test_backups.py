@@ -91,6 +91,33 @@ def test_backup_fails_loudly_when_pg_dump_fails(
         backups.write_backup(io.BytesIO())
 
 
+def test_a_hung_pg_dump_is_killed_rather_than_held_forever(
+    monkeypatch: Any, settings: Any, tmp_path: Path
+) -> None:
+    """The nightly dump runs unattended on a worker with ONE concurrency slot.
+
+    An unbounded pg_dump does not merely fail the backup: it holds that slot, so the digest,
+    the weekly health email and every transcode stop with it — the T-MON-1 silence the
+    scheduler exists to break, caused by the scheduler. A killed dump is recorded and mailed
+    like any other failure.
+    """
+    settings.MEDIA_ROOT = str(tmp_path / "media")
+    bounds: list[float] = []
+
+    def hanging_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        # KeyError, deliberately, if the call goes back to having no bound: a test that
+        # reads `kwargs.get("timeout")` would pass just as happily against an unbounded run.
+        bounds.append(kwargs["timeout"])
+        raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    monkeypatch.setattr("core.backups.subprocess.run", hanging_run)
+
+    with pytest.raises(backups.BackupError, match="did not finish within"):
+        backups.write_backup(io.BytesIO())
+
+    assert bounds == [backups.DUMP_TIMEOUT_SECONDS]
+
+
 def _recording_pg(monkeypatch: Any) -> list[tuple[list[str], dict[str, str]]]:
     """Stub pg_dump, keeping the argv and environment it would have been run with."""
     calls: list[tuple[list[str], dict[str, str]]] = []

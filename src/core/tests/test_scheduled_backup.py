@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import datetime
 import subprocess
+from collections import namedtuple
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,8 @@ from core import scheduled_backup
 from core.models import BackupFailure, BackupRun
 
 pytestmark = pytest.mark.django_db
+
+_Usage = namedtuple("_Usage", "total used free")
 
 # Reuses a value the credential guard and .gitleaks.toml already know is synthetic,
 # rather than adding a new credential-shaped literal to this repository for a test.
@@ -90,6 +93,28 @@ def test_it_refuses_to_write_plaintext_when_the_passphrase_is_unset(monkeypatch:
     assert not BackupRun.objects.exists()
 
 
+def test_the_nightly_run_reads_the_keyfile_both_guides_recommend(
+    monkeypatch: Any, settings: Any, tmp_path: Path
+) -> None:
+    """The RECOMMENDED configuration has to be one that works.
+
+    Both runbooks tell the operator to mount a 0600 key and leave the env var unset, because
+    the env value is visible to `docker inspect`. `backup_instance` takes a keyfile only as a
+    command-line flag and a periodic task is nobody's command line, so until the scheduler
+    read the setting, following the tighter advice meant a refusal every night forever.
+    """
+    monkeypatch.delenv("BACKYARD_BACKUP_PASSPHRASE", raising=False)
+    keyfile = tmp_path / "backyard.key"
+    keyfile.write_text(_PASSPHRASE, encoding="utf-8")
+    keyfile.chmod(0o600)
+    settings.BACKUP_PASSPHRASE_FILE = str(keyfile)
+
+    result = scheduled_backup.run()
+
+    assert result.path.read_bytes()[:14] == b"BACKYARD-ENC/1"
+    assert not BackupFailure.objects.exists()
+
+
 def test_a_failure_is_recorded_with_its_reason_before_it_is_raised(monkeypatch: Any) -> None:
     def failing_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(argv, 1, stdout="", stderr="connection refused")
@@ -101,6 +126,53 @@ def test_a_failure_is_recorded_with_its_reason_before_it_is_raised(monkeypatch: 
 
     failure = BackupFailure.objects.get()
     assert "pg_dump failed" in failure.error  # the reason, not just the fact
+
+
+def test_an_unforeseen_failure_is_recorded_too(monkeypatch: Any) -> None:
+    """Not every failure is a CommandError or an OSError. One that is neither must still
+    reach the weekly email, or the surface reports 'no failures recorded' for eight days."""
+
+    def boom(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("something nobody predicted")
+
+    monkeypatch.setattr("core.scheduled_backup.call_command", boom)
+
+    with pytest.raises(scheduled_backup.ScheduledBackupFailed):
+        scheduled_backup.run()
+
+    assert "something nobody predicted" in BackupFailure.objects.get().error
+
+
+def test_it_refuses_a_night_that_would_fill_the_volume(monkeypatch: Any) -> None:
+    """The archives sit on the same volume as the only copy of the family's photographs.
+
+    Writing until ENOSPC there stops uploads and, by default, Postgres too — which is worse
+    than one missed night. The refusal is recorded, mailed and visible at /healthz like any
+    other failure, so it reads as "grow the disk" rather than as a silent stop.
+    """
+    scheduled_backup.run()  # tonight's estimate comes from the last archive, so make one
+    last = BackupRun.objects.get()
+    monkeypatch.setattr(
+        "core.scheduled_backup.shutil.disk_usage",
+        lambda path: _Usage(100, 99, last.byte_count),  # room for one, not for one plus staging
+    )
+
+    with pytest.raises(scheduled_backup.ScheduledBackupFailed, match="refusing tonight's backup"):
+        scheduled_backup.run()
+
+    # Recorded verbatim, not wrapped in its own class name: this sentence is written to be
+    # read by the operator in the weekly email.
+    assert BackupFailure.objects.get().error.startswith("refusing tonight's backup")
+
+
+def test_the_headroom_guard_never_blocks_the_first_backup_an_instance_takes(
+    monkeypatch: Any,
+) -> None:
+    """The dangerous direction. An instance that has never taken an archive has nothing to
+    size one from, and a guard that guessed would refuse the backup that matters most."""
+    monkeypatch.setattr("core.scheduled_backup.shutil.disk_usage", lambda path: _Usage(100, 99, 1))
+
+    assert scheduled_backup.run().path.exists()
 
 
 def test_recorded_failures_do_not_grow_without_bound(monkeypatch: Any) -> None:

@@ -29,7 +29,7 @@ from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
 
-from core import health
+from core import health, scheduled_backup
 from core.models import BackupFailure, BackupRun, CertificateStatus, Member
 
 pytestmark = pytest.mark.django_db
@@ -61,6 +61,17 @@ def _healthy_instance() -> None:
         expires_at=timezone.now() + datetime.timedelta(days=60),
         checked_at=timezone.now(),
     )
+
+
+def _scheduled_archive(day: datetime.date | None = None) -> None:
+    """An archive carrying the name the SCHEDULER gives its own.
+
+    That name is what the "Scheduled backup" field reads, and a hand-run `backup_instance`
+    never produces one — which is the whole distinction the field turns on.
+    """
+    path = scheduled_backup.archive_path(day or timezone.localdate())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"an archive")
 
 
 def _signed_in(role: str) -> Client:
@@ -118,6 +129,23 @@ def test_an_ordinary_member_is_a_stranger_here() -> None:
     assert set(_signed_in(Member.MEMBER).get(reverse("healthz")).json()) == {"status"}
 
 
+def test_the_health_endpoint_is_not_ssl_redirected(settings: Any) -> None:
+    """The container healthchecks probe http://127.0.0.1:8000/healthz from inside the
+    compose network. Every https deployment sets SECURE_SSL_REDIRECT, and without an
+    exemption Django answers that probe with a 301 to a port that speaks no TLS: web and
+    caddy then read `unhealthy` forever in production while CI's http stack passes."""
+    settings.SECURE_SSL_REDIRECT = True
+    _healthy_instance()
+
+    response = Client().get(reverse("healthz"), SERVER_NAME="127.0.0.1")
+
+    assert response.status_code == 200, "the health probe was redirected to a port with no TLS"
+    # And the redirect is still on for everything else, or the line above proves nothing
+    # about the exemption. SecurityMiddleware runs before URL resolution, so this path does
+    # not need to resolve to be redirected.
+    assert Client().get("/", SERVER_NAME="127.0.0.1").status_code == 301
+
+
 # ---------------------------------------------------------------- what the admin sees
 
 
@@ -142,6 +170,29 @@ def test_the_admin_detail_names_the_reason_a_backup_is_failing() -> None:
     failing = _detail(payload, "Scheduled backup")
     assert failing["alarming"]
     assert "no space left on device" in failing["value"]
+
+
+def test_a_manual_backup_does_not_report_a_failing_nightly_job_as_working() -> None:
+    """The operator's first response to the alarm is to take a backup by hand. That must
+    not be what silences it: the nightly job is still dead and still needs fixing."""
+    BackupFailure.objects.create(error="no passphrase configured")
+    BackupRun.objects.create(byte_count=1024, encrypted=True)  # a HAND-run archive
+
+    field = _field(health.measure(), "Scheduled backup")
+
+    assert field.alarming, "a hand-run backup reported the failing nightly job as working"
+
+
+def test_a_scheduled_archive_written_since_the_failure_does_read_as_working() -> None:
+    """The other half. Without it the field could simply never say `working` again, and a
+    line that is always alarming is a line an operator learns to skip."""
+    BackupFailure.objects.create(error="no passphrase configured")
+    _scheduled_archive()
+
+    field = _field(health.measure(), "Scheduled backup")
+
+    assert not field.alarming
+    assert "working" in field.value
 
 
 def _detail(payload: dict[str, Any], label: str) -> dict[str, Any]:
@@ -258,6 +309,20 @@ def test_a_never_checked_certificate_on_an_https_instance_is_alarming(settings: 
 
     assert field.alarming, "an https instance that has never read its own certificate"
     assert not field.measured  # unknown, so this one does not degrade the public endpoint
+
+
+def test_a_certificate_check_that_has_never_succeeded_still_says_why(settings: Any) -> None:
+    """A worker that cannot reach the instance's own hostname (a NAT without hairpinning is
+    the common case) records the reason and leaves `checked_at` None. Reporting only "no
+    successful check yet" discards the one clue that separates a broken certificate from an
+    unreachable one, and leaves a permanent alarming line with nothing to act on."""
+    settings.BASE_URL = "https://family.example"
+    CertificateStatus.objects.create(domain="family.example", error="connection refused")
+
+    field = _field(health.measure(), "TLS certificate")
+
+    assert field.alarming and not field.measured
+    assert "connection refused" in field.value
 
 
 def test_a_stale_check_says_so_rather_than_passing_an_old_number_off_as_current(
