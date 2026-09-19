@@ -1,0 +1,115 @@
+# Dependabot was running SECURITY updates only -- that is a repository setting, not this
+# file, and it is why PR #164 (sqlparse) and PR #129 (pytest) exist while nothing has ever
+# opened a pull request for a stale action pin or a stale base-image digest. The version
+# half needs a config, and this is it.
+#
+# WEEKLY, not daily, and GROUPED. This is a one-family instance with one maintainer: twenty
+# open pull requests is the same as none, because nobody reads them. One batch per ecosystem
+# per week is a number a person can actually look at on a Monday.
+version: 2
+
+updates:
+  # ------------------------------------------------------------------ Python (uv.lock)
+  # The ecosystem key is `uv`, measured rather than assumed: PR #164's branch is
+  # `dependabot/uv/sqlparse-0.6.0` and its compatibility badge reads `package-manager=uv`.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    commit-message:
+      # CONTRIBUTING requires conventional commits, and `check_signoff.py` requires a
+      # trailer Dependabot already writes (`Signed-off-by: dependabot[bot]`, seen on #164).
+      prefix: "chore"
+      prefix-development: "chore"
+      include: "scope"
+    groups:
+      # Split production from development so one red `deps` run says which half moved. PR
+      # #129 (`chore(deps-dev): bump pytest`) is the evidence that Dependabot tells them
+      # apart for this ecosystem.
+      python-runtime:
+        applies-to: version-updates
+        dependency-type: "production"
+        patterns:
+          - "*"
+      python-tooling:
+        applies-to: version-updates
+        dependency-type: "development"
+        patterns:
+          - "*"
+      # SECURITY updates are grouped HERE and nowhere else in this file, and the reason is
+      # measured rather than stylistic. The required `deps` check runs `pip-audit` over the
+      # WHOLE synced dependency set, so a security pull request that fixes one advisory
+      # while a second is open cannot go green -- and an un-mergeable security fix is worse
+      # than a late one, because it looks handled. That is exactly what happened: #164 bumped
+      # sqlparse alone, django 5.2.17 was also needed, and the fix had to be hand-rolled as
+      # #165 ("green the deps gate -- django 5.2.17, sqlparse 0.6.0") before #164 was closed
+      # unmerged. One pull request carrying every vulnerable package is the shape that can
+      # turn that check green. Version updates above stay separate so a security fix never
+      # waits on the Monday batch.
+      python-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # ------------------------------------------------------------------ GitHub Actions
+  # Every `uses:` is pinned to a full commit SHA with the version in a trailing comment.
+  # Dependabot updates BOTH: it rewrites the SHA and the comment together, which is the only
+  # reason a SHA pin does not rot into a three-year-old action nobody dares touch. Majors are
+  # included deliberately -- the pins sat three majors behind until 2026-09, and a major that
+  # arrives as one reviewed pull request is the mechanism that stops that recurring.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  # ------------------------------------------------------------------ Dockerfile
+  # `python:3.13-slim` floats ON PURPOSE (the Dockerfile's own FROM comment says why: it is
+  # the only cache key above the apt layer, so re-resolving the tag is what refreshes the
+  # pg client and ffmpeg on a `build --pull`). Dependabot cannot digest-pin what has no
+  # digest, so what it offers here is a TAG move -- a new Python minor -- which is a
+  # deliberate decision and arrives as one pull request to say yes or no to.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      docker-base-images:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  # ------------------------------------------------------------------ compose image pins
+  # A separate ecosystem from `docker`: the Dockerfile parser reads `FROM`, the compose
+  # parser reads `image:`. docker-compose.yml digest-pins postgres and caddy, and those pins
+  # went two months without a refresh because advancing a digest was somebody remembering to.
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      compose-image-pins:
+        applies-to: version-updates
+        patterns:
+          - "*"

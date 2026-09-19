@@ -390,6 +390,13 @@ It runs a **deliberate hover pass** and **names what it skipped**. Both exist be
 resting-only sweep reported 0 violations twice while every primary button was 3.92:1 in dark
 mode while hovered.
 
+**CI runs it too, since 2026-09-19** (gate audit G6): a step of the `e2e` job seeds a
+throwaway instance, starts a server and sweeps it, and the script now **exits non-zero** on a
+serious or critical finding. So a run by hand is for looking at a real instance with real
+content — production, or your own box — not for catching a regression somebody else pushed.
+The CI step fetches `axe.min.js` with a pinned version and a SHA-256 check; the command above
+does not, which is fine on your own machine and is why the checksum lives in the workflow.
+
 ## Method that kept paying off
 
 - **Prove every new guard fires** by breaking the thing it guards, then restoring. Several

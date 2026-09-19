@@ -302,6 +302,29 @@ itself up and telling somebody when it cannot.
 
 ### Security
 
+- **Updates now arrive on their own.** A self-hoster who forks or watches this repository was
+  relying on somebody remembering to look: security fixes for Python packages did open pull
+  requests, but nothing ever proposed a newer Postgres or Caddy image, a newer base image, or
+  a newer build action. `.github/dependabot.yml` now opens one batched pull request a week per
+  ecosystem — Python, the Dockerfile, the compose image pins, and the build actions — and
+  security fixes for Python arrive together in a single pull request rather than one per
+  advisory, because the dependency scanner that guards this repository reads the whole locked
+  set and a fix for one of two open advisories can never go green on its own. That happened:
+  a bump of `sqlparse` alone sat unmergeable until `django` was bumped beside it by hand.
+- **The build pins exactly what it runs.** Every third-party GitHub action is now pinned to a
+  full commit hash rather than a version tag, with the version written beside it. A tag is a
+  pointer its owner can move, and moving one is how other projects have had their build
+  pipelines taken over. Nothing about a running instance changes; what changes is that the
+  code which builds the image you install can no longer be swapped out from under it.
+- **The edge's security rules are tested, not just commented.** `caddy/Caddyfile.prod` carries
+  properties a self-hoster's instance depends on — no request logging (your family's links
+  carry sign-in tokens in them), no admin API, no header that silently breaks every form — and
+  each was enforced by a note asking the next person not to change it. A test now reads the
+  file and fails the build if one is dropped.
+- **Every page is checked for accessibility on every pull request.** The browser sweep that
+  measures colour contrast, labels and keyboard reachability across all 33 screens, in light
+  and dark, on a phone and a desktop, used to be run by hand. It runs in CI now and fails the
+  build on a serious finding, which matters most on the pages an older relative uses.
 - **Django 5.2.17 and sqlparse 0.6.0.** Ten advisories across the two, and the `deps` gate —
   the required check that scans the resolved lock on every pull request — had been failing on
   all ten. Neither is reachable in this app (the Django one is GeoDjango, which is not

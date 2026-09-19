@@ -63,34 +63,24 @@ regexes = [
 description = "False positive: the literal phrase 'SHA-256-digest' in a design doc is not a key"
 regexes = ['''SHA-256-digest''']
 
-[[allowlists]]
-description = """Two synthetic fixture passphrases that exist ONLY in this branch's history.
-
-They were the first draft of the BY-01 recovery tests' constants. The repo's own `ast` guard
-(test_no_hardcoded_demo_credentials.py) rejected them for not being on ITS list, so the file
-at HEAD uses two values that already were -- but `gitleaks git` scans every commit, and
-`git push --force` is deny-listed here, so the earlier blob cannot be removed. This is the
-same reasoning the burned-credential block below records: a gate that can never go green is
-a gate people route around.
-
-Neither value was ever a credential for anything. They are invented passphrases that lived
-in one test file for one hour. Note the asymmetry that keeps this narrow: an allowlist entry
-stops gitleaks reporting these strings if they are REINTRODUCED, but `_ALLOWED_LITERALS` in
-test_no_hardcoded_demo_credentials.py deliberately does NOT contain them, so code that brings
-either one back still fails the build -- on the guard that rejected them in the first place.
-
-ANCHORED, like the generic-password false-positive block further down -- NOT like the
-fixture block above, whose ten values are still bare substrings. Anchoring here means a
-value that merely CONTAINS either string is not exempted."""
-targetRules = [
-  "backyard-generic-password-assignment",
-  "backyard-unquoted-env-credential-assignment",
-  "generic-api-key",
-]
-regexes = [
-  '''^an-Old-passphrase-9$''',
-  '''^a-Brand-new-passphrase-42$''',
-]
+# REMOVED 2026-09-19, by measurement rather than by reasoning (issue 168). A block used to
+# sit here exempting two invented fixture passphrases that lived for an hour in one commit of
+# an unmerged branch. It was temporary from the day it was written: `gitleaks git` scans
+# every ref, so while that branch existed on the remote the commit was reachable and every
+# open pull request failed `secrets` on somebody else's draft.
+#
+# The branch is deleted, and the check was made the only way it can be made honestly -- in a
+# FRESH clone, because a local worktree still reaches old commits through its own branches.
+# `git clone https://github.com/AIJSAI/backyard.git`, which fetches branches and tags exactly
+# as CI's `actions/checkout` with `fetch-depth: 0` does and no more (never `refs/pull/*`),
+# then the command CI runs, verbatim:
+#
+#     gitleaks git --no-banner --redact -c .gitleaks.toml .
+#     -> 200 commits scanned. no leaks found.   (exit 0)
+#
+# Non-vacuously: replanting one of the two values as `PASSPHRASE = "..."` in a commit on that
+# same clone, with this block still absent, gives `leaks found: 1` (exit 1). So the clean
+# result is the scanner working, not the scanner blind.
 
 # The class that actually leaked, added as a first-class rule. gitleaks' own generic-api-key
 # needs a credential keyword adjacent to a HIGH-ENTROPY value, so `PW = "a-word-someone-chose"`
