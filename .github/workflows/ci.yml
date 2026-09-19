@@ -229,6 +229,40 @@ jobs:
           assert n == 1, f'restore did not bring the yard back: {n}'
           print('RESTORE VERIFIED: the yard survived the round trip')\""
 
+          echo "--- the WORKER takes the scheduled backup holding NO DDL credentials (S-806) ---"
+          # The nightly backup runs on the worker, which deliberately has no migrator
+          # password: the dump goes as the app role, which ADR-004 already grants SELECT on
+          # every table. That is an assumption about live grants, so it is probed rather than
+          # argued. Non-vacuity FIRST: if the worker ever gains migrator credentials, this
+          # would silently re-prove the operator's path and nothing about the scheduled one.
+          docker compose exec -T worker sh -c '[ -z "${POSTGRES_MIGRATOR_PASSWORD:-}" ]' \
+            || { echo "VACUOUS PROBE: the worker holds migrator credentials"; exit 1; }
+          docker compose exec -T worker sh -c "$RUNSHELL shell -c \"
+          from core import scheduled_backup
+          result = scheduled_backup.run()
+          print('scheduled backup written', result.path, result.byte_count, 'bytes')\""
+          # Encrypted by default here too, asserted on the header rather than on some other
+          # command failing (the same reason the round trip above checks the magic).
+          SCHEDULED_MAGIC=$(docker compose exec -T worker sh -c 'head -c 14 /data/backups/scheduled-*.bak')
+          [ "$SCHEDULED_MAGIC" = "BACKYARD-ENC/1" ] || {
+            echo "the worker's scheduled archive is NOT encrypted: header '$SCHEDULED_MAGIC'"; exit 1; }
+          echo "the worker's scheduled archive is encrypted"
+
+          echo "--- every container reports a healthy healthcheck (only postgres had one) ---"
+          # A healthcheck that never passes is worse than none: `docker compose ps` then reads
+          # unhealthy forever and stops meaning anything. A service with no healthcheck at all
+          # prints "<no value>" here and fails this loop, so deleting one is visible too.
+          for service in postgres web worker caddy; do
+            state=starting
+            for _ in $(seq 1 40); do
+              state=$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q $service)")
+              [ "$state" = starting ] || break
+              sleep 5
+            done
+            [ "$state" = healthy ] || { echo "$service healthcheck reports: $state"; exit 1; }
+            echo "$service: healthy"
+          done
+
           docker compose down -v
 
   e2e:

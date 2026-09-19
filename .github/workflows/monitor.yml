@@ -1,0 +1,128 @@
+name: monitor
+
+# The instance cannot be its own alarm. Every watcher it has runs ON it: the weekly health
+# email is a worker periodic, so a dead worker silences the thing whose job is to break
+# silence, and a box that is off, unplugged or out of disk sends nothing at all and looks
+# exactly like a quiet week. This job runs on GitHub's infrastructure, outside the box, and
+# its only product is failure: GitHub emails the owner when a scheduled run fails.
+#
+# KNOWN CAVEAT, in the workflow rather than only in the pull request that added it: GitHub
+# disables scheduled workflows in a PUBLIC repository after 60 days with no repository
+# activity, and emails the owner when it does. So the alarm has its own way of going quiet,
+# on a clock nobody is watching either. Any push, or pressing "Run workflow" on this page,
+# resets it. If this repository ever goes quiet for two months, re-enable this first.
+on:
+  schedule:
+    # Every 30 minutes. GitHub-hosted minutes are free on a public repository, and the
+    # schedule is best-effort: runs are queued, not guaranteed on the minute.
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    # A fork inherits the workflow file but not the point of it: without this guard every
+    # fork of this repository starts polling someone else's family instance every half hour.
+    if: github.repository == 'AIJSAI/backyard'
+    runs-on: ubuntu-latest
+    steps:
+      # ONE job, on purpose. Two jobs would be two check runs and two emails for one
+      # outage, and the certificate question is only meaningful about the host the health
+      # check just asked.
+      - name: Health endpoint, then certificate lifetime
+        env:
+          # A repository VARIABLE, not a secret, and not committed here: the instance's
+          # hostname is the family's, and this repository is public. Set it to the health
+          # URL (Settings -> Secrets and variables -> Actions -> Variables):
+          #   BACKYARD_MONITOR_URL = https://your-instance.example/healthz
+          MONITOR_URL: ${{ vars.BACKYARD_MONITOR_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${MONITOR_URL:-}" ]; then
+            echo "BACKYARD_MONITOR_URL is not set on this repository, so there is nothing to"
+            echo "monitor. Set it to the instance's /healthz URL to arm this check."
+            exit 0
+          fi
+
+          # Retries, because a single timeout is not an outage: a restart, a deploy or one
+          # dropped packet would otherwise page the owner. Five attempts across ~100s.
+          body=""
+          for attempt in 1 2 3 4 5; do
+            if body=$(curl -fsS --max-time 20 "$MONITOR_URL"); then
+              break
+            fi
+            body=""
+            echo "attempt $attempt: no answer"
+            [ "$attempt" = 5 ] || sleep 20
+          done
+
+          if [ -z "$body" ]; then
+            echo "UNREACHABLE: the health endpoint did not answer in five attempts over ~100"
+            echo "seconds. The instance is down, the box is off, or DNS/TLS is broken."
+            exit 1
+          fi
+
+          # The endpoint answers `ok` or `degraded` and nothing else (core/views.healthz);
+          # the detail is deliberately not published, so this reads the one word and the
+          # operator reads the weekly email — or /healthz signed in as the instance admin.
+          case "$body" in
+            *'"status": "ok"'*|*'"status":"ok"'*)
+              echo "health: ok"
+              ;;
+            *degraded*)
+              echo "DEGRADED: the instance is up and says something is wrong. That is one of:"
+              echo "no backup has ever completed, the nightly backup is failing, the disk is"
+              echo "nearly full, or the TLS certificate is nearly expired. Sign in as the"
+              echo "instance admin and open /healthz, or read the weekly health email."
+              exit 1
+              ;;
+            *)
+              echo "UNEXPECTED: the health endpoint answered something this check does not"
+              echo "recognise. Either the URL points somewhere else now, or something is"
+              echo "answering in front of the instance."
+              exit 1
+              ;;
+          esac
+
+          # The certificate half. Caddy renews at roughly 30 days remaining on a 90-day
+          # certificate, so 14 days left means renewal has been failing for two weeks —
+          # and an expired certificate is a full-page browser warning for every relative at
+          # once, which is the one outage a non-technical family cannot route around.
+          host=$(printf '%s' "$MONITOR_URL" | sed -E 's#^[a-zA-Z]+://##; s#[/?].*$##; s#:[0-9]+$##')
+          case "$MONITOR_URL" in
+            https://*) ;;
+            *)
+              echo "the monitored URL is not https, so there is no certificate to check"
+              exit 0
+              ;;
+          esac
+
+          not_after=$(echo \
+            | openssl s_client -servername "$host" -connect "$host:443" 2>/dev/null \
+            | openssl x509 -noout -enddate 2>/dev/null \
+            | cut -d= -f2) || true
+
+          if [ -z "$not_after" ]; then
+            echo "CERTIFICATE UNREADABLE: the health check passed but the TLS certificate"
+            echo "could not be read. Look before assuming it is a blip."
+            exit 1
+          fi
+
+          # Explicit, so an unparseable date fails with a sentence rather than as arithmetic
+          # on an empty string, which would report a wildly negative number of days left.
+          expires_at=$(date -u -d "$not_after" +%s) || {
+            echo "CERTIFICATE DATE UNREADABLE: openssl returned something date could not"
+            echo "parse. Check the endpoint by hand before assuming this is the checker."
+            exit 1
+          }
+          remaining=$(( (expires_at - $(date -u +%s)) / 86400 ))
+          echo "certificate: $remaining days remaining"
+          if [ "$remaining" -lt 14 ]; then
+            echo "CERTIFICATE EXPIRING: $remaining days left. Automatic renewal should have"
+            echo "happened around 30 days out, so it is failing. Check the caddy container's"
+            echo "logs; an expired certificate takes the whole instance away from everyone."
+            exit 1
+          fi

@@ -92,6 +92,19 @@ services:
       POSTGRES_HOST: postgres
     volumes:
       - appdata:/data
+    healthcheck:
+      # The app's own /healthz, asked the way a stranger asks it. `python`, not curl: the
+      # Dockerfile purges curl after the build, so a curl healthcheck would report every
+      # container unhealthy forever. ANY 200 passes, `degraded` included — degraded is a
+      # statement about the instance (a filling disk, an ageing backup), and restarting the
+      # container fixes none of those while cycling the family's site would.
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/healthz', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # The first boot migrates and collectstatics before gunicorn binds; without this the
+      # container reports unhealthy for its first minute every time it starts.
+      start_period: 90s
     depends_on:
       postgres:
         condition: service_healthy
@@ -144,12 +157,33 @@ services:
       EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
       EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
       EMAIL_USE_SSL: ${EMAIL_USE_SSL:-0}
+      # The worker takes the nightly backup (core/tasks.scheduled_backup_task), so the
+      # passphrase has to reach THIS container too — it was passed to web only, and an
+      # unset passphrase makes the scheduled backup refuse to run rather than quietly write
+      # the family's whole history in the clear (S-802). Note what is deliberately NOT here:
+      # POSTGRES_MIGRATOR_PASSWORD. The worker runs ffmpeg over member-uploaded video and
+      # must never hold DDL credentials (TS-CO-3, TS-CO-7); the dump runs as the app role,
+      # which ADR-004 already lets read every table (core/backups._dump_credentials).
+      BACKYARD_BACKUP_PASSPHRASE: ${BACKYARD_BACKUP_PASSPHRASE:-}
       POSTGRES_DB: ${POSTGRES_DB:-backyard}
       POSTGRES_USER: backyard_app
       POSTGRES_PASSWORD: ${POSTGRES_APP_PASSWORD:?set POSTGRES_APP_PASSWORD in .env, see .env.example}
       POSTGRES_HOST: postgres
     volumes:
       - appdata:/data
+    healthcheck:
+      # The worker serves nothing, so there is no port to probe: ask Procrastinate's own CLI
+      # whether it can reach its queue. That is the worker's actual job, and a worker that
+      # cannot see the queue is the failure this whole change exists for — it silently stops
+      # the backup, the digest and the health email that would have reported either.
+      # DJANGO_SECRET_KEY lives in PID 1's environment only (the entrypoint reads it from the
+      # volume), and a healthcheck is a fresh process, so it reads the same file.
+      test: ["CMD-SHELL", "DJANGO_SECRET_KEY=\"$$(cat /data/secret_key)\" python manage.py procrastinate healthchecks"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+      # web must have migrated the Procrastinate schema before this can pass.
+      start_period: 120s
     depends_on:
       postgres:
         condition: service_healthy
@@ -174,6 +208,20 @@ services:
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddydata:/data
+    healthcheck:
+      # busybox wget: the caddy image is alpine and ships no curl either. Both Caddyfiles
+      # answer /healthz on :8000 — the local one as its published proxy, the production one
+      # as an internal port compose never publishes — so this single line means the same
+      # thing in both stacks instead of passing in one and lying in the other.
+      #
+      # It proxies through to the app, so caddy reads unhealthy when web is down. That is the
+      # intended reading: the edge's job is reaching the application, and "Caddy is up but
+      # serves nothing" is the state a process-liveness check would call healthy.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
     networks: [edge]
 
 # The TS-CO-4 split: the internet-facing edge never shares a network with the
