@@ -261,8 +261,8 @@ def test_issuing_a_new_link_kills_the_previous_one(world: World) -> None:
 
 
 def test_re_issuing_after_a_redemption_produces_a_working_link(world: World) -> None:
-    """The row is reused, and it carries `used_at` from last time. A fresh link that
-    resolves as already spent would make the control work exactly once per member,
+    """The member already has a row carrying `used_at` from last time. A fresh link that
+    resolved as already spent would make the control work exactly once per member,
     forever — which is the failure nobody would find until the second time it mattered."""
     first = _mint(world.relative, by=world.boss)
     assert Client().post(reverse("recover", args=[first]), _set_password()).status_code == 302
@@ -561,3 +561,102 @@ def test_the_token_is_redacted_from_request_logs(world: World) -> None:
     RedactCapabilityPaths().filter(record)
     assert raw not in record.getMessage()
     assert "[redacted]" in record.getMessage()
+
+
+# --- one predicate, three surfaces -------------------------------------------------
+#
+# Copilot read admin_views.py:181 and recovery_views.py as missing the `is_active` clause.
+# They are not: commit 1170942 added it to the roster gate, the view gate AND
+# recovery.issue. What that commit left behind is THREE hand-written copies of the same
+# three clauses, in three files, each of which was written once and is maintained by
+# nobody — which is how the second one went missing the first time. The clauses now live
+# in `recovery.is_recoverable` and every surface reads it.
+
+
+def _unrecoverable(world: World, shape: str) -> Member:
+    """A member nobody can mint a working link for, one shape per reason."""
+    if shape == "removed":
+        # The invisible one: removal keeps the Member row and flips `user.is_active`
+        # (removal.py step 3), so the row stays on the instance admin's roster.
+        removal.remove_member(world.relative, content=removal.KEEP)
+        world.relative.refresh_from_db()
+        return world.relative
+    if shape == "elder":
+        return _member([world.here], name="Nana Elder", login=False)
+    from core import supervised
+
+    return supervised.create_supervised_member(
+        parent=world.relative, display_name="Small", pod=world.here
+    )
+
+
+@pytest.mark.parametrize("shape", ["removed", "elder", "supervised"])
+def test_the_roster_the_view_and_the_service_refuse_the_same_people(
+    world: World, shape: str
+) -> None:
+    """Whatever the reason a link cannot work, all three surfaces must agree on it: the
+    roster does not offer the control, the URL does not mint one by hand, and the service
+    refuses. A gate that holds in two of the three is a control that lies on click."""
+    target = _unrecoverable(world, shape)
+    client = _client_for(world.boss)
+
+    assert _issue_url(target) not in client.get(reverse("members")).content.decode()
+    assert client.get(_issue_url(target)).status_code == 404
+    with pytest.raises(recovery.RecoveryRefused):
+        recovery.issue(target, issued_by=world.boss)
+
+
+def test_all_three_surfaces_answer_from_the_one_predicate(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The drift guard, and the reason the parametrised test above is not enough: three
+    copies of a rule agree until somebody edits one of them. Move the predicate and all
+    three move; a surface that kept its own copy fails here."""
+    monkeypatch.setattr(recovery, "is_recoverable", lambda member: False)
+    client = _client_for(world.boss)
+
+    assert _issue_url(world.relative) not in client.get(reverse("members")).content.decode()
+    assert client.get(_issue_url(world.relative)).status_code == 404
+    with pytest.raises(recovery.RecoveryRefused):
+        recovery.issue(world.relative, issued_by=world.boss)
+
+
+# --- the record of each issuance ---------------------------------------------------
+
+
+def test_each_issuance_keeps_its_own_record(world: World) -> None:
+    """Re-issuing used to REUSE one row: it cleared `used_at`, so the row then claimed the
+    previous link had never been redeemed, and `created_at` is `auto_now_add`, so its
+    "when" stayed at the FIRST issuance forever. Both halves of the accountability trail
+    the model promises — who handed out a password-setting link, and when — were destroyed
+    by the next issuance. One row per issuance instead.
+    """
+    first = _mint(world.relative, by=world.boss)
+    assert Client().post(reverse("recover", args=[first]), _set_password()).status_code == 302
+    again = _mint(world.relative, by=world.delegate)
+
+    rows = list(RecoveryToken.objects.filter(member=world.relative).order_by("created_at"))
+    assert len(rows) == 2, "the second issuance overwrote the first one's record"
+    spent, live = rows
+    # The redeemed link still says who issued it and that it was used.
+    assert spent.issued_by == world.boss
+    assert spent.used_at is not None
+    # The live link says who issued THIS one, and when — not when the first one was minted.
+    assert live.issued_by == world.delegate
+    assert live.used_at is None
+    assert live.superseded_at is None
+    assert live.created_at > spent.created_at
+    assert Client().get(reverse("recover", args=[again])).status_code == 200
+
+
+def test_superseding_is_recorded_rather_than_overwritten(world: World) -> None:
+    """Re-issuing before the first link is used kills the first one — and says so on the
+    row, instead of the row vanishing under the replacement."""
+    first = _mint(world.relative, by=world.boss)
+    _mint(world.relative, by=world.delegate)
+
+    rows = list(RecoveryToken.objects.filter(member=world.relative).order_by("created_at"))
+    assert len(rows) == 2
+    assert rows[0].superseded_at is not None, "the killed link left no record of being killed"
+    assert rows[0].used_at is None, "a superseded link must not read as redeemed"
+    assert Client().get(reverse("recover", args=[first])).status_code == 404

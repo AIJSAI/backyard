@@ -13,7 +13,8 @@ having no email is the whole reason they are here.
 Discipline (TM-5, ADR-003, mirroring elder_tokens):
 
 * 256-bit CSPRNG raw value, SHA-256 at rest, returned once and never stored or logged.
-* One live token per member (the OneToOne), so issuing a new link kills the old one.
+* One live token per member: issuing stamps `superseded_at` on any earlier live row, so
+  the old link stops resolving and its record survives instead of being overwritten.
 * Single use: redeeming stamps `used_at`, and a used row never resolves again.
 * 48 hours, then dead.
 * The carried generation is checked on resolve, so the TM-1 revocation act (removal,
@@ -78,40 +79,63 @@ def _require_secure_base() -> None:
         )
 
 
+def is_recoverable(member: Member) -> bool:
+    """Is there a password behind this member for a link to set?
+
+    THE predicate, and the only copy of it. All three surfaces read this one: the roster's
+    affordance (admin_views), the issuing page (recovery_views), and `issue` below. Three
+    hand-written copies of the same three clauses is how the roster came to offer a
+    "get back in" link for a removed member — the gate held in one place and not the other
+    two, so the control failed at the last step instead of the first.
+
+    * A supervised child's account is their parent's by design (TM-10).
+    * A member with no `user` is an elder: she holds a token link, not a password.
+    * A member whose `user` is INACTIVE has been removed (removal.py step 3). The Member
+      row survives — that is what keeps their posts attributable — so they stay on the
+      instance admin's roster, and a link minted for them redeems cleanly and then hands
+      them to a sign-in Django will always refuse.
+    """
+    account = member.user
+    return not member.is_supervised and account is not None and account.is_active
+
+
 def issue(member: Member, *, issued_by: Member) -> str:
     """Mint `member`'s recovery link, replacing any prior one, and return the raw token
     exactly once — for the page that hands it over.
 
     Authorization is the CALLER's (permissions.can_manage_member); what this refuses is
-    the two cases where the act is meaningless rather than unauthorized. A member with no
-    `user` (an elder, who holds a token link instead) has no password to recover, and a
-    supervised child's account is their parent's by design (TM-10), so handing a third
-    party a password-setting link for it would route around the one person who controls
-    it.
+    the cases where the act would be meaningless rather than unauthorized, and it refuses
+    them through `is_recoverable` — the same predicate the roster and the issuing page
+    read, so a control is never offered that this then declines.
     """
-    if member.is_supervised:
-        raise RecoveryRefused("A supervised account is recovered by its parent (TM-10).")
-    account = member.user
-    if account is None or not account.is_active:
-        # A removed member keeps their `user` row with `is_active` False (removal.py step
-        # 3), so a link minted for them redeems cleanly and then lands on a sign-in that
-        # can never succeed -- a control that lies at the last step instead of the first.
+    if not is_recoverable(member):
+        # Two refusals, ONE predicate. The message is a detail for whoever called this; the
+        # rule itself has a single home, so it cannot say one thing here and another on the
+        # roster.
+        if member.is_supervised:
+            raise RecoveryRefused("A supervised account is recovered by its parent (TM-10).")
         raise RecoveryRefused("This person has no password to reset.")
     _require_secure_base()
     raw = secrets.token_urlsafe(32)  # 256 bits
-    RecoveryToken.objects.update_or_create(
-        member=member,
-        defaults={
-            "token_digest": _digest(raw),
-            "minted_generation": member.token_generation,
-            "issued_by": issued_by,
-            "expires_at": timezone.now() + timedelta(hours=TTL_HOURS),
-            # An earlier link that was already redeemed leaves used_at set on the row this
-            # update_or_create reuses. Clearing it is what makes re-issuing work at all:
-            # without it the fresh token would resolve as spent from the moment it is minted.
-            "used_at": None,
-        },
-    )
+    now = timezone.now()
+    with transaction.atomic():
+        # One live link per member, kept by SUPERSEDING the earlier ones rather than
+        # overwriting a single row. The old link stops resolving either way; the difference
+        # is that its record — who issued it, when, and whether it was ever redeemed —
+        # survives the next issuance instead of being cleared to make room.
+        #
+        # A row that is already used or already superseded is left alone: it is finished,
+        # and re-stamping it would overwrite the timestamp of the event that finished it.
+        RecoveryToken.objects.filter(
+            member=member, used_at__isnull=True, superseded_at__isnull=True
+        ).update(superseded_at=now)
+        RecoveryToken.objects.create(
+            member=member,
+            token_digest=_digest(raw),
+            minted_generation=member.token_generation,
+            issued_by=issued_by,
+            expires_at=now + timedelta(hours=TTL_HOURS),
+        )
     return raw
 
 
@@ -133,6 +157,8 @@ def resolve(raw: str) -> RecoveryToken:
     if token is None:
         raise RecoveryInvalid
     if token.used_at is not None:
+        raise RecoveryInvalid
+    if token.superseded_at is not None:
         raise RecoveryInvalid
     if token.minted_generation != token.member.token_generation:
         raise RecoveryInvalid
@@ -165,7 +191,7 @@ def redeem(raw: str, new_password: str) -> None:
         # ("FOR UPDATE cannot be applied to the nullable side of an outer join"). The row
         # this needs locked is the token's anyway; the member and the user are read after.
         token = RecoveryToken.objects.select_for_update().filter(token_digest=_digest(raw)).first()
-        if token is None or token.used_at is not None:
+        if token is None or token.used_at is not None or token.superseded_at is not None:
             raise RecoveryInvalid
         if token.minted_generation != token.member.token_generation:
             raise RecoveryInvalid

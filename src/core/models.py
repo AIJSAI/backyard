@@ -1022,7 +1022,8 @@ class RecoveryToken(models.Model):
     and the carried generation checked on every resolve so one revocation act kills it.
     Three properties are its own:
 
-    * ONE live token per member (the OneToOne), so issuing a new link revokes the old.
+    * ONE live token per member, kept by STAMPING `superseded_at` on the earlier live
+      rows when a new link is issued, so only the newest one resolves.
     * SINGLE USE — `used_at` is stamped when the new password is set, and a used row
       never resolves again. The row is kept, not deleted, because it is also the record.
     * 48 HOURS, not the elder token's no-expiry default: this one exists to be opened
@@ -1033,9 +1034,17 @@ class RecoveryToken(models.Model):
     when, on the row itself. Deliberately NOT a general audit log — one does not exist
     here, and inventing one for a single action would be a new surface rather than a
     record.
+
+    That trail only holds because each issuance gets its OWN row. This was a OneToOne whose
+    single row was reused on re-issue: clearing `used_at` (which re-issuing has to do, or
+    the fresh link resolves as already spent) erased the fact that the previous link had
+    been redeemed, and `created_at` is `auto_now_add`, so the row's "when" stayed at the
+    first issuance forever. The row then described a link that no longer existed. A plain
+    FK, one row per issuance, is the same ledger shape and the smallest thing that keeps
+    the record honest.
     """
 
-    member = models.OneToOneField(Member, on_delete=models.CASCADE, related_name="recovery_token")
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="recovery_tokens")
     token_digest = models.CharField(max_length=64, unique=True)
     minted_generation = models.PositiveIntegerField()
     # SET_NULL, matching Invite.created_by: removing the admin who issued a link must not
@@ -1049,6 +1058,10 @@ class RecoveryToken(models.Model):
     )
     expires_at = models.DateTimeField()
     used_at = models.DateTimeField(null=True, blank=True)
+    # Stamped when a LATER link is issued for the same member. Distinct from `used_at` on
+    # purpose: "the admin read out a second link" and "the member set a password" are
+    # different events, and a row that conflated them would be the same lie in a new place.
+    superseded_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self) -> str:

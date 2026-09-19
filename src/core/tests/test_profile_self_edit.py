@@ -276,3 +276,47 @@ def test_a_managing_parent_keeps_the_contact_half_for_their_own_child(
     assert _client_for(parent).post(url, _payload(phone="555 3333")).status_code == 302
     child.refresh_from_db()
     assert child.phone == "555 3333"
+
+
+# --- BY-11 follow-on: the roster's link and this route have to agree ----------------
+
+
+def test_the_instance_admins_edit_link_is_not_a_dead_link_across_a_side(
+    world: dict[str, object],
+) -> None:
+    """The roster offers `Edit profile` on every row an admin may administer, and for the
+    instance admin that is every member on the instance — they own it and sit above yard
+    isolation (`permissions.administrable_members`; the threat model states plainly that
+    isolation is a member-level promise, not an admin-level one, and the role's own
+    description is "Manages anyone, on either side"). This route resolved the target
+    through the READ guard instead, so the offered link 404d on click: the permission said
+    yes and the page said the person does not exist.
+
+    Removal, re-roling and the recovery link all resolve through the administrable set
+    already. This one now does too, so the link and the route answer the same question.
+    """
+    admin, stranger = world["admin"], world["stranger"]
+    assert isinstance(admin, Member) and isinstance(stranger, Member)
+    client = _client_for(admin)
+    url = reverse("managed_profile_edit", args=[stranger.pk])
+
+    assert url in client.get(reverse("members")).content.decode(), "the roster stopped offering it"
+    assert client.get(url).status_code == 200
+    assert client.post(url, _payload(display_name="Distant Cousin Reid")).status_code == 302
+    stranger.refresh_from_db()
+    assert stranger.display_name == "Distant Cousin Reid"
+
+
+def test_a_yard_admin_still_cannot_edit_across_a_side(world: dict[str, object]) -> None:
+    """The other half of the same change: widening the lookup to the ADMINISTRABLE set
+    must not widen it for anybody below the instance admin. A yard admin's administrable
+    set IS the yard-scoped visible set, so the other side stays a byte-identical 404."""
+    pod, stranger = world["pod"], world["stranger"]
+    assert isinstance(pod, Pod) and isinstance(stranger, Member)
+    delegate = _member(pod, "The Delegate", role=Member.YARD_ADMIN)
+    url = reverse("managed_profile_edit", args=[stranger.pk])
+
+    assert _client_for(delegate).get(url).status_code == 404
+    assert _client_for(delegate).post(url, _payload()).status_code == 404
+    stranger.refresh_from_db()
+    assert stranger.display_name == "Distant Cousin"

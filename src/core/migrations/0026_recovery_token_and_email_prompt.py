@@ -28,6 +28,7 @@ class Migration(migrations.Migration):
                 ("minted_generation", models.PositiveIntegerField()),
                 ("expires_at", models.DateTimeField()),
                 ("used_at", models.DateTimeField(blank=True, null=True)),
+                ("superseded_at", models.DateTimeField(blank=True, null=True)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 (
                     "issued_by",
@@ -41,9 +42,9 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "member",
-                    models.OneToOneField(
+                    models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name="recovery_token",
+                        related_name="recovery_tokens",
                         to="core.member",
                     ),
                 ),

@@ -14,7 +14,7 @@ import tempfile
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.http import FileResponse, HttpRequest, HttpResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.text import slugify
 
 from . import export, permissions, profiles, scoping, vcards
@@ -143,9 +143,21 @@ def profile_edit(request: HttpRequest, member_id: int | None = None) -> HttpResp
     if member_id is None:
         member = actor
     else:
-        # Resolved through the audience guard FIRST, so a member outside the actor's
-        # yards is a 404 rather than a permission error that confirms they exist.
-        member = scoping.require_visible_member(actor, member_id)
+        # Resolved through the ADMINISTRABLE set, which is what `can_edit_profile_of` is
+        # ultimately asking about, so the roster's `Edit profile` link and this route
+        # answer the same question. It used to resolve through the READ guard
+        # (scoping.require_visible_member), and BY-11's widening made the two disagree: the
+        # instance admin owns the whole instance and sits above yard isolation — the threat
+        # model says so in as many words, isolation is a member-level promise and not an
+        # admin-level one, and the role's own description is "Manages anyone, on either
+        # side" — so the roster offered them the link for a member on a side they are not
+        # in, and the click 404d. Crossing sides is a deliberate act for that one role,
+        # which is why removal, re-roling and the recovery link already resolve here.
+        #
+        # For everybody else the set IS the yard-scoped visible set, so a plain member and
+        # a yard admin still get the byte-identical 404 across a boundary (S-202/S-902),
+        # rather than a permission error that would confirm the person exists.
+        member = get_object_or_404(permissions.administrable_members(actor), pk=member_id)
         if not permissions.can_edit_profile_of(actor, member):
             raise PermissionDenied("You cannot edit this person's profile.")
     if request.method != "POST":

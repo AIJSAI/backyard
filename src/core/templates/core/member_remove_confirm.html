@@ -26,6 +26,18 @@
     <li><strong>{{ preview.photos }}</strong>
       {% if preview.photos == 1 %}photo or video clip{% else %}photos and video clips{% endif %},
       erased from the server</li>
+    {% comment %} The purge takes every file on the post, and a shared link leaves one
+       behind: we save a copy of the picture the web page comes with, so the card in the
+       feed does not phone out to somebody else's server. Said in those words, and only
+       when there is one — a zero line here would teach a relative an internal idea they
+       have no reason to learn, unlike the photo count above, whose zero is the most
+       reassuring number on the page. {% endcomment %}
+    {% if preview.link_images %}
+      <li><strong>{{ preview.link_images }}</strong>
+        saved picture{{ preview.link_images|pluralize }} from
+        {% if preview.link_images == 1 %}a link{% else %}links{% endif %} they shared — the
+        little picture a web page brings with it — erased from the server as well</li>
+    {% endif %}
   </ul>
   {% if preview.others_photos %}
     <p>{{ preview.others_photos }} of those photo{{ preview.others_photos|pluralize }} were

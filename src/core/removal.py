@@ -77,12 +77,18 @@ class DeletionPreview:
     one most likely to surprise the admin: deleting somebody's post purges the photos on
     OTHER people's replies to it too (purge_post_media takes `comment__post`), because the
     files would otherwise stay on the volume with their rows gone.
+
+    `link_images` is the same lesson learned twice: the purge takes every asset on the
+    post, `media_kind` and all, so a member whose only stored file was the re-hosted
+    og:image of a link they shared (S-301) was shown a page that said nothing was erased
+    while a file left the disk.
     """
 
     posts: int
     replies: int
     photos: int
     others_photos: int
+    link_images: int
 
 
 def preview_deletion(member: Member) -> DeletionPreview:
@@ -90,28 +96,33 @@ def preview_deletion(member: Member) -> DeletionPreview:
     `_delete_content` uses, so the confirm page cannot promise a different act."""
     posts = Post.objects.filter(author=member, deleted_at__isnull=True)
     comments = Comment.objects.filter(author=member, deleted_at__isnull=True)
-    # Photos and clips only. A LINK_PREVIEW asset is purged too (it hangs off the post),
-    # but it is a re-hosted card image, not something anyone in this family would call a
-    # photograph, and counting it would overstate the loss on the page where that number
-    # is the whole decision.
-    gallery = MediaAsset.objects.filter(
-        media_kind__in=(MediaAsset.PHOTO, MediaAsset.VIDEO),
-    )
     # The three routes a file leaves the disk by, matching purge_post_media (the post's
     # own gallery plus every reply's) and purge_comment_media (their own replies).
     on_their_posts = models.Q(post__in=posts)
     on_replies_to_their_posts = models.Q(comment__post__in=posts)
     on_their_replies = models.Q(comment__in=comments)
-    doomed = gallery.filter(on_their_posts | on_replies_to_their_posts | on_their_replies)
+    doomed = MediaAsset.objects.filter(
+        on_their_posts | on_replies_to_their_posts | on_their_replies
+    )
+    # Split by kind rather than filtered down to one, because the purge takes EVERY asset
+    # on the post — `purge_post_media` does not look at `media_kind` — and the page has to
+    # describe the act it performs. Kept as two numbers, not one: a re-hosted link card is
+    # not something anyone in this family would call a photograph, and folding it into the
+    # count that carries the whole decision would overstate the loss just as badly as
+    # leaving it out understated it.
+    gallery = doomed.filter(media_kind__in=(MediaAsset.PHOTO, MediaAsset.VIDEO))
     return DeletionPreview(
         posts=posts.count(),
         replies=comments.count(),
-        photos=doomed.distinct().count(),
+        photos=gallery.distinct().count(),
         # Replies to their posts written by somebody else: the surprising half of the count.
-        others_photos=gallery.filter(on_replies_to_their_posts)
+        others_photos=MediaAsset.objects.filter(
+            on_replies_to_their_posts, media_kind__in=(MediaAsset.PHOTO, MediaAsset.VIDEO)
+        )
         .exclude(comment__author=member)
         .distinct()
         .count(),
+        link_images=doomed.filter(media_kind=MediaAsset.LINK_PREVIEW).distinct().count(),
     )
 
 

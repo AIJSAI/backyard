@@ -53,12 +53,13 @@ def issue_recovery(request: HttpRequest, member_id: int) -> HttpResponse:
     target = get_object_or_404(permissions.administrable_members(actor), pk=member_id)
     if not permissions.can_manage_member(actor, target):
         raise PermissionDenied
-    # Named explicitly rather than left to issue()'s refusal, so the roster never offers a
-    # control that fails on submit: a supervised child is their parent's (TM-10), an elder
-    # holds a token link instead of a password, and a removed member's account is already
+    # Named explicitly rather than left to issue()'s refusal, so this URL cannot mint by
+    # hand what the roster does not offer — and named through the SAME predicate the roster
+    # and the service read, so the three cannot drift apart. `recovery.is_recoverable`
+    # carries the reasons: a supervised child is their parent's (TM-10), an elder holds a
+    # token link instead of a password, and a removed member's account is already
     # deactivated, so the link would redeem and then strand them on the sign-in page.
-    account = target.user
-    if target.is_supervised or account is None or not account.is_active:
+    if not recovery.is_recoverable(target):
         raise Http404
 
     context: dict[str, object] = {"actor": actor, "target": target}

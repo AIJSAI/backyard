@@ -46,8 +46,10 @@ one control that destroys something asks first.
   the server with no undo, and it sat behind one radio button and one button on a page listing
   five other people's Remove controls. It now shows what will be destroyed — including the
   photos other people put on replies to their posts, which go too — says that it cannot be
-  undone, and asks for the person's name to be typed. Keeping or anonymising their posts is
-  unchanged; neither erases a file.
+  undone, and asks for the person's name to be typed. It also counts the pictures that come
+  with links they shared: we keep a copy of each one so the card in the feed does not phone
+  out to somebody else's server, and those files are erased too. Keeping or anonymising
+  their posts is unchanged; neither erases a file.
 - **A yard admin can fix a profile on their own side.** They could remove a member outright
   and could not correct that member's birthday, so a name typed wrong at invite time, or a
   grandparent's details filled in for her, went back to whoever runs the server. The name,
@@ -66,6 +68,11 @@ one control that destroys something asks first.
 - **A removed member is no longer offered a "get back in" link.** Their row stays on the
   instance admin's list, so the control rendered — and the link worked right up to the
   sign-in page, which can never let a removed account in. It is not offered and not minted.
+- **"Edit profile" no longer dead-ends for whoever runs the instance.** The list of family
+  members offers it on every row, and for the person who runs the whole instance that is
+  everybody on both sides — but the page itself refused anyone outside your own side, so the
+  link led to "page not found". The page now answers the same question the link does. For a
+  side's own admin nothing widens: the other side of the family is still not there at all.
 - **The reachability gate now covers the account pages it was blind to.** It skipped every
   route belonging to an included URLconf, on the grounds that the library owns its own
   reachability. Mounting those routes puts them in this product, and three of them had no

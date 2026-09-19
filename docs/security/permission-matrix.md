@@ -85,6 +85,17 @@ outright and could not correct their birthday, so a name typed wrong at invite t
 elder's details filled in for her — she has no login by design (TM-10) — routed back to
 the founder.
 
+The ROUTE that acts on it (`managed_profile_edit`) resolves its target through
+`permissions.administrable_members`, not through the read guard, so the roster's
+`Edit profile` link and the page it opens answer the same question. For everyone below the
+instance admin that set IS the yard-scoped visible set, so the other side of the family
+stays a byte-identical 404 (S-202/S-902). For the instance admin it is every member,
+because they own the instance and sit above yard isolation — isolation is a member-level
+promise, not an admin-level one — which is the same resolution removal, re-roling and the
+recovery link already use. Resolving it through the read guard instead is how the roster
+came to offer a link that 404d on click: the permission said yes and the page said the
+person does not exist.
+
 **The contact fields are NOT in that widening**, and the second predicate is
 `profile_views._may_edit_contact_fields`: yourself, a managing parent, the instance admin —
 the set `can_edit_profile_of` had before BY-11. The edit form renders the raw `Member` row
@@ -110,7 +121,10 @@ member with a single unexplained sign-out. The authority is granted on the judge
 yard admin who can already remove that member and delete their photographs is not held
 back by a password reset — not on the claim that impersonation is impossible. It is
 refused for a member with no login (an elder), for a supervised child, who is their
-parent's, and for a removed member, whose account is already deactivated. An admin's OWN
+parent's, and for a removed member, whose account is already deactivated. Those three
+refusals live in ONE predicate, `recovery.is_recoverable`, read by the roster, the issuing
+page and the service alike, so the control is never offered where the next step declines
+it. An admin's OWN
 recovery is never in the product at all: that is break-glass, which needs server shell
 (S-805, T-AUTH-G1), and it is keyed on the INSTANCE_ADMIN role rather than `is_superuser`
 so the second admin the succession path creates can be recovered (S10). Recovery FROM

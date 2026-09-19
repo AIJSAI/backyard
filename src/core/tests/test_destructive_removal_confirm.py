@@ -207,3 +207,46 @@ def test_the_roster_warns_before_the_step(world: World) -> None:
     body = world.client.get(reverse("members")).content.decode()
     assert "for good" in body.lower()
     assert "confirm" in body.lower()
+
+
+def test_the_confirmation_counts_the_picture_that_comes_with_a_shared_link(
+    world: World, django_capture_on_commit_callbacks: object
+) -> None:
+    """`purge_post_media` takes EVERY asset hanging off the post, including the re-hosted
+    og:image of a link somebody shared (S-301). The preview counted photos and video clips
+    only, so a member whose sole asset was a link card was shown "0 ... erased from the
+    server" while a file left the disk. The page must describe the act it performs.
+
+    The count stays separate rather than folded into the photograph number: a card image
+    is not a photograph, and inflating the number that carries the whole decision would be
+    the opposite mistake.
+    """
+    import os
+
+    link_post = Post.objects.create(author=world.leaver, pod=world.pod, body="look at this")
+    card = media.ingest_link_preview_image(post=link_post, raw=_jpeg())
+    assert card is not None, "the fixture stored no link image; this would prove nothing"
+    stored = card.image.path
+    assert os.path.exists(stored)
+
+    preview = removal.preview_deletion(world.leaver)
+    assert preview.link_images == 1
+    assert preview.photos == 2, "a link card was counted as somebody's photograph"
+
+    body = world.client.post(world.remove_url(), {"content": removal.DELETE}).content.decode()
+    assert "little picture a web page brings with it" in body
+    assert "<strong>1</strong>" in body
+
+    with django_capture_on_commit_callbacks(execute=True):  # type: ignore[operator]
+        world.client.post(world.remove_url(), {"content": removal.DELETE, "confirm_name": "Robin"})
+    assert not MediaAsset.objects.filter(pk=card.pk).exists()
+    assert not os.path.exists(stored), "the page said it goes and it stayed on the disk"
+
+
+def test_a_member_with_no_link_cards_is_told_nothing_about_them(world: World) -> None:
+    """The zero line is dropped on purpose. The photograph count keeps its zero — that is
+    the most reassuring number on the page — but "0 saved pictures from links they shared"
+    explains an internal concept to somebody who has no reason to learn it."""
+    body = world.client.post(world.remove_url(), {"content": removal.DELETE}).content.decode()
+    assert removal.preview_deletion(world.leaver).link_images == 0
+    assert "little picture a web page brings with it" not in body

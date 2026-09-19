@@ -20,7 +20,7 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from . import handover, invites, permissions, removal, scoping, supervised
+from . import handover, invites, permissions, recovery, removal, scoping, supervised
 from .models import (
     DigestDelivery,
     DigestSubscription,
@@ -127,8 +127,8 @@ def members(request: HttpRequest) -> HttpResponse:
     roster = (
         permissions.administrable_members(actor)
         .order_by("display_name")
-        # `user` is joined, not fetched per row: `can_issue_recovery` reads `user.is_active`
-        # for every line, which is a query each without it.
+        # `user` is joined, not fetched per row: `recovery.is_recoverable` reads
+        # `user.is_active` for every line, which is a query each without it.
         .select_related("user")
         .prefetch_related(
             Prefetch(
@@ -140,8 +140,6 @@ def members(request: HttpRequest) -> HttpResponse:
     )
     for member in roster:
         manageable = permissions.can_manage_member(actor, member)
-        # Joined by the `select_related` above, so reading it per row costs no query.
-        account = member.user
         # Only offer roles the actor is authorized to grant this target, excluding the
         # current role (a no-op) and supervised members (re-roled only via their parent).
         assignable = (
@@ -173,12 +171,11 @@ def members(request: HttpRequest) -> HttpResponse:
                 can_provision_elder=(
                     not member.is_supervised and permissions.can_provision_token(actor, member)
                 ),
-                can_issue_recovery=(
-                    manageable
-                    and not member.is_supervised
-                    and account is not None
-                    and account.is_active
-                ),
+                # `recovery.is_recoverable` and not a copy of its clauses: the roster, the
+                # issuing view and the service all read that one predicate, so the link is
+                # never offered for somebody the next step refuses. It answers from
+                # `member.user`, joined by the select_related above, so it costs no query.
+                can_issue_recovery=manageable and recovery.is_recoverable(member),
             )
         )
     return render(
