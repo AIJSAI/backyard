@@ -303,6 +303,51 @@ class PodMute(models.Model):
         return f"{self.member} muted {self.pod}"
 
 
+class HouseholdChange(models.Model):
+    """One admin act: somebody already on the instance put into a household, or taken out.
+
+    Who, whom, which household, when — the ledger shape `Invite.created_by` and
+    `RecoveryToken.issued_by` already establish, and deliberately NOT a general audit log:
+    there is none in this product, and inventing one for a single action would be a new
+    surface rather than a record.
+
+    Its own row rather than a column on `PodMembership`, for a reason that only shows up on
+    the second act: a removal DELETES the membership, so a `changed_by` living there would
+    take the record of the removal with it, and the one act most worth being able to
+    account for later — "who took my mother out of our household, and when" — would be the
+    one that leaves nothing behind. Two rows, one per act, is the smallest thing that keeps
+    both halves honest.
+    """
+
+    ADDED = "added"
+    REMOVED = "removed"
+    ACTION_CHOICES = [(ADDED, "Added to a household"), (REMOVED, "Taken out of a household")]
+
+    member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="household_changes"
+    )
+    # CASCADE, matching `Invite.pod`: a record about a household that no longer exists has
+    # no subject left to describe.
+    pod = models.ForeignKey(Pod, on_delete=models.CASCADE, related_name="household_changes")
+    action = models.CharField(max_length=8, choices=ACTION_CHOICES)
+    # SET_NULL, matching `Invite.created_by` and `RecoveryToken.issued_by`: removing the
+    # admin who made a change must not delete the fact that the change was made.
+    changed_by = models.ForeignKey(
+        Member,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="household_changes_made",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.member} {self.get_action_display().lower()} ({self.pod})"
+
+
 class Post(models.Model):
     """A post in the feed: a short text update or link (photos land in wave 3),
     scoped to an audience.

@@ -1,0 +1,87 @@
+{% extends "core/base.html" %}
+{% block title %}Change {{ target.display_name }}'s household{% endblock %}
+{% block body %}
+  <h1>Change {{ target.display_name }}'s household</h1>
+  <p class="back-link"><a class="back" href="{% url 'members' %}">Family members</a></p>
+
+  {% comment %} Plain words, and the side of the family named on every household. The person
+     reading this is a relative who was made an admin last week; "The Fletchers" in a
+     dropdown does not tell them which side of the family they are about to hand over, and
+     that is the one thing this page has to get right. {% endcomment %}
+  <p class="notice">A household is who somebody lives with. Which households a person is in
+  decides which sides of the family they can see — the posts, the photographs and the people
+  in them. Each change here is one step, and the next page says exactly what will change
+  before anything happens.</p>
+
+  {% if errors %}
+    <div class="errors" role="alert">
+      {% for error in errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  <h2>Add them to a household</h2>
+  {% if joinable %}
+    <form method="post" action="{% url 'change_household' target.id %}">
+      {% csrf_token %}
+      <input type="hidden" name="act" value="add">
+      <label for="pod-add">Household</label>
+      <select id="pod-add" name="pod_id">
+        {% for pod, sides in joinable %}
+          <option value="{{ pod.id }}">{{ pod.name }} — {% for side in sides %}{{ side.name }}{% if not forloop.last %} and {% endif %}{% endfor %} side</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Continue</button>
+    </form>
+  {% else %}
+    <p class="muted">There is no other household to add them to. Make one below.</p>
+  {% endif %}
+
+  <h2>Make a new household for them</h2>
+  <form method="post" action="{% url 'change_household' target.id %}">
+    {% csrf_token %}
+    <input type="hidden" name="act" value="create">
+    <label for="household-name">What to call it</label>
+    <input id="household-name" name="household_name" maxlength="100" autocomplete="off"
+           placeholder="The Fletchers">
+    <fieldset>
+      <legend>Which side of the family it belongs to</legend>
+      {% comment %} Checkboxes, not one select: a household can belong to BOTH sides — that
+         is the household that bridges the two, which the whole privacy design is built
+         around. {% endcomment %}
+      {% for side in sides %}
+        <label class="inline-check">
+          <input type="checkbox" name="yard_ids" value="{{ side.id }}"> {{ side.name }}
+        </label>
+      {% endfor %}
+    </fieldset>
+    <button type="submit">Continue</button>
+  </form>
+
+  <h2>Take them out of a household</h2>
+  {% if current %}
+    <ul class="households">
+      {% for pod, pod_sides, is_last in current %}
+        <li>
+          <p><strong>{{ pod.name }}</strong>
+            <span class="muted">{% for side in pod_sides %}{{ side.name }}{% if not forloop.last %} and {% endif %}{% endfor %} side</span></p>
+          {% if is_last %}
+            {% comment %} No button at all, rather than one that is refused on tap: a link
+               that lies is worse than a missing one. {% endcomment %}
+            <p class="muted">This is their only household, so they cannot be taken out of it.
+            Somebody in no household cannot see anyone, or be seen by anyone. Add them to
+            another household first, or remove them from the family on the members page.</p>
+          {% else %}
+            <form method="post" action="{% url 'change_household' target.id %}">
+              {% csrf_token %}
+              <input type="hidden" name="act" value="remove">
+              <input type="hidden" name="pod_id" value="{{ pod.id }}">
+              <button type="submit">Take them out of {{ pod.name }}</button>
+            </form>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">{{ target.display_name }} is not in a household you look after.</p>
+  {% endif %}
+{% endblock %}
