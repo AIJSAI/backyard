@@ -51,8 +51,12 @@ admin (Members → Set role → Instance admin) and write their name below. One 
 
       last copied off the box on: __________________
 
-      The instance CANNOT see this and reports it as NOT MEASURED in the
-      health email every week. It is yours to check.
+      The instance can only see this if the copy job on the host tells it:
+      the optional `.offbox-status.json` file in docs/runbooks/backup-restore.md
+      ("Getting a copy off the box"). Without it the health email reports
+      NOT MEASURED every week and this line is yours to check.
+
+      Does a host job report it here?  yes / no  ______
 
 ---
 

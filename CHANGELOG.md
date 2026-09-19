@@ -78,6 +78,21 @@ itself up and telling somebody when it cannot.
   recorded backup says whether the scheduler or a person took it, and only the
   scheduler's own runs can report the nightly job as working — so taking one backup by
   hand, which is the first thing the alarm makes you want to do, does not silence it.
+- **The host can now tell the instance how the off-box copy went.** Copying an archive off
+  the server stays on the host deliberately — a copy step inside the container would need
+  the destination's credential, which would then sit beside the ciphertext on the same
+  volume — so the instance could never say whether a copy happened, and a host job that
+  quietly stopped was nobody's alarm. If the job writes one small JSON file
+  (`.offbox-status.json`, beside the archives), the health email and `/healthz` report it:
+  a success inside 48 hours reads healthy, an older one or a reported failure raises the
+  line and degrades the instance, and the reason goes to the instance admin and never to
+  the public endpoint. **Writing no file changes nothing** — the line still reads NOT
+  MEASURED and the instance stays `ok`, because most self-hosters have no off-box job and
+  an instance that cried wolf about one they never set up would teach them to ignore the
+  word `degraded` everywhere else. The file is operator-written on a volume the app also
+  writes to, so it is read as hostile input: size-capped, symlinks not followed, and
+  anything malformed becomes an `UNREADABLE` line rather than a traceback in the weekly
+  email. The health field is now called "Off-box copy" rather than "Off-box backup age".
 - **Days until the TLS certificate expires**, in the health email. Renewal is automatic and
   silent, and so is its failure; an expired certificate is a full-page browser warning for
   every relative at once. A check that has never succeeded reports why, which is the
