@@ -36,8 +36,8 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   dump and restore; the new digest is pulled on the next `up -d`.
 - **The Caddy image is refreshed** to a current Alpine base. Same Caddy v2.11.4 binary.
 - **Every documented redeploy now builds with `--pull`, chained to the `up`.** The app image
-  installs `pg_dump` and `ffmpeg` in a layer above the application code, so nothing an
-  upgrade changes could reach it: both binaries stayed at their first-build versions for the
+  installs `pg_dump` and `ffmpeg` in a layer built BEFORE the application code is copied
+  in, so an upgrade that only changes the code never invalidates it: both binaries stayed at their first-build versions for the
   life of an instance, on the process that decodes uploaded video and the one that takes
   your pre-flight backup. `--pull` re-resolves the base tag and rebuilds that layer whenever
   upstream has published a new `python:3.13-slim`; when it has not and you are acting on an
