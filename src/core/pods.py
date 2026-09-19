@@ -131,11 +131,22 @@ def leave_pod(*, member: Member, pod: Pod) -> None:
         # still present under READ COMMITTED and both land.
         Member.objects.select_for_update().get(pk=member.pk)
         if households.is_their_last_household(member, pod):
+            # The sentence has to be true for the person reading it. The first version
+            # said "it is the only one you are in", which is false for somebody in two
+            # groups and no household — they can see one of them on the same page while
+            # being told it is their only one. What is actually missing is a HOUSEHOLD,
+            # which is also the only thing that answers it, so the sentence says that.
+            # `help_contact_name` is the footer's helper: it reads the admin's first name
+            # out of the database at render time, never out of this repository, which is
+            # public. Empty falls back to the impersonal form the footer also uses.
+            from .context_processors import help_contact_name
+
+            who = help_contact_name() or "whoever looks after your family's Backyard"
             raise PodLeaveRefused(
-                "You can't leave this group, because it is the only one you are in. "
-                "Leaving would mean you could not see anyone in the family, and nobody "
-                "could see you. Ask whoever looks after your family's Backyard to put "
-                "you in a household first."
+                "You are not in a household yet, and this group is the only thing "
+                "connecting you to your family. Leaving it would mean you could not see "
+                f"anyone, and nobody could see you. Ask {who} to put you in a household "
+                "first, and then you can leave this group whenever you like."
             )
         losing = {yard.id for yard in households.sides_lost(member, pod)}
         if losing:

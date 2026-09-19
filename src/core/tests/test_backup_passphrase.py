@@ -212,3 +212,42 @@ def test_the_entrypoint_delegates_the_passphrase_decision() -> None:
 
     assert "preflight_encrypt" in entrypoint
     assert 'if [ -n "${BACKYARD_BACKUP_PASSPHRASE:-}" ]' not in entrypoint
+
+
+def test_a_failed_preflight_dump_leaves_no_plaintext_file_behind() -> None:
+    """Found on production, 2026-09-19, not by reading the code.
+
+    An unattended reboot raced the web container ahead of Postgres, `pg_dump` failed, the
+    entrypoint exited 1 and the container restarted — all correct — and a
+    `preflight-<stamp>.dump` stayed on the data volume. It was 0 bytes that time because
+    the connection never opened. `pg_dump -f` writes as it goes, so a dump that dies
+    MID-STREAM leaves a plaintext prefix of the family database instead: every table it
+    had reached, in the clear, on the disk a provider snapshot copies. Nothing else ever
+    removes it — the retention sweep is below the failure branch and the encrypt step is
+    never reached.
+
+    The shell cannot be unit-tested here, so this pins the line: the failure branch must
+    remove the file BEFORE it exits. Red with the `rm -f` deleted.
+    """
+    entrypoint = (_ROOT / "entrypoint.sh").read_text(encoding="utf-8")
+    failure_branch = entrypoint[entrypoint.index("Pre-flight backup FAILED") - 2000 :]
+    failure_branch = failure_branch[: failure_branch.index("Pre-flight backup FAILED")]
+
+    assert 'rm -f "/data/backups/preflight-$STAMP.dump"' in failure_branch, (
+        "the pg_dump failure path does not remove the partial plaintext dump before it "
+        "exits, so a dump that dies mid-stream leaves part of the family database in the "
+        "clear on the data volume (T-BACKUP-1, through the failure path)"
+    )
+
+
+def test_the_only_plaintext_dump_paths_are_the_two_that_are_cleaned_up() -> None:
+    """Guard the guard: prove the failure branch is the one being asserted on, by
+    checking the three places a `preflight-*.dump` is written or removed are all here."""
+    entrypoint = (_ROOT / "entrypoint.sh").read_text(encoding="utf-8")
+
+    # Written once, by pg_dump. Matched with the leading newline so the `-f` of the two
+    # `rm -f` lines below is not counted as a second writer.
+    assert entrypoint.count('\n      -f "/data/backups/preflight-$STAMP.dump"') == 1
+    # ...and removed on every path that does not leave ciphertext in its place: the
+    # success path (after the .enc lands) and the failure path added above.
+    assert entrypoint.count('rm -f "/data/backups/preflight-$STAMP.dump"') == 2

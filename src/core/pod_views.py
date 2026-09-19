@@ -9,14 +9,19 @@ notification path, and mute is a per-member display flag.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
+from django.contrib.auth import BACKEND_SESSION_KEY, login
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 
 from . import pods, scoping
 from .feed_views import _acting_member
 from .models import Member, Pod
+
+_MODEL_BACKEND = "django.contrib.auth.backends.ModelBackend"
 
 
 @dataclass
@@ -125,6 +130,35 @@ def pod_leave(request: HttpRequest, pod_id: int) -> HttpResponse:
         pods.leave_pod(member=member, pod=pod)
     except pods.PodLeaveRefused as exc:
         return _pod_list_response(request, member, refusal=str(exc))
+    # A leave that drops a side of the family runs the shrink registry, and its FIRST step
+    # deletes every session belonging to this member — including this one, the one that
+    # pressed the button. Without the re-login below, tapping "Leave" on a group logs you
+    # out of your own family with no explanation, on the next page load, and the redirect
+    # lands on the sign-in screen.
+    #
+    # Re-issuing THIS session is not a hole: `login()` cycles the session key, so the row
+    # the registry deleted stays deleted, every OTHER device they were signed in on stays
+    # signed out, and the elder link, digest links and reply addresses stay dead. What
+    # survives is the browser of the person who is standing right there, whose credentials
+    # were never the thing being revoked — they still belong here, with a narrower reach.
+    #
+    # The backend is read off the session before `login()` rewrites it, so a member who
+    # signed in through allauth is re-issued through allauth rather than being silently
+    # moved onto the model backend.
+    backend = request.session.get(BACKEND_SESSION_KEY) or _MODEL_BACKEND
+    # `cycle_key()` FIRST, and `login()` alone is not enough — measured. Django's `login`
+    # only rotates the key when the request arrived with NO auth session; when the same
+    # user is already signed in it leaves the key alone. The row behind that key has just
+    # been deleted, so `SessionMiddleware` then tries to UPDATE a row that is gone and
+    # raises SessionInterrupted: a 500 on the way out of a successful leave.
+    #
+    # `cycle_key` also keeps the session's DATA while replacing its identifier, which is
+    # the behaviour this wants: a compose draft the member had in flight survives pressing
+    # Leave, while the session row an attacker might hold does not.
+    request.session.cycle_key()
+    # `@login_required` above guarantees a real user here; the cast is for the type
+    # checker, which only knows `request.user` as User | AnonymousUser.
+    login(request, cast(User, request.user), backend=backend)
     return redirect("pod_list")
 
 

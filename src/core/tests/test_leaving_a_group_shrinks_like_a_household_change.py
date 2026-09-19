@@ -195,24 +195,108 @@ def test_a_leave_that_would_strand_somebody_is_refused_in_plain_words() -> None:
         assert jargon not in words, f"the refusal says {jargon!r} to a relative"
 
 
-def test_the_refusal_reaches_the_member_as_a_sentence_on_their_own_page() -> None:
-    """A refusal the person never sees is a 500 with better manners. It renders on the
-    page they pressed the button on."""
+def test_the_refusal_is_true_for_somebody_in_two_groups(caplog: pytest.LogCaptureFixture) -> None:
+    """Review L1. The first wording said "it is the only one you are in", which is FALSE
+    for a member of two groups and no household: they can see the other one on the same
+    page while being told this is their only one, and the sentence they are asked to act
+    on is wrong about their own situation.
+
+    What is actually missing is a HOUSEHOLD, which is also the only thing that answers it.
+    Red against the old wording.
+    """
     side = _yard("Only side")
-    user = User.objects.create_user(username="alone")
-    member = Member.objects.create(display_name="Alone", user=user)
+    member = Member.objects.create(display_name="Alone")
+    for name in ("The cousins", "Birthday planning"):
+        group = Pod.objects.create(name=name, kind=Pod.ADHOC, owner=member)
+        group.yards.set([side])
+        PodMembership.objects.create(member=member, pod=group)
+    leaving = Pod.objects.filter(kind=Pod.ADHOC, name="The cousins").get()
+
+    with pytest.raises(pods.PodLeaveRefused) as caught:
+        pods.leave_pod(member=member, pod=leaving)
+
+    sentence = str(caught.value)
+    assert "only one you are in" not in sentence, (
+        "they are in two groups; the sentence is false as written"
+    )
+    assert "not in a household" in sentence, sentence
+
+
+def test_the_refusal_names_the_admin_from_the_database_not_from_this_repository() -> None:
+    """The footer's helper, for the same reason the footer uses it: this repository is
+    public and a relative's name does not belong in it. With no instance admin the
+    impersonal fallback stands."""
+    side = _yard("Only side")
+    member = Member.objects.create(display_name="Alone")
     group = Pod.objects.create(name="Group", kind=Pod.ADHOC, owner=member)
     group.yards.set([side])
+    PodMembership.objects.create(member=member, pod=group)
+
+    with pytest.raises(pods.PodLeaveRefused) as caught:
+        pods.leave_pod(member=member, pod=group)
+    assert "whoever looks after your family's Backyard" in str(caught.value)
+
+    keeper_user = User.objects.create_user(username="keeper")
+    Member.objects.create(display_name="Alex Keeper", user=keeper_user, role=Member.INSTANCE_ADMIN)
+    with pytest.raises(pods.PodLeaveRefused) as caught:
+        pods.leave_pod(member=member, pod=group)
+    assert "Ask Alex to put you in a household" in str(caught.value), caught.value
+
+
+def test_the_person_who_pressed_leave_is_not_signed_out_of_their_own_family() -> None:
+    """Review M4. The shrink registry's FIRST step deletes every session belonging to the
+    member — including the one that pressed the button — so a leave that drops a side
+    threw the relative onto the sign-in page on the next click, with no explanation.
+
+    Red without the re-login in `pod_views.pod_leave`: the follow-up request redirects to
+    the sign-in page.
+    """
+    kept, lost = _yard("Kept side"), _yard("Lost side")
+    home = _household("Their household", kept)
+    user = User.objects.create_user(username="cousin")
+    member = Member.objects.create(display_name="Cousin", user=user)
+    PodMembership.objects.create(member=member, pod=home)
+    group = Pod.objects.create(name="The cousins", kind=Pod.ADHOC, owner=member)
+    group.yards.set([lost])
     PodMembership.objects.create(member=member, pod=group)
 
     client = Client()
     client.force_login(user, backend=_BACKEND)
     response = client.post(reverse("pod_leave", args=[group.id]))
 
-    assert response.status_code == 200
-    body = response.content.decode()
-    assert "the only one you are in" in body, body[:400]
-    assert PodMembership.objects.filter(member=member, pod=group).exists()
+    assert response.status_code == 302
+    assert not PodMembership.objects.filter(member=member, pod=group).exists()
+    # The half that matters to the person: they are still signed in.
+    assert client.get(reverse("pod_list")).status_code == 200, (
+        "leaving a group signed the member out of their own family"
+    )
+
+
+def test_their_other_devices_are_still_signed_out_by_the_leave() -> None:
+    """The other half. Re-issuing THIS session must not resurrect the rest: the whole
+    point of the shrink is that every credential reaching the side they left is dead."""
+    kept, lost = _yard("Kept side"), _yard("Lost side")
+    home = _household("Their household", kept)
+    user = User.objects.create_user(username="cousin")
+    member = Member.objects.create(display_name="Cousin", user=user)
+    PodMembership.objects.create(member=member, pod=home)
+    group = Pod.objects.create(name="The cousins", kind=Pod.ADHOC, owner=member)
+    group.yards.set([lost])
+    PodMembership.objects.create(member=member, pod=group)
+
+    phone = Client()
+    phone.force_login(user, backend=_BACKEND)
+    assert phone.get(reverse("pod_list")).status_code == 200
+
+    laptop = Client()
+    laptop.force_login(user, backend=_BACKEND)
+    laptop.post(reverse("pod_leave", args=[group.id]))
+
+    # The device that did NOT press Leave is signed out, which is what revocation means.
+    assert phone.get(reverse("pod_list")).status_code == 302
+    # And the generation bump still killed the no-login link.
+    member.refresh_from_db()
+    assert not ElderToken.objects.filter(member=member).exists()
 
 
 def test_leaving_a_household_is_still_refused_outright() -> None:

@@ -255,6 +255,15 @@ def restore_backup(source: IO[bytes], *, force: bool) -> dict[str, int]:
     with _restore_workdir() as workdir:
         with tarfile.open(fileobj=source, mode="r") as archive:
             _verify_manifest(archive)
+            # The OUTER members, before either lands on disk. The media ceilings below
+            # read the media tar's own headers, which means the media tar itself — and
+            # `database.dump`, which had no ceiling at all — were already written to the
+            # staging dir on the data volume by the time anything was checked. A 200 GB
+            # dump filled the disk before the guard that exists to stop that ever ran.
+            _refuse_an_oversized_extraction(
+                [archive.getmember(DB_DUMP_NAME), archive.getmember(MEDIA_TAR_NAME)],
+                Path(workdir),
+            )
             archive.extract(DB_DUMP_NAME, path=workdir, filter="data")
             archive.extract(MEDIA_TAR_NAME, path=workdir, filter="data")
 

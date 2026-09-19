@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import datetime
 import re
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -120,8 +120,14 @@ def _surfaces(world: dict[str, Any]) -> dict[str, str]:
     ],
 )
 def test_each_bearer_surface_refuses_an_unbounded_burst(world: dict[str, Any], name: str) -> None:
-    """Fails without the `throttling.refuse_if_over_limit` call in that view: the burst
-    runs to completion and the surface answers every single request."""
+    """Fails without `FamilyLinkThrottleMiddleware` in settings.MIDDLEWARE, or without
+    that surface's prefix in `throttling.THROTTLED_PREFIXES`: the burst runs to completion
+    and the surface answers every single request.
+
+    The mechanism is the MIDDLEWARE, not a call in the view — this docstring said "the
+    call in that view", which was left over from the first cut and describes an
+    implementation that was removed precisely because it did not work (see
+    `test_the_limit_lives_where_a_404_cannot_roll_it_back`)."""
     url = _surfaces(world)[name]
     client = Client()
     statuses = {client.get(url).status_code for _ in range(400)}
@@ -284,3 +290,21 @@ def test_media_is_deliberately_not_throttled() -> None:
     assert "/media/" in throttling.UNTHROTTLED_WITH_REASON
     assert "per PAGE" in throttling.UNTHROTTLED_WITH_REASON["/media/"]
     assert not "/media/x/".startswith(throttling.THROTTLED_PREFIXES)
+
+
+def test_the_limiters_store_will_not_cull_the_counters_away() -> None:
+    """Review M2. Django's DatabaseCache defaults to MAX_ENTRIES 300 / CULL_FREQUENCY 3:
+    past 300 rows it deletes a THIRD of them, chosen by key order, not by age or by
+    importance. Every rate limit in this product lives in that table, one row per action
+    per IP — so a flood from many addresses is a way to evict the `login_failed` and
+    `family_link` counters that are meant to be bounding it, and the eviction is
+    indistinguishable from the window expiring.
+
+    Fails without the OPTIONS block on CACHES["default"].
+    """
+    from django.conf import settings
+
+    default_cache = cast(dict[str, Any], settings.CACHES["default"])
+    options = cast(dict[str, int], default_cache.get("OPTIONS", {}))
+    assert options.get("MAX_ENTRIES", 300) >= 20000, options
+    assert options.get("CULL_FREQUENCY", 3) >= 10, options

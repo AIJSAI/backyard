@@ -1,7 +1,9 @@
 """Cross-cutting signal handlers.
 
-Display-name hygiene (S3): every name a family reads is stripped of control and format
-characters on its way into the database. A receiver, not a check in the profile editor,
+Name hygiene (S3, review L3): every name a family reads — a member's display and kinship
+name, a household's or group's name and house rule, and a side of the family's name, which
+is the weekly email's subject line — is stripped of control and format characters on its
+way into the database. A receiver, not a check in the profile editor,
 because a display name is written from FIVE places — the first-run wizard, invite
 redemption, the supervised-child form, the new-elder flow and the profile editor — and
 the one that matters is whichever one a future change forgets. It matters because
@@ -28,12 +30,17 @@ from django.dispatch import receiver
 from django.http import HttpRequest
 
 from . import emailing
-from .models import Member
+from .models import Member, Pod, Yard
 
 _ELDER_KEYS = ("elder_member_id", "elder_generation", "elder_big_text")
 # The two name columns a family actually reads: the display name on every byline and in
 # every directory row, and the kinship name beside it ("Nana").
 _NAME_FIELDS = ("display_name", "kinship_name")
+# The other two names a family reads. A side of the family and a household are named by
+# an admin typing into a form, they render in `email/digest.txt` beside the display names
+# — which is autoescape off, being plain text — and one of them is the digest's SUBJECT.
+_POD_NAME_FIELDS = ("name", "house_rule")
+_YARD_NAME_FIELDS = ("name",)
 
 
 @receiver(pre_save, sender=Member, dispatch_uid="core.signals.strip_control_from_names")
@@ -45,7 +52,23 @@ def strip_control_from_names(sender: Any, instance: Member, **kwargs: Any) -> No
     design — nothing in this product writes a name that way, and the two places that use
     `update()` on Member write `token_generation` (revocation) and nothing else.
     """
-    for field in _NAME_FIELDS:
+    _strip_fields(instance, _NAME_FIELDS)
+
+
+@receiver(pre_save, sender=Pod, dispatch_uid="core.signals.strip_control_from_pod_names")
+def strip_control_from_pod_names(sender: Any, instance: Pod, **kwargs: Any) -> None:
+    """The same rule for a household's or a group's name and its one-line house rule."""
+    _strip_fields(instance, _POD_NAME_FIELDS)
+
+
+@receiver(pre_save, sender=Yard, dispatch_uid="core.signals.strip_control_from_yard_names")
+def strip_control_from_yard_names(sender: Any, instance: Yard, **kwargs: Any) -> None:
+    """And for a side of the family, which is the digest's subject line."""
+    _strip_fields(instance, _YARD_NAME_FIELDS)
+
+
+def _strip_fields(instance: object, fields: tuple[str, ...]) -> None:
+    for field in fields:
         value = getattr(instance, field, "")
         if value:
             setattr(instance, field, emailing.strip_control(value))

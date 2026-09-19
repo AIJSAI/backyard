@@ -15,12 +15,14 @@ Anymail's (svix, RESEND_INBOUND_SECRET) and out of scope here.
 from __future__ import annotations
 
 import datetime
+import importlib
 import json
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from anymail.inbound import AnymailInboundMessage
+from django.test import Client
 from django.utils import timezone
 
 from core import digest, inbound_webhook, reply_addresses
@@ -389,3 +391,132 @@ def test_the_view_refuses_even_if_something_mounts_it(settings: Any, rf: Any) ->
     view = _bounded_view()
     with pytest.raises(Http404):
         view.dispatch(rf.post("/anymail/resend/inbound/"))
+
+
+# --- C1: the override must carry Anymail's two exemptions ----------------------------
+
+
+@pytest.mark.django_db
+def test_the_mounted_route_is_not_rejected_by_the_csrf_check(settings: Any) -> None:
+    """The CRITICAL from the security review of this PR.
+
+    `View.as_view()` copies `cls.dispatch.__dict__` onto the callable it returns, and that
+    dict is where `csrf_exempt` and `login_not_required` live. Overriding `dispatch`
+    without re-applying them silently drops Anymail's, so `CsrfViewMiddleware` rejects
+    every Resend inbound POST before the svix signature is ever checked: no verification,
+    no quarantine row, no bounce, and reply-by-email dies with nothing anywhere saying so.
+
+    Driven with `enforce_csrf_checks=True` THROUGH THE MOUNTED ROUTE, because the default
+    test Client disables CSRF entirely — which is exactly why the rest of this file, and
+    the whole suite, never saw it. Red without the two decorators: 403.
+    """
+    settings.RESEND_INBOUND_SECRET = _any_non_empty_value()
+    settings.ANYMAIL = {**settings.ANYMAIL, "RESEND_INBOUND_SECRET": settings.RESEND_INBOUND_SECRET}
+
+    from django.urls import clear_url_caches
+
+    import config.urls
+
+    importlib.reload(config.urls)
+    clear_url_caches()
+    try:
+        response = Client(enforce_csrf_checks=True).post(
+            "/anymail/resend/inbound/",
+            data=json.dumps({"type": "email.received", "data": {}}),
+            content_type="application/json",
+        )
+    finally:
+        settings.RESEND_INBOUND_SECRET = ""
+        importlib.reload(config.urls)
+        clear_url_caches()
+
+    assert response.status_code != 403, (
+        "CsrfViewMiddleware rejected a machine POST from another origin: the dispatch "
+        "override dropped anymail's csrf_exempt, so no inbound reply would ever be "
+        "verified, quarantined or bounced"
+    )
+    # 400 is Anymail refusing an unsigned payload, which is the correct answer and proves
+    # the request reached the view rather than dying in middleware.
+    assert response.status_code == 400, response.status_code
+
+
+def test_both_exemptions_are_actually_attached_to_the_view_callable() -> None:
+    """The mechanism, at the seam where it is read: `as_view()` copies these off
+    `dispatch.__dict__`, and middleware reads them off the resolved callable."""
+    view = inbound_webhook.BoundedResendInboundWebhookView.as_view()
+    assert getattr(view, "csrf_exempt", False) is True
+    assert getattr(view, "login_required", True) is False
+
+
+# --- M1: the fetch is bounded in TIME, not only in bytes -----------------------------
+
+
+@pytest.mark.django_db
+def test_a_trickling_response_is_refused_on_the_wall_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The size cap does not bound a trickle: the socket read timeout resets on every
+    chunk, so a sender who emits one byte inside every window is legal, endless, and holds
+    a gunicorn worker for as long as it likes — while never approaching the byte cap.
+
+    The body below is deliberately TINY (200 bytes, against a 1 MiB cap) and slow, so the
+    only thing that can refuse it is the clock. Red without the deadline in `_read_capped`:
+    the 200 bytes are accepted and a message comes back.
+    """
+    body = json.dumps({"raw": {"download_url": "https://resend.example/raw"}}).encode()
+
+    def fake_get(url: str, **kwargs: object) -> _FakeResponse:
+        # One byte per chunk, two hundred chunks: far under the byte cap, far over the
+        # time budget at one simulated second per chunk.
+        return _FakeResponse([b"x"] * 200) if url.endswith("/raw") else _FakeResponse([body])
+
+    monkeypatch.setattr("core.inbound_webhook.requests.get", fake_get)
+    # Simulated, not slept: this asserts the DEADLINE, not the test machine's wall clock.
+    clock = iter(float(i) for i in range(100000))
+    monkeypatch.setattr("core.inbound_webhook.time.monotonic", lambda: next(clock))
+
+    assert _bounded_view()._fetch_inbound_email("email-1") is None
+    assert InboundQuarantine.objects.count() == 1
+
+
+def test_the_refusal_names_the_budget_rather_than_the_byte_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Which limit fired is the whole question: a message saying "exceeded N bytes" for a
+    slow trickle would mean the byte cap caught it by accident and the time bound is
+    absent. Asserted on `_read_capped` directly, where the two reasons are distinguishable."""
+    clock = iter(float(i) for i in range(100000))
+    monkeypatch.setattr("core.inbound_webhook.time.monotonic", lambda: next(clock))
+
+    with pytest.raises(inbound_webhook.InboundFetchRefused) as caught:
+        inbound_webhook._read_capped(
+            # _FakeResponse implements the slice of requests.Response this reads.
+            cast(Any, _FakeResponse([b"x"] * 200)),
+            what="the raw inbound message",
+            deadline=60.0,
+        )
+    assert "budget" in str(caught.value), caught.value
+
+
+def test_the_budget_is_one_deadline_shared_by_every_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Three requests, one budget — otherwise each is bounded and the sum is not."""
+    seen: list[float] = []
+    body = json.dumps({"raw": {"download_url": "https://resend.example/raw"}}).encode()
+
+    real_read = inbound_webhook._read_capped
+
+    def recording_read(response: Any, *, what: str, deadline: float) -> bytes:
+        seen.append(deadline)
+        return real_read(response, what=what, deadline=deadline)
+
+    monkeypatch.setattr("core.inbound_webhook._read_capped", recording_read)
+    monkeypatch.setattr(
+        "core.inbound_webhook.requests.get",
+        lambda url, **kw: _FakeResponse(
+            [b"From: a@b\r\nTo: c@d\r\n\r\nhi\r\n"] if url.endswith("/raw") else [body]
+        ),
+    )
+
+    _bounded_view()._fetch_inbound_email("email-1")
+
+    assert len(seen) == 2 and len(set(seen)) == 1, seen

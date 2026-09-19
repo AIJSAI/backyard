@@ -17,6 +17,11 @@ dependencies = [
   "qrcode>=8,<9",               # elder-token handover QR (S-104); SVG factory, no PIL/JS
   "whitenoise>=6.12,<7",
   "django-anymail[resend]>=15,<16", # Resend send + inbound (v15 added Resend inbound); svix verifies webhooks
+  # Imported at app boot by core/inbound_webhook, which re-implements anymail's inbound
+  # fetch with a timeout and a size cap. It arrives transitively through anymail today;
+  # declared because a direct import of an undeclared package breaks on the day that
+  # transitive edge changes, and because `deps` audits what is declared.
+  "requests>=2.32,<3",
 ]
 
 [dependency-groups]

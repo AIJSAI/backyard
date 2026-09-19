@@ -17,8 +17,10 @@ webhook's own request cycle, on a gunicorn worker:
   provider therefore pins a worker for as long as it likes, and a large response
   is buffered entirely before our 256 KB message cap is ever consulted — the cap
   applies to the parsed message, after the download. `BoundedResendInboundWebhookView`
-  re-implements the two fetch helpers with a connect/read timeout and a streamed,
-  size-capped read, so neither a slow nor a fat response can hold or fill a worker.
+  re-implements the two fetch helpers with a connect/read timeout, a streamed, size-capped
+  read, AND one wall-clock budget across all three requests — the timeout alone does not
+  bound a trickle, because it resets on every chunk, so neither a slow nor a fat response
+  can hold or fill a worker.
 * **The route only exists when the secret does** (S4). Anymail verifies the svix
   signature against ``RESEND_INBOUND_SECRET``; with no secret configured there is
   nothing to verify against, and an SMTP-configured self-hoster would answer every
@@ -46,6 +48,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any
 from urllib.parse import urljoin
 
@@ -54,8 +57,11 @@ from anymail.inbound import AnymailInboundMessage
 from anymail.signals import inbound
 from anymail.webhooks.resend import ResendInboundWebhookView
 from django.conf import settings
+from django.contrib.auth.decorators import login_not_required
 from django.dispatch import receiver
 from django.http import Http404, HttpRequest, HttpResponse
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 
 from . import inbound as inbound_pipeline
 
@@ -76,23 +82,39 @@ _MAX_FETCH_BYTES = 1024 * 1024
 # is cost memory; cap how many we are willing to pull at the same number of parts the
 # pipeline tolerates.
 _MAX_ATTACHMENTS = 20
+# The WHOLE fetch, across all three requests, in seconds. The read timeout above bounds
+# each socket read and RESETS on every chunk, so a sender that trickles one byte inside
+# every window never times out and holds a gunicorn worker indefinitely — the docstring
+# claimed the byte cap answered that, and it does not: a slow enough trickle never reaches
+# the cap either. Mirrors `link_preview._TOTAL_BUDGET`, which exists for the same reason
+# (that module's security review, HIGH-3).
+_TOTAL_FETCH_BUDGET_SECONDS = 60.0
 
 
 class InboundFetchRefused(Exception):
     """The inbound fetch was refused before it could hold or fill a worker."""
 
 
-def _read_capped(response: requests.Response, *, what: str) -> bytes:
-    """Stream a response body, refusing past `_MAX_FETCH_BYTES`.
+def _read_capped(response: requests.Response, *, what: str, deadline: float) -> bytes:
+    """Stream a response body, refusing past `_MAX_FETCH_BYTES` or past `deadline`.
 
     `response.content` reads to the end, whatever the end turns out to be. This reads in
     chunks and gives up the moment the total passes the cap, so the worker never buffers
     an unbounded body — and closes the response, so the socket does not linger.
+
+    The deadline is the other half, and the byte cap does not cover it: the socket read
+    timeout resets on every chunk, so one byte inside every window is a legal, endless
+    response that never reaches the cap. `deadline` is a `time.monotonic()` instant shared
+    by every request in one webhook call, so the three of them together are bounded.
     """
     chunks: list[bytes] = []
     total = 0
     try:
         for chunk in response.iter_content(65536):
+            if time.monotonic() > deadline:
+                raise InboundFetchRefused(
+                    f"{what} outran the {_TOTAL_FETCH_BUDGET_SECONDS}s budget"
+                )
             total += len(chunk)
             if total > _MAX_FETCH_BYTES:
                 raise InboundFetchRefused(f"{what} exceeded {_MAX_FETCH_BYTES} bytes")
@@ -112,6 +134,8 @@ class BoundedResendInboundWebhookView(ResendInboundWebhookView):  # type: ignore
     of that, and a dependency bump should re-read it.
     """
 
+    @method_decorator(csrf_exempt)
+    @method_decorator(login_not_required)
     def dispatch(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         """Refuse the route outright when no inbound secret is configured (S4).
 
@@ -120,6 +144,17 @@ class BoundedResendInboundWebhookView(ResendInboundWebhookView):  # type: ignore
         against and falls through to a basic-auth check nobody configured, which answers an
         unauthenticated POST with an unhandled 500. A 404 is the honest answer — on an
         SMTP-configured instance this endpoint genuinely does not exist.
+
+        BOTH DECORATORS ARE RE-APPLIED, and leaving them off is not a style question.
+        `View.as_view()` copies `cls.dispatch.__dict__` onto the returned callable, which
+        is how `csrf_exempt` and `login_not_required` reach the middleware at all — so an
+        override that does not carry them silently drops Anymail's. Measured on the mounted
+        route with `Client(enforce_csrf_checks=True)`: the undecorated subclass answered
+        403 where upstream answered 400 for the identical request. In production that is
+        CsrfViewMiddleware rejecting every Resend inbound POST before the svix signature is
+        checked — no verification, no quarantine row, no bounce, and reply-by-email dies
+        with nothing anywhere saying so. A webhook is a machine POST from another origin;
+        it has no session and no CSRF token by construction.
         """
         if not settings.RESEND_INBOUND_SECRET:
             raise Http404
@@ -134,6 +169,10 @@ class BoundedResendInboundWebhookView(ResendInboundWebhookView):  # type: ignore
         into a provider retry loop (a retry cannot make an over-large message smaller).
         """
         url = urljoin(self.api_url, f"emails/receiving/{email_id}")
+        # ONE budget for the whole call, set here and read by every request below,
+        # including `_fetch_attachment`, which the base class calls without arguments.
+        deadline = time.monotonic() + _TOTAL_FETCH_BUDGET_SECONDS
+        self._fetch_deadline = deadline
         try:
             response = requests.get(
                 url,
@@ -142,14 +181,16 @@ class BoundedResendInboundWebhookView(ResendInboundWebhookView):  # type: ignore
                 stream=True,
             )
             response.raise_for_status()
-            data = json.loads(_read_capped(response, what="the inbound message record"))
+            data = json.loads(
+                _read_capped(response, what="the inbound message record", deadline=deadline)
+            )
 
             raw_url = (data.get("raw") or {}).get("download_url")
             if raw_url:
                 # Prefer raw MIME when available (more complete representation).
                 raw_response = requests.get(raw_url, timeout=_FETCH_TIMEOUT, stream=True)
                 raw_response.raise_for_status()
-                raw = _read_capped(raw_response, what="the raw inbound message")
+                raw = _read_capped(raw_response, what="the raw inbound message", deadline=deadline)
                 return AnymailInboundMessage.parse_raw_mime_bytes(raw)
             return self._construct_from_fields(data)
         except InboundFetchRefused as exc:
@@ -209,7 +250,15 @@ class BoundedResendInboundWebhookView(ResendInboundWebhookView):  # type: ignore
         content_type = response.headers.get("Content-Type") or attachment.get(
             "content_type", "application/octet-stream"
         )
-        content = _read_capped(response, what="an inbound attachment")
+        content = _read_capped(
+            response,
+            what="an inbound attachment",
+            # Set by `_fetch_inbound_email`, which is this method's only caller. The
+            # fallback keeps an attachment bounded even if that ever stops being true.
+            deadline=getattr(
+                self, "_fetch_deadline", time.monotonic() + _TOTAL_FETCH_BUDGET_SECONDS
+            ),
+        )
         constructed: AnymailInboundMessage = AnymailInboundMessage.construct_attachment(
             content_type=content_type,
             content=content,
@@ -282,7 +331,14 @@ def handle_inbound(sender: object, event: Any, esp_name: str = "", **kwargs: Any
         # a quarantine row puts it on the admin's panel — so if Resend's payload shape is
         # ever not what this expects, whoever registers the webhook finds out from the
         # product rather than from replies quietly never arriving.
-        logger.warning("inbound refused, no trustworthy delivered-for address: %s", exc)
+        # The KEY NAMES of the payload's data object, never its values: whoever reads this
+        # needs to know which field Resend actually sent, and the values are somebody's
+        # mail. Sorted so the line is stable enough to compare across messages.
+        logger.warning(
+            "inbound refused, no trustworthy delivered-for address: %s (payload data keys: %s)",
+            exc,
+            sorted((getattr(event, "esp_event", None) or {}).get("data", {}) or {}),
+        )
         inbound_pipeline.quarantine_transport_refusal()
         return
     raw = bytes(message.as_bytes())

@@ -51,7 +51,26 @@ _V4_EMBEDDING_PREFIXES = (
 
 def embedded_ipv4(ip: ipaddress.IPv6Address) -> ipaddress.IPv4Address | None:
     """The IPv4 an IPv6 address embeds (mapped, 6to4, NAT64, IPv4-compatible/SIIT),
-    or None. These forms can route to an internal IPv4 while ip.is_global is True."""
+    or None. These forms can route to an internal IPv4 while ip.is_global is True.
+
+    DEFENCE IN DEPTH on Python 3.13, measured rather than assumed. Every embedding form
+    below is ALREADY refused by `check_ip` with this decode reverted, but not by the same
+    clause, and not by the one the original comment named. On 3.13.12:
+
+      ::ffff:169.254.169.254   is_global False, is_private True, is_link_local True
+      2002:a9fe:a9fe::1        is_global False, is_private True
+      64:ff9b::a9fe:a9fe       is_global TRUE  — caught only by is_reserved
+      ::ffff:0:a9fe:a9fe       is_global TRUE  — caught only by is_reserved
+      ::a9fe:a9fe              is_global TRUE  — caught only by is_reserved
+
+    So `is_global` alone does NOT answer the NAT64 and SIIT forms; what answers them
+    today is that the stdlib marks those whole prefixes reserved. That is a property of
+    CPython's tables rather than of anything this repo controls, which is why the decode
+    stays — and it is what makes a refusal legible, because the reason then names the
+    IPv4 the address really reaches instead of "reserved".
+    `test_outbound_fetches_share_one_address_gate` pins the table above, so a future
+    interpreter that loosens one of those rows fails here rather than in production.
+    """
     if ip.ipv4_mapped is not None:
         return ip.ipv4_mapped
     if ip.sixtofour is not None:
@@ -69,7 +88,13 @@ def check_ip(raw: str) -> None:
     unspecified, multicast) and, for IPv6, decodes any embedded IPv4 and re-checks it,
     so an IPv6 form that routes to an internal IPv4 cannot slip past is_global (HIGH-2).
     """
-    ip: ipaddress.IPv4Address | ipaddress.IPv6Address = ipaddress.ip_address(raw)
+    # A value that is not an address at all is BlockedAddress too, not ValueError: both
+    # callers catch only the former and translate it into "no card" / "no expiry", so a
+    # malformed host would have propagated as an unhandled 500 out of a link preview.
+    try:
+        ip: ipaddress.IPv4Address | ipaddress.IPv6Address = ipaddress.ip_address(raw)
+    except ValueError as exc:
+        raise BlockedAddress(f"not an IP address: {raw!r}") from exc
     if isinstance(ip, ipaddress.IPv6Address):
         embedded = embedded_ipv4(ip)
         if embedded is not None:

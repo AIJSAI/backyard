@@ -353,6 +353,8 @@ itself up and telling somebody when it cannot.
   in a private file on the data volume that only the app can read, and it is deleted the
   moment the first admin exists. `make setup-secret` reads it; the README and the
   self-host guide say so.
+- **A restore refuses, loudly, before it touches anything.** Both halves of the archive are measured before either is written and before the database is replaced, so a refusal that says nothing has happened is telling the truth.
+- **A backup that fails part-way leaves nothing readable behind.** The pre-flight dump the instance takes on every boot is written in the clear before it is encrypted; if it died mid-way the partial file stayed on the disk. It is removed on that path now.
 - **A restore refuses, loudly, before it fills the disk.** Restoring a backup deletes the
   existing photographs before it writes the new ones, so a media archive bigger than the
   free space left a box with neither. It is now checked against the volume's free space, a
@@ -370,6 +372,15 @@ itself up and telling somebody when it cannot.
   them. The fetch that collects the message now has a time limit and a size limit, so a
   slow or enormous one cannot occupy the app. The endpoint is not published at all unless
   inbound email is configured.
+- **Leaving a group no longer signs you out of your own family.** Walking out of a group
+  that was your only tie to one side of the family ends every session you had, which is
+  the point — but it was ending the one you were sitting in front of too, so the next tap
+  landed on the sign-in page with nothing to explain it. The browser you pressed the
+  button in stays signed in; your other devices, and any links into the side you left,
+  still stop working.
+- **The sentence you get if you cannot leave a group is true.** It used to say "it is the
+  only one you are in" to somebody looking at a second one on the same page. It now says
+  what is actually missing — a household — and who to ask for one.
 - **Admin second factor: offered, never required — and the security record now says so.**
   The threat model claimed a second factor was enforced for admins and nothing enforced
   it. Requiring one would mean lockouts for relatives who are not technical, and a

@@ -516,6 +516,55 @@ def test_a_traversing_media_archive_is_also_refused_before_pg_restore(
     assert "pg_restore" not in invoked
 
 
+def test_the_outer_members_are_capped_before_either_is_written(
+    fake_pg: None, settings: Any, tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Review M3. The ceilings read the MEDIA tar's own headers, which means the media tar
+    itself — and `database.dump`, which had no ceiling of any kind — were already extracted
+    onto the data volume before anything was consulted. A 200 GB dump filled the disk
+    before the guard that exists to stop exactly that had run.
+
+    Red without the `_refuse_an_oversized_extraction` call on the outer members: both
+    files land in the staging directory and pg_restore is invoked.
+    """
+    settings.MEDIA_ROOT = str(tmp_path / "data" / "media")
+    _free_space(monkeypatch, 10**15)
+    monkeypatch.setattr(backups, "MAX_RESTORED_MEMBER_BYTES", 50)
+    invoked: list[str] = []
+
+    def recording_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        invoked.append(argv[0])
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("core.backups.subprocess.run", recording_run)
+    # The MEDIA tar is tiny; the DATABASE DUMP is what is over the ceiling, which is the
+    # member the old check could not see at all.
+    archive = io.BytesIO()
+    inner = io.BytesIO()
+    with tarfile.open(fileobj=inner, mode="w:gz") as media_tar:
+        info = tarfile.TarInfo("media/photo.jpg")
+        info.size = 2
+        media_tar.addfile(info, io.BytesIO(b"ok"))
+    with tarfile.open(fileobj=archive, mode="w") as outer:
+        manifest = json.dumps({"format": backups.BACKUP_FORMAT}).encode()
+        for name, payload in (
+            ("backup-manifest.json", manifest),
+            ("database.dump", b"PGDMP" + b"x" * 500),
+            ("media.tar.gz", inner.getvalue()),
+        ):
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            outer.addfile(info, io.BytesIO(payload))
+    archive.seek(0)
+
+    with pytest.raises(backups.BackupError) as caught:
+        backups.restore_backup(archive, force=True)
+
+    assert "database.dump" in str(caught.value), caught.value
+    assert "Nothing has been written" in str(caught.value)
+    assert "pg_restore" not in invoked
+
+
 def test_restore_names_the_one_oversized_file(
     fake_pg: None, settings: Any, tmp_path: Path, monkeypatch: Any
 ) -> None:

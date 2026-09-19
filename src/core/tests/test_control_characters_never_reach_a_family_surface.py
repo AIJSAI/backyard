@@ -154,3 +154,39 @@ def test_a_post_body_survives_ordinary_writing(author: Member) -> None:
     post.refresh_from_db()
     assert post.body == body
     assert Post.objects.filter(pk=post.pk, body=body).exists()
+
+
+def test_a_side_of_the_familys_name_is_stripped_too() -> None:
+    """Review L3. A side's name is the weekly email's SUBJECT LINE
+    (`digest.build`), and a subject is a header position — which is the one place
+    `emailing.strip_control` was written for in the first place.
+
+    Fails without the `pre_save` receiver on Yard.
+    """
+    yard = Yard.objects.create(name=f"Mum's side{_RTL_OVERRIDE}", slug="mums-side")
+    yard.refresh_from_db()
+    assert yard.name == "Mum's side"
+
+
+def test_a_household_or_group_name_and_its_house_rule_are_stripped_too() -> None:
+    """Both render into `email/digest.txt`, which is plain text and therefore autoescape
+    off. Fails without the `pre_save` receiver on Pod."""
+    pod = Pod.objects.create(
+        name=f"Nana's house{_RTL_OVERRIDE}",
+        kind=Pod.HOUSEHOLD,
+        house_rule=f"Just the cousins{_RTL_OVERRIDE}",
+    )
+    pod.refresh_from_db()
+    assert pod.name == "Nana's house"
+    assert pod.house_rule == "Just the cousins"
+
+
+def test_ordinary_names_are_left_alone() -> None:
+    """Guard the guard, on the two new receivers: an apostrophe, an accent and an emoji
+    are what family names and household names are actually made of."""
+    yard = Yard.objects.create(name="Côté d'Azur 🌻", slug="cote")
+    pod = Pod.objects.create(name="O'Brien household", kind=Pod.HOUSEHOLD)
+    yard.refresh_from_db()
+    pod.refresh_from_db()
+    assert yard.name == "Côté d'Azur 🌻"
+    assert pod.name == "O'Brien household"

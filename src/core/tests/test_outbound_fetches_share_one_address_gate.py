@@ -124,3 +124,46 @@ def test_a_redirect_to_a_non_https_scheme_is_still_refused() -> None:
     request = urllib.request.Request("https://rdap.org/domain/example.family")
     with pytest.raises(urllib.error.URLError):
         policy.redirect_request(request, None, 302, "Found", None, "ftp://elsewhere/x")
+
+
+# --- what actually refuses the IPv6 forms, pinned (review T2) -------------------------
+
+# Measured on CPython 3.13.12. The point is not that these are refused — every test above
+# already proves that — but WHICH clause refuses them. `embedded_ipv4` is defence in depth
+# today: the stdlib's own tables catch all five. If a future interpreter loosens one of
+# these rows, the decode becomes the only thing standing between a member's pasted URL and
+# the cloud metadata endpoint, and this table is where that change announces itself.
+_EMBEDDING_FORMS = {
+    # address: (is_global, the attribute that refuses it without the decode)
+    "::ffff:169.254.169.254": (False, "is_private"),
+    "2002:a9fe:a9fe::1": (False, "is_private"),
+    "64:ff9b::a9fe:a9fe": (True, "is_reserved"),
+    "::ffff:0:a9fe:a9fe": (True, "is_reserved"),
+    "::a9fe:a9fe": (True, "is_reserved"),
+}
+
+
+@pytest.mark.parametrize(("addr", "expected"), sorted(_EMBEDDING_FORMS.items()))
+def test_which_clause_refuses_each_ipv6_embedding_form(
+    addr: str, expected: tuple[bool, str]
+) -> None:
+    is_global, refusing_attribute = expected
+    ip = ipaddress.ip_address(addr)
+    assert ip.is_global is is_global, (
+        f"{addr}: this interpreter's is_global changed; re-read embedded_ipv4's docstring"
+    )
+    assert getattr(ip, refusing_attribute) is True, (
+        f"{addr} is no longer {refusing_attribute} on this interpreter — `embedded_ipv4` "
+        "has stopped being defence in depth and is now the only control"
+    )
+    # And the decode names the real destination, which is what makes a log line useful.
+    assert str(outbound_addresses.embedded_ipv4(ip)) == "169.254.169.254"  # type: ignore[arg-type]
+
+
+def test_a_value_that_is_not_an_address_fails_in_this_modules_vocabulary() -> None:
+    """Review L5. Both callers catch BlockedAddress only, so a ValueError escaping here
+    was an unhandled 500 out of a link preview for a malformed host."""
+    with pytest.raises(outbound_addresses.BlockedAddress):
+        outbound_addresses.check_ip("not-an-address")
+    with pytest.raises(link_preview.PreviewUnavailable):
+        link_preview._check_ip("")

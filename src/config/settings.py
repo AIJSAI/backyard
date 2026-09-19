@@ -210,6 +210,16 @@ CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.db.DatabaseCache",
         "LOCATION": "backyard_cache",
+        # Django's DatabaseCache defaults to MAX_ENTRIES 300 and CULL_FREQUENCY 3: once the
+        # table passes 300 rows it deletes a THIRD of them, chosen by key order, not by age
+        # or by importance. Every rate limit in this product lives in that table, one row
+        # per action per IP — so a flood from many addresses is a way to evict the
+        # `login_failed` and `family_link` counters that are meant to be bounding it, and
+        # the eviction looks exactly like the window expiring. 20000 rows is far above
+        # anything a family generates (the limiter writes a row per active IP per action,
+        # and the whole family is tens of devices), and culling a tenth rather than a third
+        # makes the loss smaller if it is ever reached.
+        "OPTIONS": {"MAX_ENTRIES": 20000, "CULL_FREQUENCY": 10},
     }
 }
 

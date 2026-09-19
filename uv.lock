@@ -56,6 +56,7 @@ dependencies = [
     { name = "procrastinate", extra = ["django"] },
     { name = "psycopg", extra = ["binary"] },
     { name = "qrcode" },
+    { name = "requests" },
     { name = "whitenoise" },
 ]
 
@@ -81,6 +82,7 @@ requires-dist = [
     { name = "procrastinate", extras = ["django"], specifier = ">=3,<4" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
     { name = "qrcode", specifier = ">=8,<9" },
+    { name = "requests", specifier = ">=2.32,<3" },
     { name = "whitenoise", specifier = ">=6.12,<7" },
 ]
 
