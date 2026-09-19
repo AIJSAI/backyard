@@ -11,8 +11,15 @@ x-logging: &default-logging
 
 services:
   postgres:
-    # Pinned by digest (T-UPGRADE-1): tag + digest, never a floating tag alone.
-    image: postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
+    # Pinned by digest (T-UPGRADE-1): tag + digest, never a floating tag alone. A digest is
+    # opaque, so the version it resolves to is recorded beside it — otherwise nothing here
+    # distinguishes a current pin from one two security cycles stale, which is how the
+    # previous pin sat at 18.4 for two and a half months. This one is PostgreSQL 18.6.
+    # Moving inside the 18.x line is a minor upgrade, so it needs no dump and restore:
+    # "A dump/restore is not required for those running 18.X" (release notes, Migration to
+    # Version 18.6). Its three conditional steps do not apply here — no logical decoding, no
+    # GIN indexes, and no contrib extensions are created anywhere in this repo.
+    image: postgres:18-alpine@sha256:6c538e7206ea40ff740ef27883529390a690b6ead6ba96b44c67a9f7c638e8fd
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -162,7 +169,9 @@ services:
     # No edge network and no published port: the worker never faces the internet.
 
   caddy:
-    image: caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    # Same rule and same reason as postgres above. This digest is Caddy v2.11.4 — the same
+    # binary the previous pin carried, so what actually moves is the Alpine layer under it.
+    image: caddy:2-alpine@sha256:de23def33b17fb5d1290b0f6c2add1d70780e52341896c00a4c8a2a2fe9d355e
     restart: unless-stopped
     logging: *default-logging
     depends_on:
