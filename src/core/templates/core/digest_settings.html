@@ -38,12 +38,15 @@
       {% if subscription.enabled %}
         <input type="hidden" name="action" value="turn_off">
         <button type="submit">Stop the Family email</button>
-        <span class="muted">Stops the email. You stay in the family and keep everything else.</span>
       {% else %}
         <input type="hidden" name="action" value="turn_on">
         <button type="submit">Send me the Family email</button>
       {% endif %}
     </form>
+    {% if subscription.enabled %}
+      <p class="muted">Stopping it stops the email. You stay in the family and keep
+        everything else.</p>
+    {% endif %}
   {% endif %}
 
   <form method="post" action="{% url 'digest_settings' %}">

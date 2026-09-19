@@ -68,8 +68,12 @@ they wrote, and you have to answer:
 - **Delete their posts, replies and photos.** The photos are erased from the server and
   cannot be brought back. This one asks you to type their name before it goes through.
 
-Removing somebody stops every link and every email they had, straight away. It does not
-touch anyone else's posts, including replies other people wrote on theirs.
+Nobody else's posts are touched. One thing does surprise people, so it is worth knowing:
+if you choose to delete, photos that *other* people added when replying to their posts are
+erased as well. The confirmation page counts those separately before you go through with
+it.
+
+Removing somebody also stops every link and every email they had, straight away.
 
 ## 5. When you are stuck
 

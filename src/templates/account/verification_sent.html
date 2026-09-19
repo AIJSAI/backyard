@@ -14,6 +14,6 @@
         {% blocktrans %}We have sent one email to that address. Tap the link in it and you are done. Check your spam folder if it is not in your inbox.{% endblocktrans %}
     {% endelement %}
     {% element p %}
-        {% blocktrans %}If it has not arrived in a few minutes, ask whoever in the family set this up.{% endblocktrans %}
+        {% if help_contact %}If it has not arrived in a few minutes, ask {{ help_contact }}.{% else %}{% blocktrans %}If it has not arrived in a few minutes, ask whoever in the family set this up.{% endblocktrans %}{% endif %}
     {% endelement %}
 {% endblock content %}

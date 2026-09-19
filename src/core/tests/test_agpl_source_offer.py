@@ -74,8 +74,7 @@ def test_a_signed_out_stranger_is_offered_a_route_to_the_source() -> None:
     html = Client().get(reverse("account_login")).content.decode()
     about = reverse("about")
     assert about in _hrefs(html), (
-        "a network user who cannot sign in is offered no route to the source "
-        "(AGPL section 13)"
+        "a network user who cannot sign in is offered no route to the source (AGPL section 13)"
     )
     assert _REPO in Client().get(about).content.decode()
 

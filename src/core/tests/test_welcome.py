@@ -188,7 +188,7 @@ def test_choosing_monthly_is_offered_and_daily_is_not(pod: Pod) -> None:
 
 
 def test_no_thanks_writes_nothing_and_sends_nothing(pod: Pod) -> None:
-    """"Final and never asked again" (owner direction 7b): no row, no mail, and nothing
+    """ "Final and never asked again" (owner direction 7b): no row, no mail, and nothing
     anywhere that will raise it a second time."""
     client, member = _join(pod, email="cousin@example.com")
     mail.outbox.clear()

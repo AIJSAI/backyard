@@ -83,7 +83,7 @@ def test_a_plain_member_cannot_open_it() -> None:
 
 
 def test_it_covers_the_five_things_and_nothing_else() -> None:
-    """"One screen, friendly, non-technical, no fluff" — so the five subjects are all
+    """ "One screen, friendly, non-technical, no fluff" — so the five subjects are all
     present, and the page is short enough to be one screen's worth of reading."""
     client, _, _ = _world()
     body = _text(client.get(reverse("admins_day_one")).content.decode())

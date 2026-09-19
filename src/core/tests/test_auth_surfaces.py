@@ -217,8 +217,6 @@ def test_the_project_template_root_shadows_nothing_unintended() -> None:
         "account/email/unknown_account_message.txt",
     }
     found = {
-        str(p.relative_to(root))
-        for pattern in ("*.html", "*.txt")
-        for p in root.rglob(pattern)
+        str(p.relative_to(root)) for pattern in ("*.html", "*.txt") for p in root.rglob(pattern)
     }
     assert found == allowed, f"unexpected project-root template(s): {found ^ allowed}"

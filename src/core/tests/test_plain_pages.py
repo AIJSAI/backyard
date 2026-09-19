@@ -29,9 +29,7 @@ from core.models import Member, Pod, PodMembership, Yard
 pytestmark = pytest.mark.django_db
 
 _BACKEND = "django.contrib.auth.backends.ModelBackend"
-_PRIVACY_NOTE = (
-    pathlib.Path(__file__).resolve().parents[3] / "docs" / "family-privacy-note.md"
-)
+_PRIVACY_NOTE = pathlib.Path(__file__).resolve().parents[3] / "docs" / "family-privacy-note.md"
 User = get_user_model()
 
 
@@ -44,9 +42,7 @@ def _family() -> Pod:
 
 def _instance_admin(pod: Pod, display_name: str = "Jim Whitfield") -> Member:
     user = User.objects.create_user(username="theadmin")
-    admin = Member.objects.create(
-        display_name=display_name, user=user, role=Member.INSTANCE_ADMIN
-    )
+    admin = Member.objects.create(display_name=display_name, user=user, role=Member.INSTANCE_ADMIN)
     PodMembership.objects.create(member=admin, pod=pod)
     return admin
 
@@ -158,6 +154,7 @@ def test_the_help_line_survives_an_admin_with_a_one_word_name() -> None:
 def test_about_is_reachable_from_settings_and_says_who_runs_this() -> None:
     pod = _family()
     admin = _instance_admin(pod, "Jim Whitfield")
+    assert admin.user is not None
     client = Client()
     client.force_login(admin.user, backend=_BACKEND)
 
@@ -175,6 +172,7 @@ def test_the_licence_line_is_no_longer_under_every_photograph() -> None:
     screen the family looks at most."""
     pod = _family()
     admin = _instance_admin(pod)
+    assert admin.user is not None
     client = Client()
     client.force_login(admin.user, backend=_BACKEND)
     feed = client.get(reverse("feed")).content.decode()

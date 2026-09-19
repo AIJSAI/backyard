@@ -29,12 +29,11 @@ class AccountAdapter(DefaultAccountAdapter):  # type: ignore[misc]  # allauth is
     error_messages = {
         **DefaultAccountAdapter.error_messages,
         "username_password_mismatch": (
-            'That username or password did not work. Try again, or use '
+            "That username or password did not work. Try again, or use "
             '"Forgot your password?" below.'
         ),
         "email_password_mismatch": (
-            'That email or password did not work. Try again, or use '
-            '"Forgot your password?" below.'
+            'That email or password did not work. Try again, or use "Forgot your password?" below.'
         ),
         "incorrect_password": "That password did not match. Try again.",
         "too_many_login_attempts": (

@@ -113,7 +113,7 @@ class Member(models.Model):
         (POD_OWNER, "Pod owner"),
         (YARD_ADMIN, "Yard admin"),
         (INSTANCE_ADMIN, "Instance admin"),
-        (SUPERVISED, "Supervised member"),
+        (SUPERVISED, "Child account"),
     ]
     # S-907. The roster used to render these five names and nothing else, so the
     # relative being handed the admin controls had to be TOLD, out of band, what

@@ -221,7 +221,7 @@ def test_the_family_email_carries_no_banned_word_in_subject_or_body() -> None:
     # is a scan of a real email rather than of an empty string.
     assert "A photo from the weekend" in built.text
     for part, name in ((built.subject, "subject"), (built.text, "text body")):
-        assert not _offences(_prose(part), set()), f"the Family email's {name}: {part[:200]!r}"
+        assert not _offences(_prose(str(part)), set()), f"the Family email's {name}: {part[:200]!r}"
     assert not _offences(_prose(_visible_text(built.html)), set()), "the Family email's HTML"
 
 
@@ -245,8 +245,8 @@ def test_the_address_confirmation_email_carries_no_banned_word() -> None:
     assert len(mail.outbox) == 1
     message = mail.outbox[0]
     assert "confirm" in message.body.lower()  # non-vacuity: it is the confirmation
-    assert not _offences(_prose(message.subject), set()), message.subject
-    assert not _offences(_prose(message.body), set()), message.body
+    assert not _offences(_prose(str(message.subject)), set()), message.subject
+    assert not _offences(_prose(str(message.body)), set()), message.body
 
 
 @pytest.mark.django_db(transaction=True)
@@ -295,8 +295,8 @@ def test_the_account_email_allauth_sends_at_join_carries_no_banned_word() -> Non
     )
     assert "cousinreed" not in message.body, "the e-mail prints the member's username"
     assert "register an account" not in message.body
-    assert not _offences(_prose(message.subject), set()), message.subject
-    assert not _offences(_prose(message.body), set()), message.body
+    assert not _offences(_prose(str(message.subject)), set()), message.subject
+    assert not _offences(_prose(str(message.body)), set()), message.body
 
 
 def test_no_exclamation_marks_in_the_product_copy() -> None:

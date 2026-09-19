@@ -31,14 +31,15 @@ looking, and an explainer is not something to be refused.
 
 from __future__ import annotations
 
-from allauth.core import ratelimit
+from typing import cast
+
 from allauth.account.models import EmailAddress
+from allauth.core import ratelimit
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
-from typing import cast
 
 from . import digesting, scoping
 from .feed_views import _acting_member
@@ -75,8 +76,8 @@ def _known_address(member: Member) -> str:
         return ""
     address = EmailAddress.objects.filter(user=member.user).order_by("-primary", "pk").first()
     if address is not None:
-        return address.email
-    return member.user.email or ""
+        return str(address.email)
+    return str(member.user.email or "")
 
 
 @login_required

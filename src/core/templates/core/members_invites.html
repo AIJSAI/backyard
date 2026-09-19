@@ -35,7 +35,7 @@ ul.invites .invite-actions form { margin: 0; }
           {% elif invite.expires_at <= now %}
             <span class="flag">expired</span> This link stopped working on {{ invite.expires_at|date:"M j, Y" }}.
           {% elif invite.use_count >= invite.max_uses %}
-            <span class="flag">full</span> {{ invite.max_uses }} people have used this link, which is all it allows.
+            <span class="flag">full</span> {{ invite.max_uses }} {{ invite.max_uses|pluralize:"person,people" }} have used this link, which is all it allows.
           {% else %}
             Works until {{ invite.expires_at|date:"M j, Y" }}, for up to {{ invite.max_uses }} people.
           {% endif %}

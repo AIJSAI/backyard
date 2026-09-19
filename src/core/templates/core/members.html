@@ -11,9 +11,15 @@
    "No-login link" floated in the middle of an indented select with "Change role"
    stacked under it, and Dave's row laid out differently from Priya's because his name
    is shorter. Below 40rem a member is a stack, not a row. */
+/* The row's links are ONE group, so they keep real gaps between them and no label
+   splits across a line break. Without this, "Edit profile No-login link Get back in link"
+   ran together as a single phrase at 390px and wrapped mid-label. */
+.member-links { display: flex; flex-wrap: wrap; align-items: center; gap: 0 1.1rem; }
+.member-links a { white-space: nowrap; padding: 0.4rem 0; }
 @media (max-width: 40rem) {
   .member-head { display: block; }
-  .member-head form.inline { display: block; margin-top: 0.75rem; }
+  .member-head .member-links { margin-top: 0.1rem; }
+  .member-head form.inline { display: block; margin-top: 0.6rem; }
   .member-head form.inline select { width: 100%; min-width: 0; max-width: 20rem; }
 }
 
@@ -92,8 +98,11 @@
         <div class="member-head">
           <span class="member-name">{{ row.member.display_name }}</span>
           {% if row.member.kinship_name %}<span class="muted">({{ row.member.kinship_name }})</span>{% endif %}
+          {% comment %} One badge, not two. The role pill and a second amber flag both
+             said the same thing about a child's account, side by side on the same row.
+             {% endcomment %}
           <span class="role">{{ row.member.get_role_display }}</span>
-          {% if row.member.is_supervised %}<span class="flag">child account</span>{% endif %}
+          <span class="member-links">
           {% if row.can_edit_profile %}
             <a href="{% url 'managed_profile_edit' row.member.id %}">Edit profile</a>
           {% endif %}
@@ -115,6 +124,7 @@
           {% if row.can_issue_recovery %}
             <a href="{% url 'issue_recovery' row.member.id %}">Get back in link</a>
           {% endif %}
+          </span>
           {% if row.manageable %}
             {% if row.assignable_roles %}
               {% comment %} The select used to render only the roles the actor could GRANT,
