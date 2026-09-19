@@ -2,7 +2,7 @@
 
 **A private, self-hosted social network for your extended family.** Each household gets a pod. Each side of the family shares a backyard.
 
-> Status: **pre-release, July 2026.** It runs, and it is not shared with anyone yet. The
+> Status: **pre-release.** It runs, it is deployed, and it is not shared with anyone yet. The
 > author's own family gets it first, after he has manually QA'd it end to end. Built in
 > public, decisions first, code second — the honest ledger of what is and is not done
 > lives in [PATH-TO-100.md](docs/PATH-TO-100.md) and the
@@ -95,8 +95,8 @@ This project runs on evidence, in public:
 - [OSS landscape](docs/research/2026-07-19-github-oss-landscape.md): what exists, what died, and why.
 - [Decision records](docs/adr/): the six load-bearing calls — [license](docs/adr/ADR-000-license.md), [name](docs/adr/ADR-001-name.md), [stack](docs/adr/ADR-002-stack.md), [forwardable token links](docs/adr/ADR-003-token-links.md), [deferring Postgres RLS](docs/adr/ADR-004-rls.md), [the batched policy defaults](docs/adr/ADR-005-batched-defaults.md).
 - [Threat model](docs/security/threat-model.md): the adversaries, and every row's honest residual risk. Self-authored, un-reviewed by anyone else — which is itself a stated limitation.
-- [Path to 100%](docs/PATH-TO-100.md): the definition of done. A box only gets checked with an evidence link, and CI enforces it. Two boxes carry corrections where their own evidence had rotted.
-- [Build receipts](docs/receipts/): the running record — forty of them, including the bugs found while verifying the fix for the previous bug.
+- [Path to 100%](docs/PATH-TO-100.md): the definition of done. A box only gets checked with an evidence link, and CI enforces it. Several boxes carry corrections where their own evidence had rotted — struck through rather than deleted, so you can see what was believed and when.
+- [Build receipts](docs/receipts/): the running record — `ls docs/receipts/` for how many — including the bugs found while verifying the fix for the previous bug.
 
 New here? **[docs/README.md](docs/README.md)** is the map.
 

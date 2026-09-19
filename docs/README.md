@@ -1,7 +1,8 @@
 # Backyard docs
 
-Ninety-odd files live under `docs/`, and most of them are a **working record** rather than
-documentation. This page exists so you do not have to guess which is which.
+A hundred-odd files live under `docs/` (`find docs -type f | wc -l` for the real number), and
+most of them are a **working record** rather than documentation. This page exists so you do
+not have to guess which is which.
 
 Three doors:
 
