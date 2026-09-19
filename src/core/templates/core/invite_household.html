@@ -52,8 +52,12 @@
   <form method="post" action="{% url 'invite_household' %}">
     {% csrf_token %}
     <input type="hidden" name="intent" value="{{ intent }}">
+    {% comment %} What they typed, so a rejected form comes back filled in — the same rule
+       the join form already follows. A validation error used to hand back an empty page.
+       {% endcomment %}
     <label for="household_name">Household name</label>
     <input id="household_name" type="text" name="household_name" maxlength="100"
+           value="{{ typed_household_name|default:'' }}"
            placeholder="e.g. The Davis family" required>
     {% comment %} Checkboxes, not a single `<select>`. A household in BOTH sides is the
        bridging household — the case the isolation model is built around and the diagram
@@ -92,7 +96,8 @@
           both, and the two sides still never see each other.</p>
         {% for yard in yards %}
           <label class="inline-check">
-            <input type="checkbox" name="yard_ids" value="{{ yard.id }}">
+            <input type="checkbox" name="yard_ids" value="{{ yard.id }}"
+                   {% if yard.id in ticked_yard_ids %}checked{% endif %}>
             {{ yard.name }}
           </label>
         {% empty %}
@@ -115,9 +120,14 @@
        link hands out authority. {% endcomment %}
     {% if can_grant_side_admin %}
       <fieldset>
-        <legend>Who this household&rsquo;s first person will be</legend>
+        <legend>Hand this side over</legend>
+        {% comment %} ECHOED BACK on the error path. A validation error re-rendered this
+           box empty, so an admin who fixed the household name and submitted again handed
+           over a link that appoints nobody — the exact defect this control exists to cure,
+           reintroduced by a blank checkbox. {% endcomment %}
         <label class="inline-check">
-          <input type="checkbox" name="grants_side_admin" value="1">
+          <input type="checkbox" name="grants_side_admin" value="1"
+                 {% if grants_side_admin_ticked %}checked{% endif %}>
           The first person to join with this link becomes the side admin
         </label>
         <p class="hint">They will be able to add and remove people on their side of the

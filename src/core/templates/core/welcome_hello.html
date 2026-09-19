@@ -40,7 +40,8 @@
      a family page is. This does not explain the job — the guide does — it says where the
      job lives, once, and then gets out of the way. {% endcomment %}
   {% if is_admin %}
-    <p class="notice">You look after a side of the family.
+    <p class="notice">{% if is_instance_admin %}You look after this whole family.{% else %}You
+      look after a side of the family.{% endif %}
       <a href="{% url 'members' %}">Family members</a> is where you add and remove people,
       and <a href="{% url 'admins_day_one' %}">a guide for the two of you</a> walks through
       the first few things.</p>

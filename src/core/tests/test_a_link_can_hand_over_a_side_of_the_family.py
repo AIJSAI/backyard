@@ -522,3 +522,148 @@ def test_an_ordinary_newcomer_is_not_shown_the_admin_line(world: World) -> None:
     body = client.get(reverse("welcome_hello")).content.decode()
 
     assert "You look after a side of the family" not in body
+
+
+# --- the form survives its own errors ---------------------------------------------------
+
+
+def test_a_validation_error_keeps_the_role_grant_ticked(world: World) -> None:
+    """The defect R2-6 exists to cure, reintroduced by a blank checkbox.
+
+    The form re-rendered with the box empty after a validation error, so an admin who
+    ticked it, got "Give the household a name.", fixed the name and submitted again handed
+    over an ORDINARY link that appoints nobody — and nothing on any screen would say so
+    until the relative arrived as a plain member. What they typed and ticked comes back.
+    """
+    client = _client_for(world.family_admin)
+    response = client.post(
+        reverse("invite_household"),
+        {
+            "household_name": "   ",  # refused: no name
+            "yard_ids": [str(world.maternal.id), str(world.paternal.id)],
+            "grants_side_admin": "1",
+            "intent": _intent(client),
+        },
+    )
+    body = response.content.decode()
+
+    assert "Give the household a name." in body
+    assert not Invite.objects.exists(), "it created a household despite refusing"
+    ticked = body[
+        body.index('name="grants_side_admin"') : body.index('name="grants_side_admin"') + 120
+    ]
+    assert "checked" in ticked, f"the tick was dropped on the error path: {ticked}"
+    # ...and the sides they picked come back too, so the resubmission is one keystroke.
+    for yard in (world.maternal, world.paternal):
+        box = body[body.index(f'name="yard_ids" value="{yard.id}"') :][:120]
+        assert "checked" in box, f"the side {yard.name} lost its tick: {box}"
+
+
+def test_an_unticked_box_stays_unticked_after_an_error(world: World) -> None:
+    """Non-vacuity: a template that printed `checked` unconditionally would pass the test
+    above and silently arm every retried invite."""
+    client = _client_for(world.family_admin)
+    response = client.post(
+        reverse("invite_household"),
+        {
+            "household_name": "",
+            "yard_ids": [str(world.maternal.id)],
+            "intent": _intent(client),
+        },
+    )
+    body = response.content.decode()
+    ticked = body[
+        body.index('name="grants_side_admin"') : body.index('name="grants_side_admin"') + 120
+    ]
+    assert "checked" not in ticked, f"an untouched box came back ticked: {ticked}"
+
+
+def test_the_string_zero_is_not_a_tick(world: World) -> None:
+    """`bool("0")` is True, so the first version read the value a hand-made request or a
+    scripted caller is most likely to send for "no" as a yes. The checkbox sends "1" and
+    nothing at all, so the comparison is to "1"."""
+    _create_raw = _client_for(world.family_admin)
+    response = _create_raw.post(
+        reverse("invite_household"),
+        {
+            "household_name": "The Nolan family",
+            "yard_ids": [str(world.maternal.id)],
+            "grants_side_admin": "0",
+            "intent": _intent(_create_raw),
+        },
+    )
+    assert response.status_code == 200
+    assert Invite.objects.get(pod__name="The Nolan family").grants_role is None
+
+
+# --- the ledger tells the truth about a dead link ----------------------------------------
+
+
+@pytest.mark.parametrize("kill", ["revoked", "expired"])
+def test_a_dead_link_nobody_used_says_it_handed_out_nothing(world: World, kill: str) -> None:
+    """It said "The first person to join with this link becomes the side admin" directly
+    under "This link no longer works" — a promise in the present tense about a link that
+    cannot keep it, on the page an admin reads to work out whether the side has actually
+    been handed over."""
+    invite, _raw = invites.mint_invite(
+        world.m_pod, world.family_admin, grants_role=Member.YARD_ADMIN
+    )
+    if kill == "revoked":
+        Invite.objects.filter(pk=invite.pk).update(revoked_at=timezone.now())
+    else:
+        Invite.objects.filter(pk=invite.pk).update(expires_at=timezone.now() - timedelta(days=1))
+
+    ledger = _text(_client_for(world.family_admin).get(reverse("member_invites")).content.decode())
+
+    assert "Nobody used it and it no longer works, so it handed out nothing." in ledger, ledger
+    assert "The first person to join with this link becomes the side admin." not in ledger
+
+
+def test_a_dead_link_whose_role_was_taken_still_names_who_took_it(world: World) -> None:
+    """Revoking takes nothing back from the person who already joined, and that is the fact
+    an admin most needs off this page."""
+    invite, raw = invites.mint_invite(
+        world.m_pod, world.family_admin, grants_role=Member.YARD_ADMIN
+    )
+    invites.redeem_invite(raw, display_name="The Delegate", user_id=None)
+    Invite.objects.filter(pk=invite.pk).update(revoked_at=timezone.now())
+
+    ledger = _text(_client_for(world.family_admin).get(reverse("member_invites")).content.decode())
+
+    assert "The Delegate joined first, so they are the side admin." in ledger, ledger
+    assert "handed out nothing" not in ledger
+
+
+def test_a_live_link_still_says_what_it_will_do(world: World) -> None:
+    """The third state, so the branch above cannot swallow the live one."""
+    invites.mint_invite(world.m_pod, world.family_admin, grants_role=Member.YARD_ADMIN)
+    ledger = _text(_client_for(world.family_admin).get(reverse("member_invites")).content.decode())
+    assert "The first person to join with this link becomes the side admin." in ledger
+    assert "handed out nothing" not in ledger
+
+
+# --- the welcome line is true of whoever reads it -----------------------------------------
+
+
+def test_the_family_admin_is_not_told_they_look_after_one_side(world: World) -> None:
+    """The line said "You look after a side of the family" to whoever was an admin, which
+    is the one thing the family admin's role is not: they reach every side. Only a
+    role-granting link puts a side admin on this screen, but the founder and anybody
+    promoted can open the welcome again."""
+    assert world.family_admin.user is not None
+    client = Client()
+    client.force_login(world.family_admin.user, backend=_BACKEND)
+    body = _text(client.get(reverse("welcome_hello")).content.decode())
+
+    assert "You look after this whole family." in body, body[:1200]
+    assert "You look after a side of the family" not in body
+
+
+def test_a_side_admin_is_told_they_look_after_a_side(world: World) -> None:
+    assert world.side_admin.user is not None
+    client = Client()
+    client.force_login(world.side_admin.user, backend=_BACKEND)
+    body = _text(client.get(reverse("welcome_hello")).content.decode())
+
+    assert "You look after a side of the family." in body, body[:1200]
+    assert "this whole family" not in body

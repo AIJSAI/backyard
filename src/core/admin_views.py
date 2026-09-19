@@ -662,10 +662,23 @@ def invite_household(request: HttpRequest) -> HttpResponse:
         # family admin, so this field arriving from anybody else was made by hand — and
         # the honest answer to a hand-made attempt at privilege is 403, not a household
         # that quietly comes out different from the one the request asked for.
-        wants_side_admin = bool(request.POST.get("grants_side_admin"))
+        #
+        # `== "1"` and not `bool(...)`: the checkbox sends the literal "1" and nothing at
+        # all when unticked, so an explicit comparison is what the control actually does.
+        # `bool()` also read "0" as ticked, which is the value a hand-made request or a
+        # future scripted caller is most likely to send for "no".
+        wants_side_admin = request.POST.get("grants_side_admin") == "1"
         if wants_side_admin and not may_grant:
             raise PermissionDenied
         grants_role = Member.YARD_ADMIN if wants_side_admin else None
+        # ECHOED BACK on the error path, which is the whole point of holding it in the
+        # context. A validation error re-rendered the form with this box empty, so the
+        # admin fixed the household name, submitted again, and handed over a link that
+        # appoints nobody — the exact defect R2-6 exists to cure, reintroduced by a blank
+        # checkbox. The household name and the ticked sides get the same treatment below.
+        context["grants_side_admin_ticked"] = wants_side_admin
+        context["typed_household_name"] = request.POST.get("household_name", "").strip()
+        context["ticked_yard_ids"] = {yard.pk for yard in yards}
         name = request.POST.get("household_name", "").strip()
         if not name or len(name) > 100:
             errors.append("Give the household a name.")

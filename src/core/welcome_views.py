@@ -208,6 +208,13 @@ def welcome_hello(request: HttpRequest) -> HttpResponse:
             # answer "what now" — and asked of `permissions.is_admin` rather than of the
             # invite, so a member promoted on the roster an hour later sees it too if they
             # ever open the welcome again.
+            #
+            # BOTH ROLES, said accurately. The line told the family admin they "look after
+            # a side of the family", which is the one thing their role is not: they reach
+            # every side. Only a role-granting link puts a side admin here, but the founder
+            # and anybody promoted can open the welcome again, and a sentence that is wrong
+            # about the reader is worse than no sentence.
             "is_admin": permissions.is_admin(member),
+            "is_instance_admin": permissions.is_instance_admin(member),
         },
     )

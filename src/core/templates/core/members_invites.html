@@ -48,6 +48,14 @@ ul.invites .invite-actions form { margin: 0; }
            somebody has, the link is an ordinary invite for everybody after them and
            revoking it takes nothing back from the person who already joined.
            {% endcomment %}
+        {% comment %} THREE states, not two. A revoked or expired link that nobody used
+           still said "The first person to join with this link becomes the side admin"
+           directly under "This link no longer works" — a promise in the present tense
+           about a link that cannot do it, on the page an admin reads to work out whether
+           the side has actually been handed over. A link whose role WAS taken keeps naming
+           who took it whatever its state afterwards: revoking it takes nothing back from
+           the person who already joined, and that is the fact the admin most needs.
+           {% endcomment %}
         {% if invite.grants_role %}
           <span class="invite-state">
             {% with holder=invite.role_grant_holder %}
@@ -55,6 +63,10 @@ ul.invites .invite-actions form { margin: 0; }
                 <span class="flag">side admin</span> {{ holder.display_name }} joined
                 first, so they are the side admin. Anyone else using this link joins as a
                 member.
+              {% elif invite.revoked_at or invite.expires_at <= now %}
+                <span class="flag">side admin</span> This link would have made its first
+                joiner the side admin. Nobody used it and it no longer works, so it handed
+                out nothing.
               {% else %}
                 <span class="flag">side admin</span> The first person to join with this
                 link becomes the side admin. Everyone after them joins as a member.
