@@ -852,6 +852,10 @@ label.inline-check.email-row { flex-wrap: wrap; }
    the native control, so nobody could confirm they had chosen the right picture. */
 ul.media-previews { list-style: none; display: flex; flex-wrap: wrap;
   gap: 0.75rem; margin: 0.9rem 0 0; padding: 0; }
+/* `display: flex` above beats the UA's `[hidden] { display: none }`, so the EMPTY strip was
+   still a box with a top margin: invisible under the old stacked layout, and 7px of
+   misalignment the day the photo button and Post came to share a row. */
+ul.media-previews[hidden] { display: none; }
 ul.media-previews > li { width: 6.5rem; }
 ul.media-previews img, ul.media-previews .media-kind {
   display: block; width: 6.5rem; height: 6.5rem; object-fit: cover;
