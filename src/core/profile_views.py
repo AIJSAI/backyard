@@ -354,9 +354,7 @@ def _photo_post(request: HttpRequest, member: Member, actor: Member) -> HttpResp
     except media.MediaRejected:
         # The composer's own sentence for the same event, so a member who meets this in
         # the feed and one who meets it here read one wording, not two.
-        return _photo_error(
-            request, member, actor, "The file was not an image Backyard can read."
-        )
+        return _photo_error(request, member, actor, "The file was not an image Backyard can read.")
     messages.success(request, "Photo saved.")
     return _back_to_profile(member, actor)
 
@@ -365,9 +363,7 @@ def _too_large_message() -> str:
     return f"Photo must be {_MAX_PHOTO_BYTES // (1024 * 1024)} MB or smaller."
 
 
-def _photo_error(
-    request: HttpRequest, member: Member, actor: Member, message: str
-) -> HttpResponse:
+def _photo_error(request: HttpRequest, member: Member, actor: Member, message: str) -> HttpResponse:
     return render(request, "core/profile_edit.html", _edit_context(member, [message], actor))
 
 

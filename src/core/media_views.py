@@ -19,7 +19,7 @@ from django.db.models import Q
 from django.http import FileResponse, Http404, HttpRequest
 from django.views.decorators.http import require_safe
 
-from . import scoping, viewers
+from . import viewers
 from .models import MediaAsset
 
 
@@ -72,27 +72,24 @@ def serve_profile_photo(request: HttpRequest, token: str) -> FileResponse:
     """One member's profile photo, to a viewer entitled to see that member (S-901).
 
     The same shape as serve_media and a DIFFERENT audience, deliberately. A face is not
-    attached to a post, so the rule it re-checks is the one the directory already uses
-    for "which members can this viewer see" (scoping.visible_profile_photos over
-    visible_members). Three consequences, each of which has a test:
+    attached to a post, so the rule is the one the directory already uses for "which
+    members can this viewer see", and like serve_media this view asks the READER for it
+    rather than reaching for scoping itself — the ceiling a credential carries belongs
+    with the credential (viewers.Reader.visible_profile_photos). Four consequences, each
+    of which has a test:
 
     * a member on the far side of a bridge is refused, token or no token, exactly as
       they are refused that member's row in the directory (S-902, TM-1);
     * an elder holding a No-Login Link resolves to her own member here, so she reaches
       the faces of the people whose posts she is being shown — the same widening of
       AUTHENTICATION, never of authorization, that let her see their photographs;
+    * a digest token reaches no face at all: it is ceilinged to one issue's posts, and a
+      face is in no issue;
     * an anonymous request resolves no reader at all and gets the bare 404.
-
-    No `d=` digest token, unlike serve_media: that credential is ceilinged to one issue's
-    posts (viewers.Reader.digest_issue), a face is in no issue, and resolving it here
-    would quietly widen a per-issue read link into a standing "what does everyone in this
-    family look like" credential. Email carries no fetched resource either way.
     """
-    reader = viewers.resolve_reader(request)
+    reader = viewers.resolve_reader(request, digest_token=request.GET.get("d"))
     photo = (
-        scoping.visible_profile_photos(reader.member)
-        .filter(Q(token=token) | Q(thumbnail_token=token))
-        .first()
+        reader.visible_profile_photos().filter(Q(token=token) | Q(thumbnail_token=token)).first()
     )
     if photo is None:
         raise Http404

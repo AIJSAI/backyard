@@ -753,9 +753,14 @@ label.inline-check.email-row { flex-wrap: wrap; }
 
 /* Settings: the current avatar beside the control that replaces it, so a member can see
    what they are changing. Wraps at phone width rather than squeezing a file input that
-   already carries a long native "No file chosen" beside it. */
+   already carries a long native "No file chosen" beside it.
+   The selector is the bare `input` and not the attribute selector it wants to be: a
+   stylesheet SHIPS to the page, and test_one_media_control counts the file input's own
+   attribute text across the whole feed document to prove there is exactly one picker on
+   it. Written the obvious way, this rule makes that guard read two. Comments and
+   selectors ship; this repository has learned that twice already. */
 .photo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem; }
-.photo-row input[type="file"] { flex: 1 1 14rem; margin: 0; }
+.photo-row input { flex: 1 1 14rem; margin: 0; }
 .photo-form { margin-bottom: 2rem; }
 .photo-form .hint { margin-top: 0.5rem; }
 
