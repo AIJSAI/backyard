@@ -79,8 +79,14 @@
 
   {% if households %}{% include "core/_composer_media.html" %}{% endif %}
 
-  {% comment %} A plain link, not a POST: the welcome is already marked as seen by the
-     time this screen renders, so leaving it changes nothing. {% endcomment %}
+  {% comment %} Plain links, not POSTs: the welcome is already marked as seen by the time
+     this screen renders, so leaving it changes nothing. TWO WAYS ON, because every screen
+     of the welcome is skippable to a real target (welcome_views): the home-screen steps,
+     named for what they are, and the feed. The first cut replaced "Go To Your Backyard"
+     with "Next", which led only DEEPER into the flow and is not a control this product
+     writes (a button is verb plus object). A member who posts from the composer above is
+     redirected to the feed by `compose` and sees neither; Settings carries the steps. {% endcomment %}
+  <p><a class="btn-secondary btn" href="{% url 'welcome_app' %}">Get The App</a></p>
   <p><a class="btn-secondary btn" href="{% url 'feed' %}">Go To Your Backyard</a></p>
   <p class="muted"><a href="{% url 'how_it_works' %}">How It Works</a> explains who can see
     your posts.</p>

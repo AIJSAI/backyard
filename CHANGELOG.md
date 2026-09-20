@@ -77,9 +77,32 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   Family Admin; and, for someone with no sign-in of their own, an admin who manages them.
   Nobody removes a photo they cannot see. A side admin does not put a face on, or take
   one off, an adult who can do it themselves.
+- **Backyard goes on a phone's home screen, and the product finally says how.** The
+  manifest, the icons and the service worker that make this possible have shipped since
+  `0.1.0`; nothing on any screen ever mentioned them, so the only people with Backyard as
+  an app were the ones who already knew what Safari's Share sheet does. There is now a
+  **Get The App** page at `/app/` with the steps for the phone in your hand first and the
+  other platform below it: three steps on an iPhone (Share, Add to Home Screen, Add), and
+  on Android a real **Install App** button with the browser-menu steps behind it for the
+  browsers that do not offer one. Opened inside Instagram, Facebook or LinkedIn, where no
+  home screen can be reached at all (or in the Google app's viewer, where a link from Gmail
+  opens on Android), it says to open in a browser first. Opened from an already-installed
+  Backyard, it says so instead of showing steps. It is reached from Settings, from the last
+  screen of the welcome a new member sees, and from How It Works when signed in. One quiet
+  line on the feed offers it too, on a phone only, to a member whose e-mail offer has been
+  answered (the feed shows one prompt at a time, that one goes first, and neither appears
+  on the page that follows a "Not Now"); it remembers being declined on that device.
+  Nothing was added to the No-Login Link or the email pages, which install nothing by design.
+- **The installed app may ask you to sign in once more, and the page says what to do.** On
+  an iPhone a home-screen app keeps its own sign-in, separate from Safari. A Sign-In Link
+  from an admin usually opens in the browser, not the app: choose a password there, note
+  the username the next screen shows, and sign in to the app with both.
+- **The manifest now states its own `id`.** It is the value it already had implicitly,
+  `/feed/`, written down so it cannot drift: a different `id` reads to Chrome as a
+  different app, which would leave a second icon beside an existing install. Nothing about
+  an installed Backyard changes.
 - Upgrade note: migration `0033` is additive. Rolling back past it drops the table and
   leaves `media/avatar/` and `media/avatar-small/` on the volume; remove them by hand.
-
 
 ## [0.1.8] — 2026-09-20
 

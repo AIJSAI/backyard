@@ -465,9 +465,39 @@ def _is_lowercased(word: str) -> bool:
         return False
     for half in _halves(stripped):
         first = next((ch for ch in half if ch.isalpha()), "")
-        if first and first.islower():
+        if first and first.islower() and not _brand_cased(half):
             return True
     return False
+
+
+# Words whose case belongs to somebody else, NAMED rather than inferred. The first cut of
+# this rule accepted any internal capital as the evidence, which let "eMail Updates" and
+# "myBackyard Home" through: a heading that mis-cases this product's own glossary shipped
+# green. Lower-case key, canonical spelling as the value, so the printed fix is right too.
+_BRAND_CASED = {
+    "iphone": "iPhone",
+    "ipad": "iPad",
+    "ipod": "iPod",
+    "ios": "iOS",
+    "ipados": "iPadOS",
+    "macos": "macOS",
+}
+
+
+def _brand_cased(half: str) -> bool:
+    """A product name written the way its owner writes it: "iPhone", "iPad", "iOS".
+
+    `test_title_case.py`'s module docstring has always claimed "iPhone" passes untouched,
+    and it did not: only the first letter was examined, so the one heading in this product
+    that has to name Apple's phone would have failed the capitalisation rule with no way to
+    satisfy it except misspelling a product name. That is the same class of mistake the
+    `_MACHINE` clause already avoids for an address: a token whose case belongs to somebody
+    else is not this rule's to move.
+
+    EXACT, on purpose. Only the canonical spelling passes, so "iphone", "Iphone" and
+    "eMail" are offences exactly as before.
+    """
+    return _BRAND_CASED.get(half.strip(_EDGE).lower()) == half.strip(_EDGE)
 
 
 def title_cased(text: str) -> str:
@@ -488,6 +518,10 @@ def title_cased(text: str) -> str:
         body = word[len(lead) : len(word) - len(tail)]
         halves: list[str] = []
         for half in _halves(body):
+            canonical = _BRAND_CASED.get(half.lower())
+            if canonical is not None:
+                halves.append(canonical)  # "iphone" -> "iPhone", never "Iphone"
+                continue
             index = next((i for i, ch in enumerate(half) if ch.isalpha()), None)
             halves.append(
                 half if index is None else half[:index] + half[index].upper() + half[index + 1 :]

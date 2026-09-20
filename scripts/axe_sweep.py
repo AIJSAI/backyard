@@ -80,6 +80,7 @@ SURFACES: list[tuple[str, str, bool]] = [
     # read. The id is resolved from the directory at run time (see MEMBER_PROFILE below),
     # because a hard-coded id 404s on any instance but the one it was written against.
     ("profile", "/settings/profile/", False),
+    ("get-the-app", "/app/", False),
     ("notifications", "/settings/notifications/", False),
     ("digest-settings", "/settings/digest/", False),
     ("password-change", "/accounts/password/change/", False),

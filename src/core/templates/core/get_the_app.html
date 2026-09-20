@@ -1,0 +1,52 @@
+{% extends "core/base.html" %}
+{% comment %} The page that says the install exists (S-103). The manifest, the icons and the
+   worker have shipped since wave 5; nothing in the product ever told a relative that
+   Safari's Share sheet is where the app comes from, so the feature was reachable only by
+   somebody who already knew how it worked.
+
+   SHORT ENOUGH FOR ONE PHONE SCREEN PER PLATFORM. Three steps, three lines. Everything that
+   decides which steps to show lives in core/_install_steps.html, which the last welcome
+   screen includes too.
+
+   NO NAMES AND NO PRIVATE LINKS on the page itself: it is signed in (pwa_views.get_the_app
+   says why), and the only thing it points at is this same Backyard. {% endcomment %}
+{% block title %}Get The App{% endblock %}
+{% block extra_head %}{% include "core/_install_steps_style.html" %}{% endblock %}
+{% block body %}
+  <h1>Get The App</h1>
+  {% comment %} "It is not in the App Store or Google Play" is the one place this is said, and
+     it is an instruction, not a defence: a relative told "get the app" goes to the store and
+     searches, finds nothing, and concludes it does not exist. {% endcomment %}
+  <p class="muted" data-install-lead>Add Backyard to your home screen. It opens like an
+    app. It is not in the App Store or Google Play: the steps below are the whole install.</p>
+
+  {% include "core/_install_steps.html" %}
+
+  {% comment %} THE ONE THING THAT SURPRISES PEOPLE. An installed home-screen app on iOS has
+     its own storage, separate from Safari's (webkit.org/blog/10218), so the session a
+     relative has in Safari right now does not exist inside the icon they just made: they
+     open it and see the sign-in page, which reads as "it did not work". An Android
+     install usually shares the browser's, so the sentence says "may", and it is true on
+     every phone that reads it.
+
+     The second paragraph is the case this product creates. An admin-issued Sign-In Link
+     (core/recovery.py) is handed over by text and opens wherever that phone opens links:
+     a browser, or a mail app's own viewer, and on Android sometimes the installed app. So
+     "usually", and "your browser", never "Safari". What the link does is set a password
+     and then show the sign-in page WITH THE USERNAME FILLED IN (recovery_views.redeem):
+     that is the only time this member is shown their username, they are by construction
+     somebody with no e-mail on file, and the installed app opens with that box empty.
+     The first cut told them to "sign in with that password" and left the username out,
+     which walks them into the dead end the recovery flow was built to remove. {% endcomment %}
+  <h2>Signing In</h2>
+  <p>The app may ask you to sign in again, once. On an iPhone it keeps its own sign-in,
+    separate from Safari.</p>
+  <p>A Sign-In Link usually opens in your browser, not in the app. Use it to choose a
+    password, and note the username on the next screen. Then open Backyard from your home
+    screen and sign in with that username and password.</p>
+  {% comment %} NO BACK LINK, and no onward link either. This page is a leaf reached from
+     four places — Settings, How It Works, the last welcome screen and the feed's one quiet
+     line — so any "Back To ..." here would name the wrong one for three of its readers. The
+     header is sticky and already carries Feed and Settings, which is the rule base.html
+     states for exactly this case. {% endcomment %}
+{% endblock %}

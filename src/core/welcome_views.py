@@ -6,11 +6,13 @@ sides of the family they were in. It never said what this place IS, never offere
 updates, and never helped with a first post — so the three things a relative actually
 needs on day one were the three things nobody told them.
 
-Three screens, in the order a person asks the questions:
+Four screens, in the order a person asks the questions:
 
   1. what this is          — two sentences, and nothing else on the screen
   2. Email Updates         — weekly, monthly or off, address already filled in
   3. say hello             — a composer with a line already written, entirely optional
+  4. get the app           — the home-screen steps, at the one moment they are holding
+                             the phone they will read this on forever after
 
 Every screen is skippable, and skipping is a real control with a real target, not a
 small grey word in a corner. Nothing here is a tour: there are no dots, no step counts
@@ -20,9 +22,10 @@ SEEN-ONCE is `Member.orientation_dismissed_at`, reused rather than joined by a s
 column (owner direction: "Reuse orientation_dismissed_at as the 'has seen the welcome'
 marker"). Migration 0022 backfilled it for everyone who already existed, so the family
 that is already here never sees this. It is stamped when somebody skips out, and when
-screen three renders — by then they have seen all three, which is what the column is
-claiming. It is NOT stamped on arrival: a refresh of screen one would then bounce them
-to the feed mid-sentence.
+screen three renders — by then the three screens that explain the place have been in
+front of them, which is what the column is claiming. Screen four stamps it too, for the
+member who opens that one directly. It is NOT stamped on arrival: a refresh of screen
+one would then bounce them to the feed mid-sentence.
 
 These pages are deliberately not guarded on that stamp. A member who opens /welcome/
 again gets the welcome again; nothing links to it, so this only happens if they went
@@ -217,3 +220,28 @@ def welcome_hello(request: HttpRequest) -> HttpResponse:
             "is_instance_admin": permissions.is_instance_admin(member),
         },
     )
+
+
+@login_required
+def welcome_app(request: HttpRequest) -> HttpResponse:
+    """Screen four: put Backyard on the home screen of the phone they are holding.
+
+    LAST, not third, and that is the whole reason it works: a relative reaches this
+    screen having just read what this place is, chosen how often to hear from it, and
+    written their first line. They are holding the phone. Every later moment is one
+    where somebody has to go looking for Settings.
+
+    Nothing is asked for and no content is written, so leaving is free: "Go To Your
+    Backyard" is this screen's skip, the same shape screen three already uses. A member
+    who posts from screen three lands on the feed instead and never sees this one. The
+    Settings row carries the steps for good; the quiet line on the feed
+    (core/_get_the_app_prompt.html) reaches them only once the e-mail offer above it has
+    been answered, because the feed shows one prompt at a time and that one goes first.
+
+    `_mark_welcomed` again for the reason screen three calls it: idempotent, and it
+    records the first moment rather than this one, so a member who arrives here directly
+    is marked exactly as a member who walked the whole flow.
+    """
+    member = _acting_member(request)
+    _mark_welcomed(member)
+    return render(request, "core/welcome_app.html", {"member": member})
