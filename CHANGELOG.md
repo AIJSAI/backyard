@@ -13,6 +13,13 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
+Nothing yet.
+
+## [0.1.6] — 2026-09-19
+
+Every mail a person receives is drawn in one Backyard layout, and the links in it come from
+the configured site address.
+
 ### Security
 
 - **The confirmation and password reset links in mail are built from the configured site
@@ -951,6 +958,7 @@ Everything here is a correction, not a feature. `v0.1.0` is **withdrawn**: insta
 - The demo family is fully invented; no real relative's name appears.
 - Fonts ship with their licence text (SIL OFL 1.1).
 
+[0.1.6]: https://github.com/AIJSAI/backyard/tree/v0.1.6
 [0.1.5]: https://github.com/AIJSAI/backyard/tree/v0.1.5
 [0.1.4]: https://github.com/AIJSAI/backyard/tree/v0.1.4
 [0.1.3]: https://github.com/AIJSAI/backyard/tree/v0.1.3
