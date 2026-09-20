@@ -1,0 +1,19 @@
+{% extends "core/email/_layout.html" %}
+{% comment %} The HTML half of the "no such account" reply, sent when a reset is asked for
+   at an address nothing here knows (ACCOUNT_PREVENT_ENUMERATION, so the page cannot say
+   so). Same sentences as unknown_account_message.txt.
+
+   NO BUTTON, and that is the message: there is nothing to reset, and signup is closed
+   here, so a link would point at a refusal. The layout draws one only when the context
+   carries `action_url`, and allauth's context for this mail carries no link but
+   `signup_url`, which core/adapters.py deliberately does not map onto the action.
+
+   Its subject is byte-identical to the real reset's, for the enumeration reason, so a
+   reader who gets this one tells it apart by reading it. {% endcomment %}
+{% block heading %}Reset Your Password{% endblock %}
+
+{% block body %}
+      <p style="margin:0 0 12px;">Somebody asked to reset a Backyard password using this address.</p>
+      <p style="margin:0 0 12px;">No account here has confirmed this address, so there is nothing to reset. If this was you, try another address, or ask the person who invited you for a Sign-In Link.</p>
+      <p style="margin:0;">If you did not ask for this, ignore this email.</p>
+{% endblock %}

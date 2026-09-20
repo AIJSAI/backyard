@@ -394,10 +394,12 @@ EMAIL_USE_SSL = env_flag(os.environ.get("EMAIL_USE_SSL", "0"))
 EMAIL_TIMEOUT = 30
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "backyard@localhost")
 # The NAME beside that address in a relative's inbox (walk item 1... item 23, 2026-09-19).
-# Mail from this instance arrived as bare "digests@mail.example" — or, in the clients that
-# shorten it, as "digests" — which is how a family's own photographs come to look like
-# something a spam filter should eat. A display name costs nothing and is the difference
-# between "digests" and "Backyard" in the one line of an inbox anybody reads.
+# Mail from this instance arrived with no name on it at all — and the clients that shorten a
+# sender to the word in front of the "@" then showed whichever local part the operator's
+# provider was configured with, which is how a family's own photographs come to look like
+# something a spam filter should eat. A display name costs nothing and puts "Backyard" in
+# the one line of an inbox anybody reads. The local part matters too, and it is the
+# operator's to set: .env.example and the self-host runbook both say backyard@.
 #
 # Kept SEPARATE from DEFAULT_FROM_EMAIL rather than folded into it: emailing.reply_domain()
 # splits that setting on "@" to derive the reply-capability domain, and "Backyard <a@b>"

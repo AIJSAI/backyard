@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import logging
 
+from django.template.loader import render_to_string
 from django.urls import reverse
 
 from . import digesting, emailing, scoping
@@ -112,6 +113,13 @@ def notify_reply(comment: Comment) -> bool:
                 f"Read the reply from {who}: {url}\n\n"
                 f"You are receiving this because Reply Notifications is on. "
                 f"Turning off Email Updates stops this email too: {stop}"
+            ),
+            # The same two facts in the shared shell. `who` is a member-controlled string
+            # and the template is autoescaped, which is the whole reason the HTML part is
+            # built from a template rather than assembled here.
+            html=render_to_string(
+                "core/email/reply_notification.html",
+                {"who": who, "action_url": url, "stop_url": stop},
             ),
         )
     except Exception:  # noqa: BLE001 - a courtesy must never fail the member's reply

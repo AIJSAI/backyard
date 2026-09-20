@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import unicodedata
 from email.utils import formataddr
+from urllib.parse import urlsplit, urlunsplit
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
@@ -44,6 +45,25 @@ def absolute_url(path: str) -> str:
     if any(ch.isspace() or unicodedata.category(ch) == "Cc" for ch in path):
         raise ValueError("email link paths carry no whitespace or control characters")
     return f"{settings.BASE_URL}{path}"
+
+
+def rebase_url(url: str) -> str:
+    """One allauth-built absolute URL, re-minted on the configured BASE_URL (TS-DJ-14).
+
+    django-allauth builds the address confirmation and the password reset link with
+    `request.build_absolute_uri()`, so their origin is whatever Host header the request
+    carried; every other link in this product comes from BASE_URL and takes no request at
+    all. A credential link is the last place to keep two answers to "which site is this":
+    an operator who widens DJANGO_ALLOWED_HOSTS (`*` boots today) behind an edge that
+    passes the Host through would mail a relative a Backyard-branded button pointing
+    wherever the requester asked, and the HTML part draws it as the one thing to press.
+
+    Only the ORIGIN is replaced. Path, query and fragment carry the capability and are
+    untouched, and `absolute_url`'s refusals still apply, so a path this module would not
+    mint fails the send rather than becoming a link nobody vetted.
+    """
+    parts = urlsplit(url)
+    return absolute_url(urlunsplit(("", "", parts.path or "/", parts.query, parts.fragment)))
 
 
 def reply_domain() -> str:

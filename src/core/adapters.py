@@ -70,6 +70,39 @@ class AccountAdapter(DefaultAccountAdapter):  # type: ignore[misc]  # allauth is
         """
         return emailing.from_address()
 
+    def send_mail(self, template_prefix: str, email: str, context: dict[str, Any]) -> None:
+        """Every mail allauth composes, with its one action link under one name.
+
+        The shared HTML shell (core/email/_layout.html) prints the action link twice — in
+        the button, and again in the fallback line under it that a client refusing to draw
+        a button leaves a locked-out reader with — so it needs the link as a value. allauth
+        calls it `activate_url` in the confirmation and `password_reset_url` in the reset,
+        and normalising that difference here keeps it in one place rather than in each
+        template.
+
+        BOTH LINKS ARE RE-BASED ON BASE_URL (TS-DJ-14). allauth builds them from the
+        request's Host header; core.emailing mints every other link in this product from
+        the configured base and takes no request on purpose, because a Host-poisoned link
+        in mail is the classic emailed-link attack. Reconciled here, where the link is
+        already in hand, and the .txt part gets the same cure as the button.
+
+        `signup_url` is deliberately NOT mapped: it is the only link in the unknown-account
+        reply, signup is closed in this product, and a button pointing at a refusal is
+        worse than no button. A message with neither key simply gets no `action_url`, and
+        the shell draws none.
+        """
+        rebased = {
+            key: emailing.rebase_url(context[key])
+            for key in ("activate_url", "password_reset_url")
+            if context.get(key)
+        }
+        link = rebased.get("activate_url") or rebased.get("password_reset_url")
+        super().send_mail(
+            template_prefix,
+            email,
+            {**context, **rebased, "action_url": link} if link else context,
+        )
+
     def confirm_email(self, request: HttpRequest, email_address: EmailAddress) -> bool:
         """A confirmation link proves control of a MAILBOX. It must not prove an ACCOUNT.
 

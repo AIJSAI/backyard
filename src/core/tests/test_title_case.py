@@ -145,10 +145,23 @@ def test_the_guard_is_not_vacuous() -> None:
         ),
         ('<span class="role">side admin</span>', "badge"),
         ('<option value="x">no change</option>', "<option>"),
+        # The shared e-mail layout draws the heading and the one button; each message
+        # fills them from a child template, where the words have no element around them.
+        (
+            "{% block heading %}confirm your email address{% endblock %}",
+            "{% block heading %} (an e-mail heading)",
+        ),
+        (
+            "{% block action_label %}set a new password{% endblock %}",
+            "{% block action_label %} (an e-mail button)",
+        ),
     ):
         found = title_case_targets(markup)
         assert found, f"{expected} was not found in {markup!r}"
         assert any(where == expected and title_case_offences(text) for where, text in found), found
+    # The layout's own empty definitions of those two blocks are markup, not copy.
+    assert not title_case_targets("{% block heading %}{% endblock %}")
+    assert not title_case_targets("{% block action_label %}{% endblock %}")
     # A link that is NOT navigation and NOT a button is body text, and body text is
     # sentence case. The guard must not reach it.
     assert not title_case_targets("<p>Read <a href='/about/'>about this page</a>.</p>")

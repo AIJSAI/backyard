@@ -13,7 +13,37 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
-Nothing yet.
+### Security
+
+- **The confirmation and password reset links in mail are built from the configured site
+  address, not from the request.** django-allauth builds both with the request's Host
+  header, while every other link this product mails comes from `BACKYARD_BASE_URL`. The
+  shipped Caddy configuration drops a request for a hostname it does not serve, so a default
+  install was not exposed; an instance with a widened `DJANGO_ALLOWED_HOSTS` behind an edge
+  that passes the Host through could have mailed a relative a reset button pointing at
+  somebody else's site. Both links, in the text part and in the button, are now re-minted on
+  the configured base (threat model TS-DJ-14, which already claimed this and is now true).
+
+### Changed
+
+- **Every email Backyard sends now looks like Backyard.** Only the weekly Email Updates
+  message had the house mark, the white card and the green. The address confirmation a new
+  relative gets first, the password reset, the "no such account" reply, the Email Updates
+  confirmation and the reply notification all arrived as bare plain text. All of them are
+  now drawn in one shared layout: one action button sized for a thumb, the same link
+  repeated in plain sight underneath it for a mail client that will not draw buttons, and
+  the standing "Backyard will never ask for your link or password by email." line on every
+  single one. Each message still carries a plain-text part saying the same thing word for
+  word, for anyone who reads mail as text. No subject line changed, nothing about who
+  receives what changed, and no sentence a person reads was rewritten.
+- **Check the address your mail is sent from.** `DEFAULT_FROM_EMAIL` sets it, and the word
+  in front of the `@` is what a relative sees in every mail client that shortens a sender.
+  If yours is named after the job that sends the mail — `digests@`, `noreply@`, `mailer@` —
+  change it to `backyard@<your mail domain>` and restart. Changing the word in front of the
+  `@` is safe at any time; changing the DOMAIN also moves the reply-by-email addresses, so
+  do that one before you invite people, if at all. Messages already sitting in somebody's
+  inbox keep the old sender. `.env.example` and the self-host runbook now say so where you
+  set it.
 
 ## [0.1.5] — 2026-09-19
 

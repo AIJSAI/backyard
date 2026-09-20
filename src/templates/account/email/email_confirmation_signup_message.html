@@ -1,0 +1,7 @@
+{% comment %} THE JOIN-TIME VARIANT, and the one a new relative actually receives:
+   core/join.py calls `address.send_confirmation(request, signup=True)`, which makes
+   allauth render the `account/email/email_confirmation_signup` prefix. allauth ships a
+   .txt for it that includes the ordinary one; it ships no .html at all, so without this
+   file the join mail would have gone out as text alone while the "resend" from Your
+   Sign-In Email arrived branded. Same one-line include, same message.
+{% endcomment %}{% include "account/email/email_confirmation_message.html" %}

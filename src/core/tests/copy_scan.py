@@ -385,6 +385,19 @@ _BADGE = re.compile(
     r"""<span\b[^>]*class=["'][^"']*\b(?:role|flag)\b[^"']*["'][^>]*>(.*?)</span>""", re.S | re.I
 )
 _OPTION = re.compile(r"<option\b[^>]*>(.*?)</option>", re.S | re.I)
+# THE SHARED E-MAIL LAYOUT'S TWO COPY BLOCKS. `core/email/_layout.html` owns the <h1> and
+# the one action button every message is drawn with, and each message fills them from a
+# child template — where the words sit with no element around them, so every pattern above
+# reads them as nothing and a button labelled "Set a new password" would have gone out of
+# this product past a green capitalisation guard. The block NAME is what says which kind of
+# copy it is, exactly as the tag does everywhere else.
+_EMAIL_COPY_BLOCK = re.compile(
+    r"\{%\s*block\s+(heading|action_label)\s*%\}(.*?)\{%\s*endblock", re.S | re.I
+)
+_EMAIL_BLOCK_WHERE = {
+    "heading": "{% block heading %} (an e-mail heading)",
+    "action_label": "{% block action_label %} (an e-mail button)",
+}
 # A word is a whitespace-delimited token with its bordering punctuation taken off. The
 # leading/trailing set is deliberately wide: a heading can be wrapped in quotes, end in a
 # question mark, or sit inside brackets, and none of that is a word.
@@ -408,6 +421,11 @@ def title_case_targets(source: str) -> list[tuple[str, str]]:
         (f"{{% element {element.lower()} %}}", _element_text(inner))
         for element, inner in _ELEMENT.findall(text)
     ]
+    # Read before the stripping too, and for the same reason: the tag IS the element.
+    targets.extend(
+        (_EMAIL_BLOCK_WHERE[name.lower()], _element_text(inner))
+        for name, inner in _EMAIL_COPY_BLOCK.findall(text)
+    )
     for element in _TITLE_CASE_ELEMENTS:
         pattern = re.compile(rf"<{element}\b[^>]*>(.*?)</{element}>", re.S | re.I)
         for inner in pattern.findall(text):
