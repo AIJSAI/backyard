@@ -789,7 +789,13 @@ label.inline-check.email-row { flex-wrap: wrap; }
 .composer-extras { margin-top: 1rem; }
 /* The picker follows the textarea, whose bottom margin is zero: the button touched the box. */
 .composer > .media-picker { margin-top: 1rem; }
-.composer.collapsible { display: flex; flex-wrap: wrap; align-items: center; column-gap: 0.75rem; }
+.composer.collapsible { display: flex; flex-wrap: wrap; align-items: center; column-gap: 0.5rem; }
+/* Sized so the photo button and the primary share one row from 375px up, with "Reply" as
+   well as the shorter "Post": at the picker's default size the pair measured 309px in a
+   307px row on the post page and wrapped, while the feed's fitted. Narrower than 375px
+   they stack, which is the wrap doing its job. The size is the same open or closed, so
+   opening the composer does not resize the button under a thumb. */
+.composer.collapsible .media-picker.js > .picker-button { padding-inline: 0.9rem; font-size: 0.95rem; }
 .composer.collapsible > * { flex: 0 0 100%; min-width: 0; }
 .composer.collapsible:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) .composer-extras,
 .composer.collapsible:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) .media-hint {
