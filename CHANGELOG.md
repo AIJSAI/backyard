@@ -13,7 +13,14 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
-Nothing yet.
+### Fixed
+
+- **The mail header lines up in Gmail.** Gmail removes inline SVG, so the house mark never
+  shows there, and the spacing that belonged to it was left behind: the "Backyard" wordmark
+  sat 10px to the right of the heading under it, in the client most relatives use. The mark
+  now sits inside the wordmark with its spacing on the mark itself, so a client that drops
+  one drops the other. Clients that draw SVG (Apple Mail) still show the mark. Still no
+  fetched image: that would be an open tracker.
 
 ## [0.1.6] — 2026-09-19
 
