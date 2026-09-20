@@ -30,9 +30,11 @@ from __future__ import annotations
 
 import pathlib
 import re
+from html import unescape
 
 import pytest
 from allauth.account.models import EmailAddress
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.mail import EmailMultiAlternatives
@@ -153,6 +155,10 @@ def test_the_address_confirmation_a_new_relative_gets_is_branded() -> None:
     assert label == "Confirm Email Address"
     assert "/accounts/confirm-email/" in link
     assert _FALLBACK in html
+    # The button and the fallback line, and nowhere else. This link is a credential too:
+    # confirming is what makes an address eligible for a password reset (core/forms.py), so
+    # a third print (an alt, a title, an <img src>) hands it to whatever loads that URL.
+    assert html.count(link) == 2, "the confirmation link is somewhere a third party could load it"
     assert "Somebody added this address to a Backyard account." in html
 
 
@@ -224,6 +230,9 @@ def test_the_email_updates_confirmation_is_branded_and_still_content_free() -> N
     assert label == "Confirm Email Address"
     assert "/digest/confirm/" in link
     assert _FALLBACK in html
+    # Twice and no more: this link starts posts flowing, and the message goes to an address
+    # nobody has acknowledged yet.
+    assert html.count(link) == 2, "the updates link is somewhere a third party could load it"
     for leak in ("Cousin Reed", "The Whitfields", "Mom's side"):
         assert leak not in html, f"the confirmation e-mail carries {leak!r}"
 
@@ -285,7 +294,10 @@ def test_the_weekly_health_report_keeps_its_columns_in_a_monospace_block() -> No
     # against everything above the "--" separator. Escaped, because the block is
     # autoescaped like the rest of the template.
     report = str(message.body).split("\n\n--\n")[0].strip()
-    assert escape(report) in html, "the HTML part is not the same report"
+    assert escape(unescape(report)) in html, "the HTML part is not the same report"
+    # The point of the round trip: an entity a READER can see means the report was escaped
+    # twice, which is how "can&#x27;t connect" reaches the one person who has to act on it.
+    assert "&amp;#x27;" not in html and "&amp;lt;" not in html, "the report is escaped twice"
     assert _BUTTON_CELL not in html, "an ops report has nothing to press"
 
 
@@ -351,6 +363,48 @@ def test_a_display_name_that_is_markup_arrives_as_text_in_the_email_updates_mess
     assert "&lt;b&gt;x&lt;/b&gt;" in built.html
 
 
+_REMOTE = re.compile(r"<img\b|<link\b|\bsrc=|\bbackground=|url\(|@import", re.I)
+
+
+def test_no_mail_template_fetches_anything_from_the_network() -> None:
+    """A fetched resource in a mail is an open tracker: whoever hosts it learns that this
+    mailbox opened this message, when, and from which address, and on the password reset it
+    learns it about somebody who is locked out. It is also why most clients block remote
+    images, which is the mail that looks like spam. The house mark is INLINE SVG for both
+    reasons and nothing else may be fetched.
+
+    Comments out first: the layout's own note explains the rule by naming `<img>`."""
+    offenders = [
+        f"{path.name}: {found.group(0)}"
+        for path in _mail_templates()
+        if (found := _REMOTE.search(without_comments(path.read_text())))
+    ]
+    assert not offenders, "a mail template fetches a remote resource:\n  " + "\n  ".join(offenders)
+
+
+def test_the_allauth_links_are_minted_on_the_configured_base_not_the_request_host() -> None:
+    """TS-DJ-14, and the one property of these two links that no template can hold. allauth
+    builds them with `request.build_absolute_uri()`; core.adapters re-bases them, so a
+    request arriving on any host Django is willing to answer still mails the link everybody
+    else in this product would have minted."""
+    member = _a_member("Rose Whitfield", username="rose")
+    assert member.user is not None
+    EmailAddress.objects.create(
+        user=member.user, email="rose@example.com", primary=True, verified=True
+    )
+    mail.outbox.clear()
+
+    Client().post(
+        reverse("account_reset_password"), {"email": "rose@example.com"}, HTTP_HOST="127.0.0.1"
+    )
+
+    message = mail.outbox[0]
+    html = _html_of(message)
+    assert f"{settings.BASE_URL}/accounts/password/reset/key/" in str(message.body)
+    assert "//127.0.0.1/" not in str(message.body), "the text part carries the request's host"
+    assert "//127.0.0.1/" not in html, "the button points at the request's host"
+
+
 def test_no_mail_template_turns_the_escaping_off() -> None:
     """The two ways a member's writing could reach a mailbox as live markup. The plain-text
     parts turn autoescaping off deliberately (an escaped apostrophe in a text mail is a
@@ -378,6 +432,7 @@ def test_the_scan_above_actually_reads_the_mail_templates() -> None:
         "reply_notification.html",
         "health.html",
         "email_confirmation_message.html",
+        "email_confirmation_signup_message.html",
         "password_reset_key_message.html",
         "unknown_account_message.html",
     ):

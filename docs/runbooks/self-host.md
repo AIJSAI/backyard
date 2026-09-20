@@ -298,8 +298,10 @@ how a family's own photographs come to look like something a spam filter should 
 `backyard@<your mail domain>` is the one to use. That first word is what a shortening client
 shows and what a relative reads before deciding whether to open anything, and the messages
 it now carries are the password reset and the address confirmation as much as the weekly
-update. Changing it later is safe — nothing in the app is keyed to the sending address —
-but messages already sitting in somebody's inbox keep the old one, so do it before you
+update. Changing the part in front of the `@` is safe at any time. Changing the DOMAIN is
+not the same move: `emailing.reply_domain()` derives the reply-by-email domain from this
+setting, so a new domain means new reply addresses and inbound routing to re-point. Either
+way, messages already sitting in somebody's inbox keep the old sender, so do it before you
 invite people.
 
 ## Backups

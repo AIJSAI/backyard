@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass
+from html import unescape
 
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -63,7 +64,14 @@ def send_health_emails(now: datetime.datetime | None = None) -> HealthSendResult
     # same fields: the lines are a fixed-width table with a `[!]` flag in the first
     # column, and two renderings of one table is how the flag comes to sit in the wrong
     # column in the part most clients show. `build()` keeps its three-value contract.
-    html = render_to_string("core/email/health.html", {"report": text.strip()})
+    # UNESCAPED ON THE WAY IN, so the HTML part escapes the report exactly ONCE. health.txt
+    # renders with autoescape on (the off-box error is the one value in this message the
+    # instance did not write), so `text` already carries `&#x27;` and `&lt;`. Handing that
+    # to an autoescaped template escapes it a second time and an operator reads
+    # "can&#x27;t connect" in the part their client draws: the "escaping twice is how
+    # &amp;amp; reaches a reader" that core/health.py already refused once. The round trip
+    # is exact: unescape(escape(x)) == x for every character escape() produces.
+    html = render_to_string("core/email/health.html", {"report": unescape(text.strip())})
     recipients = admin_recipients()
     admin_count = Member.objects.filter(role=Member.INSTANCE_ADMIN).count()
     for _member, address in recipients:
