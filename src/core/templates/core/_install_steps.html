@@ -117,9 +117,15 @@
     // reading that works there.
     var installed = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
       || navigator.standalone === true;
+    // The LEAD GOES TOO. It lives on the page rather than in this block, and it says
+    // "Add Backyard to your home screen" — directly above a notice saying it is already
+    // there. Two lines about one thing that contradict each other is the empty-state
+    // defect the voice guide names, and it is the same defect either way round.
+    var lead = document.querySelector('[data-install-lead]');
     if (installed) {
       done.hidden = false;
       platforms.hidden = true;
+      if (lead) { lead.hidden = true; }
       return;
     }
 
@@ -159,6 +165,7 @@
       offer.hidden = true;
       platforms.hidden = true;
       webview.hidden = true;
+      if (lead) { lead.hidden = true; }
       done.hidden = false;
     });
   })();

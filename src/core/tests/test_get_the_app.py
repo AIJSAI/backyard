@@ -91,7 +91,14 @@ def test_a_signed_in_member_gets_the_page() -> None:
     client, _member_row = _member(pod)
     response = client.get(reverse("get_the_app"))
     assert response.status_code == 200
-    assert "<h1>Get The App</h1>" in response.content.decode()
+    body = response.content.decode()
+    assert "<h1>Get The App</h1>" in body
+    # The already-installed branch ships hidden, and the lead that would otherwise sit
+    # above it saying "Add Backyard to your home screen" carries the hook that takes it
+    # away — two lines about one thing that contradict each other is the empty-state
+    # defect the voice guide names.
+    assert '<div class="notice" data-install-done hidden>' in body
+    assert "data-install-lead" in body
 
 
 # --- what is on it --------------------------------------------------------------------
