@@ -19,11 +19,10 @@ never the access control (S-403, T-MEDIA-1).
 
 from __future__ import annotations
 
-import pathlib
-
 import datetime
 import io
 import json
+import pathlib
 import zipfile
 
 import pytest
