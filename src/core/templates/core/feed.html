@@ -217,9 +217,11 @@
           </span>
           {% comment %} THE OVERFLOW. Edit, Delete and Take Down used to sit in the action
              row beside the way into the thread, so the loudest control under somebody's
-             photograph was the one that erases it. A <details> is the whole mechanism:
-             no script, a real button for a keyboard and a screen reader, and it closes
-             itself. The conditions are the ones the action row carried; when none of them
+             photograph was the one that erases it. A <details> is the mechanism: a real
+             button for a keyboard and a screen reader, working with no script. What a
+             bare <details> does NOT do is close: not on Escape, not on a tap elsewhere,
+             and two could stand open at once, so core/_feed_react.html closes it on all
+             three. The conditions are the ones the action row carried; when none of them
              holds, the control is not drawn at all. {% endcomment %}
           {% if item.is_own or is_moderator %}
             <details class="post-menu">
@@ -249,35 +251,47 @@
           {% comment %} EDGE TO EDGE ON A PHONE, and the layout is named by the view
              (`media_layout`) rather than counted in CSS: a gallery's children are no
              longer all the same element, so `:nth-last-child` would mis-read any post
-             carrying a clip. Photos are served at the FULL rendition (`m.token`,
-             core/media._FULL_MAX) rather than the 400px thumbnail: a full-width photo on
-             a 390px phone at 2x needs 780px, and even a 2x2 tile needs ~390px in each
-             direction after the cover-crop, which a 400-box thumbnail does not have on
-             its short side. {% endcomment %}
+             carrying a clip. EVERY PHOTO OFFERS BOTH RENDITIONS and the browser picks:
+             the 400px thumbnail is soft at full width on a 2x phone (780 device px), but
+             it is exactly right for a half-width tile, and the first cut of this page
+             asked for the 2048px original in every tile, uncached (`serve_media` is
+             no-store by design), which a review measured at 11 to 51 times the bytes.
+             `sizes` says how wide each tile is drawn. A mid-size rendition in
+             core/media.py is the real cure for the full-width case and is tracked. {% endcomment %}
           <div class="feed-media feed-media-{{ item.media_layout }}">
             {% for m in item.media %}
-              {% if m.media_kind == 'video' %}
-                {% if m.transcode_status == 'done' %}
-                  <video class="clip" controls preload="metadata" poster="{% url 'serve_media' m.thumbnail_token %}">
-                    <source src="{% url 'serve_media' m.token %}" type="video/mp4">
-                  </video>
-                {% elif m.transcode_status == 'failed' %}
-                  <p class="clip-status">This video could not be processed.</p>
+              <span class="tile">
+                {% if m.media_kind == 'video' and item.media_layout == 'stack' %}
+                  {% comment %} A lone clip: the real player, full width, controls and all. {% endcomment %}
+                  {% if m.transcode_status == 'done' %}
+                    <video class="clip" controls preload="metadata" poster="{% url 'serve_media' m.thumbnail_token %}">
+                      <source src="{% url 'serve_media' m.token %}" type="video/mp4">
+                    </video>
+                  {% elif m.transcode_status == 'failed' %}
+                    <p class="clip-status">This video could not be processed.</p>
+                  {% else %}
+                    <p class="clip-status">This video is still processing.</p>
+                  {% endif %}
+                {% elif m.media_kind == 'video' %}
+                  {% comment %} A clip among other things: its poster, a play mark, and a link to
+                     the post, where the player has room. A player cropped into a grid cell
+                     loses its controls (S-402), and a column of players is three screens
+                     tall. {% endcomment %}
+                  <a class="clip-tile" href="{% url 'post_detail' item.post.id %}" aria-label="Play Video">
+                    {% if m.transcode_status == 'done' %}<img src="{% url 'serve_media' m.thumbnail_token %}" loading="lazy" decoding="async" alt="">{% endif %}
+                    <span class="play-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" focusable="false"><path d="M8 5.5v13l11-6.5z"/></svg></span>
+                  </a>
                 {% else %}
-                  <p class="clip-status">This video is still processing.</p>
+                  <a href="{% url 'serve_media' m.token %}">{% if item.media_layout == 'one' %}<img src="{% url 'serve_media' m.token %}" srcset="{% url 'serve_media' m.thumbnail_token %} 400w, {% url 'serve_media' m.token %} 2048w" sizes="(min-width: 52rem) 52rem, 100vw" loading="lazy" decoding="async" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ item.post.author.display_name }}{% endif %}">{% elif item.media_layout == 'three' and forloop.first %}<img src="{% url 'serve_media' m.token %}" srcset="{% url 'serve_media' m.thumbnail_token %} 400w, {% url 'serve_media' m.token %} 2048w" sizes="(min-width: 52rem) 34rem, 66vw" loading="lazy" decoding="async" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ item.post.author.display_name }}{% endif %}">{% else %}<img src="{% url 'serve_media' m.token %}" srcset="{% url 'serve_media' m.thumbnail_token %} 400w, {% url 'serve_media' m.token %} 2048w" sizes="(min-width: 52rem) 26rem, 50vw" loading="lazy" decoding="async" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ item.post.author.display_name }}{% endif %}">{% endif %}</a>
                 {% endif %}
-              {% elif forloop.last and item.extra_media %}
-                {% comment %} The "+N" tile. The photograph keeps its own link to the full
-                   image, exactly as every other tile does; the count is a SECOND link laid
-                   over it, to the post, because that is where the rest of the gallery is.
-                   Two links rather than one nested inside the other, which is not HTML. {% endcomment %}
-                <span class="tile">
-                  <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.token %}" loading="lazy" decoding="async" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ item.post.author.display_name }}{% endif %}"></a>
-                  <a class="more-media" href="{% url 'post_detail' item.post.id %}" aria-label="See All Photos"><span aria-hidden="true">+{{ item.extra_media }}</span></a>
-                </span>
-              {% else %}
-                <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.token %}" loading="lazy" decoding="async" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ item.post.author.display_name }}{% endif %}"></a>
-              {% endif %}
+                {% if forloop.last and item.extra_media %}
+                  {% comment %} The "+N": a SECOND link laid over the last tile, to the post, because
+                     that is where the rest of the gallery is. Two links rather than one nested
+                     inside the other, which is not HTML. It sits on whatever the last tile is,
+                     so a clip in fourth place can no longer make it vanish. {% endcomment %}
+                  <a class="more-media" href="{% url 'post_detail' item.post.id %}" aria-label="See All Photos And Videos"><span aria-hidden="true">+{{ item.extra_media }}</span></a>
+                {% endif %}
+              </span>
             {% endfor %}
           </div>
         {% endif %}
@@ -297,7 +311,7 @@
            below has somewhere to write; `hidden` is what keeps it off a post nobody has
            reacted to yet, in the markup and in the accessibility tree alike. {% endcomment %}
         <p class="reaction-line" data-reaction-line{% if not item.reactor_groups %} hidden{% endif %}>
-          {% for group in item.reactor_groups %}<span class="reaction-group"><span class="reaction-label">{{ group.label }}:</span> {{ group.names|join:", " }}{% if group.more %} <a href="{% url 'post_detail' item.post.id %}">And Others</a>{% endif %}</span>{% endfor %}
+          {% for group in item.reactor_groups %}<span class="reaction-group"><span class="reaction-label">{{ group.label }}:</span> {{ group.names|join:", " }}{% if group.more %}, <a href="{% url 'post_detail' item.post.id %}">And Others</a>{% endif %}</span>{% endfor %}
         </p>
         {% comment %} THE ACTION ROW. It was "Open Post" beside a red "Delete Post" and
            nothing else: no way to say anything to somebody without leaving the feed, and

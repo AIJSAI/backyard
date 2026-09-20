@@ -79,9 +79,11 @@ _FEED_MEDIA_TILES = 4
 # names and never a number (S-304, Reaction's docstring): the cap shortens a list, it does
 # not turn it into a tally.
 _FEED_REACTOR_NAMES = 3
-# The same bound `_MAX_THREAD` puts on one thread, applied to a page of them (security
+# A bound on one page's reactor rows, in the spirit of `_MAX_THREAD` on one thread (security
 # review LOW-1): a member holds at most one reaction per post, so this is reached only by
 # a family far larger than this product is for, and the line shows three names either way.
+# The query reads newest posts first, so if it ever binds it is the bottom of the page that
+# loses its line, not the top.
 _MAX_FEED_REACTIONS = _PAGE_SIZE * 50
 
 
@@ -154,11 +156,14 @@ def _media_layout(tiles: list[MediaAsset], total: int) -> str:
     children stopped being one element each the moment a video or an unprocessed clip
     could sit among the photographs.
 
-    A clip anywhere in the gallery makes the whole thing a STACK, full width and one to a
-    row. A video cropped into a square tile is a video with its own controls cropped off,
-    which is the one thing a player may not lose (S-402).
+    A LONE clip is a "stack" of one: the real player, full width, with its controls
+    (S-402). A clip AMONG other things is a poster tile with a play mark that opens the
+    post, where the player has room; the grid stays a grid. The first cut made any gallery
+    carrying a clip a full-width stack of players, which a review measured at 1397px for
+    four items on a 390px phone and which dropped the "+N" tile whenever the fourth item
+    was the clip.
     """
-    if any(asset.media_kind == MediaAsset.VIDEO for asset in tiles):
+    if total == 1 and tiles and tiles[0].media_kind == MediaAsset.VIDEO:
         return "stack"
     if total == 1:
         return "one"
@@ -170,7 +175,11 @@ def _media_layout(tiles: list[MediaAsset], total: int) -> str:
 
 
 def _group_reactors(
-    reactions: Iterable[Reaction], *, viewer_id: int, cap: int | None = None
+    reactions: Iterable[Reaction],
+    *,
+    viewer_id: int,
+    cap: int | None = None,
+    short_names: bool = False,
 ) -> tuple[list[dict[str, object]], str | None]:
     """Reactions grouped for display, plus the viewer's own kind.
 
@@ -182,13 +191,14 @@ def _group_reactors(
     by_kind: dict[str, list[str]] = {}
     mine: str | None = None
     for reaction in reactions:
-        # First names on the feed's one capped line, full names on the thread page: "Love:
-        # Rose, Sam, Dave" is how a family says it and it fits a phone; the page that names
-        # everybody is one tap away and is where two Sams are told apart.
+        # First names on the feed's one line, full names on the thread page: "Love: Rose,
+        # Sam, Dave" is how a family says it and it fits a phone; the page that names
+        # everybody is one tap away and is where two Sams are told apart. Asked for by
+        # name, never implied by `cap`: a caller bounding the thread page must not lose the
+        # attribution that page exists for. A blank name falls back to words, not to a hole.
         member = reaction.member
-        name = (
-            (member.short_name or member.display_name) if cap is not None else member.display_name
-        )
+        full = member.display_name.strip() or "A member"
+        name = (member.short_name or full) if short_names else full
         by_kind.setdefault(reaction.kind, []).append(name)
         if reaction.member_id == viewer_id:
             mine = reaction.kind
@@ -221,7 +231,7 @@ def _reactions_for_page(
         scoping.visible_reactions(member)
         .filter(post_id__in=post_ids)
         .select_related("member")
-        .order_by("post_id", "created_at", "id")[:_MAX_FEED_REACTIONS]
+        .order_by("-post_id", "created_at", "id")[:_MAX_FEED_REACTIONS]
     )
     per_post: dict[int, list[Reaction]] = {}
     for reaction in rows:
@@ -229,7 +239,9 @@ def _reactions_for_page(
     groups: dict[int, list[dict[str, object]]] = {}
     mine: dict[int, str] = {}
     for post_id, reactions in per_post.items():
-        grouped, my_kind = _group_reactors(reactions, viewer_id=member.id, cap=_FEED_REACTOR_NAMES)
+        grouped, my_kind = _group_reactors(
+            reactions, viewer_id=member.id, cap=_FEED_REACTOR_NAMES, short_names=True
+        )
         groups[post_id] = grouped
         if my_kind is not None:
             mine[post_id] = my_kind
@@ -266,7 +278,11 @@ def _feed_return_path(cursor: tuple[datetime.datetime, int] | None) -> str:
     """
     path = reverse("feed")
     if cursor is None:
-        return path
+        # A Love is not a feed visit. Coming back to a bare /feed/ would advance the unread
+        # boundary (S-303) past posts this member has never scrolled to, and the "New posts
+        # above" line would be gone for good: measured with scripting off, where this
+        # redirect is the path that runs. `seen=keep` is the view telling itself not to.
+        return f"{path}?seen=keep"
     moment, last_id = cursor
     return f"{path}?before={quote(f'{moment.isoformat()}_{last_id}')}"
 
@@ -311,7 +327,10 @@ def feed(request: HttpRequest) -> HttpResponse:
     """
     member = _acting_member(request)
     cursor = _parse_cursor(request.GET.get("before"))
-    return _render_feed(request, member, advance_seen=cursor is None, cursor=cursor)
+    # `seen=keep` is what a Love from the feed comes back with (_feed_return_path). Forging
+    # it only declines to move one's own marker, so it needs no validation.
+    advance = cursor is None and request.GET.get("seen") != "keep"
+    return _render_feed(request, member, advance_seen=advance, cursor=cursor)
 
 
 def _parse_cursor(raw: str | None) -> tuple[datetime.datetime, int] | None:
@@ -931,7 +950,13 @@ def _render_post_detail(
     # symmetry with the comment path so a pathologically large yard cannot inflate the
     # render (security review LOW-1); one-per-member keeps this well under the cap.
     reactions = (
-        scoping.visible_reactions(member).filter(post=post).select_related("member")[:_MAX_THREAD]
+        scoping.visible_reactions(member)
+        .filter(post=post)
+        .select_related("member")
+        # Ordered before it is sliced, and the same way the page loader orders: `Reaction`
+        # declares no ordering, so without this the three names the script writes could
+        # differ from the three the page rendered a moment earlier.
+        .order_by("created_at", "id")[:_MAX_THREAD]
     )
     # Grouped by the one helper the feed's reactor line uses, uncapped here: the thread
     # page has room to name everybody, and naming everybody is the point of S-304.
@@ -1000,9 +1025,17 @@ def _reaction_state(member: Member, post: Post) -> JsonResponse:
     enhanced path cannot answer with a name the rendered page would have withheld.
     """
     reactions = (
-        scoping.visible_reactions(member).filter(post=post).select_related("member")[:_MAX_THREAD]
+        scoping.visible_reactions(member)
+        .filter(post=post)
+        .select_related("member")
+        # Ordered before it is sliced, and the same way the page loader orders: `Reaction`
+        # declares no ordering, so without this the three names the script writes could
+        # differ from the three the page rendered a moment earlier.
+        .order_by("created_at", "id")[:_MAX_THREAD]
     )
-    groups, mine = _group_reactors(reactions, viewer_id=member.id, cap=_FEED_REACTOR_NAMES)
+    groups, mine = _group_reactors(
+        reactions, viewer_id=member.id, cap=_FEED_REACTOR_NAMES, short_names=True
+    )
     return JsonResponse(
         {"groups": groups, "mine": mine, "post_url": reverse("post_detail", args=[post.id])}
     )

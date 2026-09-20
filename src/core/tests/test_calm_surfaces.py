@@ -118,6 +118,8 @@ def test_delete_is_not_a_peer_of_the_way_into_the_post(world: dict[str, object])
     assert reverse("delete_post", args=[post.id]) not in actions
     css = _style()
     assert ".post-menu-items a.destructive { color: var(--danger); font-weight: 400; }" in css
+    # The thread page still draws Take Down Post and Take Down Reply from `.actions`.
+    assert ".actions a.destructive { color: var(--danger); font-weight: 400; }" in css
     assert '.post-menu-items a.destructive::before { content: "\\00d7\\00a0"' in css
     # The rule that moved it there in the first place is still on the rows that still
     # have a destructive control in them (the thread page's takedown).
@@ -240,11 +242,20 @@ def test_nothing_a_person_presses_hides_when_the_box_loses_focus(world: dict[str
     # line, and matching the rule as a whole let a revert on the FIRST selector pass because
     # the second still carried the class. Measured by mutation, review round 2 of #218.
     grouped = re.findall(r"^(\.composer\.collapsible[^{]*)\{([^}]*)\}", css, re.MULTILINE)
-    hiding = [selectors for selectors, body in grouped if "display: none" in body]
-    assert hiding, "no collapse rule found: the guard would be vacuous"
+    # `overflow: hidden` counts as hiding: the one-row resting textarea clips whatever is in
+    # it, which is only safe while that rule also requires an EMPTY box.
+    hiding = [
+        selectors
+        for selectors, body in grouped
+        if "display: none" in body or "overflow: hidden" in body
+    ]
+    assert len(hiding) >= 2, "a collapse rule went missing: the guard would be vacuous"
     for selectors in hiding:
         for selector in selectors.split(","):
             assert ".js-collapse" in selector, selector
+            assert ":has(textarea:placeholder-shown)" in selector, (
+                f"{selector.strip()} can clip or hide a box that has words in it"
+            )
     # The sticky half: the script claims the form, opens it on first touch, never closes it.
     script = _BASE.with_name("_composer_media.html").read_text()
     assert 'querySelectorAll("form.composer.collapsible")' in script

@@ -21,9 +21,11 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   came out as three stamps. Below 600px the feed is now a flat, full-width list separated
   by hairlines, and the photographs run edge to edge: one at its own shape, two in equal
   columns, three as one large beside two stacked, and four or more as a 2x2 with a "+N"
-  tile onto the post. The card treatment returns from 600px up, where there is room for
-  it. The feed also serves the full stored photograph rather than the 400px thumbnail,
-  which was the rendition that made a full-width picture soft.
+  tile onto the post. A lone video keeps its player; a video among photographs is its
+  poster with a play mark, opening the post. The card treatment returns from 600px up,
+  where there is room for it. Each photograph offers both stored sizes (`srcset`), so a
+  half-width tile takes the 400px thumbnail and only a full-width picture takes the
+  large one; a mid-size rendition for that case is tracked.
 - **Edit Post, Delete Post and Take Down Post moved into a per-post menu.** They sat in
   the row under every post beside the way into the thread, which put the control that
   erases a photograph one thumb-width from the one that opens it. The menu is a plain

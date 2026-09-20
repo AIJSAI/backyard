@@ -1057,8 +1057,8 @@ ul.comments:has(> li.empty:only-child) { border-left: 0; padding-left: 0; margin
   min-height: 44px;                      /* was min-height:auto (~28px) */
   padding: 0.35rem 1rem; font-size: 0.84rem; border-radius: 999px;
 }
-/* A DESTRUCTIVE ACTION LEAVES THE PRIMARY ROW. `Open Post`, `Edit` and `Delete`
-   rendered as three identical bold green links 36px apart on every post its author owns,
+/* A DESTRUCTIVE ACTION LEAVES THE PRIMARY ROW. (History: before the feed grew its Post
+   Options menu, `Open Post`, `Edit` and `Delete` sat in one row there.) They rendered as three identical bold green links 36px apart on every post its author owns,
    so a thumb aiming at the thread could land on the one that erases a photograph. They
    are pushed to the far end of the row, set in danger ink at regular weight, and carry
    the same leading x every other destructive control in the product does. */
@@ -1130,19 +1130,24 @@ ul.comments:has(> li.empty:only-child) { border-left: 0; padding-left: 0; margin
   display: grid; gap: 2px; margin: 0.5rem -1.25rem 0.15rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.feed-media > a, .feed-media > .tile { display: block; position: relative; min-width: 0; }
+.feed-media > .tile { display: block; position: relative; min-width: 0; }
+.feed-media > .tile > a { display: block; height: 100%; }
+/* No zoom-in cursor: the tile and the link behind it are the same picture, so the cursor
+   promised a zoom the tap does not deliver. */
 .feed-media img {
   display: block; width: 100%; height: auto; object-fit: cover;
-  background: var(--surface-sunk); cursor: zoom-in;
+  background: var(--surface-sunk);
 }
 /* One photograph: the full width of the post at its own ratio, capped in height so a
    tall portrait cannot take the whole screen. `object-fit: cover` with the height
    clamped crops the excess instead of letterboxing it.
 
-   `aspect-ratio: auto 4 / 3` is the no-jump half, and the `auto` keyword is the whole
-   trick: an unloaded <img> has no intrinsic ratio, so the 4/3 reserves a real box and
-   the page does not shift when the bytes land — and the moment they do, the image's OWN
-   ratio wins and a panorama is a panorama again. MediaAsset stores no width or height,
+   `aspect-ratio: auto 4 / 3` BOUNDS the jump rather than removing it, and the `auto`
+   keyword is the whole trick: an unloaded <img> has no intrinsic ratio, so the 4/3
+   reserves a real box, which is the right box for most phone photographs; the moment
+   the bytes land the image's OWN ratio wins, so a panorama's box shrinks and a portrait's
+   grows to the cap. That is a small shift for the uncommon shapes instead of a large
+   one for every photograph. MediaAsset stores no width or height,
    so real width/height attributes would need a migration; this needs none, and unlike
    the thread page's `content-visibility` it leaves the photograph painted. */
 .feed-media-one { display: block; }
@@ -1153,23 +1158,40 @@ ul.comments:has(> li.empty:only-child) { border-left: 0; padding-left: 0; margin
 /* Three: one large beside two stacked. The block carries the ratio so the rows have a
    height to divide, and the tiles fill it. */
 .feed-media-three { grid-template-columns: 1.6fr 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); aspect-ratio: 3 / 2; }
-.feed-media-three > a:first-child, .feed-media-three > .tile:first-child { grid-row: span 2; }
-.feed-media-three > a, .feed-media-three > .tile { height: 100%; }
+.feed-media-three > .tile:first-child { grid-row: span 2; }
+.feed-media-three > .tile { height: 100%; }
 .feed-media-three img { height: 100%; }
 /* Four or more: a 2x2 contact sheet, with the rest behind the last tile. */
 .feed-media-many img { aspect-ratio: 1 / 1; }
 /* The "+N" tile: a second link, laid over the photograph's own, to where the rest of
    the gallery is. */
-.more-media {
+/* `.tile > a.more-media`, not `.more-media`: the tile's own link rule (display: block) is
+   more specific than a bare class and put the count in the tile's corner. */
+.feed-media > .tile > a.more-media {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   background: color-mix(in srgb, #000000 45%, transparent);
   color: #ffffff; font-size: 1.5rem; font-weight: 700; text-decoration: none;
 }
-.more-media:hover { color: #ffffff; background: color-mix(in srgb, #000000 55%, transparent); }
-/* A clip keeps its native controls and its own width, so a gallery carrying one is a
-   stack rather than a grid: cropping a video into a square tile crops its controls. */
+.feed-media > .tile > a.more-media:hover { color: #ffffff; background: color-mix(in srgb, #000000 55%, transparent); }
+/* A lone clip keeps its native controls at the full width of the post. */
 .feed-media-stack { display: block; }
-.feed-media-stack > * + * { margin-top: 2px; }
+/* A clip among other tiles: its poster with a play mark, opening the post. It fills its
+   cell like a photograph and shows the sunk surface while it has no poster yet. */
+.clip-tile { position: relative; background: var(--surface-sunk); min-height: 6rem; }
+.clip-tile img { height: 100%; }
+.feed-media-two .clip-tile { aspect-ratio: 4 / 5; }
+.feed-media-many .clip-tile { aspect-ratio: 1 / 1; }
+.play-mark {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.play-mark svg {
+  box-sizing: content-box; padding: 0.6rem; border-radius: 999px;
+  background: color-mix(in srgb, #000000 55%, transparent);
+}
+.play-mark path { fill: #ffffff; }
+/* Under a "+N" the count is the message; a play mark behind it is two glyphs in one spot. */
+.tile:has(.more-media) .play-mark { display: none; }
 .feed-media .clip { width: 100%; border: 0; border-radius: 0; }
 .feed-media .clip-status { margin: 0; border-radius: 0; }
 
