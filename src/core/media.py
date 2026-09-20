@@ -212,6 +212,7 @@ def ingest_profile_photo(*, member: Member, raw: bytes) -> ProfilePhoto:
     # photograph shares: a tighter one would refuse an ordinary phone picture.)
     full_bytes = _reencode_square(img, AVATAR_FULL_PX)
     img.close()
+    # Our own output from the line above, not member bytes: the one decode gate is _decode.
     with Image.open(io.BytesIO(full_bytes)) as large:
         small_bytes = _reencode_square(large, AVATAR_SMALL_PX)
     with transaction.atomic():

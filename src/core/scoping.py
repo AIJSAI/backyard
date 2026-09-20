@@ -198,7 +198,9 @@ def visible_profile_photos(member: Member) -> models.QuerySet[ProfilePhoto]:
 def photo_owner_ids(viewer: Member, member_ids: Iterable[int]) -> set[int]:
     """Of these members, the ones whose profile photo `viewer` may fetch.
 
-    One query for a whole page of bylines. A template is handed a photo's tokens only for
+    Three queries for a whole page of bylines (the viewer's side and household ids, which
+    the guard resolves eagerly, then the faces), and none for an empty input, so a caller
+    should pass only the members who HAVE a photo. A template is handed a photo's tokens only for
     a member in this set, so the rule the serving view enforces and the pictures a page
     tries to draw cannot disagree (a disagreement is a broken image beside a name)."""
     wanted = set(member_ids)

@@ -165,6 +165,7 @@ def viewable_profile(
     viewer_pod_ids: set[int] | None = None,
     placing: str = "",
     with_avatar: bool = False,
+    face_ok: bool | None = None,
 ) -> ViewableProfile:
     """The member's profile as this viewer may see it: only the contact fields the
     viewer is scoped for, each present only if it has a value. The caller may pass the
@@ -207,12 +208,15 @@ def viewable_profile(
         # directory of two hundred costs no query for it (scoping.visible_profile_photos):
         # this resolver only runs for a member the viewer can already see, and a CHILD's
         # face is further narrowed to their household, their parent and themselves.
+        # `face_ok` is a page-wide answer a list view already has (scoping.photo_owner_ids);
+        # a single-row caller leaves it None and the rule is worked out here.
         # Empty unless the caller asked, like `placing`: the vCard exporter draws no face
         # and must not pay for one (an UNCAPPED export joined a table for a field it never
         # rendered, and a single card paid a query for it).
         avatar_tokens=(
             member.avatar_tokens
-            if with_avatar and _can_see_face(viewer, member, viewer_pod_ids)
+            if with_avatar
+            and (face_ok if face_ok is not None else _can_see_face(viewer, member, viewer_pod_ids))
             else None
         ),
     )

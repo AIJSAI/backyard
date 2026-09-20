@@ -93,6 +93,11 @@ def directory(request: HttpRequest) -> HttpResponse:
             to_attr="shared_pods",
         )
     )
+    # Which faces on this page the viewer may fetch, asked ONCE, by the helper the feed and
+    # the thread use. Deciding it per row cost a membership lookup for every supervised
+    # child on the page (the database review measured 33 queries for 20 children).
+    page = list(members[:200])
+    faces = scoping.photo_owner_ids(member, [other.id for other in page if other.avatar_tokens])
     rows = [
         profiles.viewable_profile(
             member,
@@ -100,8 +105,9 @@ def directory(request: HttpRequest) -> HttpResponse:
             viewer_pod_ids=viewer_pod_ids,
             placing=profiles.placing_text(member, other, shared_pods=other.shared_pods),
             with_avatar=True,
+            face_ok=other.id in faces,
         )
-        for other in members[:200]
+        for other in page
     ]
     return render(
         request,
@@ -330,15 +336,15 @@ def _photo_post(request: HttpRequest, member: Member, actor: Member) -> HttpResp
     Both paths land back on this page rather than on the directory the profile form
     redirects to: what you came to see is the photo, so the redirect shows it.
     """
+    # Nobody destroys what they cannot see, and BOTH verbs destroy: a replacement purges the
+    # existing row and both files exactly as Remove does (round 2 of the security review
+    # measured a refused remove followed by a successful blind replace). The purge is a hard
+    # delete, the person it belongs to is not told, and "they can choose the file again" is
+    # only true of somebody acting on themselves. An admin may still GIVE a face to somebody
+    # who has none.
+    if not _may_destroy_existing_photo(actor, member):
+        raise PermissionDenied("You cannot change a photo you cannot see.")
     if request.POST.get("photo_action") == "remove":
-        # Nobody destroys what they cannot see. The purge is a hard delete of the row and
-        # both files, the person it belongs to is not told, and "they can choose the file
-        # again" is only true of somebody acting on themselves.
-        if (
-            member.pk != actor.pk
-            and not scoping.visible_profile_photos(actor).filter(member=member).exists()
-        ):
-            raise PermissionDenied("You cannot remove a photo you cannot see.")
         media.purge_profile_photo(member)
         messages.success(request, "Photo removed.")
         return _back_to_profile(member, actor)
@@ -361,6 +367,12 @@ def _photo_post(request: HttpRequest, member: Member, actor: Member) -> HttpResp
         return _photo_error(request, member, actor, "The file was not an image Backyard can read.")
     messages.success(request, "Photo saved.")
     return _back_to_profile(member, actor)
+
+
+def _may_destroy_existing_photo(actor: Member, member: Member) -> bool:
+    if member.pk == actor.pk or member.avatar_tokens is None:
+        return True  # your own, or nothing there to destroy
+    return bool(scoping.photo_owner_ids(actor, [member.pk]))
 
 
 def _fetchable_tokens(

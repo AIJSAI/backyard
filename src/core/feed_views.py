@@ -452,8 +452,13 @@ def _render_feed(
     post_ids = [post.id for post in feed_posts]
     reactor_groups, my_reactions = _reactions_for_page(member, post_ids)
     reply_counts = _reply_counts_for_page(member, post_ids)
-    # One more page-wide query: which of these authors' faces this viewer may fetch.
-    faces = scoping.photo_owner_ids(member, {post.author_id for post in feed_posts})
+    # Which of these authors' faces this viewer may fetch: three queries per page (the
+    # viewer's side and household ids, then the faces), and NONE when nobody on the page
+    # has a photo, which the joined row already says for free. That is every instance on
+    # upgrade day.
+    faces = scoping.photo_owner_ids(
+        member, {post.author_id for post in feed_posts if post.author.avatar_tokens}
+    )
     items: list[FeedItem] = []
     for post in feed_posts:
         tiles = _media_tiles(post)
@@ -978,7 +983,10 @@ def _render_post_detail(
     # a group and then left that side), and a token handed over on the strength of a byline
     # is a broken image beside a name. One query for the whole thread.
     thread = list(comments)
-    faces = scoping.photo_owner_ids(member, {post.author_id, *(c.author_id for c in thread)})
+    with_faces = {c.author_id for c in thread if c.author.avatar_tokens}
+    if post.author.avatar_tokens:
+        with_faces.add(post.author_id)
+    faces = scoping.photo_owner_ids(member, with_faces)
     for comment in thread:
         comment.author_photo = (  # type: ignore[attr-defined]
             comment.author.avatar_tokens if comment.author_id in faces else None

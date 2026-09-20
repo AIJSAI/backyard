@@ -517,8 +517,11 @@ def test_the_feed_does_not_ask_for_one_photo_per_post(world: dict[str, object]) 
     """The N+1 guard, measured rather than asserted: five more authors with five more
     faces must not cost five more queries. It is the same join the gallery prefetch
     already does for the photographs ON those posts."""
-    m_pod, pod_mate = world["m_pod"], world["pod_mate"]
-    assert isinstance(m_pod, Pod) and isinstance(pod_mate, Member)
+    m_pod, pod_mate, author = world["m_pod"], world["pod_mate"], world["author"]
+    assert isinstance(m_pod, Pod) and isinstance(pod_mate, Member) and isinstance(author, Member)
+    # A face on the page in BOTH measurements: a page with none skips the "which faces may I
+    # fetch" question altogether (three queries), and that saving is not what this measures.
+    _photo_of(author)
     client = _client_for(pod_mate)
     client.get(reverse("feed"))  # warm the session and the member lookup
 
@@ -653,6 +656,25 @@ def test_nobody_removes_a_photo_they_cannot_see(world: dict[str, object]) -> Non
     assert "/media/avatar/" not in page
     assert _client_for(owner).post(url, {"photo_action": "remove"}).status_code == 403
     assert ProfilePhoto.objects.filter(member=other).exists()
+    # BOTH verbs destroy. Round 2 measured the refused remove followed by a successful blind
+    # REPLACE, which purges the same row and the same two files.
+    before = ProfilePhoto.objects.get(member=other).token
+    replace = _client_for(owner).post(url, {"photo_action": "upload", "photo": _upload()})
+    assert replace.status_code == 403
+    assert ProfilePhoto.objects.get(member=other).token == before
+
+
+def test_an_admin_may_still_give_a_face_to_somebody_who_has_none(world: dict[str, object]) -> None:
+    """The other half of the rule above: setting is not destroying."""
+    m_pod, other = world["m_pod"], world["other"]
+    assert isinstance(m_pod, Pod) and isinstance(other, Member)
+    owner = _member_with_user(m_pod, "Owner", role=Member.INSTANCE_ADMIN)
+    response = _client_for(owner).post(
+        reverse("managed_profile_edit", args=[other.pk]),
+        {"photo_action": "upload", "photo": _upload()},
+    )
+    assert response.status_code == 302
+    assert ProfilePhoto.objects.filter(member=other).exists()
 
 
 def test_a_child_s_face_stays_inside_their_household(world: dict[str, object]) -> None:
@@ -730,16 +752,37 @@ def _queries(client: Client, url: str) -> int:
 
 
 def test_the_directory_does_not_ask_for_one_photo_per_member(world: dict[str, object]) -> None:
-    """Removing `select_related("profile_photo")` from the directory was invisible to the
-    suite and cost 213 queries for 200 rows (measured in review). `avatar_tokens` asks the
-    database whether or not anybody HAS a photo, so faces are added only to be honest."""
-    m_pod, pod_mate = world["m_pod"], world["pod_mate"]
-    assert isinstance(m_pod, Pod) and isinstance(pod_mate, Member)
+    """Two properties, both measured.
+
+    FACES ARE FREE PER ROW: removing `select_related("profile_photo")` from the directory was
+    invisible to the suite and cost 213 queries for 200 rows (database review of #223).
+
+    THE FACE RULE ADDS NOTHING PER CHILD: a supervised child's face is household-only, and
+    deciding that per row looked the child's households up once per child (33 queries for 20
+    children in review). The directory asks once for the page instead
+    (scoping.photo_owner_ids). A child still costs this page two lookups, one for each
+    household-only date (`profiles._can_see_field`); that is older than this feature and is
+    tracked, and the ceiling below is what stops a third joining them."""
+    m_pod, pod_mate, author = world["m_pod"], world["pod_mate"], world["author"]
+    assert isinstance(m_pod, Pod) and isinstance(pod_mate, Member) and isinstance(author, Member)
     client = _client_for(pod_mate)
-    small = _queries(client, reverse("directory"))
-    for index in range(6):
-        _photo_of(_member_with_user(m_pod, f"Cousin{index}"))
-    assert _queries(client, reverse("directory")) == small
+    _photo_of(author)  # so the page-wide question is asked in every measurement below
+    adults = [_member_with_user(m_pod, f"Cousin{index}") for index in range(6)]
+    without_children = _queries(client, reverse("directory"))
+
+    children = [
+        supervised.create_supervised_member(parent=author, display_name=f"Kid{index}", pod=m_pod)
+        for index in range(4)
+    ]
+    with_children = _queries(client, reverse("directory"))
+    assert with_children - without_children <= 2 * len(children), (
+        f"{with_children - without_children} extra queries for {len(children)} children: "
+        "something is being decided per child again"
+    )
+
+    for person in [*adults, *children]:
+        _photo_of(person)
+    assert _queries(client, reverse("directory")) == with_children, "a face costs a query per row"
 
 
 def test_a_thread_does_not_ask_for_one_photo_per_reply(world: dict[str, object]) -> None:
@@ -748,6 +791,7 @@ def test_a_thread_does_not_ask_for_one_photo_per_reply(world: dict[str, object])
     client = _client_for(pod_mate)
     url = reverse("post_detail", args=[post.pk])
     Comment.objects.create(post=post, author=pod_mate, body="first")
+    _photo_of(pod_mate)  # a face on the page in both measurements, as on the feed guard
     small = _queries(client, url)
     for index in range(6):
         replier = _member_with_user(m_pod, f"Replier{index}")

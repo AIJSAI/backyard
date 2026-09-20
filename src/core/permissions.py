@@ -161,6 +161,8 @@ def can_edit_profile_photo_of(actor: Member, target: Member) -> bool:
     """
     if actor.pk == target.pk:
         return True
+    # ORDER IS THE PROTECTION FOR MINORS: a child account also has no sign-in (user is None),
+    # so this branch must return before the no-sign-in exception below can be reached.
     if target.is_supervised:
         return target.managing_parent_id == actor.pk or is_instance_admin(actor)
     if is_instance_admin(actor):
