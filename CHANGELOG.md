@@ -13,6 +13,13 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
+Nothing yet.
+
+## [0.1.5] — 2026-09-19
+
+Every word a person reads, rewritten to one plain voice, and two holes closed in how an
+address is confirmed. **Upgrade from 0.1.4**: see Security.
+
 ### Changed
 
 - **Every word the product shows a person has been rewritten.** The owner read the shipped
@@ -914,6 +921,7 @@ Everything here is a correction, not a feature. `v0.1.0` is **withdrawn**: insta
 - The demo family is fully invented; no real relative's name appears.
 - Fonts ship with their licence text (SIL OFL 1.1).
 
+[0.1.5]: https://github.com/AIJSAI/backyard/tree/v0.1.5
 [0.1.4]: https://github.com/AIJSAI/backyard/tree/v0.1.4
 [0.1.3]: https://github.com/AIJSAI/backyard/tree/v0.1.3
 [0.1.2]: https://github.com/AIJSAI/backyard/tree/v0.1.2
