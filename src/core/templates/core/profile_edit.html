@@ -38,10 +38,17 @@
     <label for="profile-photo">Profile Photo</label>
     <div class="photo-row">
       {% avatar member.display_name member.id "lg" photo=photo_tokens %}
+      {% comment %} With the script below the control is ONE press: this label is drawn as the
+         button, the native "Choose File / No file chosen" box is hidden visually (it stays
+         the real, labelled, keyboard-operable input) and choosing a picture uploads it.
+         Choose-then-Upload is two steps for one intention, and that native box is the
+         most dated control a browser has. Without the script the label is not drawn and
+         the plain form works as written. {% endcomment %}
+      <label class="picker-button photo-choose" for="profile-photo" hidden>{% if has_photo %}Change Photo{% else %}Choose Photo{% endif %}</label>
       <input id="profile-photo" type="file" name="photo" accept="image/*" required>
     </div>
     <p class="hint">JPEG, PNG or HEIC, up to {{ max_photo_mb }} MB.</p>
-    <button type="submit" name="photo_action" value="upload">Upload Photo</button>
+    <button type="submit" name="photo_action" value="upload" data-photo-upload>Upload Photo</button>
     {% comment %} `danger`, so removing is not a second solid green button of equal weight
        beside the one that saves: the class gives it the product's quiet destructive
        treatment and its leading x, the same non-colour cue "Delete Post" carries. No
@@ -52,6 +59,31 @@
       <button class="danger" type="submit" name="photo_action" value="remove" formnovalidate>Remove Photo</button>
     {% endif %}
   </form>
+  <script nonce="{{ request.csp_nonce }}">
+    (function () {
+      var form = document.querySelector("form.photo-form");
+      if (!form) { return; }
+      var input = form.querySelector("input[type=file]");
+      var choose = form.querySelector(".photo-choose");
+      var upload = form.querySelector("[data-photo-upload]");
+      if (!input || !choose || !upload) { return; }
+      // Claimed only once everything it needs is here: the class is what hides the native
+      // control, so setting it any earlier could leave nothing to press.
+      choose.hidden = false;
+      form.classList.add("js");
+      input.addEventListener("change", function () {
+        if (!input.files || !input.files.length) { return; }
+        choose.textContent = "Uploading";
+        // requestSubmit carries the button's name and value, which is how the view tells
+        // an upload from a removal; the fallback says the same thing with a hidden field.
+        if (form.requestSubmit) { form.requestSubmit(upload); return; }
+        var action = document.createElement("input");
+        action.type = "hidden"; action.name = "photo_action"; action.value = "upload";
+        form.appendChild(action);
+        form.submit();
+      });
+    })();
+  </script>
 
   {% comment %} Posts back to the profile being edited. A hardcoded 'profile_edit' here
      would send a parent's edits of their child to the PARENT's own record — the form

@@ -19,6 +19,8 @@ never the access control (S-403, T-MEDIA-1).
 
 from __future__ import annotations
 
+import pathlib
+
 import datetime
 import io
 import json
@@ -572,3 +574,18 @@ def test_an_export_without_a_photo_says_so_rather_than_naming_a_missing_file(
     archive = zipfile.ZipFile(io.BytesIO(export.build_member_export(author)))
     assert json.loads(archive.read("manifest.json"))["member"]["profile_photo"] is None
     assert "profile-photo.jpg" not in archive.namelist()
+
+
+def test_the_settings_control_is_one_press_with_a_script_and_a_plain_form_without() -> None:
+    """The owner's product is judged against the apps relatives already use, and none of
+    them asks for Choose File, then Upload. With the script the label is the button and
+    choosing a picture submits the form; without it the label is not drawn (`hidden`) and
+    the native input and the Upload Photo button are what ship."""
+    template = (
+        pathlib.Path(__file__).resolve().parents[1] / "templates" / "core" / "profile_edit.html"
+    ).read_text(encoding="utf-8")
+    assert '<label class="picker-button photo-choose" for="profile-photo" hidden>' in template
+    assert 'name="photo_action" value="upload" data-photo-upload' in template
+    # requestSubmit(upload) is what carries photo_action=upload; the fallback says it too.
+    assert "form.requestSubmit(upload)" in template
+    assert 'action.name = "photo_action"; action.value = "upload";' in template

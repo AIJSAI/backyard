@@ -762,6 +762,22 @@ label.inline-check.email-row { flex-wrap: wrap; }
 .photo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem; }
 .photo-row input { flex: 1 1 14rem; margin: 0; }
 .photo-form { margin-bottom: 2rem; }
+/* WITH the script (it sets `js`): one press. The label is the button, the native input is
+   hidden visually only, and the Upload button goes because choosing IS uploading. The ring
+   follows the hidden input onto the thing a person can see, as the composer's picker does. */
+.photo-form.js input[type=file] {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.photo-form.js [data-photo-upload] { display: none; }
+.photo-form .photo-choose {
+  display: inline-flex; align-items: center; justify-content: center; margin: 0;
+  font-weight: 700; font-size: 1rem; cursor: pointer; min-height: 44px; padding: 0.55rem 1.15rem;
+  color: var(--green); background: var(--surface); border: 1.5px solid var(--green); border-radius: 999px;
+}
+.photo-form .photo-choose[hidden] { display: none; }
+.photo-form .photo-choose:hover { background: var(--green-tint); }
+.photo-form.js:has(input[type=file]:focus-visible) .photo-choose { outline: 3px solid var(--ring); outline-offset: 2px; }
 .photo-form .hint { margin-top: 0.5rem; }
 
 /* A name that LEADS something — a post, a reply, a profile — leads it beside its avatar.
