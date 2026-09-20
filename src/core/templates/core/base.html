@@ -764,22 +764,51 @@ label.inline-check.email-row { flex-wrap: wrap; }
 .composer textarea { border-color: var(--line-strong); font-size: 1.06rem; margin-bottom: 0; }
 .composer > label:first-of-type { margin-top: 0.75rem; }
 /* The composer OPENS SMALL. A relative lands on the feed to read it, and the walk
-   measured the family's first photograph ~1700px down, behind ~560px of form. Everything
-   but the box you type in and the button that posts it waits until the composer is in
-   use — focus inside it, or a body that is no longer empty. `.is-open` is the server's
-   override for a bounced compose (it carries a draft or staged photos, so it must open
-   with them showing). Pure CSS: a browser without :has() simply renders it open, which
-   is exactly the old behaviour, and the tab order is unchanged because focus-within
-   expands the moment the textarea takes focus. */
+   measured the family's first photograph ~1700px down, behind ~560px of form. At rest it
+   is the box you type in, the button that adds a photo and the button that posts; who
+   can see the post and the picker's small print wait until the composer is in use.
+
+   WHAT COLLAPSES IT, AND WHAT OPENS IT. Only the script in core/_composer_media.html
+   turns the collapse ON (`js-collapse`), so a page whose script never ran, for any reason,
+   draws the whole form. `.is-open` opens it for good: the server sets it for a bounced
+   compose (it carries a draft or staged photos, so it must open with them showing) and the
+   same script sets it the first time anybody touches the form; nothing ever removes it.
+   `:focus-within` and a body that is no longer empty cover the instant before that handler
+   has run.
+
+   THE PHOTO BUTTON IS NEVER INSIDE THE PART THAT HIDES. It used to be, and that was the
+   defect the owner hit writing the first real post: pressing a <label> takes focus off
+   the textarea, so with an empty box the button disappeared
+   between the press and the release, the click landed on the form, and the photo sheet
+   never opened. The picker is a sibling of `.composer-extras` now, and the sticky class
+   means the audience controls are safe from the same thing.
+
+   The layout is a wrapping flex row so the DOM order can stay the reading order (words,
+   photos, audience, Post) while the resting state puts the photo button and Post on one
+   line. A browser without :has() drops the collapsed rules whole and renders it open. */
 .composer-extras { margin-top: 1rem; }
-/* A composer with no extras wrapper (the welcome step's first post) puts the picker
-   straight after the textarea, whose bottom margin is zero: the button touched the box. */
+/* The picker follows the textarea, whose bottom margin is zero: the button touched the box. */
 .composer > .media-picker { margin-top: 1rem; }
-.composer:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) .composer-extras {
+.composer.collapsible { display: flex; flex-wrap: wrap; align-items: center; column-gap: 0.5rem; }
+/* Sized so the photo button and the primary share one row from 375px up, with "Reply" as
+   well as the shorter "Post": at the picker's default size the pair measured 309px in a
+   307px row on the post page and wrapped, while the feed's fitted. Narrower than 375px
+   they stack, which is the wrap doing its job. The size is the same open or closed, so
+   opening the composer does not resize the button under a thumb. */
+.composer.collapsible .media-picker.js > .picker-button { padding-inline: 0.9rem; font-size: 0.95rem; }
+.composer.collapsible > * { flex: 0 0 100%; min-width: 0; }
+.composer.collapsible.js-collapse:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) .composer-extras,
+.composer.collapsible.js-collapse:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) .media-hint {
   display: none;
 }
+.composer.collapsible.js-collapse:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) > .media-picker {
+  flex: 1 1 auto;
+}
+.composer.collapsible.js-collapse:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) > .composer-submit {
+  flex: 0 0 auto; margin-top: 1rem;
+}
 
-/* ONE media control (owner direction 4): "Add photos or a video", one native sheet, no
+/* ONE media control (owner direction 4): "Add Photos Or Videos", one native sheet, no
    `capture` attribute — capture forces the camera open and hides the photo library. It
    replaced two stacked "Choose Files / No file chosen" boxes, the most dated control in
    the product, sitting on the two screens a family touches most. "Files" is also the
@@ -829,6 +858,10 @@ label.inline-check.email-row { flex-wrap: wrap; }
    the native control, so nobody could confirm they had chosen the right picture. */
 ul.media-previews { list-style: none; display: flex; flex-wrap: wrap;
   gap: 0.75rem; margin: 0.9rem 0 0; padding: 0; }
+/* `display: flex` above beats the UA's `[hidden] { display: none }`, so the EMPTY strip was
+   still a box with a top margin: invisible under the old stacked layout, and 7px of
+   misalignment the day the photo button and Post came to share a row. */
+ul.media-previews[hidden] { display: none; }
 ul.media-previews > li { width: 6.5rem; }
 ul.media-previews img, ul.media-previews .media-kind {
   display: block; width: 6.5rem; height: 6.5rem; object-fit: cover;

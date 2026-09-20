@@ -21,15 +21,15 @@
 {% block body %}
   <p class="back-link"><a class="back" href="{% url 'members' %}">Back To Members</a></p>
   <h1>Admin Guide</h1>
-  <p class="muted">Everything here starts from <strong>Members</strong>, at the top of
-    every page.</p>
+  <p class="muted">Admins add people, help them sign in, and remove them. It all starts
+    from <strong>Members</strong>, at the top of every page.</p>
 
   <h2>1. Invite A Household</h2>
   <p>A household is one home. One link covers everyone in it.</p>
   <ol>
     <li><strong>Members &rarr; Invite A Household</strong>.</li>
     <li>Name the household and choose which side it joins.</li>
-    <li>Send the link however you normally reach them.</li>
+    <li>Text or email them the link.</li>
   </ol>
   <p class="muted">The link is shown once. Make another from
     <a href="{% url 'member_invites' %}">Invites</a>.</p>
@@ -41,8 +41,8 @@
     with that link becomes the Side Admin, and everyone after them joins as a member.</p>
 
   <h2>2. Add A Grandparent</h2>
-  <p><strong>Post something to their side first</strong>, or they will open the link to an
-    empty page. You cannot preview it for them.</p>
+  <p><strong>Post something to their side first</strong>, or the link opens to an empty
+    page.</p>
   <ol>
     <li>For someone new: <strong>Members &rarr; Add A Grandparent</strong>.</li>
     <li>For someone already here: tap <strong>Manage</strong> on their row and then

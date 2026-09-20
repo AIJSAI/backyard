@@ -144,14 +144,14 @@
   {% comment %} id="reply" is the anchor the digest email's "Reply in Backyard" link
      targets, so someone arriving from their inbox lands on the box rather than the top
      of the thread. {% endcomment %}
-  <form id="reply" method="post" action="{% url 'add_comment' post.id %}" class="composer"
+  <form id="reply" method="post" action="{% url 'add_comment' post.id %}" class="composer collapsible"
         enctype="multipart/form-data">
     {% csrf_token %}
     <label class="visually-hidden" for="reply-body">Write A Reply</label>
-    <textarea id="reply-body" name="body" rows="2" placeholder="Write a reply or add a photo"></textarea>
-    <div class="composer-extras">
-      {% include "core/_media_picker.html" with picker_id="reply-media" %}
-    </div>
+    <textarea id="reply-body" name="body" rows="2" placeholder="Write A Reply"></textarea>
+    {% comment %} A sibling of the textarea, never inside a region that hides on blur: see
+       the composer in feed.html for the defect that rule cures. {% endcomment %}
+    {% include "core/_media_picker.html" with picker_id="reply-media" %}
     <div class="composer-submit"><button type="submit">Reply</button></div>
   </form>
   {% include "core/_composer_media.html" %}

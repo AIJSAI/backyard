@@ -3,13 +3,14 @@
    thumb cannot miss. Nothing else goes on this screen: it is the only moment in the
    product where somebody is reading rather than looking for something.
 
-   BOTH SENTENCES ARE THE OWNER'S, verbatim from VOICE.md. The first replaces "This is a
-   private place for our family. No ads, no strangers, and nothing that will chase you." —
-   a mood, in the first person plural, ending on a promise about something the product does
-   not do. The second is the audience sentence: household first, then the two ways to reach
-   further, which is the one thing a newcomer has to understand before they post. It is
-   also the one place in the welcome where "family" earns its place, because a side of the
-   family is what has to be named. {% endcomment %}
+   THE FIRST SENTENCE IS THE OWNER'S (2026-09-20): "this app was created to keep everyone
+   connected and updated on a private network i.e. birthdays, trips, big events, like a
+   private instagram". It replaces "A private, ad-free network to stay connected with
+   everyone", whose "ad-free" he cut the same day: nobody he is inviting was wondering
+   about ads. The second is the audience sentence: household first, then the two ways to
+   reach further, which is the one thing a newcomer has to understand before they post. It
+   is also the one place in the welcome where "family" earns its place, because a side of
+   the family is what has to be named. {% endcomment %}
 {% block title %}Welcome{% endblock %}
 {% block body %}
   {% comment %} The first name, like everywhere else the product speaks TO somebody: the sign-in flash
@@ -17,9 +18,10 @@
      exists for exactly this (models.py: "Welcome back, Priya" is how people talk; "Ask Jim
      Whitfield" is how a directory does). This greeted a new relative with their full name. {% endcomment %}
   <h1>Welcome{% if member.short_name %}, {{ member.short_name }}{% endif %}</h1>
-  <p>A private, ad-free network to stay connected with everyone.</p>
-  <p>Posts are shared with your household. To reach more people, choose a side of the
-    family or a group when posting.</p>
+  <p>Backyard keeps everyone connected and up to date on a private network: birthdays,
+    trips, big events. It works like a private Instagram.</p>
+  <p>Posts go to your household. To reach more people, choose a side of the family or a
+    group when you post.</p>
 
   <p><a class="btn" href="{% url 'welcome_family_email' %}">Next</a></p>
   {% comment %} Skip is a POST, so a link prefetch cannot dismiss the welcome before it

@@ -535,7 +535,7 @@ _VIDEO_SUFFIXES = (".mov", ".mp4", ".m4v", ".qt")
 def _split_media(files: list[UploadedFile]) -> tuple[list[UploadedFile], list[UploadedFile]]:
     """Route ONE picker's files to the photo gate or the video gate.
 
-    The composer is a single control now (owner direction 4: "Add Photos Or A Video",
+    The composer is a single control now (owner direction 4: "Add Photos Or Videos",
     `accept="image/*,video/*"`), because two stacked pickers made a place to say something
     read as an upload form, and because "Files" is the wrong word on a phone. Both kinds
     therefore arrive under one field name and something has to decide which is which.

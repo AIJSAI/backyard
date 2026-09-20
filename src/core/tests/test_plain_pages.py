@@ -80,20 +80,21 @@ def test_it_opens_without_signing_in() -> None:
 
 
 def test_it_answers_the_questions_the_owner_listed() -> None:
-    """The six of owner direction 8, plus the two the 2026-09-19 copy pass added because
-    a sceptical relative asks them before joining: what an admin can do, and how to get
-    out. Markers are whitespace-normalised — where a sentence wraps in the template is
-    not something a test should pin."""
+    """The six of owner direction 8, the two the 2026-09-19 copy pass added (what an admin
+    can do, and how to get out), and the one the 2026-09-20 read put first: what it is for.
+    Markers are whitespace-normalised — where a sentence wraps in the template is not
+    something a test should pin."""
     body = " ".join(Client().get(reverse("how_it_works")).content.decode().split())
     for question, marker in (
-        ("who can see what I post", "Posts are shared with your household"),
-        ("who can join and how", "By invitation only."),
-        ("what an admin can and cannot do", "An admin sees a post only if it was shared"),
+        ("what this is for", "keeps everyone connected and up to date on a private network"),
+        ("who can see what I post", "A post goes to your household unless you pick a group"),
+        ("who can join and how", "Backyard is invitation only."),
+        ("what an admin can and cannot do", "They see only the posts shared with them"),
         ("what email updates are", "Email Updates"),
-        ("how to stop email updates", "carries a link that stops them"),
-        ("what happens to my photos", "removed from the server permanently"),
+        ("how to stop email updates", "Every update has a link to stop them"),
+        ("what happens to my photos", "Photos are shown only to the people the post was shared"),
         ("if I forget my password", "Forgot Your Password?"),
-        ("how to leave", "to remove you. They choose whether your posts stay"),
+        ("how to leave", "stay without your name, or be deleted along with their photos"),
     ):
         assert marker in body, f"the page does not answer: {question}"
 
@@ -109,10 +110,11 @@ def test_it_carries_the_privacy_disclosure_the_threat_model_promises() -> None:
     body = " ".join(Client().get(reverse("how_it_works")).content.decode().split())
     # The DISCLOSURE, not its punctuation: the sentence opened "One more thing, once a
     # week:" until the judge walk of 2026-09-19 cut the presenter's tic in front of it.
-    assert "whether you visited" in body
-    assert "A yes or a no" in body
-    assert "does not record what you read" in body
-    assert "no per-person activity list" in body
+    assert "Once a week it also notes whether you visited, yes or no." in body
+    # The half that makes it a promise: a total, never a person. test_metrics.py holds the code
+    # to it; this holds the page to it.
+    assert "Admins see the total for a side, never who." in body
+    assert "It doesn't track what you read or tap." in body
 
     note = " ".join(_PRIVACY_NOTE.read_text(encoding="utf-8").split())
     assert "once a week, whether each of us stopped by" in note, (
@@ -127,7 +129,7 @@ def test_it_names_the_person_to_ask_when_there_is_one() -> None:
     # nobody. What is asserted here is the naming path itself, which is unchanged.
     page = _a_relative_signed_in(pod).get(reverse("how_it_works")).content.decode()
     body = " ".join(page.split())
-    assert "Ask Jim for a link to pass on." in body, "the page does not name who to ask"
+    assert "To get someone invited, ask Jim." in body, "the page does not name who to ask"
     assert "ask Jim to remove you" in body, "the page does not name who removes you"
     assert "Whitfield" not in body, "the help line uses the first name only"
 

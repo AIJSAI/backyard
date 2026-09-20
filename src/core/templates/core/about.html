@@ -11,11 +11,11 @@
 {% block title %}About{% endblock %}
 {% block body %}
   <h1>About</h1>
-  {% comment %} "A relative runs it." is cut: the section heading directly below already promises it
-     ("Who Runs This") and its first line says it again in full ("A relative set this up and
-     runs it"). The same fact twice in seven lines, on a page three paragraphs long. {% endcomment %}
-  <p class="muted">Backyard is the software this private network runs on. No company is
-    behind it, and there is no advertising.</p>
+  {% comment %} The page used to open by saying no company is behind this and there is no
+     advertising. The owner's read (2026-09-20): "saying no ads or not run by a company
+     isn't necessary for my family." It answered a question no relative had asked. It
+     says what Backyard is for instead, in the words How It Works opens with. {% endcomment %}
+  <p>Backyard keeps everyone connected and up to date on a private network.</p>
 
   <h2>Who Runs This</h2>
   {% comment %} `help_contact` is empty for anybody who has not been let in — this page is
@@ -25,19 +25,14 @@
      signed-in member, or a reader holding a link a relative sent them, still gets it,
      because they have already been introduced. The gate is one function,
      context_processors.may_name_the_admin. {% endcomment %}
-  <p>{% if help_contact %}{{ help_contact }} set this up and runs it. Contact
-    {{ help_contact }} if something is wrong, or if you want to leave.{% else %}A relative
-    set this up and runs it. Contact the person who invited you if something is wrong, or
-    if you want to leave.{% endif %}</p>
-  <p><a href="{% url 'how_it_works' %}">How It Works</a> covers who can see what you post,
-    what Backyard stores about you, and how to leave.</p>
+  <p>{% if help_contact %}{{ help_contact }} set this up and runs it. Questions and problems
+    go to {{ help_contact }}.{% else %}A relative set this up and runs it. Questions and
+    problems go to the person who invited you.{% endif %}
+    <a href="{% url 'how_it_works' %}">How It Works</a> covers the rest.</p>
 
-  <h2>The License</h2>
+  <h2>Source Code</h2>
   {% comment %} The section 13 offer itself. Kept as one block so it reads as a single
      statement and so a future edit cannot drop half of it. {% endcomment %}
-  <p>Backyard is free software under the <strong>AGPL-3.0-or-later</strong> license. You
-    can read the source, run your own copy, and change it.</p>
-  <p>Source code: <a href="https://github.com/AIJSAI/backyard" rel="noopener noreferrer">github.com/AIJSAI/backyard</a></p>
-  <p class="muted">The license requires that offer to anyone using the software over a
-    network. This server runs its own copy.</p>
+  <p>Backyard is free software under the <strong>AGPL-3.0-or-later</strong> license:
+    <a href="https://github.com/AIJSAI/backyard" rel="noopener noreferrer">github.com/AIJSAI/backyard</a></p>
 {% endblock %}

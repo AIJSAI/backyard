@@ -83,7 +83,7 @@ def _drive_join_to_feed(
         # nothing the account needs — and the whole point of walking it on a real phone is
         # that skipping out of it has to leave a finished member in a working feed.
         page.wait_for_url(f"{base_url}/welcome/")
-        expect(page.get_by_text("A private, ad-free network")).to_be_visible()
+        expect(page.get_by_text("It works like a private Instagram")).to_be_visible()
         # The BUTTON, not any element whose text contains "Skip". `text=Skip` is a
         # substring match, and every page in this product opens with an <a class="skip-link">
         # reading "Skip To Content" — so the bare selector resolved to two elements, took
@@ -94,7 +94,7 @@ def _drive_join_to_feed(
         # And they are standing IN the pod feed: the composer and the pod-mate's existing
         # post both render for the brand-new account (S-101 acceptance).
         page.wait_for_url(f"{base_url}/feed/")
-        expect(page.get_by_label("Write A Post")).to_be_visible()
+        expect(page.get_by_label("Share Something")).to_be_visible()
         expect(page.get_by_text(welcome_body)).to_be_visible()
     finally:
         browser.close()
@@ -213,7 +213,7 @@ def _drive_invite_mint_handover_and_redeem(
         newcomer.wait_for_url(f"{base_url}/welcome/")
         newcomer.get_by_role("button", name="Skip", exact=True).click()
         newcomer.wait_for_url(f"{base_url}/feed/")
-        expect(newcomer.get_by_label("Write A Post")).to_be_visible()
+        expect(newcomer.get_by_label("Share Something")).to_be_visible()
     finally:
         browser.close()
 
@@ -348,7 +348,7 @@ def _drive_csp_inline_script_check(
         # The feed carries two nonce'd inline scripts (service-worker registration, the
         # client-side resize); if the CSP blocked either, the console records it.
         page.goto(f"{base_url}/feed/")
-        expect(page.get_by_label("Write A Post")).to_be_visible()
+        expect(page.get_by_label("Share Something")).to_be_visible()
         page.wait_for_timeout(400)  # give the inline scripts a beat to run (or be refused)
         assert not violations, (
             f"CSP refused an inline script under the enforced policy: {violations}"

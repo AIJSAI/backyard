@@ -90,11 +90,13 @@
     </div>
   {% endif %}
 
-  {% comment %} `is-open` overrides the composer's default collapsed state (base.html): a
-     compose that bounced back, or an unfinished draft picked back up, must open with its
-     words and its photos already showing rather than behind a tap. {% endcomment %}
+  {% comment %} `collapsible` is what lets this composer open small (base.html), and
+     `is-open` is what opens it. The server sets `is-open` for a compose that bounced back
+     or an unfinished draft picked back up, which must show its words and photos rather
+     than hide them behind a tap; the script in core/_composer_media.html sets it the
+     moment anybody touches the form, and never takes it away. {% endcomment %}
   <form method="post" action="{% url 'compose' %}"
-        class="composer{% if staged_handle or draft_body %} is-open{% endif %}"
+        class="composer collapsible{% if staged_handle or draft_body %} is-open{% endif %}"
         enctype="multipart/form-data">
     {% if staged_handle %}
       {% comment %} A compose that bounced back for correction, or a confirmation the member
@@ -108,19 +110,24 @@
        handle above already carried the PHOTOS back, and the notice beside it says so — but
        the words were dropped, so the page reassured a member their pictures were safe while
        having just deleted the paragraph they wrote. {% endcomment %}
-    <label class="visually-hidden" for="compose-body">Write A Post</label>
-    {% comment %} THE PLACEHOLDER IS MECHANISM AS WELL AS COPY. base.html collapses
-       `.composer-extras` with `:has(textarea:placeholder-shown)`, and that pseudo-class
-       cannot match a textarea with no placeholder attribute: the copy pass removed this one
-       as a repeat of its label and the composer opened full-height for everybody, which is
-       the defect the rule was written to cure. A composer's prompt is also one of the two
-       conventional exceptions the voice guide allows (the other is a search box), and the
-       reply box one screen away has always carried its own. {% endcomment %}
-    <textarea id="compose-body" name="body" rows="3" placeholder="Write a post" required>{{ draft_body }}</textarea>
+    <label class="visually-hidden" for="compose-body">Share Something</label>
+    {% comment %} A composer's prompt is one of the two places the voice guide allows a
+       placeholder (the other is a search box). It used to be mechanism as well: the
+       collapse keyed off `:placeholder-shown`. It is only words now; see base.html. {% endcomment %}
+    <textarea id="compose-body" name="body" rows="3" placeholder="Share Something" required>{{ draft_body }}</textarea>
+
+    {% comment %} THE PICKER SITS OUTSIDE `.composer-extras`, and that is the fix for a
+       defect the owner hit writing the first real post (2026-09-20): a tap on the
+       button before typing a word, and the composer closed under the thumb. The button
+       lived inside the part that was hidden whenever the box was empty and unfocused;
+       pressing a label takes focus off the textarea, so the button vanished between the
+       press and the release, the click landed on the form, and no photo sheet ever
+       opened. A photo is how most posts in a family feed begin, so the button is part of
+       the composer's resting state now, beside Post, and nothing a person can press is
+       ever inside a region that hides on blur. {% endcomment %}
+    {% include "core/_media_picker.html" with picker_id="media" %}
 
     <div class="composer-extras">
-      {% include "core/_media_picker.html" with picker_id="media" %}
-
       <fieldset class="composer-audience">
         <legend>Who Can See This</legend>
         <div class="audience-row">
@@ -154,6 +161,11 @@
 
     <div class="composer-submit"><button type="submit">Post</button></div>
   </form>
+  {% comment %} Directly after the form, not at the end of the page: this script is what
+     turns the collapse on, and a parser-blocking inline script here runs before the feed
+     below it is painted, so the composer never draws open for a frame and then folds.
+     The reply form on the post page has always had it in this position. {% endcomment %}
+  {% include "core/_composer_media.html" %}
 
   {% comment %} BY-02/BY-03. This member has no email address anywhere — not on their
      account and not as an allauth address — so "Forgot your password?" cannot reach them,
@@ -281,6 +293,5 @@
     <p class="older"><a href="{% url 'feed' %}">Back To The Newest Posts</a></p>
   {% endif %}
 
-  {% if not is_archive_page %}{% include "core/_composer_media.html" %}{% endif %}
 {% endblock %}
 {% block extra_body %}{% include "core/_localise_times.html" %}{% endblock %}

@@ -125,7 +125,9 @@ def test_a_signed_in_member_is_told_who_to_ask() -> None:
 
     assert _HELP in client.get(reverse("feed")).content.decode()
     # ...and on the public pages too, once they are signed in.
-    assert f"Ask {_FIRST}" in client.get(reverse("how_it_works")).content.decode()
+    assert f"To get someone invited, ask {_FIRST}." in " ".join(
+        client.get(reverse("how_it_works")).content.decode().split()
+    )
 
 
 def test_the_grandparents_no_login_page_still_names_him() -> None:
