@@ -60,9 +60,10 @@ def _open(browser: Any, device: dict[str, Any], base_url: str, cookie: str) -> A
 
 def _order(page: Any) -> list[str]:
     """The platform sections as the reader meets them, top to bottom."""
-    return page.eval_on_selector_all(
+    found = page.eval_on_selector_all(
         "[data-install-platform]", "nodes => nodes.map(n => n.dataset.installPlatform)"
     )
+    return [str(name) for name in found]
 
 
 def test_each_phone_is_shown_its_own_way_in(live_server: Any, playwright: Playwright) -> None:

@@ -106,8 +106,7 @@ def test_the_iphone_steps_are_the_three_words_ios_shows() -> None:
     steps = body[body.index("iPhone And iPad") :]
     steps = steps[steps.index("<ol") : steps.index("</ol>")]
     positions = [
-        steps.index(f"<strong>{label}</strong>")
-        for label in ("Share", "Add to Home Screen", "Add")
+        steps.index(f"<strong>{label}</strong>") for label in ("Share", "Add to Home Screen", "Add")
     ]
     assert positions == sorted(positions), f"the steps are out of order: {steps}"
     # Three steps, not two and not four.
@@ -212,7 +211,8 @@ def test_how_it_works_offers_it_to_a_member_and_not_to_a_stranger() -> None:
     landing page already refuses to hand out."""
     pod, _admin = _family()
     client, _row = _member(pod)
-    assert f'href="{reverse("get_the_app")}"' in client.get(reverse("how_it_works")).content.decode()
+    signed_in = client.get(reverse("how_it_works")).content.decode()
+    assert f'href="{reverse("get_the_app")}"' in signed_in
     public = Client().get(reverse("how_it_works")).content.decode()
     assert "added to your home screen" in public  # the fact is still stated
     assert reverse("get_the_app") not in public
