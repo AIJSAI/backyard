@@ -42,8 +42,14 @@
     </div>
     <p class="hint">JPEG, PNG or HEIC, up to {{ max_photo_mb }} MB.</p>
     <button type="submit" name="photo_action" value="upload">Upload Photo</button>
+    {% comment %} `danger`, so removing is not a second solid green button of equal weight
+       beside the one that saves: the class gives it the product's quiet destructive
+       treatment and its leading x, the same non-colour cue "Delete Post" carries. No
+       confirmation page, unlike a post: nothing is lost that the member cannot put back
+       by choosing the file again, and the guide keeps a confirm step for the acts that
+       are irreversible. {% endcomment %}
     {% if has_photo %}
-      <button type="submit" name="photo_action" value="remove" formnovalidate>Remove Photo</button>
+      <button class="danger" type="submit" name="photo_action" value="remove" formnovalidate>Remove Photo</button>
     {% endif %}
   </form>
 
