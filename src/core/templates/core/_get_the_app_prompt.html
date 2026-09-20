@@ -1,0 +1,84 @@
+{% comment %} One quiet line on the feed, phones only, offering the home screen (S-103).
+
+   IT IS ONE LINE, and that is the whole design. The email offer one block up was a
+   screen-tall card until the 2026-09-19 walk cut it down to a sentence; a second card
+   would have put the product straight back where it started, with two pieces of chrome
+   between a member and their family's photographs. So this borrows that line's shape
+   exactly: a sentence, a link, and a quiet decline at the end of it.
+
+   IT NEVER FLASHES. The markup ships `hidden` and only a script can reveal it, because
+   every reason to show it is a browser fact the server does not have: whether this is a
+   phone, whether Backyard is already installed, and whether this person has already said
+   no. A line that appeared and then vanished on every feed load would be worse than no
+   line.
+
+   THE DISMISSAL IS localStorage, WHICH IS A DEPARTURE. The email prompt beside it is
+   dismissed server-side, on Member.email_prompt_dismissed_at, so it stays dismissed on
+   every device that member signs in on. Doing the same here needs a second column and a
+   migration, and this work item adds neither. localStorage is the honest alternative and
+   its limits are real: saying "not now" on a phone does not silence it on a tablet, and
+   clearing site data brings it back. Both are survivable for a nudge whose whole job is to
+   be ignorable, and the line is per-DEVICE anyway — installing is a thing you do to one
+   phone, so a per-device memory of declining it is not obviously the wrong shape.
+
+   It is included from feed.html and nowhere else, so it cannot reach the surfaces that must
+   never carry install chrome: the No-Login Link pages (/t/, /e/) and the email web view
+   (/d/) are intermittent token surfaces that plant no worker and link no manifest at all
+   (ADR-002), and an install prompt there would be an invitation to a home-screen icon that
+   opens a login page. {% endcomment %}
+<style>
+/* The email line's rule, deliberately: these two sit under the same composer and any
+   difference between them would read as a mistake. */
+.app-prompt {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.9rem;
+  margin: 0.85rem 0 2rem; font-size: 0.92rem; color: var(--ink-soft);
+}
+/* `display: flex` above beats the browser's own `[hidden] { display: none }`, so the
+   attribute has to be named at a specificity that wins or the line ships visible to
+   everybody — the exact flash this block exists to avoid. */
+.app-prompt[hidden] { display: none; }
+/* Borderless, like its neighbour: a bordered pill at the end of a sentence is how "Not
+   Now" became the loudest thing on this page once already. The 44px target stays. */
+.app-prompt .btn-quiet {
+  border-color: transparent; padding-left: 0; padding-right: 0;
+  font-size: 0.92rem; text-decoration: underline; text-underline-offset: 3px;
+}
+.app-prompt .btn-quiet:hover { background: none; border-color: transparent; }
+</style>
+<div class="app-prompt" data-app-prompt hidden>
+  <span><a href="{% url 'get_the_app' %}">Add Backyard to your home screen</a> to open it
+    like an app.</span>
+  <button type="button" class="btn-quiet" data-app-prompt-dismiss>Not Now</button>
+</div>
+<script nonce="{{ request.csp_nonce }}">
+  (function () {
+    var line = document.querySelector('[data-app-prompt]');
+    if (!line) { return; }
+    // Already installed: this member has done the thing the line asks for.
+    if ((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+      || navigator.standalone === true) { return; }
+    // Phones only. Width alone would catch a narrowed desktop window, where a home-screen
+    // icon means nothing; a coarse pointer is the reading that says "this is a thumb".
+    if (!window.matchMedia
+      || !window.matchMedia('(max-width: 34rem)').matches
+      || !window.matchMedia('(pointer: coarse)').matches) { return; }
+    var key = 'backyard.install-prompt-dismissed';
+    // Every access wrapped: Safari's private mode and a browser with site data blocked
+    // both THROW on localStorage rather than returning null, and an exception here would
+    // take the rest of this script with it.
+    try {
+      if (window.localStorage.getItem(key)) { return; }
+    } catch (error) {
+      // No storage to read. Show the line; the worst case is being asked twice.
+    }
+    line.hidden = false;
+    line.querySelector('[data-app-prompt-dismiss]').addEventListener('click', function () {
+      line.hidden = true;
+      try {
+        window.localStorage.setItem(key, '1');
+      } catch (error) {
+        // Nothing to do: it is gone for this page view, which is what was asked for.
+      }
+    });
+  })();
+</script>

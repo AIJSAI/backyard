@@ -182,6 +182,8 @@ _UNLINKED_BY_DESIGN = {
     "welcome": "the first screen after joining; nothing links back to it once seen",
     "welcome_family_email": "the second screen of that same one-time flow",
     "welcome_hello": "the third screen of that same one-time flow",
+    "welcome_app": "the fourth screen of that same one-time flow; the install steps it "
+    "carries are reachable for good from Settings, at get_the_app",
     "welcome_skip": "the Skip button on those screens",
     # --- allauth's URLconf ---------------------------------------------------------
     # This block used to be one line of exemption in the assertion itself: the route set

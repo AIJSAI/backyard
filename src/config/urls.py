@@ -73,6 +73,9 @@ urlpatterns = [
         name="welcome_family_email",
     ),
     path("welcome/hello/", welcome_views.welcome_hello, name="welcome_hello"),
+    # Screen four: the home-screen steps, offered at the one moment a newcomer is
+    # certainly holding the phone they will read Backyard on (S-103).
+    path("welcome/app/", welcome_views.welcome_app, name="welcome_app"),
     # The feed is the member's landing surface: their visible posts, newest first,
     # plus the composer. compose is POST-only and writes through core/posting.
     path("feed/", feed_views.feed, name="feed"),
@@ -237,6 +240,10 @@ urlpatterns = [
     path("healthz", views.healthz, name="healthz"),
     # PWA install surface (S-103): manifest, icons, and a minimal service
     # worker (no precache, ADR-002). Served at root so the worker takes / scope.
+    # `/app/` is the page that tells a member the pieces below exist at all: the
+    # Share-sheet steps, an Install button on Android, and what an in-app browser
+    # cannot do. Signed in, for the reason in the view's docstring.
+    path("app/", pwa_views.get_the_app, name="get_the_app"),
     path("manifest.webmanifest", pwa_views.manifest, name="manifest"),
     path("service-worker.js", pwa_views.service_worker, name="service_worker"),
     path("icon-192.png", pwa_views.icon_192, name="icon_192"),

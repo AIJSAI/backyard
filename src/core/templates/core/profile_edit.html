@@ -160,6 +160,14 @@
        did not catch it because its list of pages-that-must-be-reachable was three names
        long and hand-maintained; it now walks the link graph instead. {% endcomment %}
     <p class="settings-link"><a href="{% url 'notification_settings' %}">Notifications</a></p>
+    {% comment %} S-103's missing half. The manifest, the icons and the worker have shipped
+       since wave 5 and no surface in the product ever mentioned them, so the only members
+       with Backyard on a home screen were the ones who already knew Safari's Share sheet
+       does that. Here rather than under "Your Account" because it is a property of the
+       DEVICE in your hand, not of your account — the row above it is the other thing this
+       phone does — and `data-app-row` is what the script at the foot of this page hides
+       once the page is already running as an installed app. {% endcomment %}
+    <p class="settings-link" data-app-row><a href="{% url 'get_the_app' %}">Get The App</a></p>
     <p class="settings-link"><a href="{% url 'how_it_works' %}">How It Works</a></p>
     <p class="settings-link"><a href="{% url 'export_data' %}">Download Your Data</a></p>
 
@@ -223,4 +231,24 @@
   {% endif %}
 
   <p class="back-link"><a class="back" href="{% url 'directory' %}">Back To The Directory</a></p>
+{% endblock %}
+{% block extra_body %}
+  {% comment %} Backyard is already installed and this page IS the installed app: the row
+     offering to install it is then an instruction to do a thing that is done. Client-side,
+     because only the browser knows the display mode, and removed rather than reworded so
+     there is one sentence about installing in the product and it lives on one page.
+
+     The row ships in the markup and is taken away afterwards, which is the right way round
+     for the link crawl and for a reader with no JavaScript: a page that built the row in a
+     script would be a settings row that does not exist for either of them. {% endcomment %}
+  <script nonce="{{ request.csp_nonce }}">
+    (function () {
+      var row = document.querySelector('[data-app-row]');
+      if (!row) { return; }
+      var installed = (window.matchMedia
+        && window.matchMedia('(display-mode: standalone)').matches)
+        || navigator.standalone === true;
+      if (installed) { row.hidden = true; }
+    })();
+  </script>
 {% endblock %}

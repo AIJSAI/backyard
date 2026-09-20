@@ -1,4 +1,4 @@
-"""PWA install surface (S-103): manifest, icons, a minimal service worker.
+"""PWA install surface (S-103): the Get The App page, manifest, icons, a worker.
 
 Backyard installs to a member's home screen so it feels like an app with no
 app store. Per ADR-002 the service worker is deliberately minimal: it has a
@@ -6,6 +6,12 @@ fetch handler (Chrome's installability bar) but NO app-shell precache and
 caches nothing, so it can never serve a stale or cross-account page and there
 is no cache to leak a token through. The manifest's start_url is the login-
 gated feed; the icons are generated deterministically, no binary in the tree.
+
+All of that shipped and NOTHING IN THE PRODUCT EVER SAID SO. A member had to
+know that Safari's Share sheet holds Add to Home Screen, and an Android member
+never saw an install control at all, so the one feature that turns this into
+"the app" on a relative's phone was reachable only by somebody who already knew
+how. `get_the_app` is that missing half.
 
 The elder token surface never references any of this (the Safari eviction rule,
 ADR-002): elders on a bare token link are the definition of intermittent
@@ -17,7 +23,9 @@ from __future__ import annotations
 
 import io
 
+from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.shortcuts import render
 from PIL import Image, ImageDraw
 
 # Design v3 "Signage". These were still the v2 navy (#234a78) and its cool near-white
@@ -29,11 +37,39 @@ _THEME = "#1e5c46"  # --green, sign green (7.63:1 on paper)
 _BG = "#fbfcfb"  # --paper
 
 
+@login_required
+def get_the_app(request: HttpRequest) -> HttpResponse:
+    """How to put Backyard on a home screen, said once, in the product (S-103).
+
+    SIGNED IN ONLY, and that is a mechanism decision rather than a privacy one —
+    though it is both. base.html links the manifest and the apple-touch-icon for an
+    AUTHENTICATED reader only, so a signed-out visitor following these steps would
+    add a home-screen icon with no name, no icon and no standalone display, and
+    Chrome would never fire `beforeinstallprompt` on a page with no manifest, so the
+    Install App button would sit there dead. A page that tells somebody to install
+    an app they cannot install is worse than no page. The privacy half is the usual
+    one: this is an invite-only family network, the start_url is the login-gated
+    feed, and a stranger reading an install guide learns nothing they can use.
+
+    The page itself is static: the platform branch, the in-app-browser warning and
+    the already-installed state are all decided in the browser, because only the
+    browser knows. Nothing here sniffs a user agent server-side.
+    """
+    return render(request, "core/get_the_app.html")
+
+
 def manifest(request: HttpRequest) -> JsonResponse:
     """The web app manifest (S-103): name, standalone display, icons."""
     data = {
         "name": "Backyard",
         "short_name": "Backyard",
+        # The app's IDENTITY, and it must never change: a manifest with no `id` gets
+        # one implicitly from start_url, so every Backyard installed before this line
+        # existed is identified as "/feed/". Writing that same value down pins it. Any
+        # other value — "/" looks tidier — would read to Chrome as a DIFFERENT app, so
+        # an existing install would stop updating and a second icon would appear beside
+        # it on the home screen of every relative who already has one.
+        "id": "/feed/",
         # Read in the phone's install sheet, and the only place in the product where a
         # sentence has to introduce Backyard to somebody who has not seen a screen of it.
         # "Your family, on your own schedule." was the one marketing-shaped line anywhere

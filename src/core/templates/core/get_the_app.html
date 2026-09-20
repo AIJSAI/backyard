@@ -1,0 +1,38 @@
+{% extends "core/base.html" %}
+{% comment %} The page that says the install exists (S-103). The manifest, the icons and the
+   worker have shipped since wave 5; nothing in the product ever told a relative that
+   Safari's Share sheet is where the app comes from, so the feature was reachable only by
+   somebody who already knew how it worked.
+
+   SHORT ENOUGH FOR ONE PHONE SCREEN PER PLATFORM. Three steps, three lines. Everything that
+   decides which steps to show lives in core/_install_steps.html, which the last welcome
+   screen includes too.
+
+   NO NAMES AND NO PRIVATE LINKS on the page itself: it is signed in (pwa_views.get_the_app
+   says why), and the only thing it points at is this same Backyard. {% endcomment %}
+{% block title %}Get The App{% endblock %}
+{% block body %}
+  <h1>Get The App</h1>
+  <p class="muted">Add Backyard to your home screen. It opens like an app, with no app
+    store.</p>
+
+  {% include "core/_install_steps.html" %}
+
+  {% comment %} THE ONE THING THAT SURPRISES PEOPLE. An installed home-screen app on iOS has
+     its own storage container, separate from Safari's, so the session a relative has in
+     Safari right now does not exist inside the icon they just made — they open it and see
+     the sign-in page, which reads as "it did not work".
+
+     The second line is the case this product actually creates: an admin-issued Sign-In Link
+     (core/recovery.py) is handed over by text, so it is tapped in Messages and opens in
+     Safari. What it does there is set a password (recovery.redeem), and that password is
+     what signs them in inside the app. So the instruction is true for the one member who
+     had no password of their own a minute earlier. {% endcomment %}
+  <h2>Signing In</h2>
+  <p>On an iPhone the installed app has its own sign-in, separate from Safari. Sign in once
+    inside the app, the same way you sign in here.</p>
+  <p>A Sign-In Link opens in Safari, not in the app. Use it to choose a password, then sign
+    in to the app with that password.</p>
+
+  <p class="back-link"><a class="back" href="{% url 'profile_edit' %}">Back To Settings</a></p>
+{% endblock %}

@@ -114,6 +114,13 @@
     <p><a class="btn" href="{% url 'export_data' %}">Download Your Data</a></p>
   {% endif %}
 
+  <h2>On Your Phone</h2>
+  <p>Backyard can be added to your home screen. It opens like an app, and there is nothing
+    to download from an app store.</p>
+  {% if user.is_authenticated %}
+    <p><a class="btn" href="{% url 'get_the_app' %}">Get The App</a></p>
+  {% endif %}
+
   <h2>If You Forget Your Password</h2>
   <p>If you gave an email address and confirmed it, use Forgot Your Password? on the
     sign-in page.</p>

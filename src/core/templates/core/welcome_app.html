@@ -1,0 +1,26 @@
+{% extends "core/base.html" %}
+{% comment %} Screen four, and the last one. The three before it explain the place; this one
+   is the only practical thing the welcome asks anybody to do, and it is deliberately last —
+   a relative is holding the phone they will read Backyard on for years, and every later
+   moment is one where they have to go looking for it in Settings.
+
+   ITS EXIT IS ITS SKIP. Screens one and two carry a Skip button because they sit in front
+   of something; this screen sits in front of nothing — it writes no row, asks for no
+   answer, and leaving it costs the member nothing. So it ends the way screen three ends,
+   with one control back to the feed, rather than two controls that do the same thing.
+
+   ON A LAPTOP it shows both platforms' steps and is harmless, which is the deliberate
+   choice over hiding it: the reader may be a daughter working out what to tell her father
+   on the phone, and the steps are the same ones she needs to read out. Hiding a whole
+   screen after it has rendered would also be a flash, which is the thing the feed line next
+   door is written to avoid. {% endcomment %}
+{% block title %}Get The App{% endblock %}
+{% block body %}
+  <h1>Get The App</h1>
+  <p>Add Backyard to your home screen. It opens like an app, with no app store.</p>
+
+  {% include "core/_install_steps.html" %}
+
+  <p><a class="btn-secondary btn" href="{% url 'feed' %}">Go To Your Backyard</a></p>
+  <p class="muted">This is also in Settings, under Get The App.</p>
+{% endblock %}

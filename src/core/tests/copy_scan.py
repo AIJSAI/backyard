@@ -465,9 +465,25 @@ def _is_lowercased(word: str) -> bool:
         return False
     for half in _halves(stripped):
         first = next((ch for ch in half if ch.isalpha()), "")
-        if first and first.islower():
+        if first and first.islower() and not _brand_cased(half):
             return True
     return False
+
+
+def _brand_cased(half: str) -> bool:
+    """A word that carries its OWN capital later on: "iPhone", "iPad", "iOS", "eBay".
+
+    The module docstring above this guard has always claimed "iPhone" passes untouched,
+    and it did not: only the first letter was examined, so the one heading in this product
+    that has to name Apple's phone would have failed the capitalisation rule with no way to
+    satisfy it except misspelling a product name. That is the same class of mistake the
+    `_MACHINE` clause already avoids for an address — a token whose case belongs to
+    somebody else is not this rule's to move.
+
+    Narrow on purpose: an internal capital is the evidence. "content", "to" and "sign" have
+    none, so "Skip to content" and "Sign-in Link" are offences exactly as before.
+    """
+    return any(character.isupper() for character in half)
 
 
 def title_cased(text: str) -> str:

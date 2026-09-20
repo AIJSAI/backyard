@@ -1,0 +1,162 @@
+{% comment %} The install steps themselves (S-103), shared by the Get The App page and the
+   last welcome screen, so the one set of words a relative follows on their phone exists in
+   one file rather than two that drift.
+
+   EVERYTHING HERE IS DECIDED IN THE BROWSER, and the markup ships with every branch in it.
+   Only the browser knows whether this page is inside Instagram's viewer, whether the app is
+   already on the home screen, or whether Chrome is willing to install. Nothing sniffs a user
+   agent server-side, so the page is cacheable, identical for everyone, and correct with the
+   script off: with no JavaScript both platforms' steps simply show, which is the honest
+   fallback — the steps are true, they are just both there.
+
+   THE INSTALL BUTTON IS NOT IN THE ANDROID SECTION, and that is deliberate. It is revealed by
+   `beforeinstallprompt`, which fires in desktop Chrome too, so putting it under a heading
+   reading "Android" would tell a relative on a laptop that their laptop is an Android phone.
+   It sits above both sections, says what it does, and the Android menu steps below it hide
+   while it is live — they are the fallback for the browsers that never fire the event
+   (Firefox, some Samsung builds), which is exactly where the menu is the only way in.
+
+   NO SCREENSHOTS AND NO REMOTE IMAGES. The Share glyph is one inline SVG drawn in
+   currentColor, so it is the ink of whichever colour scheme is on, and it costs no request. A
+   screenshot of iOS would be a picture that rots every September. {% endcomment %}
+<style>
+/* Scoped to this block. The steps are a numbered list with the numbers at the page's own
+   left edge rather than the browser's 40px indent, so the three steps line up with the
+   heading above them instead of floating in from the side. */
+.install ol { margin: 0 0 1.1rem; padding-left: 1.35rem; }
+.install li { margin: 0 0 0.45rem; padding-left: 0.15rem; }
+.install li:last-child { margin-bottom: 0; }
+.install section { margin: 0 0 2rem; }
+.install section:last-child { margin-bottom: 0; }
+/* The glyph iOS draws on the Share control, at the size of the word beside it. `baseline`
+   would sit it low against the text; -0.18em is the optical centre of a 1.15em box. */
+.install .share-glyph { width: 1.15em; height: 1.15em; vertical-align: -0.18em; margin: 0 0.1em; }
+/* `hidden` is overridden by any later rule that sets `display`, so every element this
+   block toggles names the attribute at a specificity that wins. Without this a branch
+   that is meant to be invisible renders anyway, which is the one failure mode a
+   progressive-enhancement block must not have. */
+.install [hidden] { display: none; }
+.install-now { margin: 0 0 2rem; }
+.install-now p { margin: 0 0 0.6rem; }
+</style>
+<div class="install" data-install>
+  {% comment %} Already on the home screen: the steps are noise, so they go and this stays.
+     Two readings, because the two platforms answer differently — Chrome and Android report
+     the display mode, older iOS reports `navigator.standalone`. {% endcomment %}
+  <div class="notice" data-install-done hidden>
+    <p>Backyard is installed on this device. Open it from your home screen.</p>
+  </div>
+
+  {% comment %} An in-app browser (Instagram, Facebook, LinkedIn) cannot add anything to a
+     home screen, and neither its menu nor Safari's Share sheet is where a relative expects
+     it. This goes FIRST when it applies, because every step below it is wasted until they
+     are out of the viewer. {% endcomment %}
+  <section data-install-webview hidden>
+    <h2>Open In Browser</h2>
+    <p>This page is open inside another app. Home screens are added from a browser.</p>
+    <ol>
+      <li>Open the menu at the corner of this screen.</li>
+      <li>Tap <strong>Open in browser</strong>, or <strong>Open in Safari</strong>.</li>
+      <li>Follow the steps below.</li>
+    </ol>
+  </section>
+
+  <div data-install-platforms>
+    <div class="install-now" data-install-now hidden>
+      <p>This browser can add Backyard to your home screen.</p>
+      <button type="button" data-install-button>Install App</button>
+    </div>
+
+    <section data-install-platform="ios">
+      <h2>iPhone And iPad</h2>
+      <ol>
+        <li>Tap <strong>Share</strong>
+          {% comment %} The iOS Share mark: a tray with an arrow leaving the top of it. One
+             path set, currentColor, no fill, so it reads at 18px in both colour schemes and
+             carries no colour of its own to go wrong in dark mode. Decorative: the word
+             "Share" beside it is what a screen reader announces. {% endcomment %}
+          <svg class="share-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"
+               fill="none" stroke="currentColor" stroke-width="1.9"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3.4 V14.4 M8.4 6.9 L12 3.3 L15.6 6.9"/>
+            <path d="M7.6 10.4 H5.8 A1.8 1.8 0 0 0 4 12.2 V18.9 A1.8 1.8 0 0 0 5.8 20.7 H18.2 A1.8 1.8 0 0 0 20 18.9 V12.2 A1.8 1.8 0 0 0 18.2 10.4 H16.4"/>
+          </svg>
+          at the bottom of the screen.</li>
+        <li>Tap <strong>Add to Home Screen</strong>.</li>
+        <li>Tap <strong>Add</strong>.</li>
+      </ol>
+    </section>
+
+    <section data-install-platform="android">
+      <h2>Android</h2>
+      <ol data-install-android-steps>
+        <li>Open the browser menu at the corner of the screen.</li>
+        <li>Tap <strong>Install app</strong>, or <strong>Add to Home screen</strong>.</li>
+        <li>Tap <strong>Install</strong>.</li>
+      </ol>
+    </section>
+  </div>
+</div>
+<script nonce="{{ request.csp_nonce }}">
+  (function () {
+    var root = document.querySelector('[data-install]');
+    if (!root) { return; }
+    var platforms = root.querySelector('[data-install-platforms]');
+    var apple = root.querySelector('[data-install-platform="ios"]');
+    var android = root.querySelector('[data-install-platform="android"]');
+    var webview = root.querySelector('[data-install-webview]');
+    var done = root.querySelector('[data-install-done]');
+    var offer = root.querySelector('[data-install-now]');
+    var button = root.querySelector('[data-install-button]');
+    var androidSteps = root.querySelector('[data-install-android-steps]');
+    var agent = navigator.userAgent || '';
+
+    // An installed home-screen app answers one of these two. Chrome and Android report the
+    // display mode; older iOS only ever set navigator.standalone, and it is still the
+    // reading that works there.
+    var installed = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+      || navigator.standalone === true;
+    if (installed) {
+      done.hidden = false;
+      platforms.hidden = true;
+      return;
+    }
+
+    // The three webviews a family link actually arrives in. Instagram and LinkedIn name
+    // themselves; Facebook's app sends FBAN (the app) and FBAV (its version).
+    if (/Instagram|FBAN|FBAV|LinkedInApp/.test(agent)) { webview.hidden = false; }
+
+    // iPadOS 13 and later report a MACINTOSH user agent, so an iPad is only distinguishable
+    // from a Mac by the touch points. Without this half every iPad reads as a laptop and is
+    // shown the Android steps first.
+    var isApple = /iPad|iPhone|iPod/.test(agent)
+      || (/Macintosh/.test(agent) && navigator.maxTouchPoints > 1);
+    if (/Android/.test(agent) && !isApple) { platforms.insertBefore(android, apple); }
+
+    var deferred = null;
+    window.addEventListener('beforeinstallprompt', function (event) {
+      // Keep it. Without preventDefault Chrome shows its own install bar and the event is
+      // spent, so the product's own button would have nothing to prompt with.
+      event.preventDefault();
+      deferred = event;
+      offer.hidden = false;
+      androidSteps.hidden = true;
+    });
+    button.addEventListener('click', function () {
+      var pending = deferred;
+      // One prompt per event, so the button goes and the menu steps come back either way:
+      // a relative who dismisses the sheet is left with a way in rather than a dead button.
+      deferred = null;
+      offer.hidden = true;
+      androidSteps.hidden = false;
+      if (pending) { pending.prompt(); }
+    });
+    window.addEventListener('appinstalled', function () {
+      deferred = null;
+      offer.hidden = true;
+      platforms.hidden = true;
+      webview.hidden = true;
+      done.hidden = false;
+    });
+  })();
+</script>
