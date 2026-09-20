@@ -80,7 +80,7 @@ def test_the_composer_offers_exactly_one_media_control(world: dict[str, object])
     assert page.count('type="file"') == 1, "two pickers is the control this replaced"
     assert 'name="media"' in page
     assert 'accept="image/*,video/*"' in page, "one native sheet, both kinds"
-    assert "Add Photos Or A Video" in page
+    assert "Add Photos Or Videos" in page
     # REJECTED by the owner: it forces the camera open and hides the photo library.
     # Matched as the ATTRIBUTE, not the bare word: the design system explains the decision
     # in a CSS comment, and that comment ships inline on every page.
@@ -103,7 +103,7 @@ def test_it_degrades_to_a_plain_working_picker(world: dict[str, object]) -> None
     the script and must not be in the served HTML."""
     page = _page(world, reverse("feed"))
     assert 'class="media-picker" data-media-picker' in page, "not enhanced until the script says"
-    assert '<label class="picker-button" for="media">Add Photos Or A Video</label>' in page
+    assert '<label class="picker-button" for="media">Add Photos Or Videos</label>' in page
     assert '<ul class="media-previews" data-media-previews hidden>' in page
     # The script is same-origin inline and carries the request's CSP nonce, or the browser
     # refuses it and the fallback above is what everybody gets.
@@ -141,7 +141,7 @@ def _picker_script(page: str) -> str:
 
 
 def test_the_limits_reach_the_dom_where_the_script_reads_them(world: dict[str, object]) -> None:
-    """The walk: pick three photos, tap "Add Photos Or A Video" again to add two more, and
+    """The walk: pick three photos, tap "Add Photos Or Videos" again to add two more, and
     the first three are gone — a native file input REPLACES its selection, so a family
     posting a birthday in batches loses the earlier batch with no message and no thumbnail.
     The script now merges the new pick into the old one, which means the script is a place

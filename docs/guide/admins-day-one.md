@@ -8,7 +8,8 @@ time; a file in a repository cannot, so this copy says it in general terms.
 
 ---
 
-Everything here starts from **Members**, at the top of every page.
+Admins add people, help them sign in, and remove them. It all starts from **Members**, at the
+top of every page.
 
 ## 1. Invite A Household
 
@@ -16,7 +17,7 @@ A household is one home. One link covers everyone in it.
 
 1. **Members → Invite A Household**.
 2. Name the household and choose which side it joins.
-3. Send the link however you normally reach them.
+3. Text or email them the link.
 
 The link is shown once. Make another from **Invites**.
 
@@ -25,8 +26,7 @@ the Side Admin, and everyone after them joins as a member.
 
 ## 2. Add A Grandparent
 
-**Post something to their side first**, or they will open the link to an empty page. You
-cannot preview it for them.
+**Post something to their side first**, or the link opens to an empty page.
 
 1. For someone new: **Members → Add A Grandparent**.
 2. For someone already here: tap **Manage** on their row and then **No-Login Link**.

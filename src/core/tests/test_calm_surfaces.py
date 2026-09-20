@@ -158,26 +158,35 @@ def test_the_empty_state_is_solid_and_never_nested(world: dict[str, object]) -> 
 def test_the_composer_primary_is_left_aligned_and_unruled() -> None:
     """The one right-aligned primary in the product, under a horizontal rule that put a
     ruled form footer on a page of family photographs."""
-    rule = re.search(r"\.composer-submit \{([^}]*)\}", _style())
+    # Anchored to the line start: the resting composer has its own, longer selector ending
+    # in `.composer-submit {`, and an unanchored search reads that rule instead.
+    rule = re.search(r"^\.composer-submit \{([^}]*)\}", _style(), re.MULTILINE)
     assert rule
     assert "justify-content: flex-start" in rule.group(1)
     assert "border-top" not in rule.group(1)
 
 
+# `.js-collapse` is the point: only the script that can lift the collapse may switch it on, so
+# a page whose script never ran (scripting off, a stripped nonce, half a page) draws the form.
+_COLLAPSED = (
+    ".composer.collapsible.js-collapse"
+    ":not(.is-open):not(:focus-within):has(textarea:placeholder-shown)"
+)
+
+
 def test_the_composer_opens_small(world: dict[str, object]) -> None:
-    """Everything but the box you type in and the button that posts it waits until the
-    composer is in use. Pure CSS, so a browser without :has() renders it open — which is
-    exactly the old behaviour, never a broken one."""
+    """At rest the composer is the box you type in, the photo button and Post; who can see
+    the post waits until the composer is in use. A browser without :has() drops the
+    collapsed rules whole and renders it open, which is the old behaviour, never a broken
+    one."""
     css = _style()
-    assert (
-        ".composer:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) "
-        ".composer-extras" in css
-    )
+    assert f"{_COLLAPSED} .composer-extras" in css
     page = _page(world, reverse("feed"))
+    assert 'class="composer collapsible"' in page
     assert 'class="composer-extras"' in page
-    # The selector above keys on :placeholder-shown, which matches nothing when the
-    # textarea has no placeholder attribute. Assert the DOM the rule needs, not the rule:
-    # a copy edit removed the placeholder once and this test stayed green.
+    # The selector keys on :placeholder-shown, which matches nothing when the textarea has
+    # no placeholder attribute. Assert the DOM the rule needs, not the rule: a copy edit
+    # removed the placeholder once and this test stayed green.
     assert re.search(r'<textarea[^>]*id="compose-body"[^>]*placeholder="[^"]', page), (
         "the compose textarea has no placeholder, so the collapse selector never matches"
     )
@@ -186,6 +195,37 @@ def test_the_composer_opens_small(world: dict[str, object]) -> None:
     extras = page.split('class="composer-extras"')[1]
     assert "<textarea" not in extras.split("</form>")[0]
     assert '<div class="composer-submit">' not in extras.split("</div>")[0]
+
+
+def test_nothing_a_person_presses_hides_when_the_box_loses_focus(world: dict[str, object]) -> None:
+    """The owner's first real post, 2026-09-20: a tap on the photo button before a word
+    was typed, and the composer closed under the thumb. The button lived inside the region
+    that hides while the box is empty and unfocused; pressing a <label> blurs the textarea,
+    so the button was gone before the click arrived and no photo sheet opened. The reply
+    form had the same shape. The browser lane proves the tap
+    (test_the_photo_button_opens_the_sheet_on_an_empty_composer); this pins the DOM it
+    depends on, on both pages, without a browser."""
+    pod, member = world["pod"], world["member"]
+    assert isinstance(pod, Pod) and isinstance(member, Member)
+    post = posting.create_post(author=member, pod=pod, audience_yards=[], body="hello")
+    for url in (reverse("feed"), reverse("post_detail", args=[post.id])):
+        page = _page(world, url)
+        form = page.split('class="composer collapsible', 1)[1].split("</form>")[0]
+        assert "data-media-picker" in form
+        if 'class="composer-extras"' in form:
+            assert "data-media-picker" not in form.split('class="composer-extras"')[1]
+        # The server never draws it collapsed: that class is the script's alone.
+        assert "js-collapse" not in form.split(">", 1)[0]
+    # No rule collapses a composer the script has not claimed.
+    css = _style()
+    for rule in re.findall(r"^\.composer\.collapsible[^{]*\{[^}]*display: none", css, re.MULTILINE):
+        assert ".js-collapse" in rule, rule
+    # The sticky half: the script claims the form, opens it on first touch, never closes it.
+    script = _BASE.with_name("_composer_media.html").read_text()
+    assert 'querySelectorAll("form.composer.collapsible")' in script
+    assert 'classList.add("js-collapse")' in script
+    assert 'classList.add("is-open")' in script
+    assert 'classList.remove("is-open")' not in script
 
 
 def test_an_archive_page_is_its_own_page(world: dict[str, object]) -> None:

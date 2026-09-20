@@ -221,7 +221,7 @@ def test_how_it_works_offers_it_to_a_member_and_not_to_a_stranger() -> None:
     signed_in = client.get(reverse("how_it_works")).content.decode()
     assert f'href="{reverse("get_the_app")}"' in signed_in
     public = Client().get(reverse("how_it_works")).content.decode()
-    assert "added to your home screen" in public  # the fact is still stated
+    assert "Add Backyard to your home screen" in public  # the fact is still stated
     assert reverse("get_the_app") not in public
 
 

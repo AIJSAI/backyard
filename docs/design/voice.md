@@ -35,6 +35,30 @@ not charm.
 5. **Never the word "digest"** — and not "the Family email" either ("pick something
    better"). The feature is **Email Updates**.
 
+## The second read: sound like a person (2026-09-20)
+
+The owner read the long pages a day after the rules above shipped and rejected them again:
+"write it so it sounds natural ... saying no ads or not run by a company isn't necessary
+for my family." The five rules had made the copy short. They
+had not made it sound like anybody. Three more, for any page longer than a label:
+
+6. **Say what it is for, then how to use it.** His sentence: Backyard "was created to keep
+   everyone connected and updated on a private network i.e. birthdays, trips, big events,
+   like a private instagram". A page opens on the use, not on a description of the page
+   ("What Backyard stores, who can see it, and how to leave." was a table of contents).
+7. **Answer no objection nobody raised.** The reader was invited by somebody they trust. Cut
+   "no ads", "no company is behind it", "no third-party tracking", "does not use them to
+   train anything", "does not record what you tapped", "delivered by an email provider, the
+   same as any other email". A sentence whose only job is to defend the product goes. What a
+   reader can ACT on stays (who sees a post, a delete is for good, a No-Login Link works for
+   whoever holds it), and so does the one honest disclosure of what is kept, in one sentence.
+8. **Write it the way one cousin would tell another.** Contractions where a person would
+   use them in body text ("It's off until you turn it on", "someone who won't use a
+   password"). Say what happens, not what is forbidden: "A post goes to your household", not
+   "Nobody else sees them". Describe a thing from where the reader stands: "You see the sides
+   your household belongs to", never a paragraph about the other side's existence to people
+   who cannot see it. Read it aloud; if nobody would say it across a table, rewrite it.
+
 ## Capitalisation
 
 **Capitalise Every Word** — his example: "Skip To Content", not "Skip to content" — in
@@ -93,8 +117,9 @@ sentences:
   always "Cancel".
 - **Labels are nouns**: "Name", "Email Address", "Password", "How Often". No questions as
   labels. Placeholders only for format examples, with two conventional exceptions: a
-  search box and a composer carry their prompt ("Search by name", "Write a post"). The
-  feed composer's is also mechanism: its collapse rule keys on `:placeholder-shown`.
+  search box and a composer carry their prompt ("Search by name", "Share Something",
+  "Write A Reply"). A composer's prompt is Title Case like the label it repeats: the
+  owner's ruling was "should be Share Something".
 - **Options are short and parallel**: "Weekly", "Monthly", "Off". "Household",
   "\<Side name\>", "\<Group name\>".
 - **Confirmation pages**: the heading is the question ("Delete This Post?"), the body is
@@ -115,8 +140,8 @@ sentences:
 | Before (shipped) | After |
 |---|---|
 | Tell us the name your family will see | Enter your name. |
-| This is a private place for our family. No ads, no strangers, and nothing that will chase you. | A private, ad-free network to stay connected with everyone. |
-| Post when you feel like it. What you write goes to your household, unless you choose a wider group as you write it. | Posts are shared with your household. To reach more people, choose a side of the family or a group when posting. |
+| This is a private place for our family. No ads, no strangers, and nothing that will chase you. | Backyard keeps everyone connected and up to date on a private network: birthdays, trips, big events. It works like a private Instagram. (Second read, 2026-09-20. The first read's "A private, ad-free network to stay connected with everyone." lost its "ad-free" to rule 7.) |
+| Post when you feel like it. What you write goes to your household, unless you choose a wider group as you write it. | Posts go to your household. To reach more people, choose a side of the family or a group when you post. |
 | Choose how often you would like it, or choose No thanks. | Select a frequency. |
 | You can change this later under Settings, and every email we send has a link at the bottom that stops them. | Change this anytime in Settings. |
 | Only if you feel like it. Your household will see this. | Optional. Visible to your household. |
@@ -154,8 +179,8 @@ Use exactly these words.
 | help line, signed in or holding a live link | "Need help? Contact \<first name\>." | |
 | help line, public | "Need help? Contact the person who invited you." | |
 | the landing page | heading "Welcome To Backyard"; body "A private, invite-only family network. Open your invite link to join."; button "Sign In" | the owner's own sentence, and the ONE place the landing says "family" |
-| welcome, screen one | "A private, ad-free network to stay connected with everyone." then one sentence on who sees a post | |
-| the audience sentence | "Posts are shared with your household. To reach more people, choose a side of the family or a group when posting." | household = the people you live with; a side = one branch, shown by its own name; a group = people you pick. This sentence is where "family" earns its place |
+| welcome, screen one | "Backyard keeps everyone connected and up to date on a private network: birthdays, trips, big events. It works like a private Instagram." then one sentence on who sees a post | the owner's sentence of 2026-09-20; How It Works opens on the same one |
+| the audience sentence | "Posts go to your household. To reach more people, choose a side of the family or a group when you post." | household = the people you live with; a side = one branch, shown by its own name; a group = people you pick. This sentence is where "family" earns its place |
 
 ## Two subject lines that are not free to change
 
