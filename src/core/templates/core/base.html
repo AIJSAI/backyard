@@ -936,7 +936,10 @@ ul.feed { display: flex; flex-direction: column; gap: 0; margin-inline: -1.25rem
 ul.feed > li {
   background: var(--surface);
   border-top: 1px solid var(--line);
-  padding: 0.8rem 1rem 0.35rem;
+  /* The page's own gutter for the words, so a post's first letter sits under the
+     composer's left edge rather than four pixels inside it, and the photographs ignore
+     it entirely (`.feed-media` below pulls itself back out). */
+  padding: 0.8rem 1.25rem 0.35rem;
 }
 ul.feed > li:first-child { border-top: 0; }
 /* The two list items that are NOT posts keep the page gutter: the unread divider is a
@@ -1118,7 +1121,7 @@ ul.comments:has(> li.empty:only-child) { border-left: 0; padding-left: 0; margin
    thumbnail has fewer than that on its short side. 2px gaps: the set reads as one
    object rather than as a grid of framed objects. */
 .feed-media {
-  display: grid; gap: 2px; margin: 0.5rem -1rem 0.15rem;
+  display: grid; gap: 2px; margin: 0.5rem -1.25rem 0.15rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .feed-media > a, .feed-media > .tile { display: block; position: relative; min-width: 0; }
