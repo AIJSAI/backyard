@@ -101,6 +101,11 @@ def _item(page: str, post: Post) -> str:
 # --- who reacted, on the feed ----------------------------------------------------------
 
 
+def _reaction_line(item: str) -> str:
+    """The reactor line alone: the byline above it carries full names by design."""
+    return item.split("data-reaction-line", 1)[1].split("</p>", 1)[0]
+
+
 def test_the_feed_names_who_reacted(household: Household) -> None:
     post = _post(household)
     Reaction.objects.create(member=household.sam, post=post, kind=Reaction.HEART)
@@ -108,7 +113,10 @@ def test_the_feed_names_who_reacted(household: Household) -> None:
 
     item = _item(_feed(household), post)
     assert "Love:" in item
-    assert "Sam Reed, Dave Reed" in item
+    # First names on the feed's one line; the thread page is where everybody is named in
+    # full (test below), and where two Sams are told apart.
+    assert "Sam, Dave" in item
+    assert "Sam Reed" not in _reaction_line(item)
 
 
 def test_a_post_nobody_reacted_to_says_nothing(household: Household) -> None:
@@ -128,8 +136,8 @@ def test_a_long_reactor_list_stops_at_three_names(household: Household) -> None:
         Reaction.objects.create(member=who, post=post, kind=Reaction.HEART)
 
     item = _item(_feed(household), post)
-    assert "Sam Reed, Dave Reed, Jo Reed" in item
-    assert "Kit Reed" not in item
+    assert "Sam, Dave, Jo" in item
+    assert "Kit" not in _reaction_line(item)
     assert f'<a href="{reverse("post_detail", args=[post.id])}">And Others</a>' in item
     for tally in ("and 1 other", "and 2 others", "4 people", "4 reactions"):
         assert tally not in item.lower()
@@ -333,7 +341,7 @@ def test_the_enhanced_path_answers_with_the_same_scoped_names(
     payload = response.json()
     assert payload["mine"] == "heart"
     names = [name for group in payload["groups"] for name in group["names"]]
-    assert names == ["Mo Maternal"], "the far side's reactor reached the enhanced path"
+    assert names == ["Mo"], "the far side's reactor reached the enhanced path"
     assert payload["post_url"] == reverse("post_detail", args=[post.id])
 
 

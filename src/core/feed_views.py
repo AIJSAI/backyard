@@ -182,7 +182,14 @@ def _group_reactors(
     by_kind: dict[str, list[str]] = {}
     mine: str | None = None
     for reaction in reactions:
-        by_kind.setdefault(reaction.kind, []).append(reaction.member.display_name)
+        # First names on the feed's one capped line, full names on the thread page: "Love:
+        # Rose, Sam, Dave" is how a family says it and it fits a phone; the page that names
+        # everybody is one tap away and is where two Sams are told apart.
+        member = reaction.member
+        name = (
+            (member.short_name or member.display_name) if cap is not None else member.display_name
+        )
+        by_kind.setdefault(reaction.kind, []).append(name)
         if reaction.member_id == viewer_id:
             mine = reaction.kind
     groups: list[dict[str, object]] = [

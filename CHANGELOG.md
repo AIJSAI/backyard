@@ -32,6 +32,9 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   Post" is gone with them: the time stamp, the reply link and the reply count all lead to
   the post, which is where every mainstream product puts them.
 
+- **The composer rests at one row.** Three empty rows of box sat above every photograph on
+  the feed; the prompt needs one, and it grows back the moment the composer is in use.
+
 ### Added
 
 - **The feed says who reacted and how many replies a post has.** Neither was on the feed
@@ -43,6 +46,9 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   same reaction the post page does, shows whether it is yours, and returns the reader to
   the post they were looking at, on the archive page they were reading. With JavaScript it
   updates in place; with none it is an ordinary form, and the form is what ships.
+- The feed's reactor line uses first names ("Love: Rose, Sam, Dave"); the post page still
+  names everybody in full. Love and Reply carry a drawn heart and a speech bubble, and a
+  pressed Love is the heart filled in.
 
 ## [0.1.8] — 2026-09-20
 

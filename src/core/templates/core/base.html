@@ -780,8 +780,9 @@ label.inline-check.email-row { flex-wrap: wrap; }
    defect the owner hit writing the first real post: pressing a <label> takes focus off
    the textarea, so with an empty box the button disappeared
    between the press and the release, the click landed on the form, and the photo sheet
-   never opened. The picker is a sibling of `.composer-extras` now, and the sticky class
-   means the audience controls are safe from the same thing.
+   never opened. The picker is a sibling of `.composer-extras` now, and the collapse only
+   exists where the script that lifts it has run, so the audience controls are safe from
+   the same thing.
 
    The layout is a wrapping flex row so the DOM order can stay the reading order (words,
    photos, audience, Post) while the resting state puts the photo button and Post on one
@@ -800,6 +801,11 @@ label.inline-check.email-row { flex-wrap: wrap; }
 .composer.collapsible.js-collapse:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) .composer-extras,
 .composer.collapsible.js-collapse:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) .media-hint {
   display: none;
+}
+/* ONE ROW AT REST. Three empty rows of box sat above every photograph on the feed; the
+   prompt needs one. It grows back to its three the moment the composer is in use. */
+.composer.collapsible.js-collapse:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) textarea {
+  height: 3.1rem; min-height: 0; resize: none; overflow: hidden;
 }
 .composer.collapsible.js-collapse:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) > .media-picker {
   flex: 1 1 auto;
@@ -1191,10 +1197,14 @@ ul.feed > li > p.reaction-line {
   border-radius: var(--radius-sm);
 }
 .post-actions button.love:hover { background: var(--surface-sunk); color: var(--green); }
-/* Pressed, and not by colour alone: the same tick the thread page's chosen reaction
-   carries, so the two surfaces say "yours" the same way. */
+/* Pressed, and not by colour alone: the heart fills, a change of shape. */
 .post-actions button.love[aria-pressed="true"] { color: var(--green); }
-.post-actions button.love[aria-pressed="true"]::before { content: "\2713"; font-weight: 700; }
+.post-actions button.love[aria-pressed="true"] .action-icon path { fill: currentColor; }
+.post-actions button.love { display: inline-flex; align-items: center; }
+.post-actions .action-icon { flex: none; margin-right: 0.4rem; }
+.post-actions .action-icon path {
+  fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round;
+}
 .post-actions a {
   display: inline-flex; align-items: center; min-height: 44px; padding: 0 0.6rem;
   color: var(--ink-soft); font-weight: 700; text-decoration: none;

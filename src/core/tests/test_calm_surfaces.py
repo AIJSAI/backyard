@@ -236,8 +236,15 @@ def test_nothing_a_person_presses_hides_when_the_box_loses_focus(world: dict[str
         assert "js-collapse" not in form.split(">", 1)[0]
     # No rule collapses a composer the script has not claimed.
     css = _style()
-    for rule in re.findall(r"^\.composer\.collapsible[^{]*\{[^}]*display: none", css, re.MULTILINE):
-        assert ".js-collapse" in rule, rule
+    # Every SELECTOR, not every rule. The collapse is one grouped rule with a selector per
+    # line, and matching the rule as a whole let a revert on the FIRST selector pass because
+    # the second still carried the class. Measured by mutation, review round 2 of #218.
+    grouped = re.findall(r"^(\.composer\.collapsible[^{]*)\{([^}]*)\}", css, re.MULTILINE)
+    hiding = [selectors for selectors, body in grouped if "display: none" in body]
+    assert hiding, "no collapse rule found: the guard would be vacuous"
+    for selectors in hiding:
+        for selector in selectors.split(","):
+            assert ".js-collapse" in selector, selector
     # The sticky half: the script claims the form, opens it on first touch, never closes it.
     script = _BASE.with_name("_composer_media.html").read_text()
     assert 'querySelectorAll("form.composer.collapsible")' in script
