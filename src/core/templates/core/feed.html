@@ -200,25 +200,62 @@
       {% if item.post.id == first_seen_id %}
         <li class="boundary"><span>New posts above</span></li>
       {% endif %}
-      <li>
+      <li id="post-{{ item.post.id }}">
         {% comment %} The name leads the post, so the person does: one calm initials disc
            beside it (core/templatetags/avatars.py). There was not a face, avatar or
-           monogram anywhere in this product's chrome. {% endcomment %}
-        <div class="who-row">
+           monogram anywhere in this product's chrome.
+
+           The kinship name is its own muted span rather than part of the bold name: the
+           header row now reads name, relation, time, left to right, which is the order
+           every mainstream social product puts them in. The timestamp is the LINK to the
+           post, which is the same convention and is what lets "Open Post" go away. {% endcomment %}
+        <div class="who-row post-head">
           {% avatar item.post.author.display_name item.post.author_id %}
           <span class="who">
-            <span class="author">{{ item.post.author.display_name }}{% if item.post.author.kinship_name %} ({{ item.post.author.kinship_name }}){% endif %}</span>
-            <span class="when">{% when item.post.created_at %}</span>
-            {% if item.post.edited_at %}<span class="edited">(edited)</span>{% endif %}
+            <span class="author">{{ item.post.author.display_name }}</span>{% if item.post.author.kinship_name %} <span class="kin">({{ item.post.author.kinship_name }})</span>{% endif %}
+            <span class="post-meta"><a class="when" href="{% url 'post_detail' item.post.id %}">{% when item.post.created_at %}</a>{% if item.post.edited_at %} <span class="edited">(edited)</span>{% endif %}</span>
           </span>
+          {% comment %} THE OVERFLOW. Edit, Delete and Take Down used to sit in the action
+             row beside the way into the thread, so the loudest control under somebody's
+             photograph was the one that erases it. A <details> is the whole mechanism:
+             no script, a real button for a keyboard and a screen reader, and it closes
+             itself. The conditions are the ones the action row carried; when none of them
+             holds, the control is not drawn at all. {% endcomment %}
+          {% if item.is_own or is_moderator %}
+            <details class="post-menu">
+              <summary aria-label="Post Options"><span aria-hidden="true">&bull;&bull;&bull;</span></summary>
+              <div class="post-menu-items">
+                {% if item.is_own %}
+                  {% if item.is_editable %}<a href="{% url 'edit_post' item.post.id %}">Edit Post</a>{% endif %}
+                  <a class="destructive" href="{% url 'delete_post' item.post.id %}">Delete Post</a>
+                {% endif %}
+                {% comment %} `not item.is_own`: an admin looking at their OWN post was offered
+                   Delete AND Take down, side by side, in the same red. Taking down your own post
+                   is what Delete already is — the moderation route exists for somebody ELSE's —
+                   so the pair was two names for one outcome and a chance to pick the wrong one.
+                   On your own post you get Edit and Delete, which is what a member gets. {% endcomment %}
+                {% if is_moderator and not item.is_own %}
+                  <a class="destructive" href="{% url 'take_down_post' item.post.id %}">Take Down Post</a>
+                {% endif %}
+              </div>
+            </details>
+          {% endif %}
         </div>
         {% comment %} `post-body` + `urlize`: their line breaks survive and a link they
            typed is tappable. `urlize` autoescapes, so this opens no injection path —
            pinned by test_post_shape.py with a script tag and a quote-breaking URL. {% endcomment %}
         <p class="post-body">{{ item.post.body|urlize }}</p>
-        {% if item.post.live_media %}
-          <div class="photos">
-            {% for m in item.post.live_media %}
+        {% if item.media %}
+          {% comment %} EDGE TO EDGE ON A PHONE, and the layout is named by the view
+             (`media_layout`) rather than counted in CSS: a gallery's children are no
+             longer all the same element, so `:nth-last-child` would mis-read any post
+             carrying a clip. Photos are served at the FULL rendition (`m.token`,
+             core/media._FULL_MAX) rather than the 400px thumbnail: a full-width photo on
+             a 390px phone at 2x needs 780px, and even a 2x2 tile needs ~390px in each
+             direction after the cover-crop, which a 400-box thumbnail does not have on
+             its short side. {% endcomment %}
+          <div class="feed-media feed-media-{{ item.media_layout }}">
+            {% for m in item.media %}
               {% if m.media_kind == 'video' %}
                 {% if m.transcode_status == 'done' %}
                   <video class="clip" controls preload="metadata" poster="{% url 'serve_media' m.thumbnail_token %}">
@@ -229,8 +266,17 @@
                 {% else %}
                   <p class="clip-status">This video is still processing.</p>
                 {% endif %}
+              {% elif forloop.last and item.extra_media %}
+                {% comment %} The "+N" tile. The photograph keeps its own link to the full
+                   image, exactly as every other tile does; the count is a SECOND link laid
+                   over it, to the post, because that is where the rest of the gallery is.
+                   Two links rather than one nested inside the other, which is not HTML. {% endcomment %}
+                <span class="tile">
+                  <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.token %}" loading="lazy" decoding="async" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ item.post.author.display_name }}{% endif %}"></a>
+                  <a class="more-media" href="{% url 'post_detail' item.post.id %}" aria-label="See All Photos"><span aria-hidden="true">+{{ item.extra_media }}</span></a>
+                </span>
               {% else %}
-                <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.thumbnail_token %}" loading="lazy" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ item.post.author.display_name }}{% endif %}"></a>
+                <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.token %}" loading="lazy" decoding="async" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ item.post.author.display_name }}{% endif %}"></a>
               {% endif %}
             {% endfor %}
           </div>
@@ -243,29 +289,38 @@
             <span class="preview-url">{{ item.post.link_preview.url }}</span>
           </a>
         {% endif %}
-        {% comment %} `destructive` moves Delete and Take down to the far end of the row
-           (base.html): all three read as identical bold green links 36px apart, so a thumb
-           aiming at the thread could land on the one that erases a photograph. {% endcomment %}
-        <span class="actions">
-          <a href="{% url 'post_detail' item.post.id %}">Open Post</a>
-          {% if item.is_own %}
-            {% comment %} Verb plus object on all four, which is the guide's rule and the
-               other half of the cure the comment above describes: "Open Post", "Edit",
-               "Delete", "Take Down Post" put two bare verbs in a row of four controls, and
-               the shortest one was the one that erases a photograph. The page it opens is
-               already headed "Delete This Post?" with a "Delete Post" button. {% endcomment %}
-            {% if item.is_editable %}<a href="{% url 'edit_post' item.post.id %}">Edit Post</a>{% endif %}
-            <a class="destructive" href="{% url 'delete_post' item.post.id %}">Delete Post</a>
+        {% comment %} WHO REACTED, on the feed. A relative could not see that anybody had
+           answered without opening the post, so a photograph looked unanswered to the
+           person who shared it. Names, never a count (S-304, and the Reaction model's
+           docstring says why); grouped the way the thread page groups them, capped at
+           three, with the rest one tap away. The element is always here so the script
+           below has somewhere to write; `hidden` is what keeps it off a post nobody has
+           reacted to yet, in the markup and in the accessibility tree alike. {% endcomment %}
+        <p class="reaction-line" data-reaction-line{% if not item.reactor_groups %} hidden{% endif %}>
+          {% for group in item.reactor_groups %}<span class="reaction-group"><span class="reaction-label">{{ group.label }}:</span> {{ group.names|join:", " }}{% if group.more %} <a href="{% url 'post_detail' item.post.id %}">And Others</a>{% endif %}</span>{% endfor %}
+        </p>
+        {% comment %} THE ACTION ROW. It was "Open Post" beside a red "Delete Post" and
+           nothing else: no way to say anything to somebody without leaving the feed, and
+           the destructive control as one of two. Love, Reply and the reply count now,
+           with the destructive pair moved into the overflow above.
+
+           "Open Post" is gone. The timestamp, the reply link and the count all lead to
+           the post, which is the convention on every product a relative already uses. {% endcomment %}
+        <div class="post-actions">
+          <form class="love-form" method="post" action="{% url 'react' item.post.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="kind" value="heart">
+            {% comment %} Where to come back to, cursor and all, so loving an older post
+               does not throw the reader to the top of the feed. The view accepts it only
+               as a local path. {% endcomment %}
+            <input type="hidden" name="next" value="{{ return_path }}">
+            <button type="submit" class="love" aria-pressed="{% if item.my_reaction == 'heart' %}true{% else %}false{% endif %}">Love</button>
+          </form>
+          <a class="reply-link" href="{% url 'post_detail' item.post.id %}#reply">Reply</a>
+          {% if item.reply_count %}
+            <a class="reply-count" href="{% url 'post_detail' item.post.id %}">{{ item.reply_count }} {{ item.reply_count|pluralize:"Reply,Replies" }}</a>
           {% endif %}
-          {% comment %} `not item.is_own`: an admin looking at their OWN post was offered
-             Delete AND Take down, side by side, in the same red. Taking down your own post
-             is what Delete already is — the moderation route exists for somebody ELSE's —
-             so the pair was two names for one outcome and a chance to pick the wrong one.
-             On your own post you get Edit and Delete, which is what a member gets. {% endcomment %}
-          {% if is_moderator and not item.is_own %}
-            <a class="destructive" href="{% url 'take_down_post' item.post.id %}">Take Down Post</a>
-          {% endif %}
-        </span>
+        </div>
       </li>
     {% empty %}
       {% comment %} ONE empty state, and it says what is empty plus the one action. The
@@ -294,4 +349,4 @@
   {% endif %}
 
 {% endblock %}
-{% block extra_body %}{% include "core/_localise_times.html" %}{% endblock %}
+{% block extra_body %}{% include "core/_localise_times.html" %}{% include "core/_feed_react.html" %}{% endblock %}

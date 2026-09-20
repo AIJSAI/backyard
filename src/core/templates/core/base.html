@@ -920,14 +920,35 @@ fieldset.composer-audience > legend { padding: 0; margin: 0 0 0.6rem; font-size:
 
 ul.feed, ul.comments, ul.members, ul.pods, ul.directory,
 ul.invites, ul.digests, ul.redeemers, ul.uses, ul.quarantine, ul.yards, ul.contacts { list-style: none; margin: 0; padding: 0; }
-ul.feed { display: flex; flex-direction: column; gap: 1.1rem; }
+/* THE FEED IS A FLAT LIST ON A PHONE (owner direction, 2026-09-20, holding this beside
+   Facebook and Instagram at 390px: "tight, with lines between feeds"). Every post was a
+   rounded card inset from both screen edges, with its photographs inset AGAIN inside it —
+   about 300 pixels of picture on a 390 pixel phone — and a band of page ground between
+   one post and the next. Below the sm breakpoint the list runs the full width of the
+   screen: no radius, no shadow, no side border, one hairline between posts. The card
+   comes back at 37.5rem, where a card reads as a card instead of as a margin.
 
-ul.feed > li, .post {
+   A HAIRLINE, not a band of ground, and the choice is about the phone: the padding
+   already puts space between a post's last line and the next post's name, so a band adds
+   a second gap on top of it and the two together are exactly the looseness being cured.
+   One line is tighter, and it is what the products the owner compared this to draw. */
+ul.feed { display: flex; flex-direction: column; gap: 0; margin-inline: -1.25rem; }
+ul.feed > li {
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding: 0.8rem 1rem 0.35rem;
+}
+ul.feed > li:first-child { border-top: 0; }
+/* The two list items that are NOT posts keep the page gutter: the unread divider is a
+   label across the column, and the empty state is a bordered box that would otherwise
+   run off both edges of the screen. */
+ul.feed > li.boundary, ul.feed > li.empty { margin-inline: 1.25rem; }
+.post {
   background: var(--surface); border: 1.5px solid var(--line);
   border-radius: var(--radius); box-shadow: var(--shadow);
   padding: 1.2rem 1.35rem;
+  margin: 0 0 1.5rem;
 }
-.post { margin: 0 0 1.5rem; }
 .author, .byline strong, .byline { font-weight: 700; color: var(--ink); }
 .byline { margin: 0 0 0.5rem; color: var(--ink-soft); font-size: 0.86rem; font-weight: 400; }
 .byline strong, .author { font-size: 1.02rem; letter-spacing: -0.008em; }
@@ -936,7 +957,14 @@ ul.feed > li, .post {
 .post > .when:first-child { margin-left: 0; }
 /* The post body is the thing the member came for: a shade larger than the interface
    around it, and set at a reading line-height rather than a UI one. */
-ul.feed > li > p, .post > p, .comments p { margin: 0.55rem 0 0.9rem; font-size: 1.09rem; line-height: 1.55; }
+/* `.post-body`, not every direct <p>: the feed item carries a reactor line of its own
+   now, and reading-size type with a paragraph's margins is not what a muted one-liner
+   under a photograph wants. */
+ul.feed > li > .post-body, .post > p, .comments p { margin: 0.55rem 0 0.9rem; font-size: 1.09rem; line-height: 1.55; }
+/* The feed's rhythm is tighter than a thread's. The words sit under the name and the
+   photographs under the words, which is the spacing the products this was compared to
+   use; there was most of a blank line at each of those joins. */
+ul.feed > li > .post-body { margin: 0.1rem 0 0.5rem; }
 /* A POST IS WHAT SOMEBODY TYPED. Without this, a four-line recipe with a blank line in it
    rendered as one run-on sentence — a recipe, an address, a packing list or a poem
    destroyed on the way to the people it was written for. `pre-wrap` keeps their line
@@ -1032,6 +1060,140 @@ ul.comments:has(> li.empty:only-child) { border-left: 0; padding-left: 0; margin
 /* Two of them (an author who is also a moderator) sit together at that end rather than
    each claiming the gap. */
 .actions .destructive ~ .destructive, .actions .destructive ~ form.takedown { margin-left: 0; }
+
+/* ---- one post in the feed ------------------------------------------------------
+   The anatomy, top to bottom: a header row (who, when, and a quiet overflow at the far
+   right), the words, the photographs, one line saying who reacted, and an action row.
+   Before this the only things under a post were a link to the thread and a red Delete,
+   so there was no way to say anything to anybody without leaving the feed, and no sign
+   on the feed that anybody had. */
+.post-head { gap: 0.6rem; margin-bottom: 0.15rem; }
+/* The name takes the row and pushes the overflow to the far edge; min-width:0 so a long
+   name wraps rather than shoving the control off the screen. */
+.post-head > .who { flex: 1 1 auto; display: block; min-width: 0; line-height: 1.35; }
+.post-head .kin { color: var(--ink-soft); font-weight: 400; font-size: 0.95rem; }
+/* The time sits under the name and IS the way into the thread, which is the convention
+   on every product a relative already uses — and is what lets "Open Post" go away. */
+.post-head .post-meta { display: block; }
+.post-head a.when { color: var(--ink-soft); font-weight: 400; text-decoration: none; }
+.post-head a.when:hover { color: var(--green); text-decoration: underline; }
+
+/* THE OVERFLOW. Edit, Delete and Take Down used to sit in the action row beside the way
+   into the thread: three controls of equal weight under a photograph, one of which
+   erases it. A <details> is the whole mechanism — no script, a real button for a keyboard
+   and a screen reader, closed until asked. */
+.post-menu { position: relative; flex: none; margin-left: auto; }
+.post-menu > summary {
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; margin-right: -0.55rem;
+  cursor: pointer; list-style: none; border-radius: 50%;
+  color: var(--ink-soft); font-size: 0.85rem; letter-spacing: 0.14em;
+}
+.post-menu > summary::-webkit-details-marker { display: none; }
+.post-menu > summary:hover, .post-menu[open] > summary {
+  background: var(--surface-sunk); color: var(--ink);
+}
+.post-menu-items {
+  position: absolute; right: 0; top: 100%; z-index: 5; min-width: 11.5rem;
+  display: flex; flex-direction: column; padding: 0.25rem 0;
+  background: var(--surface); border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--ink) 16%, transparent);
+}
+.post-menu-items a {
+  display: flex; align-items: center; min-height: 44px; padding: 0.2rem 1rem;
+  font-size: 0.95rem; text-decoration: none;
+}
+.post-menu-items a:hover { background: var(--surface-sunk); text-decoration: underline; }
+/* The destructive pair keeps its treatment inside the menu: danger ink, regular weight,
+   and the same leading x every other destructive control in the product carries. */
+.post-menu-items a.destructive { color: var(--danger); font-weight: 400; }
+.post-menu-items a.destructive::before { content: "\00d7\00a0"; font-weight: 700; }
+
+/* PHOTOGRAPHS GO EDGE TO EDGE. The feed served the 400px thumbnail into a cell inset
+   inside an inset card — about 300px of picture on a 390px phone, and three photos came
+   out as three stamps. The gallery now breaks out of the item's padding and fills the
+   screen, and the templates serve the FULL rendition (core/media._FULL_MAX), because
+   even a 2x2 tile at 390px needs ~390 device pixels per side at 2x and a 400-box
+   thumbnail has fewer than that on its short side. 2px gaps: the set reads as one
+   object rather than as a grid of framed objects. */
+.feed-media {
+  display: grid; gap: 2px; margin: 0.5rem -1rem 0.15rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.feed-media > a, .feed-media > .tile { display: block; position: relative; min-width: 0; }
+.feed-media img {
+  display: block; width: 100%; height: auto; object-fit: cover;
+  background: var(--surface-sunk); cursor: zoom-in;
+}
+/* One photograph: the full width of the post at its own ratio, capped in height so a
+   tall portrait cannot take the whole screen. `object-fit: cover` with the height
+   clamped crops the excess instead of letterboxing it. `content-visibility` reserves a
+   box before the bytes arrive, exactly as the thread's gallery does, so a feed of
+   unloaded photographs does not stack inside one screenful and defeat lazy loading. */
+.feed-media-one { display: block; }
+.feed-media-one > a { content-visibility: auto; contain-intrinsic-size: auto 16rem; }
+.feed-media-one img { max-height: 30rem; }
+/* Two: equal columns. 4/5 keeps nearly all of a portrait and most of a landscape, which
+   a square crop does not (the same trade the old two-up made, kept). */
+.feed-media-two img { aspect-ratio: 4 / 5; }
+/* Three: one large beside two stacked. The block carries the ratio so the rows have a
+   height to divide, and the tiles fill it. */
+.feed-media-three { grid-template-columns: 1.6fr 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); aspect-ratio: 3 / 2; }
+.feed-media-three > a:first-child, .feed-media-three > .tile:first-child { grid-row: span 2; }
+.feed-media-three > a, .feed-media-three > .tile { height: 100%; }
+.feed-media-three img { height: 100%; }
+/* Four or more: a 2x2 contact sheet, with the rest behind the last tile. */
+.feed-media-many img { aspect-ratio: 1 / 1; }
+/* The "+N" tile: a second link, laid over the photograph's own, to where the rest of
+   the gallery is. */
+.more-media {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, #000000 45%, transparent);
+  color: #ffffff; font-size: 1.5rem; font-weight: 700; text-decoration: none;
+}
+.more-media:hover { color: #ffffff; background: color-mix(in srgb, #000000 55%, transparent); }
+/* A clip keeps its native controls and its own width, so a gallery carrying one is a
+   stack rather than a grid: cropping a video into a square tile crops its controls. */
+.feed-media-stack { display: block; }
+.feed-media-stack > * + * { margin-top: 2px; }
+.feed-media .clip { width: 100%; border: 0; border-radius: 0; }
+.feed-media .clip-status { margin: 0; border-radius: 0; }
+
+/* WHO REACTED, in one muted line. Names, never a count (S-304): the cap at three is a
+   shorter list, not a tally, and the rest are one tap away. */
+ul.feed > li > p.reaction-line {
+  margin: 0.15rem 0 0; font-size: 0.86rem; line-height: 1.45; color: var(--ink-soft);
+}
+.reaction-line .reaction-label { color: inherit; font-weight: 700; }
+.reaction-line .reaction-group + .reaction-group::before { content: "\00a0\00b7\00a0"; }
+.reaction-line a { color: var(--ink-soft); font-weight: 400; text-decoration: underline; text-underline-offset: 3px; }
+.reaction-line a:hover { color: var(--green); }
+
+/* THE ACTION ROW. Love, Reply, and the reply count at the far end. Every target is 44px,
+   and the row is pulled left by its own padding so the controls line up with the words
+   above them rather than sitting a thumb's width in from them. */
+.post-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.3rem;
+  margin: 0.15rem -0.6rem 0; font-size: 0.9rem;
+}
+.post-actions form { margin: 0; }
+.post-actions button.love {
+  background: none; border: 0; margin: 0; padding: 0 0.6rem;
+  min-height: 44px; font-size: 0.9rem; font-weight: 700; color: var(--ink-soft);
+  border-radius: var(--radius-sm);
+}
+.post-actions button.love:hover { background: var(--surface-sunk); color: var(--green); }
+/* Pressed, and not by colour alone: the same tick the thread page's chosen reaction
+   carries, so the two surfaces say "yours" the same way. */
+.post-actions button.love[aria-pressed="true"] { color: var(--green); }
+.post-actions button.love[aria-pressed="true"]::before { content: "\2713"; font-weight: 700; }
+.post-actions a {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 0.6rem;
+  color: var(--ink-soft); font-weight: 700; text-decoration: none;
+}
+.post-actions a:hover { color: var(--green); text-decoration: underline; }
+.post-actions .reply-count { margin-left: auto; font-weight: 400; }
 
 /* ---- media & link previews ---------------------------------------------------- */
 /* Galleries: fixed-aspect cells so uncropped phone photos never break the
@@ -1394,7 +1556,8 @@ ul.contacts > li { padding: 0.15rem 0; }
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
 @media print {
-  header.site, footer.site, .actions, .composer, .handover-actions, .skip-link { display: none !important; }
+  header.site, footer.site, .actions, .post-actions, .post-menu, .composer,
+  .handover-actions, .skip-link { display: none !important; }
   body { background: #fff; color: #000; }
   .qr { border: 0; }
   a { color: #000; text-decoration: underline; }
@@ -1459,6 +1622,20 @@ ul.contacts > li { padding: 0.15rem 0; }
      select came out 51.5px and the checkbox box 48px and the row's bottoms disagreed by
      three and a half pixels. Stretch equalises the columns; both controls flex to fill. */
   .audience-row { grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); align-items: stretch; }
+  /* THE CARD COMES BACK. At phone width the feed is a flat, full-bleed list (see
+     `ul.feed` above); from here on there is room either side of it, and a post that runs
+     to both edges of a wide window reads as a page that failed to lay out. The
+     photographs still reach both edges of the post — only the frame returns. */
+  ul.feed { margin-inline: 0; gap: 1.1rem; }
+  ul.feed > li {
+    border: 1.5px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 1.1rem 1.25rem 0.5rem;
+  }
+  /* The flat list drops the first item's rule (it would sit against the composer);
+     a card has four sides. Restated at the same specificity, or the base wins. */
+  ul.feed > li:first-child { border-top-width: 1.5px; }
+  ul.feed > li.boundary, ul.feed > li.empty { margin-inline: 0; }
+  .feed-media { margin-inline: -1.25rem; }
   ul.directory { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.85rem; grid-auto-rows: 1fr; }
   /* grid-auto-rows: 1fr above equalises the row heights — a "(Nana)" on one card used
@@ -1551,6 +1728,11 @@ ul.contacts > li { padding: 0.15rem 0; }
   .entrance .entrance-card {
     border: 1px solid ButtonBorder;
   }
+  /* The overflow's panel floats over the post below it, and its separation is a shadow,
+     which forced colours computes to none. The "+N" plate is a tinted wash over a
+     photograph and loses both its ground and its ink. */
+  .post-menu-items { border: 1px solid CanvasText; }
+  .more-media { background: Canvas; color: CanvasText; border: 1px solid CanvasText; }
   /* Heavier than a notice: in forced colours both lose their tint, and this one is the
      failure surface for break-glass, setup and invite redemption. */
   .errors, ul.errorlist { border: 2px solid CanvasText; }
