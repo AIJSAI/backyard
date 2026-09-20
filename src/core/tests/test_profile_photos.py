@@ -353,7 +353,9 @@ def test_uploading_a_photo_does_not_disturb_the_profile_beside_it(
     assert isinstance(author, Member)
     author.kinship_name = "Nana"
     author.save(update_fields=["kinship_name"])
-    _client_for(author).post(reverse("profile_edit"), {"photo_action": "upload", "photo": _upload()})
+    _client_for(author).post(
+        reverse("profile_edit"), {"photo_action": "upload", "photo": _upload()}
+    )
     author.refresh_from_db()
     assert author.display_name == "Author" and author.kinship_name == "Nana"
 
@@ -548,7 +550,7 @@ def test_removing_a_member_takes_their_face_with_them(
 def test_the_export_carries_the_member_s_own_profile_photo(
     world: dict[str, object],
 ) -> None:
-    """"Download Your Data" means their data, and a face they uploaded is theirs
+    """ "Download Your Data" means their data, and a face they uploaded is theirs
     (S-704)."""
     author = world["author"]
     assert isinstance(author, Member)
