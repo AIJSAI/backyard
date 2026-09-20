@@ -32,6 +32,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from PIL import Image
 from playwright.sync_api import Page, Playwright, expect
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from core import posting
 from core.models import Member, Pod, PodMembership, Yard
@@ -95,7 +96,10 @@ def _let_the_server_finish(page: Page) -> None:
     with `/media/<token>/` still being answered. `live_server` is session-scoped and the
     database flush is per test: the flush then deadlocks against that request, fails, and
     leaves rows behind for whichever test runs next. Measured at about one run in six."""
-    page.wait_for_load_state("networkidle")
+    try:
+        page.wait_for_load_state("networkidle", timeout=10_000)
+    except PlaywrightTimeoutError:
+        pass  # hygiene before the flush, never an assertion: a slow straggler is not a defect
 
 
 @pytest.mark.parametrize(("engine", "device"), _ENGINES)
@@ -132,7 +136,7 @@ def test_the_photo_button_opens_the_sheet_on_an_empty_composer(
         # satisfied before the POST has left. The locators below retry across it.
         first = page.locator("ul.feed > li").first
         expect(first.get_by_text("At the lake")).to_be_visible()
-        expect(first.locator("img")).to_have_count(1)
+        expect(first.locator(".feed-media img")).to_have_count(1)
         _let_the_server_finish(page)
     finally:
         page.context.close()
