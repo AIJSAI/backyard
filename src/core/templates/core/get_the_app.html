@@ -33,6 +33,9 @@
     inside the app, the same way you sign in here.</p>
   <p>A Sign-In Link opens in Safari, not in the app. Use it to choose a password, then sign
     in to the app with that password.</p>
-
-  <p class="back-link"><a class="back" href="{% url 'profile_edit' %}">Back To Settings</a></p>
+  {% comment %} NO BACK LINK, and no onward link either. This page is a leaf reached from
+     four places — Settings, How It Works, the last welcome screen and the feed's one quiet
+     line — so any "Back To ..." here would name the wrong one for three of its readers. The
+     header is sticky and already carries Feed and Settings, which is the rule base.html
+     states for exactly this case. {% endcomment %}
 {% endblock %}

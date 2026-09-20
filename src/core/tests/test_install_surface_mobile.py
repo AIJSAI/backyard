@@ -85,7 +85,7 @@ def test_each_phone_is_shown_its_own_way_in(live_server: Any, playwright: Playwr
         # button whose prompt() would throw is worse than the menu steps it replaces.
         offer = page.locator("[data-install-now]")
         expect(offer).to_be_hidden()
-        expect(page.locator("[data-install-android-steps]")).to_be_visible()
+        expect(page.locator('[data-install-platform="android"]')).to_be_visible()
 
         # Chrome fires `beforeinstallprompt` only against a real installability check, which
         # a headless run over http does not pass — so the EVENT is synthesised and the
@@ -98,7 +98,7 @@ def test_each_phone_is_shown_its_own_way_in(live_server: Any, playwright: Playwr
             }"""
         )
         expect(offer).to_be_visible()
-        expect(page.locator("[data-install-android-steps]")).to_be_hidden()
+        expect(page.locator('[data-install-platform="android"]')).to_be_hidden()
         assert page.evaluate("() => window.__promptedInstall === undefined"), (
             "the event was consumed on arrival; it must be kept for the member's own tap"
         )
@@ -109,7 +109,7 @@ def test_each_phone_is_shown_its_own_way_in(live_server: Any, playwright: Playwr
         )
         # ...and the menu steps come back, so a dismissed sheet is not a dead end.
         expect(offer).to_be_hidden()
-        expect(page.locator("[data-install-android-steps]")).to_be_visible()
+        expect(page.locator('[data-install-platform="android"]')).to_be_visible()
 
         # --- an in-app browser: told to leave it first --------------------------------
         viewer = dict(device)

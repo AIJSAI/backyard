@@ -77,9 +77,23 @@ epics:
     acceptance:
     - "Passes PWA installability checks on iOS Safari and Android Chrome"
     - "Standalone display with correct icon and name"
-    status: passing     # wave 5: PWA manifest + deterministic icons + minimal no-cache worker; installability fields verified, elder+/d/ surfaces worker-free
+    - "A page in the product tells a member how to install it, with the steps for the phone they are holding first and the other platform still reachable"
+    - "Android gets a real install control driven by beforeinstallprompt, with the browser-menu steps as the visible fallback"
+    - "An in-app browser (Instagram, Facebook, LinkedIn) is told to open in a browser first, and a member who already has it installed is told so instead of being shown steps"
+    - "It is offered from Settings, from the end of the welcome, and once from the feed on a phone; never from the No-Login Link or email surfaces"
+    status: passing     # wave 5: PWA manifest + deterministic icons + minimal no-cache worker; installability fields verified, elder+/d/ surfaces worker-free.
+                        # 2026-09-20: the INSTALL SURFACE, which was the missing half — all
+                        # of the above had shipped and nothing in the product ever said so,
+                        # so the only members with Backyard on a home screen were the ones
+                        # who already knew what Safari's Share sheet does. /app/ carries the
+                        # steps; Settings, the last welcome screen and one quiet line on the
+                        # feed point at it. The manifest's `id` is now written down as the
+                        # value it already had implicitly (start_url), because any other
+                        # value would read to Chrome as a different app and leave a second
+                        # icon beside an existing install. No model, no migration, no
+                        # dependency: push notifications are their own later story.
     v1: true
-    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md + src/core/tests/test_get_the_app.py + src/core/tests/test_install_surface_mobile.py
   - id: S-104
     epic: E1
     persona: tech-helper

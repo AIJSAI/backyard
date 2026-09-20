@@ -27,7 +27,6 @@
 .install li { margin: 0 0 0.45rem; padding-left: 0.15rem; }
 .install li:last-child { margin-bottom: 0; }
 .install section { margin: 0 0 2rem; }
-.install section:last-child { margin-bottom: 0; }
 /* The glyph iOS draws on the Share control, at the size of the word beside it. `baseline`
    would sit it low against the text; -0.18em is the optical centre of a 1.15em box. */
 .install .share-glyph { width: 1.15em; height: 1.15em; vertical-align: -0.18em; margin: 0 0.1em; }
@@ -87,9 +86,12 @@
       </ol>
     </section>
 
+    {% comment %} The WHOLE section goes while the Install button is live, heading and all.
+       Hiding only its steps left "Android" standing over nothing — an orphaned heading,
+       and on a phone that is a third of a screen spent saying a word. {% endcomment %}
     <section data-install-platform="android">
       <h2>Android</h2>
-      <ol data-install-android-steps>
+      <ol>
         <li>Open the browser menu at the corner of the screen.</li>
         <li>Tap <strong>Install app</strong>, or <strong>Add to Home screen</strong>.</li>
         <li>Tap <strong>Install</strong>.</li>
@@ -108,7 +110,6 @@
     var done = root.querySelector('[data-install-done]');
     var offer = root.querySelector('[data-install-now]');
     var button = root.querySelector('[data-install-button]');
-    var androidSteps = root.querySelector('[data-install-android-steps]');
     var agent = navigator.userAgent || '';
 
     // An installed home-screen app answers one of these two. Chrome and Android report the
@@ -140,7 +141,9 @@
       event.preventDefault();
       deferred = event;
       offer.hidden = false;
-      androidSteps.hidden = true;
+      // The menu steps are the fallback for a browser that never fires this event, so
+      // while a real button is on screen they are one more thing to read and get wrong.
+      android.hidden = true;
     });
     button.addEventListener('click', function () {
       var pending = deferred;
@@ -148,7 +151,7 @@
       // a relative who dismisses the sheet is left with a way in rather than a dead button.
       deferred = null;
       offer.hidden = true;
-      androidSteps.hidden = false;
+      android.hidden = false;
       if (pending) { pending.prompt(); }
     });
     window.addEventListener('appinstalled', function () {

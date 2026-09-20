@@ -127,7 +127,7 @@ def test_android_gets_a_real_install_button_and_the_menu_steps_behind_it() -> No
         "the install offer must ship hidden: a button that cannot prompt is a dead control"
     )
     assert ">Install App</button>" in body
-    assert "data-install-android-steps" in body
+    assert '<section data-install-platform="android">' in body
 
 
 def test_an_in_app_browser_is_told_to_leave_it_first() -> None:
@@ -190,8 +190,9 @@ def test_it_names_nobody_and_links_nothing_private() -> None:
     body = client.get(reverse("get_the_app")).content.decode()
     page = body[body.index("<h1>Get The App</h1>") : body.index("<footer")]
     assert _ADMIN_FIRST not in page and "Cousin" not in page
-    hrefs = set(re.findall(r'href="([^"]+)"', page))
-    assert hrefs == {reverse("profile_edit")}, hrefs
+    # NOTHING. It is a leaf reached from four places, so a "Back To ..." would name the
+    # wrong one for three of its readers; the sticky header already carries the way out.
+    assert not re.findall(r'href="([^"]+)"', page)
 
 
 # --- reachability ---------------------------------------------------------------------
