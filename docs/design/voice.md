@@ -38,8 +38,8 @@ not charm.
 ## The second read: sound like a person (2026-09-20)
 
 The owner read the long pages a day after the rules above shipped and rejected them again:
-"AI sloppy ... write it so it sounds natural and there isn't crap. Like saying no ads or not
-run by a company isn't necessary for my family." The five rules had made the copy short. They
+"write it so it sounds natural ... saying no ads or not run by a company isn't necessary
+for my family." The five rules had made the copy short. They
 had not made it sound like anybody. Three more, for any page longer than a label:
 
 6. **Say what it is for, then how to use it.** His sentence: Backyard "was created to keep
@@ -119,7 +119,7 @@ sentences:
   labels. Placeholders only for format examples, with two conventional exceptions: a
   search box and a composer carry their prompt ("Search by name", "Share Something",
   "Write A Reply"). A composer's prompt is Title Case like the label it repeats: the
-  owner's "Write a post is stupid should be Share Something".
+  owner's ruling was "should be Share Something".
 - **Options are short and parallel**: "Weekly", "Monthly", "Off". "Household",
   "\<Side name\>", "\<Group name\>".
 - **Confirmation pages**: the heading is the question ("Delete This Post?"), the body is
