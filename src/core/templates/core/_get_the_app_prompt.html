@@ -26,25 +26,6 @@
    (/d/) are intermittent token surfaces that plant no worker and link no manifest at all
    (ADR-002), and an install prompt there would be an invitation to a home-screen icon that
    opens a login page. {% endcomment %}
-<style>
-/* The email line's rule, deliberately: these two sit under the same composer and any
-   difference between them would read as a mistake. */
-.app-prompt {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.9rem;
-  margin: 0.85rem 0 2rem; font-size: 0.92rem; color: var(--ink-soft);
-}
-/* `display: flex` above beats the browser's own `[hidden] { display: none }`, so the
-   attribute has to be named at a specificity that wins or the line ships visible to
-   everybody — the exact flash this block exists to avoid. */
-.app-prompt[hidden] { display: none; }
-/* Borderless, like its neighbour: a bordered pill at the end of a sentence is how "Not
-   Now" became the loudest thing on this page once already. The 44px target stays. */
-.app-prompt .btn-quiet {
-  border-color: transparent; padding-left: 0; padding-right: 0;
-  font-size: 0.92rem; text-decoration: underline; text-underline-offset: 3px;
-}
-.app-prompt .btn-quiet:hover { background: none; border-color: transparent; }
-</style>
 <div class="app-prompt" data-app-prompt hidden>
   <span><a href="{% url 'get_the_app' %}">Add Backyard to your home screen</a> to open it
     like an app.</span>
@@ -72,6 +53,8 @@
       // No storage to read. Show the line; the worst case is being asked twice.
     }
     line.hidden = false;
+    // Installed from another tab, or from the page this line points at: stop offering it.
+    window.addEventListener('appinstalled', function () { line.hidden = true; });
     line.querySelector('[data-app-prompt-dismiss]').addEventListener('click', function () {
       line.hidden = true;
       try {

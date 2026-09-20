@@ -470,20 +470,34 @@ def _is_lowercased(word: str) -> bool:
     return False
 
 
-def _brand_cased(half: str) -> bool:
-    """A word that carries its OWN capital later on: "iPhone", "iPad", "iOS", "eBay".
+# Words whose case belongs to somebody else, NAMED rather than inferred. The first cut of
+# this rule accepted any internal capital as the evidence, which let "eMail Updates" and
+# "myBackyard Home" through: a heading that mis-cases this product's own glossary shipped
+# green. Lower-case key, canonical spelling as the value, so the printed fix is right too.
+_BRAND_CASED = {
+    "iphone": "iPhone",
+    "ipad": "iPad",
+    "ipod": "iPod",
+    "ios": "iOS",
+    "ipados": "iPadOS",
+    "macos": "macOS",
+}
 
-    The module docstring above this guard has always claimed "iPhone" passes untouched,
+
+def _brand_cased(half: str) -> bool:
+    """A product name written the way its owner writes it: "iPhone", "iPad", "iOS".
+
+    `test_title_case.py`'s module docstring has always claimed "iPhone" passes untouched,
     and it did not: only the first letter was examined, so the one heading in this product
     that has to name Apple's phone would have failed the capitalisation rule with no way to
     satisfy it except misspelling a product name. That is the same class of mistake the
-    `_MACHINE` clause already avoids for an address — a token whose case belongs to
-    somebody else is not this rule's to move.
+    `_MACHINE` clause already avoids for an address: a token whose case belongs to somebody
+    else is not this rule's to move.
 
-    Narrow on purpose: an internal capital is the evidence. "content", "to" and "sign" have
-    none, so "Skip to content" and "Sign-in Link" are offences exactly as before.
+    EXACT, on purpose. Only the canonical spelling passes, so "iphone", "Iphone" and
+    "eMail" are offences exactly as before.
     """
-    return any(character.isupper() for character in half)
+    return _BRAND_CASED.get(half.strip(_EDGE).lower()) == half.strip(_EDGE)
 
 
 def title_cased(text: str) -> str:
@@ -504,6 +518,10 @@ def title_cased(text: str) -> str:
         body = word[len(lead) : len(word) - len(tail)]
         halves: list[str] = []
         for half in _halves(body):
+            canonical = _BRAND_CASED.get(half.lower())
+            if canonical is not None:
+                halves.append(canonical)  # "iphone" -> "iPhone", never "Iphone"
+                continue
             index = next((i for i, ch in enumerate(half) if ch.isalpha()), None)
             halves.append(
                 half if index is None else half[:index] + half[index].upper() + half[index + 1 :]

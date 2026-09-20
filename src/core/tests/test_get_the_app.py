@@ -119,6 +119,10 @@ def test_the_iphone_steps_are_the_three_words_ios_shows() -> None:
     assert positions == sorted(positions), f"the steps are out of order: {steps}"
     # Three steps, not two and not four.
     assert steps.count("<li>") == 3, steps
+    # Where Share IS depends on the device: the bottom on an iPhone's Safari, the TOP on an
+    # iPad and in Chrome, Edge and Firefox on iOS. The heading says iPad, so no edge is named.
+    assert "in the browser toolbar" in steps
+    assert "bottom of the screen" not in steps
 
 
 def test_android_gets_a_real_install_button_and_the_menu_steps_behind_it() -> None:
@@ -159,23 +163,29 @@ def test_both_platforms_ship_so_the_page_works_with_no_javascript() -> None:
     assert 'data-install-platform="android" hidden' not in body
 
 
-def test_it_says_the_installed_app_has_its_own_sign_in() -> None:
-    """The one thing that surprises people, and the reason an install reads as broken: an
-    iOS home-screen app has its own storage, so the Safari session does not come with it.
+def test_it_says_what_to_do_about_signing_in_and_names_the_username() -> None:
+    """An installed app on an iPhone has its own storage, so the Safari session does not come
+    with it; on Android it usually does. "May", so the sentence is true on every phone.
 
-    The second sentence has to be TRUE for the member who has no password of their own.
-    They are the ones an admin hands a Sign-In Link to, and what that link does
-    (core/recovery.py: `redeem` calls `user.set_password`) is give them one. So "choose a
-    password, then sign in to the app with it" describes what actually happens.
+    The second paragraph has to WORK for the member an admin hands a Sign-In Link to: by
+    construction somebody with no e-mail on file, who may never have known their username.
+    The link sets a password (recovery.redeem) and then shows the sign-in page with the
+    username filled in, in the BROWSER. The installed app opens with that box empty, so an
+    instruction that names only the password dead-ends exactly this member (review of #225).
     """
     pod, admin = _family()
     client, member = _member(pod)
     body = _flat(client.get(reverse("get_the_app")).content.decode())
-    assert "the installed app has its own sign-in, separate from Safari" in body
-    assert "Sign in once inside the app" in body
-    assert "A Sign-In Link opens in Safari, not in the app." in body
+    assert "The app may ask you to sign in again, once." in body
+    assert "On an iPhone it keeps its own sign-in, separate from Safari." in body
+    assert "A Sign-In Link usually opens in your browser, not in the app." in body
+    assert "note the username on the next screen" in body
+    assert "sign in with that username and password" in body
+    # Never a claim about one platform's browser stated to every reader.
+    assert "opens in Safari" not in body
 
-    # The mechanism the sentence rests on, exercised rather than asserted from prose.
+    # The mechanism the paragraph rests on, exercised rather than asserted from prose: the
+    # link leaves the member holding a password, and the next screen is told the username.
     from core import recovery
 
     raw = recovery.issue(member, issued_by=admin)
@@ -214,21 +224,24 @@ def test_settings_offers_it() -> None:
 
 
 def test_how_it_works_offers_it_to_a_member_and_not_to_a_stranger() -> None:
-    """The page is public and the install page is not, so the link is signed-in only:
-    offering a locked-out reader a link that bounces them to sign-in is the dead end the
-    landing page already refuses to hand out."""
+    """The page is public and the install page is not, so the section is signed-in only."""
     pod, _admin = _family()
     client, _row = _member(pod)
     signed_in = client.get(reverse("how_it_works")).content.decode()
     assert f'href="{reverse("get_the_app")}"' in signed_in
+    assert "Add Backyard to your home screen and it opens like an app." in _flat(signed_in)
+    # The WHOLE section is signed-in only. base.html links the manifest for a signed-in
+    # reader only, so a stranger following the steps would make an icon with no name and no
+    # app window: a page that tells somebody to install what they cannot is worse than none.
     public = Client().get(reverse("how_it_works")).content.decode()
-    assert "Add Backyard to your home screen" in public  # the fact is still stated
+    assert "On Your Phone" not in public
+    assert "Add Backyard to your home screen" not in public
     assert reverse("get_the_app") not in public
 
 
 def test_the_welcome_ends_on_it_and_can_be_left() -> None:
-    """Screen four. It writes nothing, so "Go To Your Backyard" is its skip — the same
-    shape screen three already uses rather than two controls with one destination."""
+    """Screen four. It writes no content, so "Go To Your Backyard" is its skip. Screen three
+    offers it by name and keeps its own way to the feed (test_welcome.py walks that)."""
     pod, _admin = _family()
     client, member = _member(pod)
 
@@ -280,6 +293,19 @@ def test_the_feed_shows_one_prompt_at_a_time_and_email_goes_first() -> None:
     assert "data-app-prompt" in body
 
 
+def test_declining_the_email_offer_does_not_summon_the_next_prompt() -> None:
+    """Measured in review: the install line rendered at the same pixel the e-mail offer had
+    just left, with its own "Not Now" in the same place. One prompt at a time also means
+    not back to back: the page that follows a dismissal draws neither, the next visit may."""
+    pod, _admin = _family()
+    client, _row = _member(pod)
+    assert 'class="email-prompt"' in client.get(reverse("feed")).content.decode()
+    landed = client.post(reverse("dismiss_email_prompt"), follow=True).content.decode()
+    assert 'class="email-prompt"' not in landed
+    assert "data-app-prompt" not in landed, "a second prompt took the first one's seat"
+    assert "data-app-prompt" in client.get(reverse("feed")).content.decode()
+
+
 def test_the_feed_line_ships_hidden_and_only_a_script_reveals_it() -> None:
     """No flash. Every reason to show it — a phone, not installed, not already declined —
     is a browser fact, so the server sends it hidden and the script decides."""
@@ -290,7 +316,9 @@ def test_the_feed_line_ships_hidden_and_only_a_script_reveals_it() -> None:
     assert '<div class="app-prompt" data-app-prompt hidden>' in body
     assert "display-mode: standalone" in body
     assert "pointer: coarse" in body, "the line is phones only"
-    assert "localStorage" in body and "catch" in body
+    assert re.search(r"try \{\s*if \(window\.localStorage\.getItem", body), (
+        "the read of the dismissal is not inside a try: Safari private mode THROWS there"
+    )
 
 
 def test_the_feed_line_sits_under_the_composer_beside_the_email_offer() -> None:
@@ -327,8 +355,13 @@ def test_the_dismissal_is_per_device_and_survives_no_storage() -> None:
     client, row = _member(pod)
     _past_the_email_offer(row)
     script = client.get(reverse("feed")).content.decode()
-    block = script[script.index("data-app-prompt-dismiss") :]
-    assert "try {" in block and "catch (error)" in block
+    # PER ACCESS. A throw on the read would take the click wiring below it along, and a
+    # single "try {" anywhere in the script satisfied the first cut of this test.
+    assert re.search(r"try \{\s*if \(window\.localStorage\.getItem", script)
+    assert re.search(r"try \{\s*window\.localStorage\.setItem", script)
+    assert script.count("catch (error)") >= 2
+    # ...and an install done elsewhere stops the offer without a reload.
+    assert "addEventListener('appinstalled'" in script
 
 
 # --- the surfaces that must never carry it ---------------------------------------------
@@ -365,10 +398,19 @@ def test_the_email_web_view_carries_no_install_surface() -> None:
     issue = DigestIssue.objects.create(
         member=member, yard=yard, window_start=now - datetime.timedelta(days=7), window_end=now
     )
-    body = Client().get(reverse("digest_web", args=[digest_links.mint(issue)])).content.decode()
-    assert body  # non-vacuity
-    assert reverse("get_the_app") not in body
-    assert "data-app-prompt" not in body and "data-install" not in body
+    link = reverse("digest_web", args=[digest_links.mint(issue)])
+    # The token visitor, and ALSO a member who happens to be signed in when they tap the
+    # link in their mail: what this item adds (the page link, the feed line, the install
+    # button) belongs to member pages and appears on neither. (A signed-in member does get
+    # the manifest link there, as on every page: base.html gates that on the session, and
+    # they already carry the worker from the feed. ADR-002 is about the visitor with no
+    # session, who is asserted worker-free by test_pwa.py.)
+    signed_in, _row = _member(pod, username="reader-of-mail")
+    for client in (Client(), signed_in):
+        body = client.get(link).content.decode()
+        assert "Email Update" in body  # non-vacuity: this is the mail's web copy
+        assert reverse("get_the_app") not in body
+        assert "data-app-prompt" not in body and "data-install" not in body
 
 
 # --- the manifest the steps install ------------------------------------------------------

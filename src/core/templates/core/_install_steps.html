@@ -19,25 +19,6 @@
    NO SCREENSHOTS AND NO REMOTE IMAGES. The Share glyph is one inline SVG drawn in
    currentColor, so it is the ink of whichever colour scheme is on, and it costs no request. A
    screenshot of iOS would be a picture that rots every September. {% endcomment %}
-<style>
-/* Scoped to this block. The steps are a numbered list with the numbers at the page's own
-   left edge rather than the browser's 40px indent, so the three steps line up with the
-   heading above them instead of floating in from the side. */
-.install ol { margin: 0 0 1.1rem; padding-left: 1.35rem; }
-.install li { margin: 0 0 0.45rem; padding-left: 0.15rem; }
-.install li:last-child { margin-bottom: 0; }
-.install section { margin: 0 0 2rem; }
-/* The glyph iOS draws on the Share control, at the size of the word beside it. `baseline`
-   would sit it low against the text; -0.18em is the optical centre of a 1.15em box. */
-.install .share-glyph { width: 1.15em; height: 1.15em; vertical-align: -0.18em; margin: 0 0.1em; }
-/* `hidden` is overridden by any later rule that sets `display`, so every element this
-   block toggles names the attribute at a specificity that wins. Without this a branch
-   that is meant to be invisible renders anyway, which is the one failure mode a
-   progressive-enhancement block must not have. */
-.install [hidden] { display: none; }
-.install-now { margin: 0 0 2rem; }
-.install-now p { margin: 0 0 0.6rem; }
-</style>
 <div class="install" data-install>
   {% comment %} Already on the home screen: the steps are noise, so they go and this stays.
      Two readings, because the two platforms answer differently — Chrome and Android report
@@ -70,7 +51,9 @@
       <h2>iPhone And iPad</h2>
       <ol>
         <li>Tap <strong>Share</strong>
-          {% comment %} The iOS Share mark: a tray with an arrow leaving the top of it. One
+          {% comment %} "in the browser toolbar", not "at the bottom of the screen": that is an
+             iPhone's Safari. An iPad puts Share at the TOP, and so do Chrome, Edge and
+             Firefox on iOS, and the heading over this step says iPad. The iOS Share mark: a tray with an arrow leaving the top of it. One
              path set, currentColor, no fill, so it reads at 18px in both colour schemes and
              carries no colour of its own to go wrong in dark mode. Decorative: the word
              "Share" beside it is what a screen reader announces. {% endcomment %}
@@ -80,7 +63,7 @@
             <path d="M12 3.4 V14.4 M8.4 6.9 L12 3.3 L15.6 6.9"/>
             <path d="M7.6 10.4 H5.8 A1.8 1.8 0 0 0 4 12.2 V18.9 A1.8 1.8 0 0 0 5.8 20.7 H18.2 A1.8 1.8 0 0 0 20 18.9 V12.2 A1.8 1.8 0 0 0 18.2 10.4 H16.4"/>
           </svg>
-          at the bottom of the screen.</li>
+          in the browser toolbar.</li>
         <li>Tap <strong>Add to Home Screen</strong>.</li>
         <li>Tap <strong>Add</strong>.</li>
       </ol>
@@ -129,9 +112,10 @@
       return;
     }
 
-    // The three webviews a family link actually arrives in. Instagram and LinkedIn name
-    // themselves; Facebook's app sends FBAN (the app) and FBAV (its version).
-    if (/Instagram|FBAN|FBAV|LinkedInApp/.test(agent)) { webview.hidden = false; }
+    // The webviews a family link actually arrives in. Instagram and LinkedIn name
+    // themselves; Facebook's app sends FBAN (the app) and FBAV (its version); GSA/ is the
+    // Google app's viewer, which is where a link tapped in Gmail on Android opens.
+    if (/Instagram|FBAN|FBAV|LinkedInApp|GSA\//.test(agent)) { webview.hidden = false; }
 
     // iPadOS 13 and later report a MACINTOSH user agent, so an iPad is only distinguishable
     // from a Mac by the touch points. Without this half every iPad reads as a laptop and is

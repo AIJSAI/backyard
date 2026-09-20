@@ -56,11 +56,15 @@
   <p>Photos are shown only to the people the post was shared with. You can edit a post
     for fifteen minutes. Delete Post removes it and its photos for good.</p>
 
-  <h2>On Your Phone</h2>
-  <p>Add Backyard to your home screen and it opens like an app. There's nothing to
-    download from an app store.</p>
+  {% comment %} SIGNED IN ONLY, the whole section. base.html links the manifest for a signed-in
+     reader only, so a stranger following these steps would make a home-screen icon with no
+     name, no icon and no app window (pwa_views.get_the_app says the same of /app/). A plain
+     link, not a button: this page has no other button above its first fold, and a solid
+     one here was the loudest thing on an explainer. {% endcomment %}
   {% if user.is_authenticated %}
-    <p><a class="btn" href="{% url 'get_the_app' %}">Get The App</a></p>
+    <h2>On Your Phone</h2>
+    <p>Add Backyard to your home screen and it opens like an app.
+      <a href="{% url 'get_the_app' %}">Get The App</a> has the steps.</p>
   {% endif %}
 
   <h2>Joining</h2>

@@ -82,7 +82,7 @@ def test_the_first_screen_says_what_this_is_in_plain_words(pod: Pod) -> None:
     # two places to weaken.
 
 
-def test_the_three_screens_are_reachable_in_order(pod: Pod) -> None:
+def test_the_four_screens_are_reachable_in_order(pod: Pod) -> None:
     client, _ = _join(pod)
     one = client.get(reverse("welcome")).content.decode()
     assert reverse("welcome_family_email") in one
@@ -93,7 +93,17 @@ def test_the_three_screens_are_reachable_in_order(pod: Pod) -> None:
 
     three = client.get(reverse("welcome_hello"))
     assert three.status_code == 200
-    assert "Say Hello" in three.content.decode()
+    third = three.content.decode()
+    assert "Say Hello" in third
+    # Screen three leads on to the fourth AND straight to the feed: every screen of the
+    # welcome is skippable to a real target, and "Next" alone led only deeper in.
+    assert f'href="{reverse("welcome_app")}">Get The App</a>' in third
+    assert f'href="{reverse("feed")}">Go To Your Backyard</a>' in third
+    assert ">Next<" not in third
+
+    four = client.get(reverse("welcome_app"))
+    assert four.status_code == 200
+    assert "<h1>Get The App</h1>" in four.content.decode()
 
 
 # --- skipping -----------------------------------------------------------------------
@@ -128,8 +138,9 @@ def test_skipping_twice_keeps_the_first_moment(pod: Pod) -> None:
     assert member.orientation_dismissed_at == first
 
 
-def test_reaching_the_last_screen_marks_it_seen(pod: Pod) -> None:
-    """They have now had all three in front of them, which is what the column claims.
+def test_reaching_the_say_hello_screen_marks_it_seen(pod: Pod) -> None:
+    """They have now had the three that explain the place in front of them, which is what
+    the column claims (the fourth, Get The App, is optional and marks it too).
 
     Deliberately NOT stamped on arrival at screen one: a refresh would then bounce them
     to the feed halfway through the first sentence.

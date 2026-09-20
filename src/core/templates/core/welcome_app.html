@@ -15,9 +15,10 @@
    screen after it has rendered would also be a flash, which is the thing the feed line next
    door is written to avoid. {% endcomment %}
 {% block title %}Get The App{% endblock %}
+{% block extra_head %}{% include "core/_install_steps_style.html" %}{% endblock %}
 {% block body %}
   <h1>Get The App</h1>
-  <p data-install-lead>Add Backyard to your home screen. It opens like an app, with no app store.</p>
+  <p data-install-lead>Add Backyard to your home screen. It opens like an app.</p>
 
   {% include "core/_install_steps.html" %}
 

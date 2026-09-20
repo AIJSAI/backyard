@@ -16,12 +16,14 @@ Excluded from the default unit run (`-m 'not e2e'`); runs in the browser job (`m
 from __future__ import annotations
 
 import os
+import secrets
 from typing import Any
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
 from playwright.sync_api import Playwright, expect
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from core.models import Member, Pod, PodMembership, Yard
 
@@ -38,16 +40,32 @@ pytestmark = [pytest.mark.e2e, pytest.mark.django_db(transaction=True)]
 
 def _a_member_with_a_session() -> str:
     """One member, signed in server-side. The session cookie is injected into each browser
-    context, so these drive the INSTALL page rather than re-testing the sign-in form."""
-    yard = Yard.objects.create(name="Maternal", slug="maternal")
-    pod = Pod.objects.create(name="The cousins", kind=Pod.HOUSEHOLD)
+    context, so these drive the INSTALL page rather than re-testing the sign-in form.
+
+    Identifiers are unique per call, the pattern test_the_photo_button_in_a_browser.py
+    adopted: a `transaction=True` teardown can lose its flush to a request the live server is
+    still answering, and a fixed slug ("maternal" is also test_onboarding_mobile.py's) turns
+    that into a duplicate-key failure in whichever test runs NEXT."""
+    tag = secrets.token_hex(4)
+    yard = Yard.objects.create(name="Maternal", slug=f"maternal-{tag}")
+    pod = Pod.objects.create(name=f"The cousins {tag}", kind=Pod.HOUSEHOLD)
     pod.yards.set([yard])
-    user = User.objects.create_user(username="installcousin")
+    user = User.objects.create_user(username=f"installcousin-{tag}")
     member = Member.objects.create(display_name="Cousin Reed", user=user)
     PodMembership.objects.create(member=member, pod=pod)
     client = Client()
     client.force_login(user, backend=_BACKEND)  # a real DB session the live server shares
     return str(client.cookies["sessionid"].value)
+
+
+def _let_the_server_finish(page: Any) -> None:
+    """The page goes on to fetch the manifest, an icon (a PIL render) and to register the
+    worker after `goto` returns; ending the test with one of those in flight is how the
+    per-test flush deadlocks against the session-scoped live server."""
+    try:
+        page.wait_for_load_state("networkidle", timeout=10_000)
+    except PlaywrightTimeoutError:
+        pass  # hygiene before the flush, never an assertion
 
 
 def _open(browser: Any, device: dict[str, Any], base_url: str, cookie: str) -> Any:
@@ -66,16 +84,16 @@ def _order(page: Any) -> list[str]:
     return [str(name) for name in found]
 
 
-def test_each_phone_is_shown_its_own_way_in(live_server: Any, playwright: Playwright) -> None:
+def test_android_is_offered_a_real_install_button(live_server: Any, playwright: Playwright) -> None:
     cookie = _a_member_with_a_session()
     base_url = live_server.url
-
-    # --- Android Chrome: its steps first, and a real Install button -------------------
     chromium = playwright.chromium.launch()
     try:
         device = dict(playwright.devices["Pixel 5"])
         page = _open(chromium, device, base_url, cookie)
-        assert _order(page) == ["android", "ios"], "an Android phone is shown Apple's steps first"
+        assert _order(page) == ["android", "ios"], (
+            "an Android phone is not shown its own steps first"
+        )
         # The other platform stays REACHABLE: a relative on a phone may be reading this to
         # tell a parent what to tap. It is below, not gone.
         # `exact`, because the Android steps below carry Chrome's own spelling of the
@@ -111,8 +129,19 @@ def test_each_phone_is_shown_its_own_way_in(live_server: Any, playwright: Playwr
         # ...and the menu steps come back, so a dismissed sheet is not a dead end.
         expect(offer).to_be_hidden()
         expect(page.locator('[data-install-platform="android"]')).to_be_visible()
+        _let_the_server_finish(page)
+    finally:
+        chromium.close()
 
-        # --- an in-app browser: told to leave it first --------------------------------
+
+def test_an_in_app_browser_is_sent_to_a_real_browser(
+    live_server: Any, playwright: Playwright
+) -> None:
+    cookie = _a_member_with_a_session()
+    base_url = live_server.url
+    chromium = playwright.chromium.launch()
+    try:
+        device = dict(playwright.devices["Pixel 5"])
         viewer = dict(device)
         viewer["user_agent"] = (
             device["user_agent"] + " Instagram 300.0.0.0.0 Android (34/14; 420dpi)"
@@ -123,13 +152,19 @@ def test_each_phone_is_shown_its_own_way_in(live_server: Any, playwright: Playwr
         expect(inside.get_by_role("heading", name="Open In Browser")).to_be_visible()
         # FIRST: every step below it is wasted until they are out of the viewer.
         platforms = inside.locator("[data-install-platforms]")
-        assert (warning.bounding_box() or {})["y"] < (platforms.bounding_box() or {})["y"], (
+        above, below = warning.bounding_box(), platforms.bounding_box()
+        assert above is not None and below is not None
+        assert above["y"] < below["y"], (
             "the Open In Browser guidance is not above the steps it has to precede"
         )
+        _let_the_server_finish(inside)
     finally:
         chromium.close()
 
-    # --- iPhone Safari: Apple's steps first ------------------------------------------
+
+def test_an_iphone_is_shown_apples_steps_first(live_server: Any, playwright: Playwright) -> None:
+    cookie = _a_member_with_a_session()
+    base_url = live_server.url
     webkit = playwright.webkit.launch()
     try:
         page = _open(webkit, dict(playwright.devices["iPhone 13"]), base_url, cookie)
@@ -138,5 +173,6 @@ def test_each_phone_is_shown_its_own_way_in(live_server: Any, playwright: Playwr
         expect(page.get_by_text("Add to Home Screen", exact=True)).to_be_visible()
         # WebKit fires no beforeinstallprompt at all, which is why the three steps exist.
         expect(page.locator("[data-install-now]")).to_be_hidden()
+        _let_the_server_finish(page)
     finally:
         webkit.close()

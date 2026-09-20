@@ -199,6 +199,14 @@ def test_it_never_re_cases_what_a_person_typed_or_a_machine_owns() -> None:
     assert not title_case_offences("iPhone And iPad")
     assert title_cased("iPhone And iPad") == "iPhone And iPad"
     assert title_case_offences("iphone And ipad") == ["iphone", "ipad"]
+    # The printed fix is the owner's spelling, not "Iphone And Ipad": a pasted fix that
+    # misspells a product name would then pass this guard for good.
+    assert title_cased("iphone And ipad") == "iPhone And iPad"
+    # NAMED, not inferred. An internal capital is not evidence: these mis-case the product's
+    # own words and passed while any internal capital was accepted.
+    assert title_case_offences("eMail Updates") == ["eMail"]
+    assert title_case_offences("myBackyard Home") == ["myBackyard"]
+    assert title_case_offences("Iphone") == [] and title_case_offences("iOS Steps") == []
     # Punctuation is not a word.
     assert not title_case_offences("Delete This Post?")
     assert not title_case_offences("“Hi Everyone” (Optional)")
