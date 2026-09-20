@@ -13,7 +13,36 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
-Nothing yet.
+### Changed
+
+- **A post in the feed is laid out for a phone.** It was a rounded card inset from both
+  screen edges with its photographs inset again inside it, so a picture that filled a
+  relative's camera arrived about 300 pixels wide on a 390 pixel phone and three photos
+  came out as three stamps. Below 600px the feed is now a flat, full-width list separated
+  by hairlines, and the photographs run edge to edge: one at its own shape, two in equal
+  columns, three as one large beside two stacked, and four or more as a 2x2 with a "+N"
+  tile onto the post. The card treatment returns from 600px up, where there is room for
+  it. The feed also serves the full stored photograph rather than the 400px thumbnail,
+  which was the rendition that made a full-width picture soft.
+- **Edit Post, Delete Post and Take Down Post moved into a per-post menu.** They sat in
+  the row under every post beside the way into the thread, which put the control that
+  erases a photograph one thumb-width from the one that opens it. The menu is a plain
+  disclosure with no JavaScript behind it, it keeps the 44px target and the destructive
+  treatment, and it is not drawn at all on a post that offers none of the three. "Open
+  Post" is gone with them: the time stamp, the reply link and the reply count all lead to
+  the post, which is where every mainstream product puts them.
+
+### Added
+
+- **The feed says who reacted and how many replies a post has.** Neither was on the feed
+  before, so a relative could not see that anybody had answered without opening each post
+  in turn, and a photograph looked unanswered to the person who shared it. One muted line
+  names the reactors the way the post page does, shortened to three names and a link to
+  the post when there are more. Still names and never a count: that rule has not moved.
+- **Love, without leaving the feed.** A Love button under each post sets and clears the
+  same reaction the post page does, shows whether it is yours, and returns the reader to
+  the post they were looking at, on the archive page they were reading. With JavaScript it
+  updates in place; with none it is an ordinary form, and the form is what ships.
 
 ## [0.1.8] — 2026-09-20
 

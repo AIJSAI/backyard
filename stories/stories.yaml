@@ -236,9 +236,10 @@ epics:
     - "Feed is strictly chronological per audience with a visible you-are-caught-up end state"
     - "An unread boundary marks where I left off last visit"
     - "No infinite recycling, resurfacing, or suggested content of any kind"
+    - "A post shows what it has without being opened: its photographs at the full width of the phone, who reacted, and how many replies"
     status: passing
     v1: true
-    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md + src/core/tests/test_the_feed_answers_without_opening_a_post.py
   - id: S-304
     epic: E3
     persona: teen
@@ -246,9 +247,10 @@ epics:
     acceptance:
     - "Reactions display as who reacted, never as tallies or leaderboards"
     - "No like counts, view counts, read receipts, or online indicators anywhere in the UI"
+    - "The feed names who reacted to each post and takes a reaction in place, still by name: a long list shortens to three names and a link to the post, never to a number"
     status: passing
     v1: true
-    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md + src/core/tests/test_the_feed_answers_without_opening_a_post.py
   - id: S-305
     epic: E3
     persona: family-member
