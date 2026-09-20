@@ -15,8 +15,10 @@ from typing import cast
 
 from allauth.core import ratelimit
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import redirect_to_login
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import render
+from django.urls import reverse
 
 from . import digesting
 from .context_processors import note_the_reader_holds_a_link
@@ -110,7 +112,27 @@ def digest_settings(request: HttpRequest) -> HttpResponse:
 
 
 def confirm_digest(request: HttpRequest, token: str) -> HttpResponse:
-    """Acknowledge an address (T-EMAIL-6). GET shows the button; POST confirms."""
+    """Acknowledge an address (T-EMAIL-6). GET shows the button; POST confirms.
+
+    TWO PROOFS, NOT ONE. The token proves that whoever holds it controls that mailbox. It
+    does not prove the mailbox is the one the member meant to type, and a mistyped address
+    is delivered to a stranger, whose tap used to be the whole gate. Posts, names and next
+    week's birthdays then went to him on every send, each carrying /d/ links that render
+    that slice of the feed, with its replies and photos, to anybody who opens them.
+    Measured end to end on 2026-09-19 in a throwaway database.
+
+    So confirming also requires a session signed in as the member whose subscription this
+    is. The stranger cannot supply one, so a mistyped address never starts, which is the
+    right end for it; the member who typed the address they meant does receive the mail, so
+    the honest path costs at most one sign-in. Nobody is locked out by this: `subscribe` has
+    two callers and both are behind a sign-in, so no member without a login can have a
+    subscription to confirm.
+
+    The same rule, and the same reasoning, as core.adapters.AccountAdapter.confirm_email.
+    Unsubscribe deliberately keeps ITS token as the only proof: stopping mail to a mailbox
+    needs no more authority than holding that mailbox, and a stranger who wants out must
+    always be able to get out.
+    """
     # The token resolved (or was just burnt by confirming), so this reader holds a link a
     # relative's instance mailed to them and the help line may name whoever runs it. Set
     # inside the try, after the lookup: /digest/confirm/garbage/ 404s below and names
@@ -118,15 +140,41 @@ def confirm_digest(request: HttpRequest, token: str) -> HttpResponse:
     # a real link got the anonymous fallback because the old gate keyed on a URL prefix
     # that did not include this route.
     try:
+        subscription = digesting.peek_confirmation(token)
+        owner = subscription.member.user_id
+        # SIGNED IN AS SOMEBODY ELSE IS NOT "SIGNED OUT", and bouncing them to sign in is a
+        # loop with no exit: allauth sends an already-authenticated reader straight back to
+        # `next`, which is this page, whose button bounces them again. Measured, twice
+        # round, in silence, with the explanation hidden because it is written for a reader
+        # who is signed out. A shared tablet, or a household mailbox one relative's phone is
+        # signed into, makes that an ordinary Tuesday here. So they are told, on the page,
+        # and nothing is written. Signing in is not their fix; signing OUT is. (The account
+        # confirmation never had this problem only because allauth's own view signs the
+        # other user out on the GET.)
+        signed_in_as_somebody_else = request.user.is_authenticated and (
+            owner is None or request.user.pk != owner
+        )
         if request.method == "POST":
+            if signed_in_as_somebody_else:
+                note_the_reader_holds_a_link(request)
+                return render(
+                    request,
+                    "core/digest_confirm.html",
+                    {"done": False, "wrong_account": True},
+                )
+            if not request.user.is_authenticated:
+                return redirect_to_login(request.get_full_path(), reverse("account_login"))
             digesting.confirm(token)
             note_the_reader_holds_a_link(request)
             return render(request, "core/digest_confirm.html", {"done": True})
-        digesting.peek_confirmation(token)
         note_the_reader_holds_a_link(request)
     except digesting.DigestTokenInvalid as exc:
         raise Http404 from exc
-    return render(request, "core/digest_confirm.html", {"done": False})
+    return render(
+        request,
+        "core/digest_confirm.html",
+        {"done": False, "wrong_account": signed_in_as_somebody_else},
+    )
 
 
 def unsubscribe_digest(request: HttpRequest, token: str) -> HttpResponse:

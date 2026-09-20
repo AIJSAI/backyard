@@ -81,6 +81,15 @@ a point somebody deliberately stopped at, with a full green gate behind it.
     in. The feed now prompts "Confirm your email address" as well as "Add an email
     address", and the join form, the reset pages, Your Sign-In Email, How It Works, the "no
     such account" mail and the admin guide all say "confirmed".
+  - Confirming an address for Email Updates has the same rule. A member can point the updates
+    at any address, and a mistyped one reaches a stranger, whose tap on the confirmation
+    link used to be the whole gate: posts, names and the week's birthdays were then mailed to
+    him on every send, with links that open that part of the feed without a sign-in.
+    Confirming now needs a session signed in as the member who asked, so a mistyped address
+    never starts. Stopping the updates still needs only the link, signed in or not. The
+    mail, the settings page and the confirmation page say that a sign-in may be asked for,
+    and somebody signed in as a different relative is told to sign out first rather than
+    being sent round to the same page.
   - `ACCOUNT_LOGIN_BY_CODE_ENABLED` and `ACCOUNT_PASSWORD_RESET_BY_CODE_ENABLED` must stay
     off: both confirm an address without the check above. A test holds them off.
 

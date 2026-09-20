@@ -40,6 +40,18 @@
   {% else %}
     <h1>Is This Your Address?</h1>
     <p>Somebody asked for email updates to be sent to this address.</p>
+    {% comment %} Only the member who asked can confirm (core.digesting_views.confirm_digest),
+       so a signed-out reader is told before the button sends them to sign in and brings
+       them back here. A reader signed in as a DIFFERENT relative is told instead of bounced:
+       signing in is not their fix, and the bounce was a silent loop, because allauth sends
+       an authenticated reader straight back to this page. {% endcomment %}
+    {% if wrong_account %}
+      <p>You are signed in as somebody else. Only the account that asked for these updates
+        can confirm this address. Sign out, then open this link again.</p>
+    {% elif not user.is_authenticated %}
+      <p>You will be asked to sign in first. Only the account that asked for these updates can
+        confirm this address.</p>
+    {% endif %}
     <form method="post">
       {% csrf_token %}
       <button type="submit">Confirm Email Address</button>

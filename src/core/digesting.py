@@ -41,8 +41,9 @@ from .models import DigestSubscription, Member
 _CONFIRM_SUBJECT = "Confirm This Address For Email Updates"
 _CONFIRM_BODY = (
     "Somebody asked for email updates from Backyard to be sent to this address.\n\n"
-    "Confirm this address:\n\n{link}\n\nNothing is sent until you confirm. If you did not "
-    "ask for this, ignore this email; nothing else will be sent here."
+    "Confirm this address:\n\n{link}\n\nYou will be asked to sign in first if you are not "
+    "already. Nothing is sent until you confirm. If you did not ask for this, ignore this "
+    "email; nothing else will be sent here."
 )
 
 

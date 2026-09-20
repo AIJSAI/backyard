@@ -104,7 +104,10 @@ def test_a_signed_out_member_is_sent_to_sign_in_and_lands_back_on_the_link() -> 
     where = client.post(url).headers.get("Location", "")
 
     assert reverse("account_login") in where and "next=" in where
-    client.post(reverse("account_login"), {"login": "nana", "password": _PW})
+    # Sign in AT the bounce, as a person does, and prove the link survives the trip.
+    landed = client.post(where, {"login": "nana", "password": _PW})
+    assert landed.status_code == 302
+    assert landed.headers["Location"] == url, landed.headers["Location"]
     client.post(url)
     address.refresh_from_db()
     assert address.verified is True

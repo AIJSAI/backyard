@@ -282,7 +282,7 @@ This is the product's central bet and the part that was most broken.
 
 | # | Do | Wrong looks like |
 |---|----|------------------|
-| F1 | Subscribe a real address to Email Updates. Confirm via the email. | No mail, or the link fails |
+| F1 | Subscribe a real address to Email Updates. Open the link in the email while signed in as that member. | No mail, or the link fails even when signed in as that member |
 | F2 | Wait for a due send. Does it arrive, and is it readable on a phone? | Spam folder, broken layout |
 | F3 | Click through to the web version **while logged out.** Can you see photographs? | Captions with no pictures |
 | F4 | Tap **Reply In Backyard** on a post block. Does it land on that thread's reply box? | A mail composer, or the feed top |
