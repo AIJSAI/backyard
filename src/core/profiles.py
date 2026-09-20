@@ -77,6 +77,11 @@ class ViewableProfile:
     # surfaces that show people to people. Empty unless the caller asked for it: the
     # vCard exporter (S-904) has no use for it and must not pay for its queries.
     placing: str = ""
+    # The (large, small) URL handles of their profile photo, or None for the initials
+    # disc (S-901). Two strings and not the row, for the reason in the docstring above:
+    # a ProfilePhoto would carry `.member` back to the raw Member this class exists to
+    # keep out of a template. A caller rendering many rows select_related("profile_photo").
+    avatar_tokens: tuple[str, str] | None = None
 
 
 def _date_text(month: int | None, day: int | None) -> str:
@@ -187,6 +192,10 @@ def viewable_profile(
         anniversary=anniversary,
         contacts=contacts,
         placing=placing,
+        # Not gated by a visibility choice, unlike the fields above: this resolver only
+        # ever runs for a member the viewer can already see, and that is the same rule
+        # the serving view checks the fetch against (scoping.visible_profile_photos).
+        avatar_tokens=member.avatar_tokens,
     )
 
 

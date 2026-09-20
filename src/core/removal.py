@@ -136,6 +136,8 @@ def remove_member(member: Member, *, content: str) -> None:
     `content` is REQUIRED and has no default. A default would quietly re-create the
     original defect: removal that silently keeps everything because nobody was asked.
     """
+    from . import media
+
     if content not in _VALID:
         raise UnknownContentChoice(f"content must be one of {sorted(_VALID)}, not {content!r}")
     with transaction.atomic():
@@ -158,7 +160,15 @@ def remove_member(member: Member, *, content: str) -> None:
         if user is not None:
             user.is_active = False
             user.save(update_fields=["is_active"])
-        # 4. The content choice, inside the same transaction as the revocation.
+        # 4. Their face leaves with their credentials, whatever the content choice
+        #    (S-901, T-MEDIA-6). Not part of the choice below, because the choice is about
+        #    the CONTENT they wrote: a removed member is nobody this family can look up
+        #    any more, so the one rule that serves a profile photo would refuse it beside
+        #    every byline anyway — and a photograph of a person who has left must not sit
+        #    on the volume unreachable and unpurgeable. ANONYMIZE would need this on its
+        #    own terms regardless: a face is the most identifying field there is.
+        media.purge_profile_photo(member)
+        # 5. The content choice, inside the same transaction as the revocation.
         if content == ANONYMIZE:
             _anonymize(member)
         elif content == DELETE:

@@ -1,9 +1,11 @@
-"""The initials avatar: a calm tinted disc wherever a person's name leads something.
+"""The avatar: a member's photo where they have one, their initials disc where they do not.
 
 The design walk's biggest finding was that a product whose whole purpose is family
 warmth had no human presence in its chrome at all — the directory was a list of green
-underlined links, a profile was three lines on a blank page. This is the smallest thing
-that fixes it: two initials on one of six tinted discs, no photo upload, no new column.
+underlined links, a profile was three lines on a blank page. The first fix was the
+smallest one: two initials on one of six tinted discs. The photograph is the second, and
+the disc is now the FALLBACK rather than the only state — same circle, same sizes, same
+places, so nothing moves when a member adds or removes one.
 
 Two properties are load-bearing.
 
@@ -20,6 +22,9 @@ every pair clears AA in both themes. A computed hue could not be proven at all.
 from __future__ import annotations
 
 from django import template
+from django.urls import reverse
+
+from ..media import AVATAR_FULL_PX, AVATAR_SMALL_PX
 
 register = template.Library()
 
@@ -61,15 +66,35 @@ def tone_for(seed: object) -> int:
 
 
 @register.inclusion_tag("core/_avatar.html")
-def avatar(name: str, seed: object, size: str = "") -> dict[str, object]:
-    """Render one person's disc. `size` is "" (default), "sm" (a reply) or "lg" (a profile).
+def avatar(
+    name: str, seed: object, size: str = "", photo: tuple[str, str] | None = None
+) -> dict[str, object]:
+    """Render one person's avatar. `size` is "" (default), "sm" (a reply) or "lg" (a profile).
 
-    `aria-hidden` lives in the partial: the name this disc stands for is always rendered
-    as text immediately beside it, so announcing "RW" first would make every byline in
-    the product read twice.
+    `photo` is the member's `avatar_tokens` — (large, small) — or None. The caller passes
+    the tokens rather than a row so that nothing with a path back to a raw Member reaches
+    a template (the rule `profiles.ViewableProfile` already keeps), and so a surface that
+    draws a hundred bylines can load them in its own select_related rather than here.
+
+    The SIZE picks the rendition: only the profile page's `lg` disc needs the 128px
+    square, everything else takes the 96px one, which is the whole reason two are stored.
+
+    `aria-hidden` lives in the partial, for the photo exactly as for the disc: the name it
+    stands for is always rendered as text immediately beside it, so announcing the
+    monogram — or "photo of" — would make every byline in the product read twice.
     """
+    is_large = size == "lg"
     return {
         "text": initials(name or ""),
         "tone": tone_for(seed),
         "size_class": f" avatar-{size}" if size in {"sm", "lg"} else "",
+        "photo_url": (
+            reverse("serve_profile_photo", args=[photo[0] if is_large else photo[1]])
+            if photo
+            else ""
+        ),
+        # The rendition's own pixels, on the img element, so the circle has its intrinsic
+        # size and aspect ratio before any stylesheet loads and nothing on the page moves
+        # when the bytes arrive. CSS still decides how big it draws.
+        "photo_px": AVATAR_FULL_PX if is_large else AVATAR_SMALL_PX,
     }

@@ -7,6 +7,10 @@ member, or anyone whose access was revoked or whose post was deleted, gets the s
 404 as an unknown token. The response pins the stored content type with nosniff and a
 Content-Disposition, and is marked no-store so a shared-device cache does not retain a
 deleted photo (T-MEDIA-6).
+
+A profile photo is served from here too, on the same terms and against a different
+audience: it hangs off a PERSON rather than a post, so the rule it re-checks is the
+directory's (scoping.visible_profile_photos over visible_members).
 """
 
 from __future__ import annotations
@@ -15,7 +19,7 @@ from django.db.models import Q
 from django.http import FileResponse, Http404, HttpRequest
 from django.views.decorators.http import require_safe
 
-from . import viewers
+from . import scoping, viewers
 from .models import MediaAsset
 
 
@@ -58,6 +62,50 @@ def serve_media(request: HttpRequest, token: str) -> FileResponse:
     response = FileResponse(stream, content_type=content_type)
     response["X-Content-Type-Options"] = "nosniff"
     response["Content-Disposition"] = f'inline; filename="{filename}"'
+    response["Cache-Control"] = "private, no-store"
+    response["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+@require_safe
+def serve_profile_photo(request: HttpRequest, token: str) -> FileResponse:
+    """One member's profile photo, to a viewer entitled to see that member (S-901).
+
+    The same shape as serve_media and a DIFFERENT audience, deliberately. A face is not
+    attached to a post, so the rule it re-checks is the one the directory already uses
+    for "which members can this viewer see" (scoping.visible_profile_photos over
+    visible_members). Three consequences, each of which has a test:
+
+    * a member on the far side of a bridge is refused, token or no token, exactly as
+      they are refused that member's row in the directory (S-902, TM-1);
+    * an elder holding a No-Login Link resolves to her own member here, so she reaches
+      the faces of the people whose posts she is being shown — the same widening of
+      AUTHENTICATION, never of authorization, that let her see their photographs;
+    * an anonymous request resolves no reader at all and gets the bare 404.
+
+    No `d=` digest token, unlike serve_media: that credential is ceilinged to one issue's
+    posts (viewers.Reader.digest_issue), a face is in no issue, and resolving it here
+    would quietly widen a per-issue read link into a standing "what does everyone in this
+    family look like" credential. Email carries no fetched resource either way.
+    """
+    reader = viewers.resolve_reader(request)
+    photo = (
+        scoping.visible_profile_photos(reader.member)
+        .filter(Q(token=token) | Q(thumbnail_token=token))
+        .first()
+    )
+    if photo is None:
+        raise Http404
+    handle = photo.thumbnail if token == photo.thumbnail_token else photo.image
+    try:
+        stream = handle.open("rb")
+    except (FileNotFoundError, ValueError) as exc:
+        # The same fail-closed 404 as an unknown token: FileNotFoundError if a removal
+        # unlinked the file mid-request, ValueError if the field is empty.
+        raise Http404 from exc
+    response = FileResponse(stream, content_type=photo.content_type)
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Content-Disposition"] = 'inline; filename="photo.jpg"'
     response["Cache-Control"] = "private, no-store"
     response["Referrer-Policy"] = "no-referrer"
     return response

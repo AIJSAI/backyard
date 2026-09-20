@@ -50,7 +50,7 @@ from django.db.models.deletion import Collector
 from django.utils import timezone
 
 from core import media, pods
-from core.models import Comment, MediaAsset, Member, Pod, Post, Reaction, Yard
+from core.models import Comment, MediaAsset, Member, Pod, Post, ProfilePhoto, Reaction, Yard
 
 # What `scripts/demo_seed.py` stamps on everything it creates. A different generator should
 # use a different marker so the two can be removed independently.
@@ -450,10 +450,15 @@ def _purge_media_files(collected: dict[Any, list[Any]]) -> int:
     unreachable (the serving token lived in the deleted row), unpurgeable (`_purge` needs
     the rows) and invisible to every audit — while `media.py` promises the opposite.
     """
+    # A marked member's profile photo goes the same way, and for the same reason: its row
+    # cascades off Member, so without this the two renditions stay on `/data/media` with
+    # nothing left to reach or purge them by (S-901).
+    doomed_members = [member.pk for member in collected.get(Member, [])]
+    count = media.purge_profile_photos(ProfilePhoto.objects.filter(member_id__in=doomed_members))
     doomed = [asset.pk for asset in collected.get(MediaAsset, [])]
     if not doomed:
-        return 0
-    return media._purge(MediaAsset.objects.filter(pk__in=doomed))
+        return count
+    return count + media._purge(MediaAsset.objects.filter(pk__in=doomed))
 
 
 def _files_behind(collected: dict[Any, list[Any]]) -> int:
@@ -468,12 +473,23 @@ def _files_behind(collected: dict[Any, list[Any]]) -> int:
     reconciling what the command claims against what `du` says would conclude something else
     deleted the difference.
     """
-    return sum(
+    on_assets = sum(
         1
         for asset in collected.get(MediaAsset, [])
         for field in (asset.image, asset.thumbnail, asset.source, asset.video)
         if field.name
     )
+    # Plus the two renditions of each marked member's profile photo, which leave the disk
+    # in the same call (S-901). Counted from the same closure, so the receipt still adds
+    # up against what `du` says afterwards.
+    doomed_members = [member.pk for member in collected.get(Member, [])]
+    on_faces = sum(
+        1
+        for photo in ProfilePhoto.objects.filter(member_id__in=doomed_members)
+        for field in (photo.image, photo.thumbnail)
+        if field.name
+    )
+    return on_assets + on_faces
 
 
 def _delete_sessions(user_ids: list[int]) -> int:

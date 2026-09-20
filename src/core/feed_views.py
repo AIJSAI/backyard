@@ -420,7 +420,12 @@ def _render_feed(
         moment, last_id = cursor
         visible = visible.filter(Q(created_at__lt=moment) | Q(created_at=moment, id__lt=last_id))
     page_query = (
-        visible.select_related("author", "pod", "link_preview", "link_preview__image_asset")
+        # `author__profile_photo` joins the byline's avatar in with the author it belongs
+        # to: without it every post on the page would ask for its author's photo one row
+        # at a time, which is the N+1 the gallery prefetch below already exists to avoid.
+        visible.select_related(
+            "author", "author__profile_photo", "pod", "link_preview", "link_preview__image_asset"
+        )
         .prefetch_related(
             Prefetch(
                 "media",
@@ -931,7 +936,8 @@ def _render_post_detail(
     comments = (
         scoping.visible_comments(member)
         .filter(post=post)
-        .select_related("author")
+        # The reply's author and the avatar beside their name, in one row each (S-901).
+        .select_related("author", "author__profile_photo")
         # S-404. Prefetched rather than let the template walk `comment.media.all()`:
         # that relation includes SOFT-DELETED assets, so a purged-then-restored row or a
         # per-asset delete would render bytes the audience query has already excluded.

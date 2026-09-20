@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load avatars %}
 {% block title %}{% if editing_other %}Edit Profile For {{ member.display_name }}{% else %}Settings{% endif %}{% endblock %}
 {% block body %}
   {% comment %} The heading is "Settings" on your own page because that is what the nav
@@ -15,6 +16,36 @@
   {% if errors %}
     <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
   {% endif %}
+
+  {% comment %} The profile photo (S-901), its OWN form on purpose. A file input inside
+     the profile form below would have made that form's first submit button the one Enter
+     reaches from the name box — and with a Remove beside an Upload, that is a
+     destructive default. Two forms also means a rejected upload is about the upload, and
+     the name and dates typed below are not sitting in a re-rendered page with it.
+
+     Same `avatar` tag as every byline in the product, so what this page shows is exactly
+     what the family will see: the photo where there is one, the initials disc where
+     there is not. `photo_tokens` is None when the photo exists but this editor may not
+     fetch it (profile_views._edit_context), which draws the disc rather than a broken
+     image.
+
+     `required` on the input gives the browser's own "choose a file" message; the Remove
+     button carries `formnovalidate` so it is not blocked by it. The server re-checks
+     both, because a hand-written POST reaches neither. {% endcomment %}
+  <form class="photo-form" method="post" enctype="multipart/form-data"
+        action="{% if editing_other %}{% url 'managed_profile_edit' member.id %}{% else %}{% url 'profile_edit' %}{% endif %}">
+    {% csrf_token %}
+    <label for="profile-photo">Profile Photo</label>
+    <div class="photo-row">
+      {% avatar member.display_name member.id "lg" photo=photo_tokens %}
+      <input id="profile-photo" type="file" name="photo" accept="image/*" required>
+    </div>
+    <p class="hint">JPEG, PNG or HEIC, up to {{ max_photo_mb }} MB.</p>
+    <button type="submit" name="photo_action" value="upload">Upload Photo</button>
+    {% if has_photo %}
+      <button type="submit" name="photo_action" value="remove" formnovalidate>Remove Photo</button>
+    {% endif %}
+  </form>
 
   {% comment %} Posts back to the profile being edited. A hardcoded 'profile_edit' here
      would send a parent's edits of their child to the PARENT's own record — the form

@@ -718,15 +718,18 @@ label.inline-check.email-row { flex-wrap: wrap; }
 .flag::before { content: ""; width: 0.44em; height: 0.44em; background: currentColor; border-radius: 1px; transform: rotate(45deg); flex: none; }
 .via-email::before { content: ""; width: 0.7em; height: 0.5em; border: 1px solid currentColor; border-radius: 1px; flex: none; }
 
-/* ---- human presence: the initials avatar --------------------------------------
+/* ---- human presence: the avatar -----------------------------------------------
    The walk's biggest DESIGN finding: a product whose whole purpose is family warmth had
    not one face, avatar or monogram anywhere in its chrome — the directory was a list of
    green underlined links and a profile was three lines on a blank page — so it read as a
    database with photographs attached. One calm tinted disc carrying a person's initials,
    its tone chosen deterministically from their member id (core/templatetags/avatars.py),
-   so the same relative is the same colour on every surface. No photo upload, no new
-   model field, no generated hue: each tone is a TOKEN pair whose contrast is proven in
-   both themes by test_design_system_wcag, which a computed hsl() never could be. */
+   so the same relative is the same colour on every surface. No generated hue: each tone
+   is a TOKEN pair whose contrast is proven in both themes by test_design_system_wcag,
+   which a computed hsl() never could be.
+   A member with a profile photo gets `img.avatar.avatar-photo` INSTEAD, from the same
+   tag, carrying the same class and therefore the same box on every surface — the two
+   states are interchangeable, so adding or removing a photo moves nothing. */
 .avatar {
   display: inline-flex; align-items: center; justify-content: center; flex: none;
   width: 2.4rem; height: 2.4rem; border-radius: 50%;
@@ -742,6 +745,19 @@ label.inline-check.email-row { flex-wrap: wrap; }
 .avatar[data-tone="6"] { background: var(--tone-6-bg); color: var(--tone-6-ink); }
 .avatar.avatar-sm { width: 1.9rem; height: 1.9rem; font-size: 0.68rem; }
 .avatar.avatar-lg { width: 3.6rem; height: 3.6rem; font-size: 1.2rem; }
+/* The photo state. `object-fit: cover` is belt and braces — the stored rendition is
+   already a centre-cropped square (core/media.py) — but it keeps the circle a circle if a
+   surface ever draws the box at another ratio. The tone background stays underneath as
+   the colour the space holds while the bytes are in flight. */
+.avatar-photo { object-fit: cover; }
+
+/* Settings: the current avatar beside the control that replaces it, so a member can see
+   what they are changing. Wraps at phone width rather than squeezing a file input that
+   already carries a long native "No file chosen" beside it. */
+.photo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem; }
+.photo-row input[type="file"] { flex: 1 1 14rem; margin: 0; }
+.photo-form { margin-bottom: 2rem; }
+.photo-form .hint { margin-top: 0.5rem; }
 
 /* A name that LEADS something — a post, a reply, a profile — leads it beside its avatar.
    The name and its timestamp share a baseline row that wraps on a narrow phone rather

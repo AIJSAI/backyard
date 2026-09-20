@@ -29,7 +29,7 @@ from django.db import models
 from django.db.models import Q
 from django.http import Http404
 
-from .models import Comment, MediaAsset, Member, Pod, Post, Reaction, Yard
+from .models import Comment, MediaAsset, Member, Pod, Post, ProfilePhoto, Reaction, Yard
 
 
 def member_yard_ids(member: Member) -> set[int]:
@@ -159,6 +159,23 @@ def visible_attached_media(member: Member) -> models.QuerySet[MediaAsset]:
     post's own gallery goes through here, while visible_media stays the broader
     access-check set that also covers the card image's own serving."""
     return visible_media(member).exclude(media_kind=MediaAsset.LINK_PREVIEW)
+
+
+def visible_profile_photos(member: Member) -> models.QuerySet[ProfilePhoto]:
+    """Every profile photo a member may fetch: the photos of the people they can see.
+
+    A face belongs to a PERSON, not to a post, so it inherits the directory's rule
+    (visible_members) and not a post's audience: you may look at the picture of anyone
+    you could look up, and at nobody else's. That keeps the boundary where the product
+    already draws it — a member on one side of a bridge can neither list nor fetch the
+    face of a member on the other — while still covering every byline a viewer meets,
+    because the author of a post they can see shares a yard with them by construction.
+
+    Deliberately NOT derived from visible_posts. Scoping a face to "authors of posts you
+    can see" would be a second audience computation with its own edge cases (a post
+    deleted, an author who left), and TM-2 wants one rule per object, stated once.
+    """
+    return ProfilePhoto.objects.filter(member__in=visible_members(member))
 
 
 def visible_pods_of(viewer: Member, target: Member) -> models.QuerySet[Pod]:
