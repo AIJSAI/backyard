@@ -48,8 +48,13 @@
          and most clients block remote images until a reader asks for them, which is
          exactly the mail that looks like spam. {% endcomment %}
       <div style="margin:0 0 16px;">
-        <span style="display:inline-block;vertical-align:middle;line-height:0;"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.4 L20.6 10.8 V20.6 H3.4 V10.8 Z M9.7 20.6 V14.8 A2.3 2.3 0 0 1 14.3 14.8 V20.6 Z" fill="#1e5c46"/></svg></span>
-        <span style="display:inline-block;vertical-align:middle;font-family:Georgia,serif;font-weight:700;font-size:20px;color:#1e5c46;letter-spacing:-0.01em;">&nbsp;Backyard</span>
+        {% comment %} THE MARK SITS INSIDE THE WORDMARK, with its spacing on the <svg> itself.
+           Gmail strips inline SVG (measured in a real inbox, 2026-09-19): with the mark in a span
+           of its own and an &nbsp; in front of the word, the word was left sitting 10px to the
+           right of the heading under it. Now a client that drops the mark drops its margin too,
+           and the wordmark starts on the same edge as everything else. No <img>: a fetched mark
+           is an open tracker (test_no_mail_template_fetches_anything_from_the_network). {% endcomment %}
+        <span style="display:inline-block;vertical-align:middle;font-family:Georgia,serif;font-weight:700;font-size:20px;color:#1e5c46;letter-spacing:-0.01em;"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:middle;margin:0 8px 3px 0;"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.4 L20.6 10.8 V20.6 H3.4 V10.8 Z M9.7 20.6 V14.8 A2.3 2.3 0 0 1 14.3 14.8 V20.6 Z" fill="#1e5c46"/></svg>Backyard</span>
       </div>
 
       <h1 style="font-size:24px;color:#1e5c46;margin:0 0 12px;font-family:Georgia,'Iowan Old Style',Palatino,serif;line-height:1.2;">{% block heading %}{% endblock %}</h1>

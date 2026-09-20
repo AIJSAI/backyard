@@ -62,7 +62,7 @@ _UPDATES_LINK = f"http://localhost:8000/digest/confirm/{_KEY}/"
 
 # The two marks the shared shell draws: the house, and the wordmark beside it.
 _HOUSE = 'fill="#1e5c46"'
-_WORDMARK = "&nbsp;Backyard</span>"
+_WORDMARK = "</svg>Backyard</span>"
 _FALLBACK = "If the button does not work, copy this link:"
 # The painted cell the bulletproof button sits in. Keyed on `bgcolor` rather than on the
 # link's own style, because the wordmark beside the house is an inline-block too.
@@ -552,4 +552,25 @@ def test_the_standing_line_in_the_shared_shell_is_the_constant_itself() -> None:
     assert emailing.STANDING_FOOTER in layout
     assert emailing.STANDING_FOOTER in (
         pathlib.Path(str(TEMPLATE_ROOTS[1] / "account" / "email" / "base_message.txt")).read_text()
+    )
+
+
+def test_the_wordmark_still_lines_up_in_a_client_that_strips_the_mark() -> None:
+    """Gmail removes inline SVG, measured in a real inbox on 2026-09-19. The mark used to sit
+    in a span of its own with an `&nbsp;` in front of the word, so with the mark gone the
+    word was left 10px to the right of the heading under it, in the client most relatives
+    use. The mark now lives INSIDE the wordmark's span and carries its own spacing, so
+    whatever drops the mark drops the spacing with it."""
+    layout = next(path for path in _mail_templates() if path.name == "_layout.html")
+    source = without_comments(layout.read_text())
+    header = source[source.index("<svg") - 400 : source.index("</svg>") + 40]
+    assert "&nbsp;" not in header, "spacing that outlives the mark pushes the word sideways"
+    assert re.search(r"<svg[^>]*style=\"[^\"]*margin:[^\"]*\"", header), (
+        "the space between the mark and the word must belong to the <svg>, "
+        "so it is stripped with it"
+    )
+    assert re.search(r"<span[^>]*>\s*<svg", header), "the mark is not inside the wordmark's span"
+    stripped = re.sub(r"<svg.*?</svg>", "", header, flags=re.S)
+    assert re.search(r"<span[^>]*>Backyard</span>", stripped), (
+        "with the mark stripped, the word must be the first thing in its span"
     )
