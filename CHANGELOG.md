@@ -13,7 +13,26 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
-Nothing yet.
+### Fixed
+
+- **The photo button works on an empty composer.** Tapping "Add Photos Or Videos" before
+  typing anything closed the composer under the thumb, and no photo sheet opened: the button
+  sat inside the part of the form that hides while the box is empty and unfocused, and
+  pressing a label takes focus off the box. The reply form had the same defect. The button is
+  part of the composer's resting state now, beside Post; the first touch opens the composer
+  and it stays open; with scripting off it renders open. Browser tests tap the button on an
+  untouched composer on WebKit and Chromium, which no test or walk had done.
+
+### Changed
+
+- **The long pages sound like a person.** How It Works, About and the first welcome screen
+  open on what Backyard is for ("keeps everyone connected and up to date ... like a private
+  Instagram") and no longer defend it against questions nobody invited had asked (ads,
+  companies, tracking). How It Works describes a side from where the reader stands and says
+  nothing about sides they cannot see. The rules are in `docs/design/voice.md`, "The second
+  read".
+- The composer's prompt is "Share Something" and the photo button reads "Add Photos Or
+  Videos" (a post takes up to four).
 
 ## [0.1.7] — 2026-09-19
 

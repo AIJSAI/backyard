@@ -158,7 +158,9 @@ def test_the_empty_state_is_solid_and_never_nested(world: dict[str, object]) -> 
 def test_the_composer_primary_is_left_aligned_and_unruled() -> None:
     """The one right-aligned primary in the product, under a horizontal rule that put a
     ruled form footer on a page of family photographs."""
-    rule = re.search(r"\.composer-submit \{([^}]*)\}", _style())
+    # Anchored to the line start: the resting composer has its own, longer selector ending
+    # in `.composer-submit {`, and an unanchored search reads that rule instead.
+    rule = re.search(r"^\.composer-submit \{([^}]*)\}", _style(), re.MULTILINE)
     assert rule
     assert "justify-content: flex-start" in rule.group(1)
     assert "border-top" not in rule.group(1)

@@ -71,9 +71,12 @@ def test_joining_lands_on_the_welcome(pod: Pod) -> None:
 def test_the_first_screen_says_what_this_is_in_plain_words(pod: Pod) -> None:
     client, _ = _join(pod)
     body = " ".join(client.get(reverse("welcome")).content.decode().split())
-    assert "A private, ad-free network to stay connected with everyone." in body
-    assert "Posts are shared with your household." in body
-    assert "choose a side of the family or a group when posting" in body
+    assert "keeps everyone connected and up to date on a private network" in body
+    assert "It works like a private Instagram." in body
+    assert "Posts go to your household." in body
+    assert "choose a side of the family or a group when you post" in body
+    # The owner cut these on 2026-09-20: nobody being invited was wondering about either.
+    assert "ad-free" not in body and "no ads" not in body.lower()
     # The vocabulary itself is held by test_one_word_per_concept.py, over every
     # template's visible text; repeating a weaker version of it here would only give
     # two places to weaken.

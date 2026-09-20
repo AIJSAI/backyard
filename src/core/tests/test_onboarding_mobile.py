@@ -83,7 +83,7 @@ def _drive_join_to_feed(
         # nothing the account needs — and the whole point of walking it on a real phone is
         # that skipping out of it has to leave a finished member in a working feed.
         page.wait_for_url(f"{base_url}/welcome/")
-        expect(page.get_by_text("A private, ad-free network")).to_be_visible()
+        expect(page.get_by_text("It works like a private Instagram")).to_be_visible()
         # The BUTTON, not any element whose text contains "Skip". `text=Skip` is a
         # substring match, and every page in this product opens with an <a class="skip-link">
         # reading "Skip To Content" — so the bare selector resolved to two elements, took
