@@ -311,7 +311,10 @@ def test_a_display_name_that_is_markup_arrives_as_text_in_the_reply_notification
     html = _html_of(mail.outbox[0])
     assert "<b>x</b>" not in html
     assert "&lt;b&gt;x&lt;/b&gt;" in html
-    assert "&quot;Q&quot;" in html or "&#x27;" not in html  # the quote is escaped or inert
+    # The double quote too: it is the character that ends an attribute value, and the name
+    # sits inside a heading today and could sit inside a title or an alt tomorrow.
+    assert '"Q"' not in html
+    assert "&quot;Q&quot;" in html
 
 
 def test_a_display_name_that_is_markup_arrives_as_text_in_the_email_updates_message() -> None:

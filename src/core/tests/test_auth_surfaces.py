@@ -456,6 +456,17 @@ def test_the_project_template_root_shadows_nothing_unintended() -> None:
         "account/email/password_reset_key_message.txt",
         "account/email/unknown_account_subject.txt",
         "account/email/unknown_account_message.txt",
+        # The HTML halves of those three, added deliberately: allauth sends multipart
+        # text+html the moment a `<prefix>_message.html` sits beside the .txt, so these
+        # files are what makes a password reset look like Backyard rather than like a
+        # machine. Each says the same sentences as its .txt twin, in the shared shell
+        # (core/email/_layout.html). The signup variant is a one-line include, and it
+        # exists because allauth ships a .txt for that prefix and no .html at all — the
+        # join mail is the one a new relative sees first.
+        "account/email/email_confirmation_message.html",
+        "account/email/email_confirmation_signup_message.html",
+        "account/email/password_reset_key_message.html",
+        "account/email/unknown_account_message.html",
         # The passkey and two-factor set, all of it. There was NO src/templates/mfa at all
         # before the copy pass: every one of these pages rendered django-allauth's own
         # developer English on this product's layout, which is the worst of the two — it
