@@ -110,6 +110,9 @@ class FeedItem:
     reactor_groups: list[dict[str, object]] = field(default_factory=list)
     my_reaction: str | None = None
     reply_count: int = 0
+    # The author's profile photo tokens, or None: handed over only for a face this viewer
+    # may fetch (scoping.photo_owner_ids), so a byline never draws a broken image.
+    author_photo: tuple[str, str] | None = None
 
 
 def _sides_in_a_sentence(names: list[str]) -> str:
@@ -420,7 +423,12 @@ def _render_feed(
         moment, last_id = cursor
         visible = visible.filter(Q(created_at__lt=moment) | Q(created_at=moment, id__lt=last_id))
     page_query = (
-        visible.select_related("author", "pod", "link_preview", "link_preview__image_asset")
+        # `author__profile_photo` joins the byline's avatar in with the author it belongs
+        # to: without it every post on the page would ask for its author's photo one row
+        # at a time, which is the N+1 the gallery prefetch below already exists to avoid.
+        visible.select_related(
+            "author", "author__profile_photo", "pod", "link_preview", "link_preview__image_asset"
+        )
         .prefetch_related(
             Prefetch(
                 "media",
@@ -444,6 +452,13 @@ def _render_feed(
     post_ids = [post.id for post in feed_posts]
     reactor_groups, my_reactions = _reactions_for_page(member, post_ids)
     reply_counts = _reply_counts_for_page(member, post_ids)
+    # Which of these authors' faces this viewer may fetch: three queries per page (the
+    # viewer's side and household ids, then the faces), and NONE when nobody on the page
+    # has a photo, which the joined row already says for free. That is every instance on
+    # upgrade day.
+    faces = scoping.photo_owner_ids(
+        member, {post.author_id for post in feed_posts if post.author.avatar_tokens}
+    )
     items: list[FeedItem] = []
     for post in feed_posts:
         tiles = _media_tiles(post)
@@ -460,6 +475,7 @@ def _render_feed(
                 reactor_groups=reactor_groups.get(post.id, []),
                 my_reaction=my_reactions.get(post.id),
                 reply_count=reply_counts.get(post.id, 0),
+                author_photo=post.author.avatar_tokens if post.author_id in faces else None,
             )
         )
     first_seen_id: int | None = None
@@ -931,7 +947,8 @@ def _render_post_detail(
     comments = (
         scoping.visible_comments(member)
         .filter(post=post)
-        .select_related("author")
+        # The reply's author and the avatar beside their name, in one row each (S-901).
+        .select_related("author", "author__profile_photo")
         # S-404. Prefetched rather than let the template walk `comment.media.all()`:
         # that relation includes SOFT-DELETED assets, so a purged-then-restored row or a
         # per-asset delete would render bytes the audience query has already excluded.
@@ -961,13 +978,27 @@ def _render_post_detail(
     # Grouped by the one helper the feed's reactor line uses, uncapped here: the thread
     # page has room to name everybody, and naming everybody is the point of S-304.
     reactor_groups, my_reaction = _group_reactors(reactions, viewer_id=member.id)
+    # The faces beside the bylines, for the ones this viewer may fetch and nobody else: a
+    # post can outlive its author's place in the viewer's directory (a member who posted in
+    # a group and then left that side), and a token handed over on the strength of a byline
+    # is a broken image beside a name. One query for the whole thread.
+    thread = list(comments)
+    with_faces = {c.author_id for c in thread if c.author.avatar_tokens}
+    if post.author.avatar_tokens:
+        with_faces.add(post.author_id)
+    faces = scoping.photo_owner_ids(member, with_faces)
+    for comment in thread:
+        comment.author_photo = (  # type: ignore[attr-defined]
+            comment.author.avatar_tokens if comment.author_id in faces else None
+        )
     return render(
         request,
         "core/post_detail.html",
         {
             "member": member,
             "post": post,
-            "comments": comments,
+            "author_photo": post.author.avatar_tokens if post.author_id in faces else None,
+            "comments": thread,
             "errors": errors or [],
             "reactor_groups": reactor_groups,
             "my_reaction": my_reaction,

@@ -26,7 +26,7 @@ from django.db.models import Q, QuerySet
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from . import transcoding
-from .models import Comment, MediaAsset, Post
+from .models import Comment, MediaAsset, Member, Post, ProfilePhoto
 
 # HEIC/HEIF, which is what an iPhone photograph actually is. Registering the opener adds
 # one more format to Image.open; everything after it — the allowlist, the bomb limit, the
@@ -77,6 +77,14 @@ _LINK_PREVIEW_MAX = (1200, 1200)
 # pixels is rejected BEFORE the full bitmap is allocated. Ample for any real card image
 # (a 1200-box output needs far less) while well under the process-wide bomb limit.
 _LINK_PREVIEW_MAX_PIXELS = 8_000_000
+# A profile photo's two square renditions, in pixels. The largest disc this product draws
+# is `.avatar-lg` (3.6rem, 57.6px at a 16px root) on a profile page, so 128 covers it on a
+# 2x screen with a little headroom; 96 covers the 2.4rem byline disc at 2x and the 1.9rem
+# reply disc at 3x. Public, because the template tag writes them into the img's width and
+# height and a second copy of either number is one that would drift (the lesson the
+# composer's ceilings already taught: one constant, reaching the markup).
+AVATAR_FULL_PX = 128
+AVATAR_SMALL_PX = 96
 _JPEG_QUALITY = 85
 _OUTPUT_CONTENT_TYPE = "image/jpeg"
 _VIDEO_OUTPUT_CONTENT_TYPE = "video/mp4"
@@ -162,6 +170,89 @@ def _reencode(img: Image.Image, max_size: tuple[int, int]) -> bytes:
     out = io.BytesIO()
     flattened.save(out, format="JPEG", quality=_JPEG_QUALITY)
     return out.getvalue()
+
+
+def _reencode_square(img: Image.Image, edge: int) -> bytes:
+    """Centre-crop to a square and re-encode to JPEG, with `_reencode`'s whole strip.
+
+    `ImageOps.fit` crops to the target aspect ratio before it resizes, centred by
+    default, so a tall phone photograph keeps its middle instead of being squashed into
+    a circle by CSS. Cropping HERE rather than in the stylesheet is also what makes the
+    stored bytes honest: what is on the volume is what the family sees.
+
+    The COM comment is dropped from the FITTED image, not the source: crop and resize
+    both copy `info` onto the new image, and the fitted one is what gets saved (security
+    review MEDIUM-1, the same field `_reencode` drops).
+    """
+    oriented = ImageOps.exif_transpose(img)  # bake orientation before it is discarded
+    flattened = oriented.convert("RGB")  # JPEG has no alpha or palette
+    fitted = ImageOps.fit(flattened, (edge, edge), method=Image.Resampling.LANCZOS)
+    fitted.info.pop("comment", None)
+    out = io.BytesIO()
+    fitted.save(out, format="JPEG", quality=_JPEG_QUALITY)
+    return out.getvalue()
+
+
+def ingest_profile_photo(*, member: Member, raw: bytes) -> ProfilePhoto:
+    """Re-encode one upload as this member's profile photo, replacing any current one.
+
+    The same gate a photograph on a post goes through — the same decoder allowlist, the
+    same decompression-bomb ceiling, the same re-encode that strips every EXIF, GPS, XMP
+    and IPTC field (TM-9) and pins the content type from the decoded format. One ingest
+    path for member-uploaded pixels, not a second one that would drift out of step.
+
+    The decode runs BEFORE the old photo is purged, so a rejected replacement leaves the
+    member's current face exactly where it was.
+    """
+    img = _decode(raw)
+    # The small square is cut from the LARGE one, not from the camera frame a second time:
+    # a phone photograph is twelve megapixels or more, each pass over it is a full-size
+    # copy in memory, and the security review of #223 measured 339 MB of transient
+    # allocation to make one 128px square. (The pixel ceiling itself stays the one every
+    # photograph shares: a tighter one would refuse an ordinary phone picture.)
+    full_bytes = _reencode_square(img, AVATAR_FULL_PX)
+    img.close()
+    # Our own output from the line above, not member bytes: the one decode gate is _decode.
+    with Image.open(io.BytesIO(full_bytes)) as large:
+        small_bytes = _reencode_square(large, AVATAR_SMALL_PX)
+    with transaction.atomic():
+        # Serialised on the member's row. Two uploads at once (a double tap on a slow
+        # connection) would otherwise both purge, both insert, and the loser would meet the
+        # one-photo-per-member constraint as a 500.
+        Member.objects.select_for_update().get(pk=member.pk)
+        # One row and two files per member is the invariant: without this, a member trying
+        # four photographs leaves six orphaned renditions on the volume with no row to
+        # reach or purge them by.
+        purge_profile_photo(member)
+        photo = ProfilePhoto(member=member, content_type=_OUTPUT_CONTENT_TYPE)
+        photo.image.save(f"{photo.token}.jpg", ContentFile(full_bytes), save=False)
+        photo.thumbnail.save(f"{photo.thumbnail_token}.jpg", ContentFile(small_bytes), save=False)
+        photo.save()
+    return photo
+
+
+def purge_profile_photo(member: Member) -> int:
+    """Hard-delete a member's profile photo, row and both files (T-MEDIA-6).
+
+    Removing the photo, replacing it, and removing the member all land here: a face must
+    not survive on the volume once the person it belongs to has been told it is gone, and
+    a member who has left this family is not someone the product keeps a picture of.
+    """
+    return purge_profile_photos(ProfilePhoto.objects.filter(member=member))
+
+
+def purge_profile_photos(photos: QuerySet[ProfilePhoto]) -> int:
+    """The same purge over a set of rows, for the paths that delete members in bulk."""
+    to_remove: list[tuple[Storage, str]] = []
+    count = 0
+    for photo in photos:
+        for field in (photo.image, photo.thumbnail):
+            if field.name:
+                to_remove.append((field.storage, field.name))
+        photo.delete()
+        count += 1
+    _remove_after_commit(to_remove)
+    return count
 
 
 def _owner_kwargs(post: Post | None, comment: Comment | None) -> dict[str, object]:
@@ -315,14 +406,23 @@ def _purge(assets: QuerySet[MediaAsset]) -> int:
                 to_remove.append((field.storage, field.name))
         asset.delete()  # drop the row inside the request transaction
         count += 1
+    _remove_after_commit(to_remove)
+    return count
+
+
+def _remove_after_commit(to_remove: list[tuple[Storage, str]]) -> None:
+    """Unlink stored files once the surrounding transaction commits (security review of
+    #31): a rollback then cannot leave a live row pointing at a deleted file, and a
+    concurrent serve that already resolved a row never opens a file this request just
+    unlinked. on_commit runs immediately when there is no open transaction.
+
+    Shared by the media purge and the profile-photo purge rather than written twice: the
+    ordering rule is the security property, and a second copy of it is a second place for
+    it to be got wrong.
+    """
 
     def _remove_files() -> None:
         for storage, name in to_remove:
             storage.delete(name)  # idempotent; swallows an already-missing file
 
-    # Remove the files only after the surrounding transaction commits (security review
-    # of #31): a rollback then cannot leave a live row pointing at a deleted file, and a
-    # concurrent serve that already resolved an asset never opens a file this request
-    # just unlinked. on_commit runs immediately when there is no open transaction.
     transaction.on_commit(_remove_files)
-    return count

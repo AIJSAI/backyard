@@ -19,8 +19,8 @@ from django.http import FileResponse, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.text import slugify
 
-from . import export, invites, permissions, profiles, scoping, vcards
-from .feed_views import _acting_member
+from . import export, invites, media, permissions, profiles, scoping, vcards
+from .feed_views import _MAX_PHOTO_BYTES, _acting_member
 from .models import Member, Pod, Yard
 
 _VISIBILITY = {Member.HIDDEN, Member.POD, Member.YARD}
@@ -76,7 +76,9 @@ def directory(request: HttpRequest) -> HttpResponse:
     # cost. Both filters are the viewer's own yard set, so what comes back is exactly what
     # those two scoped helpers would have returned — never a bridge member's far side.
     viewer_yard_ids = scoping.member_yard_ids(member)
-    members = members.prefetch_related(
+    # The face on each row, joined in rather than asked for per member (S-901): 200 rows
+    # of `member.avatar_tokens` would otherwise be 200 queries.
+    members = members.select_related("profile_photo").prefetch_related(
         Prefetch(
             "pods",
             queryset=Pod.objects.filter(yards__id__in=viewer_yard_ids)
@@ -91,14 +93,21 @@ def directory(request: HttpRequest) -> HttpResponse:
             to_attr="shared_pods",
         )
     )
+    # Which faces on this page the viewer may fetch, asked ONCE, by the helper the feed and
+    # the thread use. Deciding it per row cost a membership lookup for every supervised
+    # child on the page (the database review measured 33 queries for 20 children).
+    page = list(members[:200])
+    faces = scoping.photo_owner_ids(member, [other.id for other in page if other.avatar_tokens])
     rows = [
         profiles.viewable_profile(
             member,
             other,
             viewer_pod_ids=viewer_pod_ids,
             placing=profiles.placing_text(member, other, shared_pods=other.shared_pods),
+            with_avatar=True,
+            face_ok=other.id in faces,
         )
-        for other in members[:200]
+        for other in page
     ]
     return render(
         request,
@@ -143,7 +152,7 @@ def member_profile(request: HttpRequest, member_id: int) -> HttpResponse:
         {
             "member": viewer,
             "profile": profiles.viewable_profile(
-                viewer, target, placing=profiles.placing_text(viewer, target)
+                viewer, target, placing=profiles.placing_text(viewer, target), with_avatar=True
             ),
             "recent_posts": recent_posts,
         },
@@ -224,6 +233,14 @@ def profile_edit(request: HttpRequest, member_id: int | None = None) -> HttpResp
             raise PermissionDenied("You cannot edit this person's profile.")
     if request.method != "POST":
         return render(request, "core/profile_edit.html", _edit_context(member, [], actor))
+    # The photo is its own form on this page, so it is its own branch here (S-901), and it
+    # carries its OWN authorization, narrower than the page's: the security review of #223
+    # measured a side admin setting and hard-deleting an unrelated adult's face, and an
+    # instance admin doing both across a bridge to a photo they are refused the bytes of.
+    if request.POST.get("photo_action"):
+        if not permissions.can_edit_profile_photo_of(actor, member):
+            raise PermissionDenied("You cannot change this person's photo.")
+        return _photo_post(request, member, actor)
 
     errors: list[str] = []
     dates: dict[str, int | None] = {}
@@ -307,6 +324,81 @@ def profile_edit(request: HttpRequest, member_id: int | None = None) -> HttpResp
     return redirect("directory")
 
 
+def _photo_post(request: HttpRequest, member: Member, actor: Member) -> HttpResponse:
+    """Upload, replace or remove one profile photo (S-901).
+
+    A separate form on the page, and therefore a separate branch, for two reasons: a file
+    input inside the profile form would make that form's first submit button — the one
+    Enter reaches from the name box — a destructive "Remove Photo"; and an upload the
+    ingest gate rejects would have to decide what to do with the dates typed beside it.
+    Here the failure is about one thing and the page comes back saying so.
+
+    Both paths land back on this page rather than on the directory the profile form
+    redirects to: what you came to see is the photo, so the redirect shows it.
+    """
+    # Nobody destroys what they cannot see, and BOTH verbs destroy: a replacement purges the
+    # existing row and both files exactly as Remove does (round 2 of the security review
+    # measured a refused remove followed by a successful blind replace). The purge is a hard
+    # delete, the person it belongs to is not told, and "they can choose the file again" is
+    # only true of somebody acting on themselves. An admin may still GIVE a face to somebody
+    # who has none.
+    if not _may_destroy_existing_photo(actor, member):
+        raise PermissionDenied("You cannot change a photo you cannot see.")
+    if request.POST.get("photo_action") == "remove":
+        media.purge_profile_photo(member)
+        messages.success(request, "Photo removed.")
+        return _back_to_profile(member, actor)
+    uploaded = request.FILES.get("photo")
+    if uploaded is None:
+        return _photo_error(request, member, actor, "Choose a photo.")
+    # The size is checked before the bytes are read, the same order and the same ceiling
+    # the composer applies (feed_views._MAX_PHOTO_BYTES), so one number governs every
+    # photograph a member can send this product.
+    if uploaded.size is not None and uploaded.size > _MAX_PHOTO_BYTES:
+        return _photo_error(request, member, actor, _too_large_message())
+    raw = uploaded.read()
+    if len(raw) > _MAX_PHOTO_BYTES:
+        return _photo_error(request, member, actor, _too_large_message())
+    try:
+        media.ingest_profile_photo(member=member, raw=raw)
+    except media.MediaRejected:
+        # The composer's own sentence for the same event, so a member who meets this in
+        # the feed and one who meets it here read one wording, not two.
+        return _photo_error(request, member, actor, "The file was not an image Backyard can read.")
+    messages.success(request, "Photo saved.")
+    return _back_to_profile(member, actor)
+
+
+def _may_destroy_existing_photo(actor: Member, member: Member) -> bool:
+    if member.pk == actor.pk or member.avatar_tokens is None:
+        return True  # your own, or nothing there to destroy
+    return bool(scoping.photo_owner_ids(actor, [member.pk]))
+
+
+def _fetchable_tokens(
+    actor: Member, member: Member, tokens: tuple[str, str] | None
+) -> tuple[str, str] | None:
+    """The photo's tokens, or None when this editor may not fetch the photo."""
+    if tokens is None:
+        return None
+    return tokens if scoping.photo_owner_ids(actor, [member.pk]) else None
+
+
+def _too_large_message() -> str:
+    return f"Photo must be {_MAX_PHOTO_BYTES // (1024 * 1024)} MB or smaller."
+
+
+def _photo_error(request: HttpRequest, member: Member, actor: Member, message: str) -> HttpResponse:
+    return render(request, "core/profile_edit.html", _edit_context(member, [message], actor))
+
+
+def _back_to_profile(member: Member, actor: Member) -> HttpResponse:
+    """The page just acted on: your own settings, or the profile you are managing."""
+    if member.pk == actor.pk:
+        return redirect("profile_edit")
+    return redirect("managed_profile_edit", member.id)
+
+
 @login_required
 def export_data(request: HttpRequest) -> FileResponse:
     """Download a zip of the member's own posts, comments, and photos (S-704). Never
@@ -323,8 +415,26 @@ def export_data(request: HttpRequest) -> FileResponse:
 
 
 def _edit_context(member: Member, errors: list[str], actor: Member) -> dict[str, object]:
+    tokens = member.avatar_tokens
     return {
         "member": member,
+        # The face this page is offering to change, and whether there is one to remove.
+        # The preview is an ordinary fetch through serve_profile_photo, so it is subject
+        # to the same directory rule as any other: BY-11 lets an instance admin edit a
+        # profile on the far side of a bridge, where that rule correctly refuses them the
+        # bytes. Asking the authorization question here — rather than approximating it —
+        # is what makes the page fall back to the initials disc instead of drawing a
+        # broken image at somebody who is allowed to be on it.
+        "photo_tokens": (photo_tokens := _fetchable_tokens(actor, member, tokens)),
+        # From what this editor may SEE, not from the row: "Change Photo" and a Remove
+        # button told an admin that a far-side member has a face while refusing them the
+        # bytes, which is half a disclosure. They may still set one (permissions.
+        # can_edit_profile_photo_of); they are not told whether one is there.
+        "has_photo": photo_tokens is not None,
+        "may_edit_photo": permissions.can_edit_profile_photo_of(actor, member),
+        # Said in words under the control, from the constant rather than typed into the
+        # template where it would drift the first time the ceiling moved.
+        "max_photo_mb": _MAX_PHOTO_BYTES // (1024 * 1024),
         # The signed-in member, kept separate from the profile being edited so the page
         # can say whose profile this is when they are not the same person.
         "actor": actor,

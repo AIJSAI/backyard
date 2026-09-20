@@ -35,7 +35,7 @@ from django.db.models import Q, QuerySet
 from django.http import Http404, HttpRequest
 
 from . import digest_links, scoping
-from .models import DigestIssue, MediaAsset, Member
+from .models import DigestIssue, MediaAsset, Member, ProfilePhoto
 
 # Mirrors elder_views. Duplicated deliberately rather than imported: elder_views imports
 # scoping and would create a cycle through media_views, and these two keys are the
@@ -73,6 +73,31 @@ class Reader:
             # exists to prevent, reintroduced through the S-404 path.
             assets = assets.filter(Q(post__in=issue_posts) | Q(comment__post__in=issue_posts))
         return assets
+
+    def visible_profile_photos(self) -> QuerySet[ProfilePhoto]:
+        """The faces this reader may fetch (S-901): the DIRECTORY rule, plus the ceiling.
+
+        A profile photo hangs off a person rather than a post, so the audience question
+        is "which members can this viewer see" (``scoping.visible_profile_photos`` over
+        ``visible_members``) and not a post's. For a signed-in member and for a live
+        elder session that is the whole answer: the elder reaches the faces of the people
+        whose posts she is shown, because the author of a post she can see is by
+        construction someone she could look up.
+
+        Her REACH is wider than any page she is served: the large-text page draws plain
+        bylines and no avatar, so she is never handed a token. The rule is stated for the
+        credential, not for today's templates.
+
+        A DIGEST TOKEN reaches none of them, and that is this method's whole reason for
+        existing rather than the view asking scoping directly. That credential is
+        ceilinged to one issue's posts, a face is in no issue, and a token minted to
+        render one week's email must not become a standing "what does everyone in this
+        family look like" credential. The ceiling lives with the credential here, so the
+        answer cannot drift depending on which caller remembered it.
+        """
+        if self.digest_issue is not None:
+            return ProfilePhoto.objects.none()
+        return scoping.visible_profile_photos(self.member)
 
 
 def _reader_from_login(request: HttpRequest) -> Reader | None:

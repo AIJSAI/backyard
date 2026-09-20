@@ -1,5 +1,12 @@
-{% comment %} One person's initials disc (core/templatetags/avatars.py).
+{% comment %} One person's avatar (core/templatetags/avatars.py): their photo if they have
+   one, their initials disc if they do not. Same class, same circle, same sizes, so the
+   two states are interchangeable wherever a name leads something.
 
-   aria-hidden: the name is always rendered as text right beside this, so a screen reader
-   that announced the monogram too would read every byline in the product twice.
-{% endcomment %}<span class="avatar{{ size_class }}" data-tone="{{ tone }}" aria-hidden="true">{{ text }}</span>
+   aria-hidden on both: the name is always rendered as text right beside this, so a screen
+   reader that announced the monogram — or "photo of" — would read every byline in the
+   product twice. alt is empty for the same reason, which is what makes the image
+   decorative rather than content.
+
+   width and height are the rendition's own pixels, so the element has its size and its
+   1:1 aspect ratio before the bytes land and nothing on the page shifts.
+{% endcomment %}{% if photo_url %}<img class="avatar avatar-photo{{ size_class }}" src="{{ photo_url }}" width="{{ photo_px }}" height="{{ photo_px }}" alt="" aria-hidden="true">{% else %}<span class="avatar{{ size_class }}" data-tone="{{ tone }}" aria-hidden="true">{{ text }}</span>{% endif %}

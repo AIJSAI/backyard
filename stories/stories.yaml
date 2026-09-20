@@ -821,9 +821,28 @@ epics:
     - "Kinship display name (Nana, Uncle Jim) is shown alongside the legal name in feed, comments, and directory"
     - "Birthday stores month and day required, year optional; age is never displayed"
     - "Owners edit their own profiles; supervised and elder profiles are manageable by the parent or designated helper"
-    status: passing
+    - "A member adds, replaces and removes one profile photo from Settings, and a managing parent or designated helper sets that member's by the same rule that lets them edit the profile"
+    - "The photo goes through the post-photo ingest gate (decode allowlist, pixel ceiling, re-encode, metadata stripped) and is stored as two centre-cropped squares; the original upload bytes are never served"
+    - "It replaces the initials disc wherever the avatar is drawn, and falls back to the disc for a member who has none"
+    - "It is fetchable only by a viewer who may see that member (the directory rule), including a No-Login Link reader for the authors she is shown; a member on the other side of the family, an anonymous request and a removed photo all get the same 404"
+    status: passing     # the photo half of this story, 2026-09-20. The word "photo" was in
+                        # the story sentence from the first cut and nothing had ever built
+                        # it: every byline drew initials. A face is NOT a MediaAsset — that
+                        # model's check constraint says an asset hangs off exactly one of a
+                        # post or a comment, and a third owner would give the one audience
+                        # query a third shape — so it is its own row sharing the INGEST
+                        # (core/media.ingest_profile_photo) rather than the table. The
+                        # audience is the one part that is new rather than reused: a
+                        # photograph inherits its post's audience, and a face inherits its
+                        # PERSON'S, which in this product is the directory rule
+                        # (scoping.visible_profile_photos over visible_members). Stated once,
+                        # asked for through the Reader so the credential keeps its own
+                        # ceiling: a digest token reaches no face at all, because a face is
+                        # in no issue. Every guard proven by probe — widening the rule to
+                        # `objects.all()` fails the cross-side, elder-stranger and isolation
+                        # tests, and dropping the select_related fails the N+1 measurement.
     v1: true
-    evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md
+    evidence: src/core/tests/test_profile_photos.py + docs/receipts/2026-07-22-s5-tested-passing-loop.md
   - id: S-902
     epic: E9
     persona: family-member

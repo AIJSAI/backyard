@@ -451,7 +451,7 @@ def test_reactions_and_reply_counts_cost_the_same_at_any_length(
     """The whole point of loading them per PAGE.
 
     Measured on this fixture rather than reasoned: the feed rendered in 19 queries before
-    the reactor line and the reply count existed and renders in 23 with them, at two
+    the reactor line and the reply count existed and rendered in 23 with them, at two
     posts and at twenty alike. The four are: the reactors for every post on the page and
     the reply counts for every post on the page, each preceded by the viewer's own
     yard-id lookup, which `scoping.visible_members` resolves eagerly inside both guards.
@@ -483,4 +483,8 @@ def test_reactions_and_reply_counts_cost_the_same_at_any_length(
         f"18 more posts cost {len(large) - len(small)} more queries: something on the "
         "feed is asking per post again"
     )
+    # 23, and nobody on THIS page has a profile photo. When somebody does, the feed asks
+    # which of those faces this viewer may fetch (scoping.photo_owner_ids): three more per
+    # PAGE, none per post, measured in test_profile_photos.py. A page with no faces on it,
+    # which is every instance on upgrade day, pays nothing for the feature.
     assert len(large) <= 23, f"the feed now renders in {len(large)} queries, up from 23"

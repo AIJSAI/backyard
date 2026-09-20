@@ -24,12 +24,14 @@ a non-self object is the bug class the traversal tests exist to catch.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.db.models import Q
 from django.http import Http404
 
-from .models import Comment, MediaAsset, Member, Pod, Post, Reaction, Yard
+from .models import Comment, MediaAsset, Member, Pod, Post, ProfilePhoto, Reaction, Yard
 
 
 def member_yard_ids(member: Member) -> set[int]:
@@ -159,6 +161,56 @@ def visible_attached_media(member: Member) -> models.QuerySet[MediaAsset]:
     post's own gallery goes through here, while visible_media stays the broader
     access-check set that also covers the card image's own serving."""
     return visible_media(member).exclude(media_kind=MediaAsset.LINK_PREVIEW)
+
+
+def visible_profile_photos(member: Member) -> models.QuerySet[ProfilePhoto]:
+    """Every profile photo a member may fetch: the photos of the people they can see,
+    and a CHILD's only from inside that child's own household.
+
+    A face belongs to a PERSON, not to a post, so it inherits the directory's rule
+    (visible_members) and not a post's audience: you may look at the picture of anyone
+    you could look up, and at nobody else's. That keeps the boundary where the product
+    already draws it: a member on one side of a bridge can neither list nor fetch the
+    face of a member on the other.
+
+    A SUPERVISED member's face is narrower, because everything else about a child already
+    is: their dates default to the household (migration 0013, T-MINOR-6), and the first cut
+    of this rule showed a child's face to their whole side while hiding their birthday from
+    it. Pod-mates, the managing parent and the child's own account reach it; the rest of
+    the side sees the initials disc. A per-member visibility choice for photos is tracked.
+
+    Deliberately NOT derived from visible_posts, and NOT guaranteed to cover every byline.
+    The author of a post a viewer can see USUALLY shares a yard with them, but not by
+    construction: a member who posted in a group and later left that side leaves a visible
+    post whose author the viewer can no longer look up. So callers never hand a template
+    a token on the strength of a byline; they ask `photo_owner_ids` which faces this viewer
+    may fetch, and everybody else is drawn as the initials disc rather than a broken image.
+    """
+    own_side = ProfilePhoto.objects.filter(member__in=visible_members(member))
+    return own_side.filter(
+        Q(member__is_supervised=False)
+        | Q(member=member)
+        | Q(member__managing_parent=member)
+        | Q(member__pods__id__in=member_pod_ids(member))
+    ).distinct()
+
+
+def photo_owner_ids(viewer: Member, member_ids: Iterable[int]) -> set[int]:
+    """Of these members, the ones whose profile photo `viewer` may fetch.
+
+    Three queries for a whole page of bylines (the viewer's side and household ids, which
+    the guard resolves eagerly, then the faces), and none for an empty input, so a caller
+    should pass only the members who HAVE a photo. A template is handed a photo's tokens only for
+    a member in this set, so the rule the serving view enforces and the pictures a page
+    tries to draw cannot disagree (a disagreement is a broken image beside a name)."""
+    wanted = set(member_ids)
+    if not wanted:
+        return set()
+    return set(
+        visible_profile_photos(viewer)
+        .filter(member_id__in=wanted)
+        .values_list("member_id", flat=True)
+    )
 
 
 def visible_pods_of(viewer: Member, target: Member) -> models.QuerySet[Pod]:

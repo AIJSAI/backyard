@@ -14,6 +14,7 @@ from __future__ import annotations
 import secrets
 
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 
 
@@ -299,6 +300,24 @@ class Member(models.Model):
         short name, and an empty one stays empty so a caller can fall back rather than
         render a sentence with a hole in it."""
         return self.display_name.strip().split()[0] if self.display_name.strip() else ""
+
+    @property
+    def avatar_tokens(self) -> tuple[str, str] | None:
+        """The (large, small) URL handles of this member's profile photo, or None.
+
+        Two strings rather than the row: the directory hands this straight into a
+        template through `profiles.ViewableProfile`, which deliberately carries safe
+        primitives and no object with a path back to a raw Member (security review
+        LOW-1) — `photo.member.phone` would be exactly that path.
+
+        A surface that draws many bylines select_related("profile_photo"), so this costs
+        no query per row; on a page that draws one it is one query.
+        """
+        try:
+            photo = self.profile_photo
+        except ObjectDoesNotExist:
+            return None
+        return (photo.token, photo.thumbnail_token)
 
 
 class PodMembership(models.Model):
@@ -622,6 +641,40 @@ class MediaAsset(models.Model):
         if comment is not None:
             return int(comment.post_id)
         raise ValueError(f"media {self.token[:8]} has no owner; the constraint was bypassed")
+
+
+class ProfilePhoto(models.Model):
+    """The face one member shows instead of their initials disc (S-901).
+
+    Its own row rather than two columns on Member, and NOT a MediaAsset: that model's
+    check constraint says an asset hangs off exactly one of a post or a comment, because
+    every reader and every purge branches on which one is set. A third owner would give
+    the one audience query a third shape and a photo whose audience is a person rather
+    than a post — which is the thing this row is. The safety pipeline is shared instead
+    of the table: `media.ingest_profile_photo` runs the same decode, the same ceilings
+    and the same re-encode that strips EXIF, GPS, XMP and the JPEG comment (TM-9).
+
+    Two renditions, two independently unguessable tokens, so a derivative handle is never
+    derivable from its source (TM-9): `token` serves the square the largest disc the
+    product draws needs at 2x, `thumbnail_token` the one every smaller disc needs. Both
+    are centre-cropped squares, so a circle is a circle on every surface and no stored
+    rendition is ever the member's original upload.
+
+    Access is checked on every fetch by `media_views.serve_profile_photo`, against the
+    DIRECTORY rule (`scoping.visible_profile_photos`): a face is something you may see of
+    a person you may look up. There is no MEDIA_URL, so there is no second way to it.
+    """
+
+    member = models.OneToOneField(Member, on_delete=models.CASCADE, related_name="profile_photo")
+    token = models.CharField(max_length=43, unique=True, default=_media_token)
+    thumbnail_token = models.CharField(max_length=43, unique=True, default=_media_token)
+    image = models.ImageField(upload_to="media/avatar/", blank=True)
+    thumbnail = models.ImageField(upload_to="media/avatar-small/", blank=True)
+    content_type = models.CharField(max_length=32)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"profile photo {self.token[:8]} of member {self.member_id}"
 
 
 class Reaction(models.Model):

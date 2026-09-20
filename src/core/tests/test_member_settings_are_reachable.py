@@ -163,6 +163,7 @@ _UNLINKED_BY_DESIGN = {
     "icon_512": "a PWA icon, referenced from the manifest",
     "icon_maskable_512": "a PWA icon, referenced from the manifest",
     "serve_media": "an <img src>, not a page",
+    "serve_profile_photo": "the avatar's <img src>, not a page",
     # These were one entry, `"vcard"`, which is not a route — the real names are
     # `directory_vcards` and `member_vcard`. The set is only ever SUBTRACTED, so a stale or
     # misspelled key excuses nothing and says nothing; the list can rot with no signal.

@@ -46,7 +46,7 @@
   <ul class="directory">
     {% for profile in profiles %}
       <li>
-        {% avatar profile.display_name profile.member_id %}
+        {% avatar profile.display_name profile.member_id photo=profile.avatar_tokens %}
         <span class="who">
           <a href="{% url 'member_profile' profile.member_id %}">{{ profile.display_name }}</a>
           {% if profile.placing %}<span class="member-meta">{{ profile.placing }}</span>{% endif %}
