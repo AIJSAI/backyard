@@ -147,18 +147,24 @@ def _media_tiles(post: Post) -> list[MediaAsset]:
     return _live_media(post)[:_FEED_MEDIA_TILES]
 
 
-def _media_layout(count: int) -> str:
-    """Which grid a gallery of this size is laid out in.
+def _media_layout(tiles: list[MediaAsset], total: int) -> str:
+    """Which layout a gallery is drawn in: "stack", "one", "two", "three" or "many".
 
     Named here, not counted in CSS: `:nth-last-child` reads the CHILDREN, and a gallery's
     children stopped being one element each the moment a video or an unprocessed clip
     could sit among the photographs.
+
+    A clip anywhere in the gallery makes the whole thing a STACK, full width and one to a
+    row. A video cropped into a square tile is a video with its own controls cropped off,
+    which is the one thing a player may not lose (S-402).
     """
-    if count == 1:
+    if any(asset.media_kind == MediaAsset.VIDEO for asset in tiles):
+        return "stack"
+    if total == 1:
         return "one"
-    if count == 2:
+    if total == 2:
         return "two"
-    if count == 3:
+    if total == 3:
         return "three"
     return "many"
 
@@ -412,21 +418,24 @@ def _render_feed(
     post_ids = [post.id for post in feed_posts]
     reactor_groups, my_reactions = _reactions_for_page(member, post_ids)
     reply_counts = _reply_counts_for_page(member, post_ids)
-    items = [
-        FeedItem(
-            post=post,
-            is_own=post.author_id == member.id,
-            is_editable=post.author_id == member.id and posting.within_edit_window(post),
-            is_new=boundary is not None and post.created_at > boundary,
-            media=_media_tiles(post),
-            extra_media=max(len(_live_media(post)) - _FEED_MEDIA_TILES, 0),
-            media_layout=_media_layout(len(_live_media(post))),
-            reactor_groups=reactor_groups.get(post.id, []),
-            my_reaction=my_reactions.get(post.id),
-            reply_count=reply_counts.get(post.id, 0),
+    items: list[FeedItem] = []
+    for post in feed_posts:
+        tiles = _media_tiles(post)
+        gallery = len(_live_media(post))
+        items.append(
+            FeedItem(
+                post=post,
+                is_own=post.author_id == member.id,
+                is_editable=post.author_id == member.id and posting.within_edit_window(post),
+                is_new=boundary is not None and post.created_at > boundary,
+                media=tiles,
+                extra_media=max(gallery - _FEED_MEDIA_TILES, 0),
+                media_layout=_media_layout(tiles, gallery),
+                reactor_groups=reactor_groups.get(post.id, []),
+                my_reaction=my_reactions.get(post.id),
+                reply_count=reply_counts.get(post.id, 0),
+            )
         )
-        for post in feed_posts
-    ]
     first_seen_id: int | None = None
     if any(item.is_new for item in items):
         first_seen_id = next((item.post.id for item in items if not item.is_new), None)

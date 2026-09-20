@@ -33,7 +33,7 @@ from django.test import Client
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from core.models import Comment, Member, Pod, PodMembership, Post, Reaction, Yard
+from core.models import Comment, MediaAsset, Member, Pod, PodMembership, Post, Reaction, Yard
 
 pytestmark = pytest.mark.django_db
 User = get_user_model()
@@ -133,6 +133,46 @@ def test_a_long_reactor_list_stops_at_three_names(household: Household) -> None:
     assert f'<a href="{reverse("post_detail", args=[post.id])}">And Others</a>' in item
     for tally in ("and 1 other", "and 2 others", "4 people", "4 reactions"):
         assert tally not in item.lower()
+
+
+# --- the gallery ------------------------------------------------------------------------
+
+
+def test_a_gallery_is_laid_out_by_what_is_in_it(household: Household) -> None:
+    """The layout is named by the view, so the template and the stylesheet agree about a
+    gallery whose children are not all the same element.
+
+    The clip case is the one worth pinning: a video cropped into a square tile is a video
+    with its own controls cropped off, so one clip anywhere makes the whole gallery a
+    full-width stack (S-402).
+    """
+    post = _post(household)
+    for _ in range(2):
+        MediaAsset.objects.create(post=post, content_type="image/jpeg")
+    assert 'class="feed-media feed-media-two"' in _item(_feed(household), post)
+
+    MediaAsset.objects.create(
+        post=post,
+        media_kind=MediaAsset.VIDEO,
+        content_type="video/mp4",
+        transcode_status=MediaAsset.DONE,
+    )
+    item = _item(_feed(household), post)
+    assert 'class="feed-media feed-media-stack"' in item
+    assert "<video" in item and "controls" in item
+
+
+def test_a_gallery_past_four_photos_keeps_the_rest_behind_the_last_tile(
+    household: Household,
+) -> None:
+    post = _post(household)
+    for _ in range(6):
+        MediaAsset.objects.create(post=post, content_type="image/jpeg")
+    item = _item(_feed(household), post)
+    assert 'class="feed-media feed-media-many"' in item
+    assert item.count("<img") == 4, "the feed draws four tiles and links to the rest"
+    assert f'class="more-media" href="{reverse("post_detail", args=[post.id])}"' in item
+    assert ">+2<" in item
 
 
 # --- the reply count -------------------------------------------------------------------
