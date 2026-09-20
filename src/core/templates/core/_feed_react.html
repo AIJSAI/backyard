@@ -106,13 +106,16 @@
       });
     }, true);
     // Capturing, and it swallows the tap: a tap that dismisses a menu must not also open
-    // the photograph it happened to land on.
+    // the photograph it happened to land on. A tap on ANOTHER post's dots is the exception:
+    // that should close this menu and open that one in one go, which is also what gives
+    // the `toggle` listener above something to do.
     document.addEventListener('click', function (event) {
+      var onDots = event.target.closest && event.target.closest('details.post-menu > summary');
       var dismissed = false;
       Array.prototype.forEach.call(openMenus(), function (menu) {
         if (!menu.contains(event.target)) { menu.open = false; dismissed = true; }
       });
-      if (dismissed) { event.preventDefault(); event.stopPropagation(); }
+      if (dismissed && !onDots) { event.preventDefault(); event.stopPropagation(); }
     }, true);
     document.addEventListener('keydown', function (event) {
       if (event.key !== 'Escape') { return; }

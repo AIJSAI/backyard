@@ -253,7 +253,9 @@
              longer all the same element, so `:nth-last-child` would mis-read any post
              carrying a clip. EVERY PHOTO OFFERS BOTH RENDITIONS and the browser picks:
              the 400px thumbnail is soft at full width on a 2x phone (780 device px), but
-             it is exactly right for a half-width tile, and the first cut of this page
+             it is close to right for a half-width tile on a 2x screen (upscaled about a
+             third on the short side after the crop; a 3x screen takes the large one
+             whatever the tile), and the first cut of this page
              asked for the 2048px original in every tile, uncached (`serve_media` is
              no-store by design), which a review measured at 11 to 51 times the bytes.
              `sizes` says how wide each tile is drawn. A mid-size rendition in
@@ -276,13 +278,19 @@
                   {% comment %} A clip among other things: its poster, a play mark, and a link to
                      the post, where the player has room. A player cropped into a grid cell
                      loses its controls (S-402), and a column of players is three screens
-                     tall. {% endcomment %}
-                  <a class="clip-tile" href="{% url 'post_detail' item.post.id %}" aria-label="Play Video">
-                    {% if m.transcode_status == 'done' %}<img src="{% url 'serve_media' m.thumbnail_token %}" loading="lazy" decoding="async" alt="">{% endif %}
-                    <span class="play-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" focusable="false"><path d="M8 5.5v13l11-6.5z"/></svg></span>
+                     tall. A clip with no rendition SAYS SO instead: "Play Video" over a video
+                     that failed is an invitation the tap cannot keep, and the same clip alone
+                     in a post already says the true thing. {% endcomment %}
+                  <a class="clip-tile" href="{% url 'post_detail' item.post.id %}" aria-label="{% if m.transcode_status == 'done' %}Play Video{% elif m.transcode_status == 'failed' %}Video Could Not Be Processed{% else %}Video Still Processing{% endif %}">
+                    {% if m.transcode_status == 'done' %}
+                      <img src="{% url 'serve_media' m.thumbnail_token %}" loading="lazy" decoding="async" alt="">
+                      <span class="play-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" focusable="false"><path d="M8 5.5v13l11-6.5z"/></svg></span>
+                    {% else %}
+                      <span class="clip-tile-status" aria-hidden="true">{% if m.transcode_status == 'failed' %}Not Processed{% else %}Processing{% endif %}</span>
+                    {% endif %}
                   </a>
                 {% else %}
-                  <a href="{% url 'serve_media' m.token %}">{% if item.media_layout == 'one' %}<img src="{% url 'serve_media' m.token %}" srcset="{% url 'serve_media' m.thumbnail_token %} 400w, {% url 'serve_media' m.token %} 2048w" sizes="(min-width: 52rem) 52rem, 100vw" loading="lazy" decoding="async" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ item.post.author.display_name }}{% endif %}">{% elif item.media_layout == 'three' and forloop.first %}<img src="{% url 'serve_media' m.token %}" srcset="{% url 'serve_media' m.thumbnail_token %} 400w, {% url 'serve_media' m.token %} 2048w" sizes="(min-width: 52rem) 34rem, 66vw" loading="lazy" decoding="async" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ item.post.author.display_name }}{% endif %}">{% else %}<img src="{% url 'serve_media' m.token %}" srcset="{% url 'serve_media' m.thumbnail_token %} 400w, {% url 'serve_media' m.token %} 2048w" sizes="(min-width: 52rem) 26rem, 50vw" loading="lazy" decoding="async" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ item.post.author.display_name }}{% endif %}">{% endif %}</a>
+                  <a href="{% url 'serve_media' m.token %}"><img src="{% url 'serve_media' m.token %}" srcset="{% url 'serve_media' m.thumbnail_token %} 400w, {% url 'serve_media' m.token %} 2048w" sizes="{% if item.media_layout == 'one' %}(min-width: 52rem) 52rem, 100vw{% elif item.media_layout == 'three' and forloop.first %}(min-width: 52rem) 34rem, 66vw{% else %}(min-width: 52rem) 26rem, 50vw{% endif %}" loading="lazy" decoding="async" alt="{% if m.alt_text %}{{ m.alt_text }}{% else %}Photo shared by {{ item.post.author.display_name }}{% endif %}"></a>
                 {% endif %}
                 {% if forloop.last and item.extra_media %}
                   {% comment %} The "+N": a SECOND link laid over the last tile, to the post, because

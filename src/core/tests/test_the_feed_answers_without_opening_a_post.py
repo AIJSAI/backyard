@@ -190,6 +190,29 @@ def test_a_clip_among_photos_is_a_poster_tile_and_the_grid_stays_a_grid(
     assert 'aria-label="Play Video"' in item
 
 
+@pytest.mark.parametrize(
+    ("status", "label", "words"),
+    [
+        (MediaAsset.FAILED, "Video Could Not Be Processed", "Not Processed"),
+        (MediaAsset.PENDING, "Video Still Processing", "Processing"),
+    ],
+)
+def test_a_clip_with_nothing_to_play_does_not_offer_to_play(
+    household: Household, status: str, label: str, words: str
+) -> None:
+    """Review of #220, round 2: every clip tile said "Play Video" with a play mark, a failed
+    one included, while the same clip ALONE in a post said it could not be processed."""
+    post = _post(household)
+    MediaAsset.objects.create(post=post, content_type="image/jpeg")
+    clip = _clip(post)
+    clip.transcode_status = status
+    clip.save(update_fields=["transcode_status"])
+    item = _item(_feed(household), post)
+    assert f'aria-label="{label}"' in item
+    assert f">{words}<" in item
+    assert "Play Video" not in item and "play-mark" not in item
+
+
 def test_a_gallery_past_four_photos_keeps_the_rest_behind_the_last_tile(
     household: Household,
 ) -> None:

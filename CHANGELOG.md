@@ -24,8 +24,9 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   tile onto the post. A lone video keeps its player; a video among photographs is its
   poster with a play mark, opening the post. The card treatment returns from 600px up,
   where there is room for it. Each photograph offers both stored sizes (`srcset`), so a
-  half-width tile takes the 400px thumbnail and only a full-width picture takes the
-  large one; a mid-size rendition for that case is tracked.
+  half-width tile on an ordinary (2x) phone takes the 400px thumbnail and a full-width
+  picture takes the large one. On a 3x screen every tile still takes the large one: the
+  mid-size rendition that cures that is tracked (#221).
 - **Edit Post, Delete Post and Take Down Post moved into a per-post menu.** They sat in
   the row under every post beside the way into the thread, which put the control that
   erases a photograph one thumb-width from the one that opens it. The menu is a plain

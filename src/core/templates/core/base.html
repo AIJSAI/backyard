@@ -1190,6 +1190,11 @@ ul.comments:has(> li.empty:only-child) { border-left: 0; padding-left: 0; margin
   background: color-mix(in srgb, #000000 55%, transparent);
 }
 .play-mark path { fill: #ffffff; }
+/* A clip with nothing to play yet, or ever: the words, where the play mark would be. */
+.clip-tile-status {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  padding: 0.4rem; text-align: center; font-size: 0.8rem; color: var(--ink-soft);
+}
 /* Under a "+N" the count is the message; a play mark behind it is two glyphs in one spot. */
 .tile:has(.more-media) .play-mark { display: none; }
 .feed-media .clip { width: 100%; border: 0; border-radius: 0; }
