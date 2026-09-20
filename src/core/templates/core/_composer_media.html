@@ -2,7 +2,8 @@
    (S-401) and the reply form (S-404). One copy: two would drift, and the second copy is
    exactly where a fix for "12 photos uploaded full size" would fail to land.
 
-   Two jobs, both pure progressive enhancement over core/_media_picker.html:
+   Three jobs, all pure progressive enhancement over core/_media_picker.html:
+     0. a composer that has been touched STAYS OPEN (the collapse is in base.html).
      1. THUMBNAILS of what was picked, with a Remove on each, before posting — and a
         second pick that ADDS to the first instead of replacing it.
      2. the pre-upload resize (and the Safari/iOS HEIC -> JPEG conversion).
@@ -11,6 +12,24 @@
 {% endcomment %}
   <script nonce="{{ request.csp_nonce }}">
     (function () {
+      // ---- 0. a composer that has been touched stays open -----------------------
+      //
+      // The resting composer hides who-can-see-this until it is in use (base.html). CSS
+      // alone can only say "while focus is inside", and focus is exactly what a person
+      // gives up by pressing a <label> or the photo button: with an empty box the form
+      // closed between the press and the release, the click landed on nothing, and the
+      // owner's first real post went nowhere (2026-09-20). So the first touch of any
+      // kind opens it for good. Nothing here ever closes it again: a composer that
+      // folds away a chosen audience or a strip of chosen photos is lying about what is
+      // about to be posted.
+      var composers = document.querySelectorAll("form.composer.collapsible");
+      Array.prototype.forEach.call(composers, function (composer) {
+        function open() { composer.classList.add("is-open"); }
+        ["focusin", "input", "change"].forEach(function (name) {
+          composer.addEventListener(name, open);
+        });
+      });
+
       // ---- 1. thumbnails of what was picked ------------------------------------
       //
       // The only feedback after attaching used to be the filename inside the native
