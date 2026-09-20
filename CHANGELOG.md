@@ -13,6 +13,13 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
+Nothing yet.
+
+## [0.1.8] — 2026-09-20
+
+The owner's first real post found a composer that closed under the thumb, and a second read of
+the long pages found that they did not sound like anybody.
+
 ### Fixed
 
 - **The photo button works on an empty composer.** Tapping "Add Photos Or Videos" before
@@ -991,6 +998,7 @@ Everything here is a correction, not a feature. `v0.1.0` is **withdrawn**: insta
 - The demo family is fully invented; no real relative's name appears.
 - Fonts ship with their licence text (SIL OFL 1.1).
 
+[0.1.8]: https://github.com/AIJSAI/backyard/tree/v0.1.8
 [0.1.7]: https://github.com/AIJSAI/backyard/tree/v0.1.7
 [0.1.6]: https://github.com/AIJSAI/backyard/tree/v0.1.6
 [0.1.5]: https://github.com/AIJSAI/backyard/tree/v0.1.5
