@@ -97,7 +97,7 @@ restricted set rather than "any CA on earth", which is what you have with no CAA
 ## 2. Configure
 
 ```bash
-git clone --branch v0.1.5 https://github.com/AIJSAI/backyard.git
+git clone --branch v0.1.6 https://github.com/AIJSAI/backyard.git
 cd backyard
 cp .env.example .env
 ```
@@ -362,7 +362,7 @@ otherwise resurrect the credentials of someone you removed.
 ```bash
 cd backyard
 git fetch --tags
-git checkout v0.1.5          # or whichever tag CHANGELOG.md says you want
+git checkout v0.1.6          # or whichever tag CHANGELOG.md says you want
 docker compose -f docker-compose.yml -f docker-compose.prod.yml build --pull \
   && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
