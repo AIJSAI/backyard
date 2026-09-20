@@ -30,12 +30,12 @@ from typing import Any
 
 from allauth.account.signals import email_confirmed
 from django.contrib.auth.signals import user_logged_in
-from django.db.models.signals import pre_save
+from django.db.models.signals import post_delete, pre_save
 from django.dispatch import receiver
 from django.http import HttpRequest
 
-from . import emailing
-from .models import Member, Pod, Yard
+from . import emailing, media
+from .models import Member, Pod, ProfilePhoto, Yard
 
 _ELDER_KEYS = ("elder_member_id", "elder_generation", "elder_big_text")
 # The two name columns a family actually reads: the display name on every byline and in
@@ -77,6 +77,19 @@ def _strip_fields(instance: object, fields: tuple[str, ...]) -> None:
         value = getattr(instance, field, "")
         if value:
             setattr(instance, field, emailing.strip_control(value))
+
+
+@receiver(post_delete, sender=ProfilePhoto, dispatch_uid="core.signals.unlink_a_deleted_face")
+def unlink_a_deleted_face(sender: type[ProfilePhoto], instance: ProfilePhoto, **_: Any) -> None:
+    """A profile photo's ROW can go by cascade (it hangs off Member), and a cascade calls
+    neither `Model.delete()` nor `media.purge_profile_photo`. Without this, a hard-deleted
+    member leaves both renditions on the volume with no row to reach or purge them by,
+    which is the state media.py promises against (security review of #223, F6). Every
+    product path already purges explicitly first, so this is the net under them: it runs
+    after commit, and unlinking a file that is already gone is a no-op."""
+    media._remove_after_commit(
+        [(field.storage, field.name) for field in (instance.image, instance.thumbnail) if field]
+    )
 
 
 @receiver(user_logged_in)

@@ -99,6 +99,7 @@ def directory(request: HttpRequest) -> HttpResponse:
             other,
             viewer_pod_ids=viewer_pod_ids,
             placing=profiles.placing_text(member, other, shared_pods=other.shared_pods),
+            with_avatar=True,
         )
         for other in members[:200]
     ]
@@ -145,7 +146,7 @@ def member_profile(request: HttpRequest, member_id: int) -> HttpResponse:
         {
             "member": viewer,
             "profile": profiles.viewable_profile(
-                viewer, target, placing=profiles.placing_text(viewer, target)
+                viewer, target, placing=profiles.placing_text(viewer, target), with_avatar=True
             ),
             "recent_posts": recent_posts,
         },
@@ -184,15 +185,7 @@ def directory_vcards(request: HttpRequest) -> HttpResponse:
     directory page's 200-row render — a truncated address book is the same lie.
     """
     viewer = _acting_member(request)
-    members = (
-        scoping.visible_members(viewer)
-        .exclude(id=viewer.id)
-        # A vCard carries no photo (S-904 writes contact fields only), but the resolver it
-        # shares with the directory reads one, so the join comes along rather than one
-        # query per member of an UNCAPPED export.
-        .select_related("profile_photo")
-        .order_by("display_name", "id")
-    )
+    members = scoping.visible_members(viewer).exclude(id=viewer.id).order_by("display_name", "id")
     viewer_pod_ids = scoping.member_pod_ids(viewer)  # once, not per row (MEDIUM-2)
     body = vcards.render(
         profiles.viewable_profile(viewer, other, viewer_pod_ids=viewer_pod_ids)
@@ -234,10 +227,13 @@ def profile_edit(request: HttpRequest, member_id: int | None = None) -> HttpResp
             raise PermissionDenied("You cannot edit this person's profile.")
     if request.method != "POST":
         return render(request, "core/profile_edit.html", _edit_context(member, [], actor))
-    # The photo is its own form on this page, so it is its own branch here (S-901). The
-    # authorization for it is the one already resolved above: whoever may edit this
-    # profile may set the face on it, which is how a parent sets a supervised child's.
+    # The photo is its own form on this page, so it is its own branch here (S-901), and it
+    # carries its OWN authorization, narrower than the page's: the security review of #223
+    # measured a side admin setting and hard-deleting an unrelated adult's face, and an
+    # instance admin doing both across a bridge to a photo they are refused the bytes of.
     if request.POST.get("photo_action"):
+        if not permissions.can_edit_profile_photo_of(actor, member):
+            raise PermissionDenied("You cannot change this person's photo.")
         return _photo_post(request, member, actor)
 
     errors: list[str] = []
@@ -335,6 +331,14 @@ def _photo_post(request: HttpRequest, member: Member, actor: Member) -> HttpResp
     redirects to: what you came to see is the photo, so the redirect shows it.
     """
     if request.POST.get("photo_action") == "remove":
+        # Nobody destroys what they cannot see. The purge is a hard delete of the row and
+        # both files, the person it belongs to is not told, and "they can choose the file
+        # again" is only true of somebody acting on themselves.
+        if (
+            member.pk != actor.pk
+            and not scoping.visible_profile_photos(actor).filter(member=member).exists()
+        ):
+            raise PermissionDenied("You cannot remove a photo you cannot see.")
         media.purge_profile_photo(member)
         messages.success(request, "Photo removed.")
         return _back_to_profile(member, actor)
@@ -357,6 +361,15 @@ def _photo_post(request: HttpRequest, member: Member, actor: Member) -> HttpResp
         return _photo_error(request, member, actor, "The file was not an image Backyard can read.")
     messages.success(request, "Photo saved.")
     return _back_to_profile(member, actor)
+
+
+def _fetchable_tokens(
+    actor: Member, member: Member, tokens: tuple[str, str] | None
+) -> tuple[str, str] | None:
+    """The photo's tokens, or None when this editor may not fetch the photo."""
+    if tokens is None:
+        return None
+    return tokens if scoping.photo_owner_ids(actor, [member.pk]) else None
 
 
 def _too_large_message() -> str:
@@ -400,12 +413,13 @@ def _edit_context(member: Member, errors: list[str], actor: Member) -> dict[str,
         # bytes. Asking the authorization question here — rather than approximating it —
         # is what makes the page fall back to the initials disc instead of drawing a
         # broken image at somebody who is allowed to be on it.
-        "photo_tokens": (
-            tokens
-            if tokens and scoping.visible_profile_photos(actor).filter(member=member).exists()
-            else None
-        ),
-        "has_photo": tokens is not None,
+        "photo_tokens": (photo_tokens := _fetchable_tokens(actor, member, tokens)),
+        # From what this editor may SEE, not from the row: "Change Photo" and a Remove
+        # button told an admin that a far-side member has a face while refusing them the
+        # bytes, which is half a disclosure. They may still set one (permissions.
+        # can_edit_profile_photo_of); they are not told whether one is there.
+        "has_photo": photo_tokens is not None,
+        "may_edit_photo": permissions.can_edit_profile_photo_of(actor, member),
         # Said in words under the control, from the constant rather than typed into the
         # template where it would drift the first time the ceiling moved.
         "max_photo_mb": _MAX_PHOTO_BYTES // (1024 * 1024),

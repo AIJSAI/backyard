@@ -84,6 +84,10 @@ class Reader:
         whose posts she is shown, because the author of a post she can see is by
         construction someone she could look up.
 
+        Her REACH is wider than any page she is served: the large-text page draws plain
+        bylines and no avatar, so she is never handed a token. The rule is stated for the
+        credential, not for today's templates.
+
         A DIGEST TOKEN reaches none of them, and that is this method's whole reason for
         existing rather than the view asking scoping directly. That credential is
         ceilinged to one issue's posts, a face is in no issue, and a token minted to

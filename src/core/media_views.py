@@ -100,7 +100,10 @@ def serve_profile_photo(request: HttpRequest, token: str) -> FileResponse:
         # The same fail-closed 404 as an unknown token: FileNotFoundError if a removal
         # unlinked the file mid-request, ValueError if the field is empty.
         raise Http404 from exc
-    response = FileResponse(stream, content_type=photo.content_type)
+    # The literal, not the row's column: both renditions are always the JPEG the ingest
+    # wrote, and a response header on a route serving member-uploaded bytes should not be
+    # something a row written by other code could ever decide.
+    response = FileResponse(stream, content_type="image/jpeg")
     response["X-Content-Type-Options"] = "nosniff"
     response["Content-Disposition"] = 'inline; filename="photo.jpg"'
     response["Cache-Control"] = "private, no-store"

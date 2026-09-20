@@ -451,11 +451,11 @@ def test_reactions_and_reply_counts_cost_the_same_at_any_length(
     """The whole point of loading them per PAGE.
 
     Measured on this fixture rather than reasoned: the feed rendered in 19 queries before
-    the reactor line and the reply count existed and renders in 23 with them, at two
+    the reactor line and the reply count existed and rendered in 23 with them, at two
     posts and at twenty alike. The four are: the reactors for every post on the page and
     the reply counts for every post on the page, each preceded by the viewer's own
     yard-id lookup, which `scoping.visible_members` resolves eagerly inside both guards.
-    All four are per PAGE.
+    All four are per PAGE. Three more, also per page, came with profile photos: see the ceiling.
 
     Both halves are asserted. The growth is the property worth guarding — eighteen more
     posts must buy nothing — and the total is a ceiling rather than an equality, because
@@ -483,4 +483,10 @@ def test_reactions_and_reply_counts_cost_the_same_at_any_length(
         f"18 more posts cost {len(large) - len(small)} more queries: something on the "
         "feed is asking per post again"
     )
-    assert len(large) <= 23, f"the feed now renders in {len(large)} queries, up from 23"
+    # 26 since profile photos (S-901), MEASURED: asking which authors' faces this viewer may
+    # fetch (scoping.photo_owner_ids, so a byline never draws a broken image) is one query
+    # plus the viewer's yard-id and pod-id lookups that the guard resolves eagerly, as the
+    # two guards above already do. Three per PAGE, none per post; the equality above is the
+    # property. Resolving those id sets once per request would give several back (#221's
+    # sibling: tracked with the other feed follow-ups).
+    assert len(large) <= 26, f"the feed now renders in {len(large)} queries, up from 26"

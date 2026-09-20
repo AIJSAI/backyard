@@ -24,6 +24,7 @@ import io
 import json
 import pathlib
 import zipfile
+from typing import Any
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -36,7 +37,16 @@ from django.utils import timezone
 from PIL import Image
 
 from core import digest_links, elder_tokens, export, media, removal, scoping, supervised
-from core.models import DigestIssue, Member, Pod, PodMembership, Post, ProfilePhoto, Yard
+from core.models import (
+    Comment,
+    DigestIssue,
+    Member,
+    Pod,
+    PodMembership,
+    Post,
+    ProfilePhoto,
+    Yard,
+)
 
 pytestmark = pytest.mark.django_db
 User = get_user_model()
@@ -588,3 +598,177 @@ def test_the_settings_control_is_one_press_with_a_script_and_a_plain_form_withou
     # requestSubmit(upload) is what carries photo_action=upload; the fallback says it too.
     assert "form.requestSubmit(upload)" in template
     assert 'action.name = "photo_action"; action.value = "upload";' in template
+
+
+# --- the security review of #223: who may set a face, and whose face a child's is ------
+
+
+def test_a_side_admin_cannot_set_or_remove_an_adult_s_photo(world: dict[str, object]) -> None:
+    """F1. The photo branch inherited the page's WIDE authority (any admin who may manage
+    the member), and a side admin was measured putting a face on, and hard-deleting the
+    face of, an unrelated adult with their own sign-in. A face takes the narrow set."""
+    author, m_pod = world["author"], world["m_pod"]
+    assert isinstance(author, Member) and isinstance(m_pod, Pod)
+    admin = _member_with_user(m_pod, "SideAdmin", role=Member.YARD_ADMIN)
+    url = reverse("managed_profile_edit", args=[author.pk])
+    assert (
+        _client_for(admin).post(url, {"photo_action": "upload", "photo": _upload()}).status_code
+        == 403
+    )
+    assert not ProfilePhoto.objects.filter(member=author).exists()
+    _photo_of(author)
+    assert _client_for(admin).post(url, {"photo_action": "remove"}).status_code == 403
+    assert ProfilePhoto.objects.filter(member=author).exists()
+    # ...and the page does not offer what the view would refuse.
+    assert 'class="photo-form"' not in _client_for(admin).get(url).content.decode()
+
+
+def test_an_admin_sets_the_photo_of_a_member_with_no_sign_in(world: dict[str, object]) -> None:
+    """The exception F1's narrow set needs: a grandparent on a No-Login Link cannot reach
+    Settings at all, so the admin who manages her is the only one who can give her a face."""
+    m_pod = world["m_pod"]
+    assert isinstance(m_pod, Pod)
+    admin = _member_with_user(m_pod, "SideAdmin", role=Member.YARD_ADMIN)
+    nana = Member.objects.create(display_name="Nana")
+    PodMembership.objects.create(member=nana, pod=m_pod)
+    response = _client_for(admin).post(
+        reverse("managed_profile_edit", args=[nana.pk]),
+        {"photo_action": "upload", "photo": _upload()},
+    )
+    assert response.status_code == 302
+    assert ProfilePhoto.objects.filter(member=nana).exists()
+
+
+def test_nobody_removes_a_photo_they_cannot_see(world: dict[str, object]) -> None:
+    """F1, the destructive half, and F5. The instance admin sits above the yard boundary
+    for ADMINISTRATION and below it for READING: they are refused the bytes of a far-side
+    face, so they may not hard-delete it blind, and the page does not tell them it exists."""
+    m_pod, other = world["m_pod"], world["other"]
+    assert isinstance(m_pod, Pod) and isinstance(other, Member)
+    owner = _member_with_user(m_pod, "Owner", role=Member.INSTANCE_ADMIN)
+    _photo_of(other)
+    url = reverse("managed_profile_edit", args=[other.pk])
+    page = _client_for(owner).get(url).content.decode()
+    assert "Remove Photo" not in page and "Change Photo" not in page
+    assert "/media/avatar/" not in page
+    assert _client_for(owner).post(url, {"photo_action": "remove"}).status_code == 403
+    assert ProfilePhoto.objects.filter(member=other).exists()
+
+
+def test_a_child_s_face_stays_inside_their_household(world: dict[str, object]) -> None:
+    """F2. A supervised child's dates default to the household (T-MINOR-6); the first cut
+    showed their face to the whole side. Pod-mates and the managing parent reach it; an
+    adult elsewhere on the same side gets the 404 and the initials disc."""
+    author, m_pod, maternal = world["author"], world["m_pod"], world["maternal"]
+    assert isinstance(author, Member) and isinstance(m_pod, Pod) and isinstance(maternal, Yard)
+    child = supervised.create_supervised_member(parent=author, display_name="Kiddo", pod=m_pod)
+    photo = _photo_of(child)
+    elsewhere = Pod.objects.create(name="Another maternal house")
+    elsewhere.yards.set([maternal])
+    same_side = _member_with_user(elsewhere, "SameSide")
+    url = reverse("serve_profile_photo", args=[photo.thumbnail_token])
+    assert _client_for(author).get(url).status_code == 200
+    assert _client_for(same_side).get(url).status_code == 404
+    assert child.pk not in scoping.photo_owner_ids(same_side, [child.pk])
+    # The directory still lists the child to their side, with the disc and not a dead image.
+    directory = _client_for(same_side).get(reverse("directory")).content.decode()
+    assert "Kiddo" in directory
+    assert photo.thumbnail_token not in directory and photo.token not in directory
+
+
+def test_a_byline_never_carries_a_face_its_viewer_cannot_fetch(world: dict[str, object]) -> None:
+    """F4. "The author of a post a viewer can see shares a yard with them" is usual, not
+    guaranteed: here the author's face is a child's, visible to the household only, while
+    the POST went to the whole side. The byline must fall back to the initials disc; a
+    token the serving view will refuse is a broken image beside a name."""
+    author, m_pod, maternal = world["author"], world["m_pod"], world["maternal"]
+    assert isinstance(author, Member) and isinstance(m_pod, Pod) and isinstance(maternal, Yard)
+    child = supervised.create_supervised_member(parent=author, display_name="Kiddo", pod=m_pod)
+    photo = _photo_of(child)
+    post = Post.objects.create(author=child, pod=m_pod, body="from the child")
+    post.audience_yards.set([maternal])
+    Comment.objects.create(post=post, author=child, body="and a reply")
+    elsewhere = Pod.objects.create(name="Another maternal house")
+    elsewhere.yards.set([maternal])
+    same_side = _member_with_user(elsewhere, "SameSide")
+    for page_url in (reverse("feed"), reverse("post_detail", args=[post.pk])):
+        page = _client_for(same_side).get(page_url).content.decode()
+        assert "from the child" in page
+        assert photo.thumbnail_token not in page and photo.token not in page
+        # The household still gets the picture on the same two pages.
+        assert photo.thumbnail_token in _client_for(author).get(page_url).content.decode() or (
+            photo.token in _client_for(author).get(page_url).content.decode()
+        )
+
+
+def test_a_hard_deleted_member_leaves_no_files_behind(
+    world: dict[str, object], django_capture_on_commit_callbacks: Any
+) -> None:
+    """F6. The row cascades off Member, and a cascade calls neither Model.delete() nor the
+    purge. No product path hard-deletes a member, which is exactly when a net earns its keep."""
+    m_pod = world["m_pod"]
+    assert isinstance(m_pod, Pod)
+    ghost = Member.objects.create(display_name="Ghost")
+    PodMembership.objects.create(member=ghost, pod=m_pod)
+    photo = _photo_of(ghost)
+    paths = [pathlib.Path(photo.image.path), pathlib.Path(photo.thumbnail.path)]
+    assert all(path.exists() for path in paths)
+    with django_capture_on_commit_callbacks(execute=True):
+        ghost.delete()
+    assert not ProfilePhoto.objects.filter(pk=photo.pk).exists()
+    assert not any(path.exists() for path in paths)
+
+
+# --- the database review of #223: every join that keeps a page flat is measured --------
+
+
+def _queries(client: Client, url: str) -> int:
+    client.get(url)  # warm the session and the member lookup
+    with CaptureQueriesContext(connection) as captured:
+        assert client.get(url).status_code == 200
+    return len(captured)
+
+
+def test_the_directory_does_not_ask_for_one_photo_per_member(world: dict[str, object]) -> None:
+    """Removing `select_related("profile_photo")` from the directory was invisible to the
+    suite and cost 213 queries for 200 rows (measured in review). `avatar_tokens` asks the
+    database whether or not anybody HAS a photo, so faces are added only to be honest."""
+    m_pod, pod_mate = world["m_pod"], world["pod_mate"]
+    assert isinstance(m_pod, Pod) and isinstance(pod_mate, Member)
+    client = _client_for(pod_mate)
+    small = _queries(client, reverse("directory"))
+    for index in range(6):
+        _photo_of(_member_with_user(m_pod, f"Cousin{index}"))
+    assert _queries(client, reverse("directory")) == small
+
+
+def test_a_thread_does_not_ask_for_one_photo_per_reply(world: dict[str, object]) -> None:
+    m_pod, pod_mate, post = world["m_pod"], world["pod_mate"], world["post"]
+    assert isinstance(m_pod, Pod) and isinstance(pod_mate, Member) and isinstance(post, Post)
+    client = _client_for(pod_mate)
+    url = reverse("post_detail", args=[post.pk])
+    Comment.objects.create(post=post, author=pod_mate, body="first")
+    small = _queries(client, url)
+    for index in range(6):
+        replier = _member_with_user(m_pod, f"Replier{index}")
+        _photo_of(replier)
+        Comment.objects.create(post=post, author=replier, body=f"reply {index}")
+    assert _queries(client, url) == small
+
+
+def test_the_contact_card_export_pays_nothing_for_faces(world: dict[str, object]) -> None:
+    """A vCard draws no face. The resolver it shares with the directory used to read one
+    unconditionally, so an UNCAPPED export joined a table for a field it never rendered;
+    the avatar is opt-in now (`with_avatar`), and this export neither joins nor asks."""
+    m_pod, pod_mate = world["m_pod"], world["pod_mate"]
+    assert isinstance(m_pod, Pod) and isinstance(pod_mate, Member)
+    client = _client_for(pod_mate)
+    url = reverse("directory_vcards")
+    small = _queries(client, url)
+    for index in range(6):
+        _photo_of(_member_with_user(m_pod, f"Cousin{index}"))
+    with CaptureQueriesContext(connection) as captured:
+        body = client.get(url).content.decode()
+    assert len(captured) == small
+    assert "profilephoto" not in " ".join(q["sql"] for q in captured).lower()
+    assert "PHOTO" not in body

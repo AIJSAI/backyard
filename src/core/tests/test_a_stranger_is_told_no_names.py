@@ -189,6 +189,10 @@ def test_a_bogus_token_on_every_token_surface_names_nobody() -> None:
         "/get-back-in/garbage/",
         "/digest/confirm/garbage/",
         "/digest/unsubscribe/garbage/",
+        # The two routes that serve bytes. Measured identical by hand in the security review
+        # of #223; listed here so it is a gate and not a measurement.
+        "/media/garbage/",
+        "/media/avatar/garbage/",
     ):
         page = client.get(path)
         assert page.status_code == 404, (path, page.status_code)

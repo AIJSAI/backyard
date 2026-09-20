@@ -561,6 +561,11 @@ def wipe(marker: str = SEED_MARKER) -> Counter[str]:
         # them. Measured on a live rehearsal: dry run said `4 core.MediaAsset`, the receipt
         # listed none at all.
         removed[MediaAsset._meta.label] = len(collected.get(MediaAsset, []))
+        # The same accounting for a marked member's face, for the same reason: the purge
+        # below deletes those rows itself, so the cascade has none left to report, and the
+        # preview (which reads the closure) promised them.
+        if collected.get(ProfilePhoto):
+            removed[ProfilePhoto._meta.label] = len(collected.get(ProfilePhoto, []))
         removed["files"] = _files_behind(collected)
         _purge_media_files(collected)
 

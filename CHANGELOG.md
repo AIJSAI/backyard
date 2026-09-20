@@ -69,6 +69,16 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   the photo deletes both files from the disk, and so does removing the member. "Download
   Your Data" carries the member's own photo. No email references it: mail here still
   fetches nothing.
+- **A child's face stays inside their household**, like their birthday: pod-mates and the
+  managing parent see it, the rest of the side sees the initials disc. A page is handed a
+  photo only for a face its reader may fetch, so a byline falls back to the disc rather
+  than drawing a broken image (an author can leave a side and leave their posts behind).
+- **Who may set or remove a face:** the member; the parent of a supervised child; the
+  Family Admin; and, for someone with no sign-in of their own, an admin who manages them.
+  Nobody removes a photo they cannot see. A side admin does not put a face on, or take
+  one off, an adult who can do it themselves.
+- Upgrade note: migration `0033` is additive. Rolling back past it drops the table and
+  leaves `media/avatar/` and `media/avatar-small/` on the volume; remove them by hand.
 
 
 ## [0.1.8] — 2026-09-20

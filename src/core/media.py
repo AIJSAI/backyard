@@ -205,16 +205,28 @@ def ingest_profile_photo(*, member: Member, raw: bytes) -> ProfilePhoto:
     member's current face exactly where it was.
     """
     img = _decode(raw)
+    # The small square is cut from the LARGE one, not from the camera frame a second time:
+    # a phone photograph is twelve megapixels or more, each pass over it is a full-size
+    # copy in memory, and the security review of #223 measured 339 MB of transient
+    # allocation to make one 128px square. (The pixel ceiling itself stays the one every
+    # photograph shares: a tighter one would refuse an ordinary phone picture.)
     full_bytes = _reencode_square(img, AVATAR_FULL_PX)
-    small_bytes = _reencode_square(img, AVATAR_SMALL_PX)
-    # One row and two files per member is the invariant: without this, a member trying
-    # four photographs leaves six orphaned renditions on the volume with no row to reach
-    # or purge them by.
-    purge_profile_photo(member)
-    photo = ProfilePhoto(member=member, content_type=_OUTPUT_CONTENT_TYPE)
-    photo.image.save(f"{photo.token}.jpg", ContentFile(full_bytes), save=False)
-    photo.thumbnail.save(f"{photo.thumbnail_token}.jpg", ContentFile(small_bytes), save=False)
-    photo.save()
+    img.close()
+    with Image.open(io.BytesIO(full_bytes)) as large:
+        small_bytes = _reencode_square(large, AVATAR_SMALL_PX)
+    with transaction.atomic():
+        # Serialised on the member's row. Two uploads at once (a double tap on a slow
+        # connection) would otherwise both purge, both insert, and the loser would meet the
+        # one-photo-per-member constraint as a 500.
+        Member.objects.select_for_update().get(pk=member.pk)
+        # One row and two files per member is the invariant: without this, a member trying
+        # four photographs leaves six orphaned renditions on the volume with no row to
+        # reach or purge them by.
+        purge_profile_photo(member)
+        photo = ProfilePhoto(member=member, content_type=_OUTPUT_CONTENT_TYPE)
+        photo.image.save(f"{photo.token}.jpg", ContentFile(full_bytes), save=False)
+        photo.thumbnail.save(f"{photo.thumbnail_token}.jpg", ContentFile(small_bytes), save=False)
+        photo.save()
     return photo
 
 

@@ -149,6 +149,25 @@ def can_edit_profile_of(actor: Member, target: Member) -> bool:
     return is_admin(actor) and can_manage_member(actor, target)
 
 
+def can_edit_profile_photo_of(actor: Member, target: Member) -> bool:
+    """May `actor` set or remove `target`'s profile photo?
+
+    NARROWER than can_edit_profile_of, on the principle profile_views already states for
+    contact fields: a face is the most identifying field there is, and an adult with a
+    sign-in chooses their own. So: yourself; the managing parent of a supervised child;
+    the instance admin; and, for a member with NO sign-in of their own (a grandparent on
+    a No-Login Link cannot reach Settings at all), an admin who may manage them. A side
+    admin does not put a face on, or take one off, an adult who can do it themselves.
+    """
+    if actor.pk == target.pk:
+        return True
+    if target.is_supervised:
+        return target.managing_parent_id == actor.pk or is_instance_admin(actor)
+    if is_instance_admin(actor):
+        return True
+    return target.user_id is None and can_manage_member(actor, target)
+
+
 def can_create_supervised(actor: Member, parent: Member) -> bool:
     """May `actor` create a supervised account managed by `parent`?
 

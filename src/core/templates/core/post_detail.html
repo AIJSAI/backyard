@@ -8,7 +8,7 @@
      card, so nothing named the page for a reader or a screen reader. The heading is
      the post's author, which is what a person opening a thread is looking for. {% endcomment %}
   <h1 class="who-row">
-    {% avatar post.author.display_name post.author_id "lg" photo=post.author.avatar_tokens %}
+    {% avatar post.author.display_name post.author_id "lg" photo=author_photo %}
     <span class="who">{{ post.author.display_name }}{% if post.author.kinship_name %} ({{ post.author.kinship_name }}){% endif %}</span>
   </h1>
 
@@ -87,7 +87,7 @@
     {% for comment in comments %}
       <li>
         <div class="who-row">
-          {% avatar comment.author.display_name comment.author_id "sm" photo=comment.author.avatar_tokens %}
+          {% avatar comment.author.display_name comment.author_id "sm" photo=comment.author_photo %}
           <span class="who">
             <span class="author">{{ comment.author.display_name }}{% if comment.author.kinship_name %} ({{ comment.author.kinship_name }}){% endif %}</span>{% if comment.via_email %} <span class="via-email">Via Email</span>{% endif %}
             <span class="when">{% when comment.created_at %}</span>

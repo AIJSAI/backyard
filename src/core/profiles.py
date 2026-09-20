@@ -118,6 +118,16 @@ def _can_see_field(
     return False
 
 
+def _can_see_face(viewer: Member, member: Member, viewer_pod_ids: set[int]) -> bool:
+    """scoping.visible_profile_photos, for one already-visible member, without a query for
+    anybody but a supervised child (who is rare, and whose pods are then looked up)."""
+    if not member.is_supervised or viewer.id == member.id:
+        return True
+    if member.managing_parent_id == viewer.id:
+        return True
+    return bool(viewer_pod_ids & scoping.member_pod_ids(member))
+
+
 def placing_text(
     viewer: Member, member: Member, *, shared_pods: Sequence[Pod] | None = None
 ) -> str:
@@ -154,6 +164,7 @@ def viewable_profile(
     *,
     viewer_pod_ids: set[int] | None = None,
     placing: str = "",
+    with_avatar: bool = False,
 ) -> ViewableProfile:
     """The member's profile as this viewer may see it: only the contact fields the
     viewer is scoped for, each present only if it has a value. The caller may pass the
@@ -192,10 +203,18 @@ def viewable_profile(
         anniversary=anniversary,
         contacts=contacts,
         placing=placing,
-        # Not gated by a visibility choice, unlike the fields above: this resolver only
-        # ever runs for a member the viewer can already see, and that is the same rule
-        # the serving view checks the fetch against (scoping.visible_profile_photos).
-        avatar_tokens=member.avatar_tokens,
+        # The same rule the serving view checks the fetch against, restated per row so a
+        # directory of two hundred costs no query for it (scoping.visible_profile_photos):
+        # this resolver only runs for a member the viewer can already see, and a CHILD's
+        # face is further narrowed to their household, their parent and themselves.
+        # Empty unless the caller asked, like `placing`: the vCard exporter draws no face
+        # and must not pay for one (an UNCAPPED export joined a table for a field it never
+        # rendered, and a single card paid a query for it).
+        avatar_tokens=(
+            member.avatar_tokens
+            if with_avatar and _can_see_face(viewer, member, viewer_pod_ids)
+            else None
+        ),
     )
 
 
