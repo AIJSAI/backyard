@@ -13,6 +13,12 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
+Nothing yet.
+
+## [0.1.7] — 2026-09-19
+
+One fix, found by reading a real mail in Gmail after 0.1.6 deployed.
+
 ### Fixed
 
 - **The mail header lines up in Gmail.** Gmail removes inline SVG, so the house mark never
@@ -965,6 +971,7 @@ Everything here is a correction, not a feature. `v0.1.0` is **withdrawn**: insta
 - The demo family is fully invented; no real relative's name appears.
 - Fonts ship with their licence text (SIL OFL 1.1).
 
+[0.1.7]: https://github.com/AIJSAI/backyard/tree/v0.1.7
 [0.1.6]: https://github.com/AIJSAI/backyard/tree/v0.1.6
 [0.1.5]: https://github.com/AIJSAI/backyard/tree/v0.1.5
 [0.1.4]: https://github.com/AIJSAI/backyard/tree/v0.1.4
