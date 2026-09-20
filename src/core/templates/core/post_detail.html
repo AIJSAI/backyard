@@ -2,7 +2,6 @@
 {% load avatars %}
 {% load times %}
 {% block title %}Post And Replies{% endblock %}
-{% block extra_head %}{% include "core/_composer_open_without_script.html" %}{% endblock %}
 {% block body %}
   <p class="back-link"><a class="back" href="{% url 'feed' %}">Back To The Feed</a></p>
   {% comment %} The thread page had no h1 at all: it opened on a bare link and then a

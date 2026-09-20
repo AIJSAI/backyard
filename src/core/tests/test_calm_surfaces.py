@@ -166,8 +166,11 @@ def test_the_composer_primary_is_left_aligned_and_unruled() -> None:
     assert "border-top" not in rule.group(1)
 
 
+# `.js-collapse` is the point: only the script that can lift the collapse may switch it on, so
+# a page whose script never ran (scripting off, a stripped nonce, half a page) draws the form.
 _COLLAPSED = (
-    ".composer.collapsible:not(.is-open):not(:focus-within):has(textarea:placeholder-shown)"
+    ".composer.collapsible.js-collapse"
+    ":not(.is-open):not(:focus-within):has(textarea:placeholder-shown)"
 )
 
 
@@ -211,11 +214,16 @@ def test_nothing_a_person_presses_hides_when_the_box_loses_focus(world: dict[str
         assert "data-media-picker" in form
         if 'class="composer-extras"' in form:
             assert "data-media-picker" not in form.split('class="composer-extras"')[1]
-        # Scripting off: the pages force the composer open rather than leave the audience
-        # behind a rule only a script can lift for good.
-        assert "<noscript><style>" in page
-    # The sticky half: the script opens the composer on first touch and never closes it.
+        # The server never draws it collapsed: that class is the script's alone.
+        assert "js-collapse" not in form.split(">", 1)[0]
+    # No rule collapses a composer the script has not claimed.
+    css = _style()
+    for rule in re.findall(r"^\.composer\.collapsible[^{]*\{[^}]*display: none", css, re.MULTILINE):
+        assert ".js-collapse" in rule, rule
+    # The sticky half: the script claims the form, opens it on first touch, never closes it.
     script = _BASE.with_name("_composer_media.html").read_text()
+    assert 'querySelectorAll("form.composer.collapsible")' in script
+    assert 'classList.add("js-collapse")' in script
     assert 'classList.add("is-open")' in script
     assert 'classList.remove("is-open")' not in script
 

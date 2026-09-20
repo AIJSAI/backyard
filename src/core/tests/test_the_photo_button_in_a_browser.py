@@ -11,8 +11,10 @@ unfocused, the button lived inside the extras, so it was gone between the press 
 release and the click landed on the form. The reply form had the same shape.
 
 So these tests TAP, on the two engines a family's phones run (WebKit for iOS Safari,
-Chromium for Android Chrome), and they start from an empty, untouched composer. A test
-that types first, or that calls `set_input_files` on the input, cannot see this defect.
+Chromium for Android Chrome), and they start from an EMPTY composer: the feed test makes
+the button its very first touch, the reply test taps the box first and leaves it empty,
+which is the sequence the owner met. A test that types first, or that calls
+`set_input_files` on the input, cannot see this defect.
 
 Excluded from the default unit run (`-m 'not e2e'`); runs in the browser lane.
 """
@@ -21,6 +23,7 @@ from __future__ import annotations
 
 import io
 import os
+import secrets
 from pathlib import Path
 from typing import Any
 
@@ -50,11 +53,16 @@ _ENGINES = [
 
 
 def _seed() -> tuple[str, int]:
-    """A member in a household with one post to reply to. Returns (session cookie, post id)."""
-    yard = Yard.objects.create(name="Maternal", slug="maternal")
+    """A member in a household with one post to reply to. Returns (session cookie, post id).
+
+    Identifiers are unique per call. A `transaction=True` teardown can lose its flush to a
+    request the live server is still answering, and a fixed slug or username turns that into
+    a duplicate-key failure in the NEXT test, which is then the one that reads red."""
+    tag = secrets.token_hex(4)
+    yard = Yard.objects.create(name="Maternal", slug=f"maternal-{tag}")
     pod = Pod.objects.create(name="The cousins", kind=Pod.HOUSEHOLD)
     pod.yards.set([yard])
-    user = User.objects.create_user(username="poster", password=_PW)
+    user = User.objects.create_user(username=f"poster-{tag}", password=_PW)
     member = Member.objects.create(display_name="Ann Poster", user=user)
     PodMembership.objects.create(member=member, pod=pod)
     post = posting.create_post(author=member, pod=pod, audience_yards=[], body="Reply to this one")
@@ -80,6 +88,16 @@ def _signed_in_page(
     return browser, context.new_page()
 
 
+def _let_the_server_finish(page: Page) -> None:
+    """Wait for the page's own requests (the photo it just posted) before the test ends.
+
+    `to_have_count` is satisfied by the <img> TAG, not by its bytes, so a test could end
+    with `/media/<token>/` still being answered. `live_server` is session-scoped and the
+    database flush is per test: the flush then deadlocks against that request, fails, and
+    leaves rows behind for whichever test runs next. Measured at about one run in six."""
+    page.wait_for_load_state("networkidle")
+
+
 @pytest.mark.parametrize(("engine", "device"), _ENGINES)
 def test_the_photo_button_opens_the_sheet_on_an_empty_composer(
     live_server: Any, playwright: Playwright, tmp_path: Path, engine: str, device: str
@@ -95,9 +113,9 @@ def test_the_photo_button_opens_the_sheet_on_an_empty_composer(
         expect(composer.get_by_role("button", name="Post", exact=True)).to_be_visible()
         expect(composer.get_by_text("Who Can See This")).to_be_hidden()
 
-        # The defect, exactly as it was met: nothing typed, the box tapped and left, and
-        # then the button. Focus leaving an EMPTY box is what used to close the form.
-        composer.get_by_label("Share Something").tap()
+        # The headline case: the button is the FIRST thing touched. No focusin has run, so
+        # nothing has opened the composer for good; only the button's place in the DOM can
+        # make this work. (The reply test below takes the other road: the box first.)
         with page.expect_file_chooser(timeout=5000) as chooser:
             button.tap()
         chooser.value.set_files(_photo(tmp_path, "lake.jpg"))
@@ -110,11 +128,14 @@ def test_the_photo_button_opens_the_sheet_on_an_empty_composer(
 
         composer.get_by_label("Share Something").fill("At the lake")
         composer.get_by_role("button", name="Post", exact=True).tap()
-        page.wait_for_url(f"{live_server.url}/feed/")
+        # No wait_for_url: posting from the feed lands on the feed, so a URL wait is already
+        # satisfied before the POST has left. The locators below retry across it.
         first = page.locator("ul.feed > li").first
         expect(first.get_by_text("At the lake")).to_be_visible()
         expect(first.locator("img")).to_have_count(1)
+        _let_the_server_finish(page)
     finally:
+        page.context.close()
         browser.close()
 
 
@@ -129,6 +150,8 @@ def test_the_photo_button_opens_the_sheet_on_an_empty_reply(
     try:
         page.goto(f"{live_server.url}/posts/{post_id}/")
         reply = page.locator("form#reply")
+        # The owner's own sequence: the box tapped and left EMPTY, then the button. Focus
+        # leaving an empty box is what used to close the form under the press.
         reply.get_by_label("Write A Reply").tap()
         with page.expect_file_chooser(timeout=5000) as chooser:
             reply.get_by_text("Add Photos Or Videos", exact=True).tap()
@@ -136,7 +159,10 @@ def test_the_photo_button_opens_the_sheet_on_an_empty_reply(
         expect(reply.locator("ul.media-previews > li")).to_have_count(1)
 
         reply.get_by_role("button", name="Reply", exact=True).tap()
-        page.wait_for_url(f"{live_server.url}/posts/{post_id}/*")
+        # No wait_for_url: the reply redirects to the URL the page is already on, so a URL
+        # wait is satisfied before the POST has left. The locator retries across it.
         expect(page.locator("ul.comments > li img")).to_have_count(1)
+        _let_the_server_finish(page)
     finally:
+        page.context.close()
         browser.close()

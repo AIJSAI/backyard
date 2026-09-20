@@ -24,6 +24,13 @@
       // about to be posted.
       var composers = document.querySelectorAll("form.composer.collapsible");
       Array.prototype.forEach.call(composers, function (composer) {
+        // NOTHING COLLAPSES UNTIL THIS LINE RUNS. The collapse used to be the default,
+        // lifted by a <noscript> rule, and that rule cannot fire in the one state that
+        // matters: scripting on, this script never arrived (a proxy that strips the
+        // nonce, a blocker, half a page). There the audience controls hid on blur again.
+        // A composer whose script did not run renders open, the only state in which
+        // every control is pressable whatever else has gone wrong.
+        composer.classList.add("js-collapse");
         function open() { composer.classList.add("is-open"); }
         ["focusin", "input", "change"].forEach(function (name) {
           composer.addEventListener(name, open);

@@ -16,9 +16,11 @@
 
      posts default to the household               scoping.visible_posts
      posting to a SIDE asks you to confirm        feed_views.compose, TM-3 (a GROUP does not)
-     you see the sides your household is on       scoping.visible_yards
+     you see the sides your pods are on           scoping.visible_yards (household AND groups)
      an admin sees no more than you do            scoping.visible_posts has no admin path
-     a takedown is permanent                      moderation.take_down_post
+     a takedown is silent and permanent           moderation.take_down_post
+     the download is posts, replies and photos    export.py (not the profile or the e-mail address)
+     a No-Login Link reader sends love, no reply  elder_feed.html, feed_views.add_comment
      email updates are off until turned on        digesting, DigestSubscription
      photos are never in an email                 core/email/digest.txt links, never attaches
      the one per-person datum                     models.MemberWeekPresence (S-705 / GAP-7:
@@ -27,7 +29,7 @@
      removal is an admin's act, with a choice     removal.CONTENT_CHOICES
 
    A SIDE IS NEVER DESCRIBED FROM ABOVE. Most readers are on one side and the page says
-   only what is true for them: "you see the sides your household belongs to". The old
+   only what is true for them: "you see the sides your household and your groups are on". The old
    paragraph about households that belong to both sides explained the other side's
    existence to people who cannot see it.
 
@@ -37,22 +39,22 @@
 {% block title %}How It Works{% endblock %}
 {% block body %}
   <h1>How It Works</h1>
-  <p>Backyard keeps everyone connected and up to date in one private place: birthdays,
-    trips, big events, everyday photos. It works like a private Instagram.</p>
+  <p>Backyard keeps everyone connected and up to date on a private network: birthdays,
+    trips, big events. It works like a private Instagram.</p>
 
   <h2>Posting</h2>
   <p>Share words, photos or videos from the top of your feed. A post goes to your
-    household unless you choose more people under Who Can See This.</p>
+    household unless you pick a group or add a side under Who Can See This.</p>
   <ul>
     <li><strong>Household</strong>: the people you live with.</li>
     <li><strong>Side</strong>: one side of the family. Posting to a side shows how many
       people will see it and asks you to confirm.</li>
     <li><strong>Group</strong>: people somebody picked, like the cousins or a trip.</li>
   </ul>
-  <p>You see the sides your household belongs to. Anyone who can see a post can reply to
-    it and react to it.</p>
-  <p>You can edit a post for fifteen minutes. Delete Post removes it and its photos for
-    good.</p>
+  <p>You see the sides your household and your groups are on. Signed in, you can reply to
+    any post you can see and react to it.</p>
+  <p>Photos are shown only to the people the post was shared with. You can edit a post
+    for fifteen minutes. Delete Post removes it and its photos for good.</p>
 
   <h2>Joining</h2>
   <p>Backyard is invitation only. An admin sends a link, and you open it to choose a name,
@@ -62,27 +64,29 @@
      is what both admin pages that hand out the link say. {% endcomment %}
   <p>For someone who won't use a password, an admin can make a <strong>No-Login
     Link</strong>. It opens a large-text page of recent posts with one button to send
-    love. It works for whoever holds it, so send it privately.</p>
+    love. Whoever holds it can read and send love as that person, so send it privately.</p>
 
   <h2>Admins</h2>
-  <p>Admins add and remove people. They see only the posts shared with them, the same as
-    everyone else. An admin can take down a post they can see, and that is permanent.</p>
+  <p>Admins add and remove people: a Side Admin on their side, a Family Admin everywhere.
+    They see only the posts shared with them, the same as everyone else. An admin can take
+    down a post they can see. That is permanent, and the author is not told.</p>
 
   <h2>Email Updates</h2>
-  <p>Get new posts by email, weekly or monthly. It's off until you turn it on, and every
-    email has a link to stop them. Photos stay on Backyard: the email links to them.</p>
+  <p>Get new posts by email, weekly or monthly. It's off until you turn it on, and it goes
+    to an address you've confirmed. If nobody posted, nothing is sent. Every update has a
+    link to stop them. Photos stay on Backyard: the email links to them.</p>
   {% if user.is_authenticated %}
     <p><a class="btn" href="{% url 'digest_settings' %}">Manage Email Updates</a></p>
   {% endif %}
 
   <h2>Your Data</h2>
   <p>Backyard keeps your posts, replies, photos and profile, your username, and your email
-    address if you add one. You can download all of it.</p>
+    address if you add one. You can download your posts, replies and photos.</p>
   {% comment %} S-705 / GAP-7, in one sentence a person will read. The shipped version took
      a paragraph to say the same thing and then listed what is NOT collected, which is the
      defence nobody asked for. {% endcomment %}
-  <p>Once a week it also notes whether you visited, yes or no, so admins can see how many
-    people are using it. It doesn't track what you read or tap.</p>
+  <p>Once a week it also notes whether you visited, yes or no. Admins see the total for a
+    side, never who. It doesn't track what you read or tap.</p>
   {% if user.is_authenticated %}
     <p><a class="btn" href="{% url 'export_data' %}">Download Your Data</a></p>
   {% endif %}
@@ -98,9 +102,10 @@
   {% endif %}
 
   <h2>Leaving</h2>
-  <p>Leave a group anytime on the Groups page. To leave Backyard, ask {% if help_contact %}{{ help_contact }}{% else %}the
+  <p>Leave a group on the Groups page. To leave Backyard, ask {% if help_contact %}{{ help_contact }}{% else %}the
     person who invited you{% endif %} to remove you. Your posts can stay, stay without your
-    name, or be deleted. Download your data first if you want a copy.</p>
+    name, or be deleted along with their photos. Download your data first if you want a
+    copy.</p>
 
   {% comment %} SIGNED IN ONLY. The signed-out footer already carries How It Works and
      About side by side, so a second About link here would be the same link twice on one

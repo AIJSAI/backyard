@@ -29,7 +29,6 @@
 }
 .email-prompt .btn-quiet:hover { background: none; border-color: transparent; }
 </style>
-{% include "core/_composer_open_without_script.html" %}
 {% endblock %}
 {% block body %}
   {% comment %} Paging back is a different page and it has to say so. It used to keep the
@@ -162,6 +161,11 @@
 
     <div class="composer-submit"><button type="submit">Post</button></div>
   </form>
+  {% comment %} Directly after the form, not at the end of the page: this script is what
+     turns the collapse on, and a parser-blocking inline script here runs before the feed
+     below it is painted, so the composer never draws open for a frame and then folds.
+     The reply form on the post page has always had it in this position. {% endcomment %}
+  {% include "core/_composer_media.html" %}
 
   {% comment %} BY-02/BY-03. This member has no email address anywhere — not on their
      account and not as an allauth address — so "Forgot your password?" cannot reach them,
@@ -289,6 +293,5 @@
     <p class="older"><a href="{% url 'feed' %}">Back To The Newest Posts</a></p>
   {% endif %}
 
-  {% if not is_archive_page %}{% include "core/_composer_media.html" %}{% endif %}
 {% endblock %}
 {% block extra_body %}{% include "core/_localise_times.html" %}{% endblock %}

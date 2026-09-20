@@ -20,7 +20,8 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   sat inside the part of the form that hides while the box is empty and unfocused, and
   pressing a label takes focus off the box. The reply form had the same defect. The button is
   part of the composer's resting state now, beside Post; the first touch opens the composer
-  and it stays open; with scripting off it renders open. Browser tests tap the button on an
+  and it stays open; the collapse is switched on only by the script that can lift it, so a
+  page whose script never ran draws the whole form. Browser tests tap the button on an
   untouched composer on WebKit and Chromium, which no test or walk had done.
 
 ### Changed
@@ -32,7 +33,7 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   nothing about sides they cannot see. The rules are in `docs/design/voice.md`, "The second
   read".
 - The composer's prompt is "Share Something" and the photo button reads "Add Photos Or
-  Videos" (a post takes up to four).
+  Videos" (a post takes up to four videos).
 
 ## [0.1.7] — 2026-09-19
 

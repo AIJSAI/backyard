@@ -768,17 +768,17 @@ label.inline-check.email-row { flex-wrap: wrap; }
    is the box you type in, the button that adds a photo and the button that posts; who
    can see the post and the picker's small print wait until the composer is in use.
 
-   WHAT OPENS IT, and why there are three answers. `.is-open` is the sticky one: the
-   server sets it for a bounced compose (it carries a draft or staged photos, so it must
-   open with them showing) and core/_composer_media.html sets it the first time anybody
-   touches the form, and nothing ever removes it. `:focus-within` and a body that is no
-   longer empty are the fallback for a page whose script did not run. With scripting OFF
-   the pages that draw a composer force it open from a <noscript> rule, which is the old
-   behaviour.
+   WHAT COLLAPSES IT, AND WHAT OPENS IT. Only the script in core/_composer_media.html
+   turns the collapse ON (`js-collapse`), so a page whose script never ran, for any reason,
+   draws the whole form. `.is-open` opens it for good: the server sets it for a bounced
+   compose (it carries a draft or staged photos, so it must open with them showing) and the
+   same script sets it the first time anybody touches the form; nothing ever removes it.
+   `:focus-within` and a body that is no longer empty cover the instant before that handler
+   has run.
 
-   NOTHING A PERSON CAN PRESS LIVES INSIDE THE PART THAT HIDES ON BLUR. The photo button
-   used to, and that was the defect the owner hit writing the first real post: pressing a
-   <label> takes focus off the textarea, so with an empty box the button disappeared
+   THE PHOTO BUTTON IS NEVER INSIDE THE PART THAT HIDES. It used to be, and that was the
+   defect the owner hit writing the first real post: pressing a <label> takes focus off
+   the textarea, so with an empty box the button disappeared
    between the press and the release, the click landed on the form, and the photo sheet
    never opened. The picker is a sibling of `.composer-extras` now, and the sticky class
    means the audience controls are safe from the same thing.
@@ -797,14 +797,14 @@ label.inline-check.email-row { flex-wrap: wrap; }
    opening the composer does not resize the button under a thumb. */
 .composer.collapsible .media-picker.js > .picker-button { padding-inline: 0.9rem; font-size: 0.95rem; }
 .composer.collapsible > * { flex: 0 0 100%; min-width: 0; }
-.composer.collapsible:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) .composer-extras,
-.composer.collapsible:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) .media-hint {
+.composer.collapsible.js-collapse:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) .composer-extras,
+.composer.collapsible.js-collapse:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) .media-hint {
   display: none;
 }
-.composer.collapsible:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) > .media-picker {
+.composer.collapsible.js-collapse:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) > .media-picker {
   flex: 1 1 auto;
 }
-.composer.collapsible:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) > .composer-submit {
+.composer.collapsible.js-collapse:not(.is-open):not(:focus-within):has(textarea:placeholder-shown) > .composer-submit {
   flex: 0 0 auto; margin-top: 1rem;
 }
 
