@@ -52,30 +52,6 @@ a point somebody deliberately stopped at, with a full green gate behind it.
 - The feed's reactor line uses first names ("Love: Rose, Sam, Dave"); the post page still
   names everybody in full. Love and Reply carry a drawn heart and a speech bubble, and a
   pressed Love is the heart filled in.
-<<<<<<< HEAD
-- **Backyard goes on a phone's home screen, and the product finally says how.** The
-  manifest, the icons and the service worker that make this possible have shipped since
-  `0.1.0`; nothing on any screen ever mentioned them, so the only people with Backyard as
-  an app were the ones who already knew what Safari's Share sheet does. There is now a
-  **Get The App** page at `/app/` with the steps for the phone in your hand first and the
-  other platform below it: three steps on an iPhone (Share, Add to Home Screen, Add), and
-  on Android a real **Install App** button with the browser-menu steps behind it for the
-  browsers that do not offer one. Opened inside Instagram, Facebook or LinkedIn, where no
-  home screen can be reached at all, it says to open in a browser first. Opened from an
-  already-installed Backyard, it says so instead of showing steps. It is reached from
-  Settings, from the last screen of the welcome a new member sees, from How It Works, and
-  from one quiet line on the feed that appears on a phone only, once, and remembers being
-  declined on that device. Nothing was added to the No-Login Link or the email pages,
-  which install nothing by design.
-- **The installed app asks you to sign in once, inside it, and the page says why.** On an
-  iPhone a home-screen app keeps its own sign-in, separate from Safari, so the session in
-  your browser is not the session in the icon. A Sign-In Link from an admin opens in
-  Safari; use it to choose a password and then sign in to the app with that password.
-- **The manifest now states its own `id`.** It is the value it already had implicitly,
-  `/feed/`, written down so it cannot drift: a different `id` reads to Chrome as a
-  different app, which would leave a second icon beside an existing install. Nothing about
-  an installed Backyard changes.
-=======
 - **A member can add a profile photo.** Settings carries one control: upload it, replace it,
   remove it. A parent sets a child account's photo the same way they already edit that
   profile. The photo then shows wherever a name leads something — the feed, a thread, a
@@ -103,8 +79,28 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   one off, an adult who can do it themselves.
 - Upgrade note: migration `0033` is additive. Rolling back past it drops the table and
   leaves `media/avatar/` and `media/avatar-small/` on the volume; remove them by hand.
-
->>>>>>> origin/main
+- **Backyard goes on a phone's home screen, and the product finally says how.** The
+  manifest, the icons and the service worker that make this possible have shipped since
+  `0.1.0`; nothing on any screen ever mentioned them, so the only people with Backyard as
+  an app were the ones who already knew what Safari's Share sheet does. There is now a
+  **Get The App** page at `/app/` with the steps for the phone in your hand first and the
+  other platform below it: three steps on an iPhone (Share, Add to Home Screen, Add), and
+  on Android a real **Install App** button with the browser-menu steps behind it for the
+  browsers that do not offer one. Opened inside Instagram, Facebook or LinkedIn, where no
+  home screen can be reached at all, it says to open in a browser first. Opened from an
+  already-installed Backyard, it says so instead of showing steps. It is reached from
+  Settings, from the last screen of the welcome a new member sees, from How It Works, and
+  from one quiet line on the feed that appears on a phone only, once, and remembers being
+  declined on that device. Nothing was added to the No-Login Link or the email pages,
+  which install nothing by design.
+- **The installed app asks you to sign in once, inside it, and the page says why.** On an
+  iPhone a home-screen app keeps its own sign-in, separate from Safari, so the session in
+  your browser is not the session in the icon. A Sign-In Link from an admin opens in
+  Safari; use it to choose a password and then sign in to the app with that password.
+- **The manifest now states its own `id`.** It is the value it already had implicitly,
+  `/feed/`, written down so it cannot drift: a different `id` reads to Chrome as a
+  different app, which would leave a second icon beside an existing install. Nothing about
+  an installed Backyard changes.
 
 ## [0.1.8] — 2026-09-20
 
