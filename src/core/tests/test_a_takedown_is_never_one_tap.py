@@ -203,7 +203,10 @@ def test_an_admin_reading_their_own_post_is_offered_edit_and_delete_only(
     mine.audience_yards.set([yard])
 
     body = _client(world).get(reverse("feed")).content.decode()
-    row = body[body.index("My own post") :]
+    # From the item's own id, not from its words: the two controls moved into the
+    # overflow menu in the header row, which sits ABOVE the post's body, so slicing
+    # forward from the words now starts after them.
+    row = body[body.index(f'id="post-{mine.id}"') :]
     row = row[: row.index("</li>")]
     assert reverse("delete_post", args=[mine.id]) in row
     assert reverse("take_down_post", args=[mine.id]) not in row, (

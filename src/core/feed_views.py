@@ -235,6 +235,10 @@ def _reply_counts_for_page(member: Member, post_ids: list[int]) -> dict[int, int
     counted = (
         scoping.visible_comments(member)
         .filter(post_id__in=post_ids)
+        # order_by() FIRST, and it is load-bearing: Comment carries a Meta ordering, and
+        # Django adds every ordering column to the GROUP BY of an aggregate — so the
+        # grouping silently became (post, created_at) and every post reported one reply.
+        .order_by()
         .values_list("post_id")
         .annotate(replies=Count("id", distinct=True))
     )
