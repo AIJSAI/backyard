@@ -193,7 +193,11 @@
       </form>
     </div>
   {% endif %}
-  {% include "core/_get_the_app_prompt.html" %}
+  {% comment %} ONE PROMPT AT A TIME. With the e-mail line above also showing, a new member
+     had two sentences and two "Not Now"s between the composer and the first photograph,
+     which is the wall of chrome the walk of 2026-09-19 took down once already. Getting
+     back into an account outranks an icon, so the app line waits its turn. {% endcomment %}
+  {% if not email_prompt %}{% include "core/_get_the_app_prompt.html" %}{% endif %}
   {% endif %}
 
   <ul class="feed">

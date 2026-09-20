@@ -28,6 +28,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
+from django.utils import timezone
 
 from core import digest_links, elder_tokens
 from core.models import DigestIssue, Member, Pod, PodMembership, Post, Yard
@@ -257,11 +258,34 @@ def test_the_welcome_step_needs_a_member_like_every_other_screen() -> None:
 # --- the quiet line on the feed --------------------------------------------------------
 
 
+def _past_the_email_offer(member: Member) -> None:
+    """The feed shows ONE prompt at a time and the e-mail offer goes first, so the install
+    line is only on the page of a member who has answered that one."""
+    member.email_prompt_dismissed_at = timezone.now()
+    member.save(update_fields=["email_prompt_dismissed_at"])
+
+
+def test_the_feed_shows_one_prompt_at_a_time_and_email_goes_first() -> None:
+    """Two sentences and two "Not Now"s between the composer and the first photograph is
+    the wall of chrome the 2026-09-19 walk took down. Getting back into an account
+    outranks an icon on a home screen, so the install line waits its turn."""
+    pod, _admin = _family()
+    client, member = _member(pod)
+    body = client.get(reverse("feed")).content.decode()
+    assert 'class="email-prompt"' in body
+    assert "data-app-prompt" not in body
+    _past_the_email_offer(member)
+    body = client.get(reverse("feed")).content.decode()
+    assert 'class="email-prompt"' not in body
+    assert "data-app-prompt" in body
+
+
 def test_the_feed_line_ships_hidden_and_only_a_script_reveals_it() -> None:
     """No flash. Every reason to show it — a phone, not installed, not already declined —
     is a browser fact, so the server sends it hidden and the script decides."""
     pod, _admin = _family()
-    client, _row = _member(pod)
+    client, row = _member(pod)
+    _past_the_email_offer(row)
     body = client.get(reverse("feed")).content.decode()
     assert '<div class="app-prompt" data-app-prompt hidden>' in body
     assert "display-mode: standalone" in body
@@ -273,7 +297,8 @@ def test_the_feed_line_sits_under_the_composer_beside_the_email_offer() -> None:
     """Item 5 of the phone-width walk cut a screen-tall card down to one line under the
     composer. A second card above it would put the product straight back."""
     pod, _admin = _family()
-    client, _row = _member(pod)
+    client, row = _member(pod)
+    _past_the_email_offer(row)
     body = client.get(reverse("feed")).content.decode()
     assert body.index('class="composer') < body.index('class="app-prompt"')
     assert body.index('class="app-prompt"') < body.index('<ul class="feed">')
@@ -299,7 +324,8 @@ def test_the_dismissal_is_per_device_and_survives_no_storage() -> None:
     localStorage rather than returning null, and an exception would take the rest of the
     script with it."""
     pod, _admin = _family()
-    client, _row = _member(pod)
+    client, row = _member(pod)
+    _past_the_email_offer(row)
     script = client.get(reverse("feed")).content.decode()
     block = script[script.index("data-app-prompt-dismiss") :]
     assert "try {" in block and "catch (error)" in block
@@ -329,8 +355,6 @@ def test_the_email_web_view_carries_no_install_surface() -> None:
     """/d/ shares base.html with member pages but mints no session, so its reader is an
     intermittent email-link visitor, not a member. Same rule."""
     import datetime
-
-    from django.utils import timezone
 
     pod, _admin = _family()
     yard = pod.yards.first()
