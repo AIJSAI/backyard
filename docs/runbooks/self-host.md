@@ -282,17 +282,25 @@ reputation. Set SPF, DKIM and DMARC. Ask the first few people to mark it "not sp
 
 ---
 
-### The name on your mail
+### The name and the address on your mail
 
 ```bash
 BACKYARD_MAIL_FROM_NAME=Backyard        # or your family's name
+DEFAULT_FROM_EMAIL=backyard@mail.example.com
 ```
 
-Every message this instance sends carries it, including the address confirmation — often
-the first thing the software ever sends anybody. Without it, mail arrives as
-`digests@mail.example`, or as just `digests` in the clients that shorten it, which is how
-a family's own photographs come to look like something a spam filter should eat. The
-ADDRESS is still `DEFAULT_FROM_EMAIL`; this is only the name beside it.
+Every message this instance sends carries the name, including the address confirmation —
+often the first thing the software ever sends anybody. Without it, mail arrives as the bare
+address, or as just the part in front of the `@` in the clients that shorten it, which is
+how a family's own photographs come to look like something a spam filter should eat.
+
+**Name the address after the product, not after the job that sends it.**
+`backyard@<your mail domain>` is the one to use. That first word is what a shortening client
+shows and what a relative reads before deciding whether to open anything, and the messages
+it now carries are the password reset and the address confirmation as much as the weekly
+update. Changing it later is safe — nothing in the app is keyed to the sending address —
+but messages already sitting in somebody's inbox keep the old one, so do it before you
+invite people.
 
 ## Backups
 

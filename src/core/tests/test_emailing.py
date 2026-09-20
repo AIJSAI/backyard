@@ -67,9 +67,10 @@ def test_send_family_email_uses_fixed_sender_and_footer() -> None:
     assert isinstance(sent, EmailMultiAlternatives)
     assert sent.to == ["nana@example.com"]
     # The fixed identity (T-EMAIL-G3), now with the display name walk item 23 added: mail
-    # arrived as a bare "digests@mail.example", or just "digests" in the clients that
-    # shorten it, which is how a family's own photographs come to look like spam. The
-    # ADDRESS is unchanged and is still the one thing reply_domain() derives from.
+    # arrived with no name on it, so the clients that shorten a sender to the word in front
+    # of the "@" showed whatever local part the provider was set up with, which is how a
+    # family's own photographs come to look like spam. The ADDRESS is unchanged and is
+    # still the one thing reply_domain() derives from.
     assert sent.from_email == "Backyard <backyard@localhost>"
     assert emailing.reply_domain() == "localhost", "the reply domain lost its address"
     assert emailing.STANDING_FOOTER in sent.body  # the standing footer, every mail
@@ -196,7 +197,7 @@ def test_boot_guard_accepts_anymail_resend_fully_configured() -> None:
         host="",
         use_tls=False,
         use_ssl=False,
-        default_from="digests@mail.backyard.family",
+        default_from="backyard@mail.backyard.family",
         resend_api_key="re_live_key",
         resend_inbound_secret="whsec_live",
     )  # must not raise
@@ -209,7 +210,7 @@ def test_boot_guard_refuses_anymail_resend_without_api_key() -> None:
             host="",
             use_tls=False,
             use_ssl=False,
-            default_from="digests@mail.backyard.family",
+            default_from="backyard@mail.backyard.family",
             resend_inbound_secret="whsec_live",
         )
 
@@ -223,7 +224,7 @@ def test_boot_guard_refuses_anymail_resend_without_inbound_secret() -> None:
             host="",
             use_tls=False,
             use_ssl=False,
-            default_from="digests@mail.backyard.family",
+            default_from="backyard@mail.backyard.family",
             resend_api_key="re_live_key",
         )
 
