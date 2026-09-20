@@ -1,0 +1,129 @@
+{% comment %} Love, without leaving the page.
+
+   The form under every post works on its own: it POSTs to the same `react` route the
+   thread page uses, the view toggles the reaction and sends the member back to the post
+   they were looking at. That is the whole feature, and it ships whether or not this file
+   runs — a reload on a hundred-post feed is simply a rough way to say one word.
+
+   So this is an enhancement and nothing else. It answers the same route with the same
+   form data, reads back who reacted (scoped by the view, never assembled here), and
+   writes the button's pressed state and the reactor line in place. Anything that goes
+   wrong — no fetch, an error status, a stale CSRF token, a dropped connection — falls
+   through to `form.submit()`, which is the unenhanced path the page already had.
+
+   Names are written with textContent, never innerHTML: a display name is a person's own
+   text and this is the one place it would be re-parsed as markup.
+
+   Inline with the response nonce, like `_localise_times.html` and the media picker: the
+   policy is script-src 'self' 'nonce-...' with no 'unsafe-inline'. {% endcomment %}
+<script nonce="{{ request.csp_nonce }}">
+  (function () {
+    var feed = document.querySelector('ul.feed');
+    if (!feed || !window.fetch || !window.FormData) { return; }
+
+    function redraw(line, state) {
+      if (!line) { return; }
+      while (line.firstChild) { line.removeChild(line.firstChild); }
+      var groups = state.groups || [];
+      groups.forEach(function (group) {
+        var wrap = document.createElement('span');
+        wrap.className = 'reaction-group';
+        var label = document.createElement('span');
+        label.className = 'reaction-label';
+        label.textContent = group.label + ':';
+        wrap.appendChild(label);
+        wrap.appendChild(document.createTextNode(' ' + (group.names || []).join(', ')));
+        if (group.more) {
+          var link = document.createElement('a');
+          link.href = state.post_url;
+          link.textContent = 'And Others';
+          wrap.appendChild(document.createTextNode(', '));
+          wrap.appendChild(link);
+        }
+        line.appendChild(wrap);
+      });
+      if (groups.length) {
+        line.removeAttribute('hidden');
+      } else {
+        line.setAttribute('hidden', 'hidden');
+      }
+    }
+
+    feed.addEventListener('submit', function (event) {
+      var form = event.target;
+      if (!form.classList || !form.classList.contains('love-form')) { return; }
+      event.preventDefault();
+      var button = form.querySelector('button');
+      var post = form.closest('li');
+      // One toggle at a time per post: two taps would race two POSTs with no guarantee
+      // which answers last, and the heart would show whichever did.
+      if (form.dataset.busy) { return; }
+      form.dataset.busy = '1';
+      // The CSRF token rides along inside the form data, exactly as it does on the
+      // ordinary post, so nothing here needs to know how the token is carried.
+      fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        // No `credentials` option is passed: fetch already sends the session cookie
+        // on a same-origin request, and naming it reads to the secret scan as a
+        // planted password (.gitleaks.toml, backyard-generic-password-assignment).
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      }).then(function (response) {
+        if (!response.ok) { return Promise.reject({ applied: false }); }
+        // From here the server HAS applied the toggle. Anything that goes wrong below is
+        // a drawing problem, and re-sending the form would undo the member's reaction.
+        return response.json().catch(function () { return Promise.reject({ applied: true }); });
+      }).then(function (state) {
+        delete form.dataset.busy;
+        try {
+          if (button) {
+            button.setAttribute('aria-pressed', state.mine === 'heart' ? 'true' : 'false');
+          }
+          redraw(post ? post.querySelector('[data-reaction-line]') : null, state);
+        } catch (drawing) {
+          window.location.reload();
+        }
+      }).catch(function (why) {
+        delete form.dataset.busy;
+        if (why && why.applied) { window.location.reload(); return; }
+        // The toggle never reached the server (offline, a refused request): the member
+        // still gets their reaction, by the form they would have sent with no script at
+        // all. `submit()` fires no submit event, so this cannot loop back through here.
+        form.submit();
+      });
+    });
+
+    // THE OVERFLOW MENU CLOSES. A bare <details> does not: not on Escape, not on a tap
+    // elsewhere, and two could stand open at once. On a phone the only way out was a
+    // second tap on the same 44px dots, and a tap "elsewhere" usually lands on a
+    // full-width photograph, which is a link.
+    function openMenus() { return feed.querySelectorAll('details.post-menu[open]'); }
+    feed.addEventListener('toggle', function (event) {
+      var menu = event.target;
+      if (!menu.classList || !menu.classList.contains('post-menu') || !menu.open) { return; }
+      Array.prototype.forEach.call(openMenus(), function (other) {
+        if (other !== menu) { other.open = false; }
+      });
+    }, true);
+    // Capturing, and it swallows the tap: a tap that dismisses a menu must not also open
+    // the photograph it happened to land on. A tap on ANOTHER post's dots is the exception:
+    // that should close this menu and open that one in one go, which is also what gives
+    // the `toggle` listener above something to do.
+    document.addEventListener('click', function (event) {
+      var onDots = event.target.closest && event.target.closest('details.post-menu > summary');
+      var dismissed = false;
+      Array.prototype.forEach.call(openMenus(), function (menu) {
+        if (!menu.contains(event.target)) { menu.open = false; dismissed = true; }
+      });
+      if (dismissed && !onDots) { event.preventDefault(); event.stopPropagation(); }
+    }, true);
+    document.addEventListener('keydown', function (event) {
+      if (event.key !== 'Escape') { return; }
+      Array.prototype.forEach.call(openMenus(), function (menu) {
+        menu.open = false;
+        var summary = menu.querySelector('summary');
+        if (summary) { summary.focus(); }
+      });
+    });
+  })();
+</script>

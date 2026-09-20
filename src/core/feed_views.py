@@ -11,17 +11,21 @@ requires an explicit confirmation that names the audience and its member count.
 from __future__ import annotations
 
 import datetime
-from dataclasses import dataclass
+from collections.abc import Iterable
+from dataclasses import dataclass, field
+from urllib.parse import quote, urlsplit, urlunsplit
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
-from django.db.models import Prefetch, Q
-from django.http import Http404, HttpRequest, HttpResponse
+from django.db.models import Count, Prefetch, Q
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from . import (
@@ -67,6 +71,20 @@ _MAX_THREAD = 500
 _PAGE_SIZE = 100
 # Postgres bigint ceiling: a cursor id past this is not a real post, it is a probe.
 _MAX_POST_ID = 2**63 - 1
+# The feed draws a 2x2 grid at most; anything past it is a "+N" tile onto the post page,
+# which is where a post's whole gallery lives.
+_FEED_MEDIA_TILES = 4
+# Names per kind on the feed's reactor line before "And Others" takes the reader to the
+# post. Three is what fits one phone line; the thread page still names everybody. Still
+# names and never a number (S-304, Reaction's docstring): the cap shortens a list, it does
+# not turn it into a tally.
+_FEED_REACTOR_NAMES = 3
+# A bound on one page's reactor rows, in the spirit of `_MAX_THREAD` on one thread (security
+# review LOW-1): a member holds at most one reaction per post, so this is reached only by
+# a family far larger than this product is for, and the line shows three names either way.
+# The query reads newest posts first, so if it ever binds it is the bottom of the page that
+# loses its line, not the top.
+_MAX_FEED_REACTIONS = _PAGE_SIZE * 50
 
 
 @dataclass
@@ -79,6 +97,19 @@ class FeedItem:
     is_own: bool
     is_editable: bool
     is_new: bool
+    # The gallery the feed draws (at most four tiles) and how many more the post carries,
+    # so the last tile can say "+N" and lead to the rest.
+    media: list[MediaAsset] = field(default_factory=list)
+    extra_media: int = 0
+    # "one" / "two" / "three" / "many": which grid the tiles are laid out in. Named in the
+    # view rather than counted in CSS with :nth-last-child, because a gallery's children
+    # are no longer all the same element (a video and an unprocessed clip are not <a>).
+    media_layout: str = ""
+    # Who reacted, grouped as the thread page groups them, and this viewer's own reaction
+    # so the Love button can show its pressed state.
+    reactor_groups: list[dict[str, object]] = field(default_factory=list)
+    my_reaction: str | None = None
+    reply_count: int = 0
 
 
 def _sides_in_a_sentence(names: list[str]) -> str:
@@ -103,6 +134,179 @@ def _sides_in_a_sentence(names: list[str]) -> str:
     return f"{', '.join(names[:-1])}, and {names[-1]}"
 
 
+def _live_media(post: Post) -> list[MediaAsset]:
+    """The post's own gallery, as the feed's prefetch attached it (`to_attr`).
+
+    Read through getattr because the attribute is the prefetch's, not the model's; a post
+    that reached here by another path simply has no gallery to draw.
+    """
+    live: list[MediaAsset] = getattr(post, "live_media", [])
+    return live
+
+
+def _media_tiles(post: Post) -> list[MediaAsset]:
+    """The tiles the feed draws: the gallery, cut to the grid (S-403)."""
+    return _live_media(post)[:_FEED_MEDIA_TILES]
+
+
+def _media_layout(tiles: list[MediaAsset], total: int) -> str:
+    """Which layout a gallery is drawn in: "stack", "one", "two", "three" or "many".
+
+    Named here, not counted in CSS: `:nth-last-child` reads the CHILDREN, and a gallery's
+    children stopped being one element each the moment a video or an unprocessed clip
+    could sit among the photographs.
+
+    A LONE clip is a "stack" of one: the real player, full width, with its controls
+    (S-402). A clip AMONG other things is a poster tile with a play mark that opens the
+    post, where the player has room; the grid stays a grid. The first cut made any gallery
+    carrying a clip a full-width stack of players, which a review measured at 1397px for
+    four items on a 390px phone and which dropped the "+N" tile whenever the fourth item
+    was the clip.
+    """
+    if total == 1 and tiles and tiles[0].media_kind == MediaAsset.VIDEO:
+        return "stack"
+    if total == 1:
+        return "one"
+    if total == 2:
+        return "two"
+    if total == 3:
+        return "three"
+    return "many"
+
+
+def _group_reactors(
+    reactions: Iterable[Reaction],
+    *,
+    viewer_id: int,
+    cap: int | None = None,
+    short_names: bool = False,
+) -> tuple[list[dict[str, object]], str | None]:
+    """Reactions grouped for display, plus the viewer's own kind.
+
+    ONE implementation for the thread page and the feed, because they are the same
+    sentence in two places: WHO reacted, in the order the kinds are declared, never a
+    tally (S-304). `cap` shortens each list for the feed's single line and says so with
+    `more`, which the template turns into a link to the post rather than a number.
+    """
+    by_kind: dict[str, list[str]] = {}
+    mine: str | None = None
+    for reaction in reactions:
+        # First names on the feed's one line, full names on the thread page: "Love: Rose,
+        # Sam, Dave" is how a family says it and it fits a phone; the page that names
+        # everybody is one tap away and is where two Sams are told apart. Asked for by
+        # name, never implied by `cap`: a caller bounding the thread page must not lose the
+        # attribution that page exists for. A blank name falls back to words, not to a hole.
+        member = reaction.member
+        full = member.display_name.strip() or "A member"
+        name = (member.short_name or full) if short_names else full
+        by_kind.setdefault(reaction.kind, []).append(name)
+        if reaction.member_id == viewer_id:
+            mine = reaction.kind
+    groups: list[dict[str, object]] = [
+        {
+            "kind": kind,
+            "label": label,
+            "names": by_kind[kind] if cap is None else by_kind[kind][:cap],
+            "more": cap is not None and len(by_kind[kind]) > cap,
+        }
+        for kind, label in Reaction.KIND_CHOICES
+        if kind in by_kind
+    ]
+    return groups, mine
+
+
+def _reactions_for_page(
+    member: Member, post_ids: list[int]
+) -> tuple[dict[int, list[dict[str, object]]], dict[int, str]]:
+    """The reactor line and the viewer's own reaction for a whole page of posts.
+
+    One query for the page, never one per post: a hundred posts must cost the same
+    number of round trips as one. Scoped through `visible_reactions` — the same guard
+    the thread page uses — so a bridging post names only the reactors this viewer may
+    see, rather than inventing a second audience rule here.
+    """
+    if not post_ids:
+        return {}, {}
+    rows = (
+        scoping.visible_reactions(member)
+        .filter(post_id__in=post_ids)
+        .select_related("member")
+        .order_by("-post_id", "created_at", "id")[:_MAX_FEED_REACTIONS]
+    )
+    per_post: dict[int, list[Reaction]] = {}
+    for reaction in rows:
+        per_post.setdefault(reaction.post_id, []).append(reaction)
+    groups: dict[int, list[dict[str, object]]] = {}
+    mine: dict[int, str] = {}
+    for post_id, reactions in per_post.items():
+        grouped, my_kind = _group_reactors(
+            reactions, viewer_id=member.id, cap=_FEED_REACTOR_NAMES, short_names=True
+        )
+        groups[post_id] = grouped
+        if my_kind is not None:
+            mine[post_id] = my_kind
+    return groups, mine
+
+
+def _reply_counts_for_page(member: Member, post_ids: list[int]) -> dict[int, int]:
+    """How many replies each post on the page has, in one grouped query.
+
+    Through `visible_comments`, so the number counts only the replies this viewer may
+    read: on a bridging post the other side's replies are not visible and must not be
+    counted either, or the count itself reports that those people exist.
+    """
+    if not post_ids:
+        return {}
+    counted = (
+        scoping.visible_comments(member)
+        .filter(post_id__in=post_ids)
+        # order_by() FIRST, and it is load-bearing: Comment carries a Meta ordering, and
+        # Django adds every ordering column to the GROUP BY of an aggregate — so the
+        # grouping silently became (post, created_at) and every post reported one reply.
+        .order_by()
+        .values_list("post_id")
+        .annotate(replies=Count("id", distinct=True))
+    )
+    return {post_id: replies for post_id, replies in counted}
+
+
+def _feed_return_path(cursor: tuple[datetime.datetime, int] | None) -> str:
+    """Where a Love from the feed comes back to: this feed page, cursor and all.
+
+    Rebuilt from the PARSED cursor rather than echoed from the query string, so the value
+    the page hands back to itself is one this view has already accepted.
+    """
+    path = reverse("feed")
+    if cursor is None:
+        # A Love is not a feed visit. Coming back to a bare /feed/ would advance the unread
+        # boundary (S-303) past posts this member has never scrolled to, and the "New posts
+        # above" line would be gone for good: measured with scripting off, where this
+        # redirect is the path that runs. `seen=keep` is the view telling itself not to.
+        return f"{path}?seen=keep"
+    moment, last_id = cursor
+    return f"{path}?before={quote(f'{moment.isoformat()}_{last_id}')}"
+
+
+def _local_path(raw: str | None) -> str | None:
+    """A caller-supplied return path, or None for anything that is not a path on this site.
+
+    The feed's Love button carries where to come back to (its archive cursor included), and
+    that value arrives in a POST from a browser, so it is request data: it is used only
+    when it is a local path. Django's check normalises backslashes and refuses a scheme or
+    a host; the explicit tests refuse a scheme-relative "//host" and a bare "evil.com",
+    which is relative and would otherwise pass. Any fragment is dropped, because the
+    caller adds the one that lands the reader back on their own post.
+    """
+    if not raw or not raw.startswith("/") or raw.startswith("//"):
+        return None
+    if not url_has_allowed_host_and_scheme(raw, allowed_hosts=None):
+        return None
+    parts = urlsplit(raw)
+    if parts.scheme or parts.netloc:
+        return None
+    return urlunsplit(("", "", parts.path, parts.query, ""))
+
+
 def _acting_member(request: HttpRequest) -> Member:
     if not request.user.is_authenticated or request.user.pk is None:
         raise Http404
@@ -123,7 +327,10 @@ def feed(request: HttpRequest) -> HttpResponse:
     """
     member = _acting_member(request)
     cursor = _parse_cursor(request.GET.get("before"))
-    return _render_feed(request, member, advance_seen=cursor is None, cursor=cursor)
+    # `seen=keep` is what a Love from the feed comes back with (_feed_return_path). Forging
+    # it only declines to move one's own marker, so it needs no validation.
+    advance = cursor is None and request.GET.get("seen") != "keep"
+    return _render_feed(request, member, advance_seen=advance, cursor=cursor)
 
 
 def _parse_cursor(raw: str | None) -> tuple[datetime.datetime, int] | None:
@@ -231,15 +438,30 @@ def _render_feed(
     page = list(page_query)
     has_older = len(page) > _PAGE_SIZE
     feed_posts = page[:_PAGE_SIZE]
-    items = [
-        FeedItem(
-            post=post,
-            is_own=post.author_id == member.id,
-            is_editable=post.author_id == member.id and posting.within_edit_window(post),
-            is_new=boundary is not None and post.created_at > boundary,
+    # Two bounded queries for the whole page. The feed shows who reacted and how many
+    # replies a post has, and asking either per post is how a family's hundredth
+    # photograph makes the page slower than their first.
+    post_ids = [post.id for post in feed_posts]
+    reactor_groups, my_reactions = _reactions_for_page(member, post_ids)
+    reply_counts = _reply_counts_for_page(member, post_ids)
+    items: list[FeedItem] = []
+    for post in feed_posts:
+        tiles = _media_tiles(post)
+        gallery = len(_live_media(post))
+        items.append(
+            FeedItem(
+                post=post,
+                is_own=post.author_id == member.id,
+                is_editable=post.author_id == member.id and posting.within_edit_window(post),
+                is_new=boundary is not None and post.created_at > boundary,
+                media=tiles,
+                extra_media=max(gallery - _FEED_MEDIA_TILES, 0),
+                media_layout=_media_layout(tiles, gallery),
+                reactor_groups=reactor_groups.get(post.id, []),
+                my_reaction=my_reactions.get(post.id),
+                reply_count=reply_counts.get(post.id, 0),
+            )
         )
-        for post in feed_posts
-    ]
     first_seen_id: int | None = None
     if any(item.is_new for item in items):
         first_seen_id = next((item.post.id for item in items if not item.is_new), None)
@@ -274,6 +496,9 @@ def _render_feed(
                 else None
             ),
             "is_archive_page": cursor is not None,
+            # Where a Love from this page returns to, so reacting to a post half way
+            # down the archive does not throw the reader back to the newest post.
+            "return_path": _feed_return_path(cursor),
             # Carried so a compose that bounced for correction keeps its uploads (the
             # files themselves cannot survive the round trip; the handle can).
             "staged_handle": staged_handle,
@@ -725,19 +950,17 @@ def _render_post_detail(
     # symmetry with the comment path so a pathologically large yard cannot inflate the
     # render (security review LOW-1); one-per-member keeps this well under the cap.
     reactions = (
-        scoping.visible_reactions(member).filter(post=post).select_related("member")[:_MAX_THREAD]
+        scoping.visible_reactions(member)
+        .filter(post=post)
+        .select_related("member")
+        # Ordered before it is sliced, and the same way the page loader orders: `Reaction`
+        # declares no ordering, so without this the three names the script writes could
+        # differ from the three the page rendered a moment earlier.
+        .order_by("created_at", "id")[:_MAX_THREAD]
     )
-    by_kind: dict[str, list[str]] = {}
-    my_reaction: str | None = None
-    for reaction in reactions:
-        by_kind.setdefault(reaction.kind, []).append(reaction.member.display_name)
-        if reaction.member_id == member.id:
-            my_reaction = reaction.kind
-    reactor_groups = [
-        {"kind": kind, "label": label, "names": by_kind[kind]}
-        for kind, label in Reaction.KIND_CHOICES
-        if kind in by_kind
-    ]
+    # Grouped by the one helper the feed's reactor line uses, uncapped here: the thread
+    # page has room to name everybody, and naming everybody is the point of S-304.
+    reactor_groups, my_reaction = _group_reactors(reactions, viewer_id=member.id)
     return render(
         request,
         "core/post_detail.html",
@@ -767,7 +990,14 @@ def _render_post_detail(
 def react(request: HttpRequest, post_id: int) -> HttpResponse:
     """Set, change, or clear the member's reaction to a post they can see (S-304).
     POST only; resolved through the guard, so a post the member cannot see is a 404
-    and an unknown reaction kind is a 404."""
+    and an unknown reaction kind is a 404.
+
+    Three callers now, one route: the thread page's five buttons, the feed's Love button,
+    and the feed's script. The reaction rule itself is untouched — the same service call,
+    the same toggle — only where the member is put afterwards differs, because a Love sent
+    from the feed has to come back to the post they were looking at rather than open a
+    page they did not ask for.
+    """
     member = _acting_member(request)
     post = scoping.require_visible_post(member, post_id)
     if request.method != "POST":
@@ -776,7 +1006,39 @@ def react(request: HttpRequest, post_id: int) -> HttpResponse:
     if kind not in reacting.VALID_KINDS:
         raise Http404
     reacting.toggle_reaction(member=member, post=post, kind=kind)
-    return redirect("post_detail", post_id=post.id)
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        # The enhanced path: the feed updates the line and the button in place, so the
+        # reader keeps their scroll position and the page is never reloaded.
+        return _reaction_state(member, post)
+    destination = _local_path(request.POST.get("next"))
+    if destination is None:
+        return redirect("post_detail", post_id=post.id)
+    # The fragment is the whole point of coming back: the post is one of a hundred.
+    return redirect(f"{destination}#post-{post.id}")
+
+
+def _reaction_state(member: Member, post: Post) -> JsonResponse:
+    """This viewer's view of one post's reactions, as data for the feed's script.
+
+    Names, capped and grouped exactly as the rendered line is, so the script never has to
+    decide what a reaction line says — and scoped through `visible_reactions`, so the
+    enhanced path cannot answer with a name the rendered page would have withheld.
+    """
+    reactions = (
+        scoping.visible_reactions(member)
+        .filter(post=post)
+        .select_related("member")
+        # Ordered before it is sliced, and the same way the page loader orders: `Reaction`
+        # declares no ordering, so without this the three names the script writes could
+        # differ from the three the page rendered a moment earlier.
+        .order_by("created_at", "id")[:_MAX_THREAD]
+    )
+    groups, mine = _group_reactors(
+        reactions, viewer_id=member.id, cap=_FEED_REACTOR_NAMES, short_names=True
+    )
+    return JsonResponse(
+        {"groups": groups, "mine": mine, "post_url": reverse("post_detail", args=[post.id])}
+    )
 
 
 @login_required

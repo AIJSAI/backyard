@@ -44,7 +44,7 @@
           <span class="who"><span class="when">{% when post.created_at %}</span></span>
         </div>
         <p class="post-body">{{ post.body|urlize }}</p>
-        {% comment %} "Open Post", the word the feed uses for the same link. One object,
+        {% comment %} "Open Post", the word this list uses for the link (the feed itself links the time stamp now). One object,
            one word. {% endcomment %}
         <span class="actions"><a href="{% url 'post_detail' post.id %}">Open Post</a></span>
       </li>

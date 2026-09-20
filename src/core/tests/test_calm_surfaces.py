@@ -6,7 +6,9 @@ suite knows it was a decision:
 
   C2   the error component that actually ships (`ul.errorlist`) is styled at all.
   C6   a destructive action leaves the primary row — three identical bold green links 36px
-       apart meant a thumb aiming at "Open Post" could land on "Delete".
+       apart meant a thumb aiming at the thread could land on "Delete". It leaves the row
+       entirely now (2026-09-20): Delete, Edit and Take Down live in the post's overflow
+       menu, and the row under a post is Love, Reply and the reply count.
   C7   the 44px floor reaches the controls that were missing it, including the audience
        checkbox, which is the smallest target on the most consequential control in a
        privacy-first product.
@@ -93,17 +95,35 @@ def test_a_real_sign_in_failure_renders_inside_it() -> None:
 # --- C6: destructive actions leave the primary row --------------------------------
 
 
-def test_delete_is_not_a_peer_of_open_post(world: dict[str, object]) -> None:
+def test_delete_is_not_a_peer_of_the_way_into_the_post(world: dict[str, object]) -> None:
+    """C6 went further on 2026-09-20: Delete left the action row altogether.
+
+    Pushing it to the far end of the row was the first cure, and the row it sat in was
+    still the row a thumb reaches for. It is now inside the post's overflow menu, closed
+    until asked for, and the action row under a post carries only Love, Reply and the
+    reply count. Its destructive treatment — danger ink, regular weight, the leading x —
+    travels with it, because the confirmation page it opens is two taps away either way.
+    """
     pod, member = world["pod"], world["member"]
     assert isinstance(pod, Pod) and isinstance(member, Member)
     post = posting.create_post(author=member, pod=pod, audience_yards=[], body="mine")
     page = _page(world, reverse("feed"))
 
     assert f'<a class="destructive" href="{reverse("delete_post", args=[post.id])}"' in page
-    assert f'<a href="{reverse("post_detail", args=[post.id])}">Open Post</a>' in page
+    menu = page[page.index('<details class="post-menu">') :]
+    menu = menu[: menu.index("</details>")]
+    assert reverse("delete_post", args=[post.id]) in menu, "Delete is back in the open row"
+    actions = page[page.index('<div class="post-actions">') :]
+    actions = actions[: actions.index("</div>")]
+    assert reverse("delete_post", args=[post.id]) not in actions
     css = _style()
-    assert ".actions .destructive, .actions form.takedown { margin-left: auto; }" in css
+    assert ".post-menu-items a.destructive { color: var(--danger); font-weight: 400; }" in css
+    # The thread page still draws Take Down Post and Take Down Reply from `.actions`.
     assert ".actions a.destructive { color: var(--danger); font-weight: 400; }" in css
+    assert '.post-menu-items a.destructive::before { content: "\\00d7\\00a0"' in css
+    # The rule that moved it there in the first place is still on the rows that still
+    # have a destructive control in them (the thread page's takedown).
+    assert ".actions .destructive, .actions form.takedown { margin-left: auto; }" in css
 
 
 # --- C7: tap targets --------------------------------------------------------------
@@ -218,8 +238,24 @@ def test_nothing_a_person_presses_hides_when_the_box_loses_focus(world: dict[str
         assert "js-collapse" not in form.split(">", 1)[0]
     # No rule collapses a composer the script has not claimed.
     css = _style()
-    for rule in re.findall(r"^\.composer\.collapsible[^{]*\{[^}]*display: none", css, re.MULTILINE):
-        assert ".js-collapse" in rule, rule
+    # Every SELECTOR, not every rule. The collapse is one grouped rule with a selector per
+    # line, and matching the rule as a whole let a revert on the FIRST selector pass because
+    # the second still carried the class. Measured by mutation, review round 2 of #218.
+    grouped = re.findall(r"^(\.composer\.collapsible[^{]*)\{([^}]*)\}", css, re.MULTILINE)
+    # `overflow: hidden` counts as hiding: the one-row resting textarea clips whatever is in
+    # it, which is only safe while that rule also requires an EMPTY box.
+    hiding = [
+        selectors
+        for selectors, body in grouped
+        if "display: none" in body or "overflow: hidden" in body
+    ]
+    assert len(hiding) >= 2, "a collapse rule went missing: the guard would be vacuous"
+    for selectors in hiding:
+        for selector in selectors.split(","):
+            assert ".js-collapse" in selector, selector
+            assert ":has(textarea:placeholder-shown)" in selector, (
+                f"{selector.strip()} can clip or hide a box that has words in it"
+            )
     # The sticky half: the script claims the form, opens it on first touch, never closes it.
     script = _BASE.with_name("_composer_media.html").read_text()
     assert 'querySelectorAll("form.composer.collapsible")' in script

@@ -89,7 +89,12 @@ def test_the_oldest_post_is_actually_reachable_by_paging(world: dict[str, object
         seen.update(f"post-{i:03d}" for i in range(total) if f"post-{i:03d}" in page)
         if "Show Older Posts" not in page:
             break
-        cursor = page.split("?before=")[1].split('"')[0]
+        # Read the cursor off the "Show Older Posts" LINK, not off the first "?before="
+        # in the page: every post now carries a hidden field naming the page to come
+        # back to after a reaction, and on an archive page that field holds the cursor
+        # of the page being read — so the loose search walked back onto the same page.
+        older = page[page.index('class="older"') :]
+        cursor = older.split("?before=")[1].split('"')[0]
         url = f"{reverse('feed')}?before={cursor}"
     else:  # pragma: no cover - only on a non-terminating cursor
         pytest.fail("paging never reached the end of the feed")
