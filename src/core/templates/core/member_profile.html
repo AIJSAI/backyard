@@ -9,7 +9,7 @@
      relative tapping a family member's name hit a dead end. The disc, the placing line
      and their recent posts give the page a person on it. {% endcomment %}
   <h1 class="who-row">
-    {% avatar profile.display_name profile.member_id "lg" %}
+    {% avatar profile.display_name profile.member_id "lg" photo=profile.avatar_tokens %}
     <span class="who">
       {{ profile.display_name }}
       {% if profile.kinship_name %}<span class="kinship">({{ profile.kinship_name }})</span>{% endif %}
@@ -40,7 +40,7 @@
     {% for post in recent_posts %}
       <li>
         <div class="who-row">
-          {% avatar profile.display_name profile.member_id "sm" %}
+          {% avatar profile.display_name profile.member_id "sm" photo=profile.avatar_tokens %}
           <span class="who"><span class="when">{% when post.created_at %}</span></span>
         </div>
         <p class="post-body">{{ post.body|urlize }}</p>

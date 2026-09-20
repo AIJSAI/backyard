@@ -225,6 +225,14 @@ urlpatterns = [
     # The one access-checked path for every media byte (S-403, TM-9). The token is the
     # only URL handle; the view re-checks the owning post's audience.
     path("media/<str:token>/", media_views.serve_media, name="serve_media"),
+    # A member's profile photo (S-901), served the same way and checked against the
+    # DIRECTORY audience: a face hangs off a person, not a post. Under `media/` because
+    # the `<str:token>` converter never matches a slash, so the two cannot collide.
+    path(
+        "media/avatar/<str:token>/",
+        media_views.serve_profile_photo,
+        name="serve_profile_photo",
+    ),
     path("join/<str:token>/", join, name="join"),
     # Instance-admin member management (S-701 enforced, S-703 supervised, S-702 removal).
     path("members/", admin_views.members, name="members"),

@@ -20,6 +20,7 @@ import zipfile
 from pathlib import PurePosixPath
 from typing import IO
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 
 from .models import Comment, MediaAsset, Member, Post
@@ -31,8 +32,9 @@ def write_member_export(member: Member, destination: IO[bytes]) -> None:
     """Write the member's own posts, comments, and media as a zip into `destination`.
 
     Layout: manifest.json, posts.json, comments.json, media.json, and media/<token>.jpg
-    for each photo. Only the member's authored, non-deleted content is included. A media
-    file that is missing from storage is skipped rather than failing the whole export.
+    for each photo, plus profile-photo.jpg if they have one. Only the member's authored,
+    non-deleted content is included. A media file that is missing from storage is skipped
+    rather than failing the whole export.
     """
     posts = list(
         member.posts.filter(deleted_at__isnull=True)
@@ -42,6 +44,11 @@ def write_member_export(member: Member, destination: IO[bytes]) -> None:
     comments = list(member.comments.filter(deleted_at__isnull=True).prefetch_related("media"))
 
     with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
+        # Their own face is their own data (S-901, S-704). Written first so the manifest
+        # can state whether the file is really in the archive: a missing file on the
+        # volume is skipped here exactly as a post's photograph is, and a manifest that
+        # named it anyway would be a receipt for something that is not in the zip.
+        profile_photo = _write_profile_photo(member, archive)
         archive.writestr(
             "manifest.json",
             json.dumps(
@@ -51,6 +58,7 @@ def write_member_export(member: Member, destination: IO[bytes]) -> None:
                         "id": member.id,
                         "display_name": member.display_name,
                         "kinship_name": member.kinship_name,
+                        "profile_photo": profile_photo,
                     },
                     "exported_at": timezone.now().isoformat(),
                     "counts": {"posts": len(posts), "comments": len(comments)},
@@ -125,6 +133,28 @@ def write_member_export(member: Member, destination: IO[bytes]) -> None:
                     {owner_key: owner_id, "file": arcname, "alt_text": asset.alt_text}
                 )
         archive.writestr("media.json", json.dumps(media_index, indent=2))
+
+
+_PROFILE_PHOTO_NAME = "profile-photo.jpg"
+
+
+def _write_profile_photo(member: Member, archive: zipfile.ZipFile) -> str | None:
+    """Write the member's own profile photo into the archive; return its name, or None.
+
+    The FULL square rather than the small one: an export is the copy they keep, so it
+    carries the largest rendition this product stored. The original upload is not an
+    option and never was — it is re-encoded at ingest and never written to disk (TM-9).
+    """
+    try:
+        photo = member.profile_photo
+    except ObjectDoesNotExist:
+        return None
+    try:
+        with photo.image.open("rb") as handle:
+            archive.writestr(_PROFILE_PHOTO_NAME, handle.read())
+    except (FileNotFoundError, ValueError):
+        return None  # a missing or unpopulated file is skipped, never a 500
+    return _PROFILE_PHOTO_NAME
 
 
 def build_member_export(member: Member) -> bytes:

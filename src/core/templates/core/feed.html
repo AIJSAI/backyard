@@ -210,7 +210,7 @@
            every mainstream social product puts them in. The timestamp is the LINK to the
            post, which is the same convention and is what lets "Open Post" go away. {% endcomment %}
         <div class="who-row post-head">
-          {% avatar item.post.author.display_name item.post.author_id %}
+          {% avatar item.post.author.display_name item.post.author_id photo=item.author_photo %}
           <span class="who">
             <span class="author">{{ item.post.author.display_name }}</span>{% if item.post.author.kinship_name %} <span class="kin">({{ item.post.author.kinship_name }})</span>{% endif %}
             <span class="post-meta"><a class="when" href="{% url 'post_detail' item.post.id %}">{% when item.post.created_at %}</a>{% if item.post.edited_at %} <span class="edited">(edited)</span>{% endif %}</span>

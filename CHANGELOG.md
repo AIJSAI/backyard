@@ -52,6 +52,34 @@ a point somebody deliberately stopped at, with a full green gate behind it.
 - The feed's reactor line uses first names ("Love: Rose, Sam, Dave"); the post page still
   names everybody in full. Love and Reply carry a drawn heart and a speech bubble, and a
   pressed Love is the heart filled in.
+- **A member can add a profile photo.** Settings carries one control: upload it, replace it,
+  remove it. A parent sets a child account's photo the same way they already edit that
+  profile. The photo then shows wherever a name leads something — the feed, a thread, a
+  reply, the directory, a profile page — in the same circle, at the same size, as the
+  initials disc it replaces; a member who has not added one still gets the disc, and
+  nothing on the page moves either way. The upload goes through the gate a photograph on a
+  post goes through: it is decoded under a format allowlist, re-encoded, and stripped of
+  every EXIF, GPS and XMP field, then stored as two centre-cropped squares. The bytes a
+  phone sent are never stored and never served.
+- **A profile photo is only fetchable by someone who can see that member.** The same rule
+  the directory uses, checked on every fetch: a relative on the other side of the family
+  gets the same 404 for a face as for the row it belongs to, holding the URL or not, and a
+  request with no session or link gets nothing. A No-Login Link reader loads the faces of
+  the people whose posts she is shown, because she can already see those people. Removing
+  the photo deletes both files from the disk, and so does removing the member. "Download
+  Your Data" carries the member's own photo. No email references it: mail here still
+  fetches nothing.
+- **A child's face stays inside their household**, like their birthday: pod-mates and the
+  managing parent see it, the rest of the side sees the initials disc. A page is handed a
+  photo only for a face its reader may fetch, so a byline falls back to the disc rather
+  than drawing a broken image (an author can leave a side and leave their posts behind).
+- **Who may set or remove a face:** the member; the parent of a supervised child; the
+  Family Admin; and, for someone with no sign-in of their own, an admin who manages them.
+  Nobody removes a photo they cannot see. A side admin does not put a face on, or take
+  one off, an adult who can do it themselves.
+- Upgrade note: migration `0033` is additive. Rolling back past it drops the table and
+  leaves `media/avatar/` and `media/avatar-small/` on the volume; remove them by hand.
+
 
 ## [0.1.8] — 2026-09-20
 

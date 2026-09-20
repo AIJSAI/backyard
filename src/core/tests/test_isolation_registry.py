@@ -30,6 +30,7 @@ from core.models import (
     Pod,
     PodMembership,
     Post,
+    ProfilePhoto,
     Reaction,
     Yard,
 )
@@ -37,7 +38,17 @@ from core.models import (
 # Member-visible read surfaces with an independent read path: the S-202 isolation suite
 # asserts each returns a byte-identical 404 across a yard boundary (existence + content).
 _ISOLATION_COVERED: frozenset[str] = frozenset(
-    {"Yard", "Pod", "Member", "PodMembership", "Post", "Comment", "Reaction", "MediaAsset"}
+    {
+        "Yard",
+        "Pod",
+        "Member",
+        "PodMembership",
+        "Post",
+        "Comment",
+        "Reaction",
+        "MediaAsset",
+        "ProfilePhoto",
+    }
 )
 
 # No cross-yard-leakable member read path; each exempt with the reason it is not a surface.
@@ -269,6 +280,13 @@ def _probe_mediaasset(viewer: Member, near: dict[str, Any], far: dict[str, Any])
     return (near["media"].pk in visible, far["media"].pk in visible)
 
 
+def _probe_profilephoto(viewer: Member, near: dict[str, Any], far: dict[str, Any]) -> _ProbeResult:
+    # A face follows the DIRECTORY rule rather than a post's audience (S-901), which is
+    # the same boundary: the far side's member is not someone this viewer can look up.
+    visible = set(scoping.visible_profile_photos(viewer).values_list("pk", flat=True))
+    return (near["photo"].pk in visible, far["photo"].pk in visible)
+
+
 _PROBES: dict[str, Callable[[Member, dict[str, Any], dict[str, Any]], _ProbeResult]] = {
     "Yard": _probe_yard,
     "Pod": _probe_pod,
@@ -278,12 +296,13 @@ _PROBES: dict[str, Callable[[Member, dict[str, Any], dict[str, Any]], _ProbeResu
     "Comment": _probe_comment,
     "Reaction": _probe_reaction,
     "MediaAsset": _probe_mediaasset,
+    "ProfilePhoto": _probe_profilephoto,
 }
 
 
 def _side(name: str, slug: str) -> dict[str, Any]:
     """One complete side of the family: yard, household, member, post, comment, reaction,
-    photograph. Built twice, and the viewer only ever joins one of them."""
+    photograph, face. Built twice, and the viewer only ever joins one of them."""
     yard = Yard.objects.create(name=name, slug=slug)
     pod = Pod.objects.create(name=f"{name} household")
     pod.yards.set([yard])
@@ -293,6 +312,7 @@ def _side(name: str, slug: str) -> dict[str, Any]:
     comment = Comment.objects.create(post=post, author=member, body=f"{name} reply")
     reaction = Reaction.objects.create(post=post, member=member, kind=Reaction.HEART)
     asset = MediaAsset.objects.create(post=post, media_kind=MediaAsset.PHOTO)
+    photo = ProfilePhoto.objects.create(member=member, content_type="image/jpeg")
     return {
         "yard": yard,
         "pod": pod,
@@ -302,6 +322,7 @@ def _side(name: str, slug: str) -> dict[str, Any]:
         "comment": comment,
         "reaction": reaction,
         "media": asset,
+        "photo": photo,
     }
 
 

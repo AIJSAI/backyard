@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load avatars %}
 {% block title %}{% if editing_other %}Edit Profile For {{ member.display_name }}{% else %}Settings{% endif %}{% endblock %}
 {% block body %}
   {% comment %} The heading is "Settings" on your own page because that is what the nav
@@ -14,6 +15,76 @@
   <h1>{% if editing_other %}Edit Profile For {{ member.display_name }}{% else %}Settings{% endif %}</h1>
   {% if errors %}
     <div class="errors">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
+  {% endif %}
+
+  {% comment %} The profile photo (S-901), its OWN form on purpose. A file input inside
+     the profile form below would have made that form's first submit button the one Enter
+     reaches from the name box — and with a Remove beside an Upload, that is a
+     destructive default. Two forms also means a rejected upload is about the upload, and
+     the name and dates typed below are not sitting in a re-rendered page with it.
+
+     Same `avatar` tag as every byline in the product, so what this page shows is exactly
+     what the family will see: the photo where there is one, the initials disc where
+     there is not. `photo_tokens` is None when the photo exists but this editor may not
+     fetch it (profile_views._edit_context), which draws the disc rather than a broken
+     image.
+
+     `required` on the input gives the browser's own "choose a file" message; the Remove
+     button carries `formnovalidate` so it is not blocked by it. The server re-checks
+     both, because a hand-written POST reaches neither. {% endcomment %}
+  {% if may_edit_photo %}
+  <form class="photo-form" method="post" enctype="multipart/form-data"
+        action="{% if editing_other %}{% url 'managed_profile_edit' member.id %}{% else %}{% url 'profile_edit' %}{% endif %}">
+    {% csrf_token %}
+    <label for="profile-photo">Profile Photo</label>
+    <div class="photo-row">
+      {% avatar member.display_name member.id "lg" photo=photo_tokens %}
+      {% comment %} With the script below the control is ONE press: this label is drawn as the
+         button, the native "Choose File / No file chosen" box is hidden visually (it stays
+         the real, labelled, keyboard-operable input) and choosing a picture uploads it.
+         Choose-then-Upload is two steps for one intention, and that native box is the
+         most dated control a browser has. Without the script the label is not drawn and
+         the plain form works as written. {% endcomment %}
+      <label class="picker-button photo-choose" for="profile-photo" hidden>{% if has_photo %}Change Photo{% else %}Choose Photo{% endif %}</label>
+      <input id="profile-photo" type="file" name="photo" accept="image/*" required>
+    </div>
+    <p class="hint">JPEG, PNG or HEIC, up to {{ max_photo_mb }} MB.</p>
+    <button type="submit" name="photo_action" value="upload" data-photo-upload>Upload Photo</button>
+    {% comment %} `danger`, so removing is not a second solid green button of equal weight
+       beside the one that saves: the class gives it the product's quiet destructive
+       treatment and its leading x, the same non-colour cue "Delete Post" carries. No
+       confirmation page, unlike a post: nothing is lost that the member cannot put back
+       by choosing the file again, and the guide keeps a confirm step for the acts that
+       are irreversible. {% endcomment %}
+    {% if has_photo %}
+      <button class="danger" type="submit" name="photo_action" value="remove" formnovalidate>Remove Photo</button>
+    {% endif %}
+  </form>
+  <script nonce="{{ request.csp_nonce }}">
+    (function () {
+      var form = document.querySelector("form.photo-form");
+      if (!form) { return; }
+      var input = form.querySelector("input[type=file]");
+      var choose = form.querySelector(".photo-choose");
+      var upload = form.querySelector("[data-photo-upload]");
+      if (!input || !choose || !upload) { return; }
+      // Claimed only once everything it needs is here: the class is what hides the native
+      // control, so setting it any earlier could leave nothing to press.
+      choose.hidden = false;
+      form.classList.add("js");
+      input.addEventListener("change", function () {
+        if (!input.files || !input.files.length) { return; }
+        choose.textContent = "Uploading";
+        // requestSubmit carries the button's name and value, which is how the view tells
+        // an upload from a removal; the fallback says the same thing with a hidden field.
+        if (form.requestSubmit) { form.requestSubmit(upload); return; }
+        var action = document.createElement("input");
+        action.type = "hidden"; action.name = "photo_action"; action.value = "upload";
+        form.appendChild(action);
+        form.submit();
+      });
+    })();
+  </script>
   {% endif %}
 
   {% comment %} Posts back to the profile being edited. A hardcoded 'profile_edit' here
