@@ -86,8 +86,10 @@ a point somebody deliberately stopped at, with a full green gate behind it.
     link used to be the whole gate: posts, names and the week's birthdays were then mailed to
     him on every send, with links that open that part of the feed without a sign-in.
     Confirming now needs a session signed in as the member who asked, so a mistyped address
-    never starts. Stopping the updates still needs only the link, signed in or not. The mail
-    and the page say that a sign-in may be asked for.
+    never starts. Stopping the updates still needs only the link, signed in or not. The
+    mail, the settings page and the confirmation page say that a sign-in may be asked for,
+    and somebody signed in as a different relative is told to sign out first rather than
+    being sent round to the same page.
   - `ACCOUNT_LOGIN_BY_CODE_ENABLED` and `ACCOUNT_PASSWORD_RESET_BY_CODE_ENABLED` must stay
     off: both confirm an address without the check above. A test holds them off.
 

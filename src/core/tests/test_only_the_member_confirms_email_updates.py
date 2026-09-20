@@ -119,3 +119,21 @@ def test_stopping_the_updates_still_needs_nothing_but_the_link() -> None:
 
     subscription.refresh_from_db()
     assert subscription.enabled is False
+
+
+def test_a_relative_signed_in_as_themselves_is_told_and_not_looped() -> None:
+    """Signed in as somebody else is not the same as signed out. Bouncing them to sign in
+    sends an already-authenticated reader straight back here, whose button bounces them
+    again: a silent loop with no exit, on the shared tablet that makes it likely. The
+    refusal test above proves nothing is written; this one proves somebody is told."""
+    nana = _member("nana")
+    _member("papa")
+    url = _asked_for_updates_at_a_mistyped_address(nana)
+    client = Client()
+    assert client.login(username="papa", password=_PW)
+
+    response = client.post(url, follow=True)
+
+    assert response.redirect_chain == [], response.redirect_chain
+    assert "signed in as somebody else" in response.content.decode().lower()
+    assert not _confirmed(nana)

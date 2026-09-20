@@ -141,11 +141,28 @@ def confirm_digest(request: HttpRequest, token: str) -> HttpResponse:
     # that did not include this route.
     try:
         subscription = digesting.peek_confirmation(token)
+        owner = subscription.member.user_id
+        # SIGNED IN AS SOMEBODY ELSE IS NOT "SIGNED OUT", and bouncing them to sign in is a
+        # loop with no exit: allauth sends an already-authenticated reader straight back to
+        # `next`, which is this page, whose button bounces them again. Measured, twice
+        # round, in silence, with the explanation hidden because it is written for a reader
+        # who is signed out. A shared tablet, or a household mailbox one relative's phone is
+        # signed into, makes that an ordinary Tuesday here. So they are told, on the page,
+        # and nothing is written. Signing in is not their fix; signing OUT is. (The account
+        # confirmation never had this problem only because allauth's own view signs the
+        # other user out on the GET.)
+        signed_in_as_somebody_else = request.user.is_authenticated and (
+            owner is None or request.user.pk != owner
+        )
         if request.method == "POST":
-            owner = subscription.member.user_id
-            if not (
-                request.user.is_authenticated and owner is not None and request.user.pk == owner
-            ):
+            if signed_in_as_somebody_else:
+                note_the_reader_holds_a_link(request)
+                return render(
+                    request,
+                    "core/digest_confirm.html",
+                    {"done": False, "wrong_account": True},
+                )
+            if not request.user.is_authenticated:
                 return redirect_to_login(request.get_full_path(), reverse("account_login"))
             digesting.confirm(token)
             note_the_reader_holds_a_link(request)
@@ -153,7 +170,11 @@ def confirm_digest(request: HttpRequest, token: str) -> HttpResponse:
         note_the_reader_holds_a_link(request)
     except digesting.DigestTokenInvalid as exc:
         raise Http404 from exc
-    return render(request, "core/digest_confirm.html", {"done": False})
+    return render(
+        request,
+        "core/digest_confirm.html",
+        {"done": False, "wrong_account": signed_in_as_somebody_else},
+    )
 
 
 def unsubscribe_digest(request: HttpRequest, token: str) -> HttpResponse:

@@ -25,7 +25,8 @@
      page that sends it. {% endcomment %}
   {% if sent %}
     <p class="notice">A confirmation email has been sent to {{ subscription.address }}.
-    Email updates start when you open the link in it.</p>
+    Email updates start when you open the link in it. You will be asked to sign in first if
+    you are not already.</p>
   {% elif waiting_on_the_account_confirmation %}
     <p class="notice">This is your sign-in address and it is not confirmed yet. Confirming
     it starts email updates. Open the link in the email sent when you joined, or request a
