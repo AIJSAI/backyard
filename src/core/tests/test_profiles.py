@@ -341,6 +341,6 @@ def test_kinship_name_shows_in_the_feed(world: World) -> None:
     # Two spans, not one string: the header row reads name, then relation, then time,
     # and the relation is set in the muted ink so the NAME leads the post. Asserted as
     # the one run of markup they form, so the two staying adjacent is still the test.
-    assert (
-        '<span class="author">Author</span> <span class="kin">(Papa)</span>' in body
-    ), "the kinship name no longer follows the author's name in the feed's header row"
+    assert '<span class="author">Author</span> <span class="kin">(Papa)</span>' in body, (
+        "the kinship name no longer follows the author's name in the feed's header row"
+    )
