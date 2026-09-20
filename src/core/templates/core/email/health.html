@@ -1,0 +1,18 @@
+{% extends "core/email/_layout.html" %}
+{% comment %} The HTML half of the weekly health report (core/health_email.py, S-806).
+   It goes to the family admin and to nobody else.
+
+   ONE REPORT, RENDERED ONCE. `report` is the rendered core/email/health.txt — the same
+   bytes the text part carries — dropped into a monospace block, rather than a second
+   layout of the same fields in HTML. The lines are a fixed-width table with a `[!]`
+   flag in the first column, and two renderings of one table is how the flag comes to sit
+   in the wrong column in the part most clients show.
+
+   `white-space:pre-wrap` rather than `pre`: the spaces and line breaks are the columns
+   and must survive, but a long value (a domain, an error from the off-box copy job) has
+   to wrap inside the card instead of pushing a phone into a sideways scroll. {% endcomment %}
+{% block heading %}Weekly Health Check{% endblock %}
+
+{% block body %}
+      <pre style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.6;color:#1c211e;margin:0;white-space:pre-wrap;word-break:break-word;">{{ report }}</pre>
+{% endblock %}

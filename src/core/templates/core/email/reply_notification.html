@@ -1,0 +1,27 @@
+{% extends "core/email/_layout.html" %}
+{% comment %} The HTML half of the reply nudge (core/notifications.py, S-305). It carries
+   no reply text and no photograph — only that somebody replied, and the way back to the
+   thread — because a notification that quoted content would be a second content path
+   around the audience query, and there is exactly one.
+
+   THE REPLIER'S NAME IS A MEMBER-CONTROLLED STRING and this is an HTML part, so it is
+   autoescaped here (a display name reading `<b>x</b>` arrives as those five characters).
+   Never `|safe` in this file, and never `{% autoescape off %}`.
+
+   The why-line names BOTH switches, as the text part does: the switch the reader turned
+   on for this message is Reply Notifications, and the link below it is the unsubscribe
+   capability, which silences the weekly summary as well. The link carries the label every
+   other surface gives it rather than printing the raw URL, which is what an HTML part is
+   for. {% endcomment %}
+{% block heading %}{{ who }} Replied To Your Post{% endblock %}
+
+{% block body %}
+      <p style="margin:0;">Read the reply from {{ who }}:</p>
+{% endblock %}
+
+{% block action_label %}Read The Reply{% endblock %}
+
+{% block why %}
+      <p style="font-size:16px;color:#4c5a52;margin:0 0 10px;">You are receiving this because Reply Notifications is on. Turning off Email Updates stops this email too.</p>
+      <p style="font-size:16px;margin:0 0 14px;"><a href="{{ stop_url }}" style="color:#1e5c46;">Turn Off Email Updates</a></p>
+{% endblock %}

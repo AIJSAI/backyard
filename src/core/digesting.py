@@ -25,6 +25,7 @@ from dataclasses import dataclass
 
 from allauth.account.models import EmailAddress
 from django.db import transaction
+from django.template.loader import render_to_string
 from django.utils import timezone
 
 from . import emailing
@@ -198,10 +199,15 @@ def subscribe(member: Member, *, address: str, cadence: str) -> DigestSubscripti
                 "unsubscribe_token_digest": _digest(raw_unsubscribe),
             },
         )
+    link = emailing.absolute_url(f"/digest/confirm/{raw_confirm}/")
     emailing.send_family_email(
         to=address,
         subject=_CONFIRM_SUBJECT,
-        text=_CONFIRM_BODY.format(link=emailing.absolute_url(f"/digest/confirm/{raw_confirm}/")),
+        text=_CONFIRM_BODY.format(link=link),
+        # The same sentences in the shared shell, so this message looks like the product
+        # it comes from. Still content-free: the link is the only value either part is
+        # handed (T-EMAIL-6).
+        html=render_to_string("core/email/digest_confirm.html", {"action_url": link}),
     )
     return subscription
 

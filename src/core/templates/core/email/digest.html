@@ -1,32 +1,12 @@
-{% comment %} Backyard weekly digest email — design v3 (Signage). Inline hardcoded
-   hex only (mail clients strip <style> and CSS variables), table-based, single
-   column, ~600px, light-only. Palette derived from the v3 light theme:
-     text #1c211e · green #1e5c46 · muted #4c5a52 · faint #5d6a61 · rule #dde4df
-   D9 fix: the reply separator and the anti-phishing notice were #8a8f98
-   (3.25:1); they are now #5d6a61 (5.68:1). Every Django variable and line of
-   copy is unchanged from the shipped template. {% endcomment %}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;padding:0;background-color:#fbfcfb;">
- <tr>
-  <td align="center" style="padding:24px 12px;">
-   {% comment %} FLUID UP TO 600px, not pinned at it. Measured at a 390px viewport on
-      2026-09-19: the pinned card needed 632 CSS px and clipped the body text of every post
-      at the right edge ("Sorry it took a fortnigh..."). This is the one surface the whole
-      family receives every week, and it was the only object in the product that did not
-      fit a phone. `width="100%"` with `max-width:600px` is honoured by every modern client;
-      Outlook's Word engine on Windows ignores `max-width`, so the MSO-only ghost table
-      below pins the card to 600px there instead of letting it stretch across a maximised
-      window. The outer cell's `align="center"` still centres it on a desktop. {% endcomment %}
-   <!--[if mso]><table role="presentation" width="600" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
-   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #dde4df;border-radius:10px;">
-    <tr>
-     <td style="padding:26px 30px 30px;font-family:Georgia,'Iowan Old Style',Palatino,serif;font-size:18px;line-height:1.5;color:#1c211e;">
+{% extends "core/email/_layout.html" %}
+{% comment %} Backyard weekly Email Updates message — design v3 (Signage). The shell it
+   used to carry alone (the card, the MSO ghost table, the mark, the footer rule) is now
+   core/email/_layout.html, which every mail this product sends is drawn in; the reasoning
+   for each of those constraints moved there with the markup. Every Django variable and
+   line of copy is unchanged. {% endcomment %}
+{% block heading %}New In {{ header.yard_name }}{% endblock %}
 
-      <div style="margin:0 0 16px;">
-        <span style="display:inline-block;vertical-align:middle;line-height:0;"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.4 L20.6 10.8 V20.6 H3.4 V10.8 Z M9.7 20.6 V14.8 A2.3 2.3 0 0 1 14.3 14.8 V20.6 Z" fill="#1e5c46"/></svg></span>
-        <span style="display:inline-block;vertical-align:middle;font-family:Georgia,serif;font-weight:700;font-size:20px;color:#1e5c46;letter-spacing:-0.01em;">&nbsp;Backyard</span>
-      </div>
-
-      <h1 style="font-size: 24px; color: #1e5c46; margin: 0 0 4px; font-family: Georgia, 'Iowan Old Style', Palatino, serif; line-height: 1.2;">New In {{ header.yard_name }}</h1>
+{% block body %}
       <p style="color: #4c5a52; margin: 0 0 8px;">{{ header.window_text }}</p>
 
       {% for block in post_blocks %}
@@ -66,6 +46,9 @@
          backyard", which a reader takes for the feed; it is `/d/<token>/`, the web copy of
          this one message. {% endcomment %}
       <p style="margin: 24px 0 0;"><a href="{{ footer.digest_url }}" style="color: #1e5c46;">View In Your Browser</a></p>
+{% endblock %}
+
+{% block why %}
       {% comment %} WHY THIS ARRIVED. Read as a first-time relative, 2026-09-19: the
          message never said who had signed them up for it or why it turned up, which is the
          first question anybody asks of an e-mail they did not expect, and the one that
@@ -78,16 +61,13 @@
          more, so a plain reply cannot be routed to a post and lands in the admin-only
          "Held Replies" instead. The way to answer is "Reply In Backyard" on
          each post above, which opens the thread. {% endcomment %}
-      <p style="font-size: 16px; color: #4c5a52; margin: 14px 0 0;">You are receiving this
+      <p style="font-size: 16px; color: #4c5a52; margin: 0 0 10px;">You are receiving this
         because Email Updates is on.</p>
-      <p style="font-size: 16px; margin: 10px 0 0;">
+      <p style="font-size: 16px; margin: 0 0 14px;">
         <a href="{{ footer.unsubscribe_url }}" style="color: #1e5c46;">Turn Off Email Updates</a></p>
-      <p style="font-size: 14px; color: #5d6a61; margin: 14px 0 0;">{{ footer.standing_text }}</p>
+{% endblock %}
 
-     </td>
-    </tr>
-   </table>
-   <!--[if mso]></td></tr></table><![endif]-->
-  </td>
- </tr>
-</table>
+{% comment %} The builder hands this message the constant itself (digest.FooterBlock), and
+   it keeps doing so: the layout's default writes the same sentence out for the mails that
+   are composed outside core.emailing. {% endcomment %}
+{% block standing_footer %}{{ footer.standing_text }}{% endblock %}

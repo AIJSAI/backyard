@@ -1,0 +1,30 @@
+{% extends "core/email/_layout.html" %}
+{% comment %} The HTML half of the address confirmation, and the first thing this product
+   ever sends most relatives. Same sentences as email_confirmation_message.txt, which is
+   where they were reviewed line by line; what changes is the shape — the link that the
+   text part prints on a line of its own is the button here, so the sentence that
+   introduces it keeps its colon and the button follows it.
+
+   django-allauth sends multipart text+html as soon as a `<prefix>_message.html` exists
+   beside the .txt (allauth/account/adapter.py, render_mail), and it composes its own mail
+   rather than going through core.emailing.send_family_email — so the standing
+   anti-phishing line is not appended for it. The layout writes it out, and
+   test_every_email_looks_like_backyard.py pins that it is there. {% endcomment %}
+{% block heading %}Confirm Your Email Address{% endblock %}
+
+{% block body %}
+      <p style="margin:0 0 12px;">Somebody added this address to a Backyard account.</p>
+      <p style="margin:0;">Confirm this address to use it for password reset. If it is your primary address and you turned on email updates at this address, they start once it is confirmed:</p>
+      {% comment %} The code branch the text part carries, for the same reason: with
+         verification by code turned on there is no URL to press, and an HTML part that
+         showed nothing would be the part most clients render. {% endcomment %}
+      {% if code %}
+        <p style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:22px;letter-spacing:0.08em;margin:22px 0 0;">{{ code }}</p>
+      {% endif %}
+{% endblock %}
+
+{% block action_label %}Confirm Email Address{% endblock %}
+
+{% block after %}
+      <p style="margin:22px 0 0;">You will be asked to sign in first if you are not already. If you did not ask for this, ignore this email.</p>
+{% endblock %}

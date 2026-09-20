@@ -59,10 +59,15 @@ def build(now: datetime.datetime | None = None) -> tuple[str, str, bool]:
 def send_health_emails(now: datetime.datetime | None = None) -> HealthSendResult:
     now = now or timezone.now()
     subject, text, alarming = build(now)
+    # The HTML part is the SAME report in the shared shell, not a second layout of the
+    # same fields: the lines are a fixed-width table with a `[!]` flag in the first
+    # column, and two renderings of one table is how the flag comes to sit in the wrong
+    # column in the part most clients show. `build()` keeps its three-value contract.
+    html = render_to_string("core/email/health.html", {"report": text.strip()})
     recipients = admin_recipients()
     admin_count = Member.objects.filter(role=Member.INSTANCE_ADMIN).count()
     for _member, address in recipients:
-        emailing.send_family_email(to=address, subject=subject, text=text)
+        emailing.send_family_email(to=address, subject=subject, text=text, html=html)
     return HealthSendResult(
         sent=len(recipients),
         skipped_no_confirmed_address=max(0, admin_count - len(recipients)),

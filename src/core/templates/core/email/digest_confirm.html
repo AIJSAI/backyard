@@ -1,0 +1,24 @@
+{% extends "core/email/_layout.html" %}
+{% comment %} The HTML half of the Email Updates address confirmation (core/digesting.py,
+   T-EMAIL-6). CONTENT-FREE BY CONSTRUCTION, and this part keeps that property: the only
+   value it is handed is the minted link, so no family name, member name or post fragment
+   can reach an address nobody has acknowledged yet. The sentences are the ones in
+   `_CONFIRM_BODY`, which is still what the text part sends; the link that the text prints
+   on its own line is the button here.
+
+   The heading is the subject, word for word, and the subject deliberately differs from
+   the ACCOUNT confirmation's: the two used to be the same line from the same sender,
+   which is how a relative's mail client threaded them into one message apparently sent
+   twice (walk item 24). {% endcomment %}
+{% block heading %}Confirm This Address For Email Updates{% endblock %}
+
+{% block body %}
+      <p style="margin:0 0 12px;">Somebody asked for email updates from Backyard to be sent to this address.</p>
+      <p style="margin:0;">Confirm this address:</p>
+{% endblock %}
+
+{% block action_label %}Confirm Email Address{% endblock %}
+
+{% block after %}
+      <p style="margin:22px 0 0;">You will be asked to sign in first if you are not already. Nothing is sent until you confirm. If you did not ask for this, ignore this email; nothing else will be sent here.</p>
+{% endblock %}
