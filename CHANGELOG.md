@@ -13,6 +13,14 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
+Nothing yet.
+
+## [0.2.0] — 2026-09-20
+
+The owner compared Backyard with the phone apps relatives already use. This release is the
+answer: a feed laid out for a phone, profile photos, and a way onto the home screen with no
+app store. One additive migration (`0033`).
+
 ### Changed
 
 - **A post in the feed is laid out for a phone.** It was a rounded card inset from both
@@ -1087,6 +1095,7 @@ Everything here is a correction, not a feature. `v0.1.0` is **withdrawn**: insta
 - The demo family is fully invented; no real relative's name appears.
 - Fonts ship with their licence text (SIL OFL 1.1).
 
+[0.2.0]: https://github.com/AIJSAI/backyard/tree/v0.2.0
 [0.1.8]: https://github.com/AIJSAI/backyard/tree/v0.1.8
 [0.1.7]: https://github.com/AIJSAI/backyard/tree/v0.1.7
 [0.1.6]: https://github.com/AIJSAI/backyard/tree/v0.1.6
