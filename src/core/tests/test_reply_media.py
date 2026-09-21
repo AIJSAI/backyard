@@ -382,7 +382,7 @@ def test_a_digest_token_cannot_widen_into_a_general_reply_media_credential(
     )
     # And the member themselves, with a real session, still sees both.
     assert off_issue_asset in scoping.visible_media(world.author)
-    del digest_links  # imported to document where issue_posts lives; not called directly
+    del digest_links  # imported to document where issue_slice lives; not called directly
 
 
 # ---------------------------------------------------------------- the other surfaces

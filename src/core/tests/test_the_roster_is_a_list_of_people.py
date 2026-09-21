@@ -149,8 +149,13 @@ def test_a_bridging_relative_a_side_admin_cannot_touch_says_why() -> None:
     row = _row_for(html, "Jo Reed")
 
     assert "member-manage" not in row, "the row offers Manage with nothing behind it"
-    assert "Also on the other side" in row
-    # It names the person who CAN, so the side admin knows who to ask rather than
+    # "Also on the other side" until 2026-09-20. This line is rendered for one reader only
+    # — an admin whose reach does not cover everybody on their roster — so it was the
+    # product telling somebody on one side that a second side exists. The reason is stated
+    # as what it is now; the rule, the key and the named person are unchanged.
+    assert "Outside what you manage" in row
+    assert "other side" not in row, row
+    # It names the person who CAN, so the admin knows who to ask rather than
     # tapping at a row that will never answer.
     assert family_admin.short_name in row, row
 
@@ -176,6 +181,64 @@ def test_a_peer_admins_row_says_that_instead() -> None:
 
     assert "member-manage" not in row
     assert "An admin, so only" in row
+
+
+def test_a_child_accounts_row_names_the_parent_and_not_the_family_admin() -> None:
+    """The catch-all said "only <the family admin> can change this" over a child account,
+    which the permission matrix contradicts: a supervised account is their managing
+    parent's (TM-10), and the family admin is the wrong person to send an admin to.
+
+    The admin here is a peer of the parent, not the parent: a supervised child's own parent
+    gets controls on the row (the test below), so this sentence is only ever read by
+    somebody who has none.
+    """
+    _client, _family_admin, pod, _moms = _instance_admin()
+    parent = Member.objects.create(
+        display_name="Pat Reed", user=User.objects.create_user(username="pat")
+    )
+    PodMembership.objects.create(member=parent, pod=pod)
+    child = Member.objects.create(
+        display_name="Kit Reed", is_supervised=True, managing_parent=parent
+    )
+    PodMembership.objects.create(member=child, pod=pod)
+
+    other_admin_user = User.objects.create_user(username="sam")
+    other_admin = Member.objects.create(
+        display_name="Sam Reed", user=other_admin_user, role=Member.YARD_ADMIN
+    )
+    PodMembership.objects.create(member=other_admin, pod=pod)
+
+    client = Client()
+    client.force_login(other_admin_user, backend=_BACKEND)
+    row = _row_for(client.get(reverse("members")).content.decode(), "Kit Reed")
+
+    assert "member-manage" not in row, "the row offers Manage with nothing behind it"
+    assert "A child account, so their parent changes it." in row
+    assert "Family Admin" not in row, row
+
+
+def test_the_childs_own_parent_gets_controls_rather_than_the_sentence() -> None:
+    """The other half, and the reason the arm above is reached only by somebody else:
+    `can_edit_profile_of` gives the managing parent Edit Profile whatever their role, so
+    their row has actions and no explanation at all."""
+    _client, _family_admin, pod, _moms = _instance_admin()
+    parent_user = User.objects.create_user(username="pat")
+    parent = Member.objects.create(display_name="Pat Reed", user=parent_user)
+    PodMembership.objects.create(member=parent, pod=pod)
+    child = Member.objects.create(
+        display_name="Kit Reed", is_supervised=True, managing_parent=parent
+    )
+    PodMembership.objects.create(member=child, pod=pod)
+    # The parent is an admin here only because the roster is an admin-only page; the
+    # custody branch they rely on reads `managing_parent`, never a role.
+    Member.objects.filter(pk=parent.pk).update(role=Member.YARD_ADMIN)
+
+    client = Client()
+    client.force_login(parent_user, backend=_BACKEND)
+    row = _row_for(client.get(reverse("members")).content.decode(), "Kit Reed")
+
+    assert "member-manage" in row, row
+    assert "A child account, so their parent changes it." not in row
 
 
 def test_a_row_with_actions_says_nothing_of_the_kind() -> None:

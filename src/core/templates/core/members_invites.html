@@ -63,14 +63,14 @@ ul.invites .invite-actions form { margin: 0; }
           <span class="invite-state">
             {% with holder=invite.role_grant_holder %}
               {% if holder %}
-                <span class="flag">Side Admin</span> {{ holder.display_name }} joined first
-                and is the Side Admin. Anyone else using this link joins as a member.
+                <span class="flag">Admin</span> {{ holder.display_name }} joined first
+                and is an Admin. Anyone else using this link joins as a member.
               {% elif invite.revoked_at or invite.expires_at <= now %}
-                <span class="flag">Side Admin</span> This link no longer works, and nobody
-                used it, so nobody became Side Admin.
+                <span class="flag">Admin</span> This link no longer works, and nobody
+                used it, so nobody became an Admin.
               {% else %}
-                <span class="flag">Side Admin</span> The first person to join with this
-                link becomes the Side Admin. Everyone after them joins as a member.
+                <span class="flag">Admin</span> The first person to join with this
+                link becomes an Admin. Everyone after them joins as a member.
               {% endif %}
             {% endwith %}
           </span>

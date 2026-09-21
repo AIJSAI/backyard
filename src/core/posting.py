@@ -48,18 +48,32 @@ class EditWindowClosed(PermissionDenied):
 
 
 def create_post(
-    *, author: Member, pod: Pod, audience_yards: list[Yard], body: str, notify: bool = True
+    *,
+    author: Member,
+    pod: Pod,
+    audience_yards: list[Yard],
+    body: str,
+    is_arrival: bool = False,
+    notify: bool = True,
 ) -> Post:
     """Create a post after checking the author may address this audience. Atomic.
 
     pod must be one of the author's pods; every audience yard must be one of the
     author's yards. A pod-only post passes an empty audience_yards list.
 
-    `notify` is the web-push half (S-107) and is a PARAMETER rather than a check on the
-    body, because the one caller that must stay silent is `announce_arrival` and the only
-    other way to recognise its post is to compare its text — which would also silence a
-    relative who happened to write "Just joined." themselves. A parameter is answered by
-    the caller who knows; a string comparison is a guess that is wrong on both sides.
+    `is_arrival` marks the card a join writes (announce_arrival below) and nothing
+    else; the composer never passes it. It is set HERE rather than by an UPDATE
+    afterwards because this is the one writer of a Post, so a marked post and an
+    unmarked one are the same single insert either way (#208).
+
+    `notify` is the web-push half (S-107) and is a SECOND parameter rather than a read of
+    `is_arrival`, because the two answer different questions: `is_arrival` says what the
+    card IS (Email Updates folds it into one line), `notify` says whether anybody's lock
+    screen lights up. They agree at today's only caller and they are not the same fact —
+    a future quiet post would set one and not the other. Neither is a check on the body
+    text, which would also silence a relative who happened to write "Just joined."
+    themselves: a parameter is answered by the caller who knows, a string comparison is a
+    guess that is wrong on both sides.
     """
     author_pods = scoping.member_pod_ids(author)
     author_yards = scoping.member_yard_ids(author)
@@ -80,7 +94,10 @@ def create_post(
         # whatever ships next), and a body reaches `email/digest.txt`, which renders with
         # autoescape off. The email path has stripped the same characters since S-502.
         post = Post.objects.create(
-            author=author, pod=pod, body=emailing.strip_control_keep_breaks(body)
+            author=author,
+            pod=pod,
+            body=emailing.strip_control_keep_breaks(body),
+            is_arrival=is_arrival,
         )
         if audience_yards:
             post.audience_yards.set(audience_yards)
@@ -121,6 +138,11 @@ def announce_arrival(member: Member, pod: Pod) -> Post:
       * The body carries no name. The byline already says who this is; a body
         reading "Priya Whitfield joined" under a byline already reading "Priya
         Whitfield" reads as a bug.
+      * MARKED AS AN ARRIVAL (#208). The card stays a normal post everywhere a
+        person looks at the feed; the mark is what lets Email Updates name the
+        week's joiners in one line instead of spending an entry on each of them.
+        The first real Email Update a family received was three of these out of
+        five entries.
 
     The pod is a PARAMETER, not something this function works out. The first cut
     inferred it as the member's lowest-id pod, which is correct only because the
@@ -134,7 +156,14 @@ def announce_arrival(member: Member, pod: Pod) -> Post:
     no timestamp, so "the most recently joined pod" is not answerable at all
     without a migration. The caller holds the invite, and the invite names the pod.
     """
-    return create_post(author=member, pod=pod, audience_yards=[], body=ARRIVAL_BODY, notify=False)
+    return create_post(
+        author=member,
+        pod=pod,
+        audience_yards=[],
+        body=ARRIVAL_BODY,
+        is_arrival=True,
+        notify=False,
+    )
 
 
 def within_edit_window(post: Post) -> bool:

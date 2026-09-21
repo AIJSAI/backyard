@@ -13,6 +13,44 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
+### Changed
+
+- **The role a relative reads as "Side Admin" is "Admin".** An admin whose own household
+  belongs to more than one side of the family already reaches every one of them, so a role
+  named after a single side is wrong wherever that happens, and the name told a reader on
+  one side that a second side exists. Labels and copy only: `yard_admin` is still the
+  stored value, every permission predicate is untouched, and the migration (`0034`) alters
+  nothing but the words (`sqlmigrate` emits a no-op between BEGIN and COMMIT).
+  - A role sentence names the capability and stops. Admin: "Adds and removes members.
+    Cannot change another admin. Where a row has no controls, it says who can." Family
+    Admin: "Manages everyone, including the admins." (a relative promoted through the roster
+    manages people and does not run the server). The welcome says "You can add and remove
+    members." and the second-factor line says "adds and removes members", both instead of
+    "on your side".
+  - The roster row an admin cannot act on says "Outside what you manage" rather than "Also
+    on the other side". A child account's row says "A child account, so their parent changes
+    it." instead of naming the Family Admin, which the permission matrix contradicts
+    (TM-10). An admin's own row always carries Edit Profile, so it never prints a sentence:
+    "nobody removes or re-roles themselves" is the one limit the roster leaves unsaid
+    (tracked).
+  - The Family Admin's own pages still say "both sides", because that reader can see every
+    side. Those pages hardcode two and the number of sides is data: tracked separately.
+  - "Side Admin" is a retired word in `copy_scan.py`, the way "digest" is, so it cannot come
+    back through a template, a choice label, a role description or an email, and the ban
+    survives a line break, a stripped inline tag and the code's own hyphen spelling for
+    every multi-word entry.
+
+- **Email Updates name the period's arrivals in one line.** When a household joins, every
+  new member still gets a "Just joined." card and the feed still shows it. The message no
+  longer spends an entry on each of them: after the posts it reads "Joined this week: Rose,
+  Sam and Ada.", with the names held to the same audience rule as everything else in the
+  message, so a name never crosses a side of the family. The period word is the reader's
+  own frequency while the message still covers about one period, and "Joined recently"
+  once it stretches to half as long again, which is what a skipped quiet period does. The
+  first Email Update a family actually received had five entries and three of them were
+  arrivals. A period with joins and nothing written still sends nothing at all. One
+  additive migration (`0035`), which marks the cards already written.
+
 ### Added
 
 - **Notifications on a phone.** A relative who has Backyard on their home screen can be
@@ -40,7 +78,7 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   checked against an allowlist of push services at subscribe time and again on the
   outbound request, with no redirects, a hard timeout, and the endpoint redacted out of
   every log line. The payload is encrypted to the device's own key, so a push service sees
-  an endpoint, a size and a time, never the words. One additive migration (`0034`), and
+  an endpoint, a size and a time, never the words. One additive migration (`0036`), and
   one new dependency (`pywebpush`, MPL-2.0).
 - **Keep Me Signed In now lasts 60 days** on the device it was ticked on, refreshed at most
   once a day while the app is used. Every session was two weeks and nothing extended it,

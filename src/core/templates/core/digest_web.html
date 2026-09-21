@@ -31,7 +31,20 @@
       <p><a href="{% url 'digest_web_post' token post.id %}">See Replies</a></p>
     </article>
   {% empty %}
-    <p class="empty">No posts in this date range.</p>
+    {% comment %} Not when the joined line is about to render under it: an empty state that
+       says nothing is here, above a line saying who arrived, is the two contradicting lines
+       the voice guide forbids. The posts of a still-linked issue can all be deleted after
+       it was sent, which is the only way to reach this page with arrivals and no entries.
+    {% endcomment %}
+    {% if not arrivals %}
+      <p class="empty">No posts in this date range.</p>
+    {% endif %}
   {% endfor %}
+  {% comment %} The same line the message carries, built by the same function
+     (core.digest.arrivals_block), because this page is the web copy of that message and
+     the two must not be able to name different people. {% endcomment %}
+  {% if arrivals %}
+    <p class="muted">Joined {{ arrivals.period_text }}: {{ arrivals.names_text }}.</p>
+  {% endif %}
 {% endblock %}
 {% block extra_body %}{% include "core/_localise_times.html" %}{% endblock %}

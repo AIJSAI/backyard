@@ -123,10 +123,17 @@ class Member(models.Model):
     # Title Case, like every other label a person reads (the copy pass, 2026-09-19). These
     # render as a badge on the roster and as the options in the role select, both of which
     # the owner's rule covers word for word.
+    #
+    # "Side Admin" became "Admin" on 2026-09-20. An admin whose own household belongs to
+    # more than one side of the family already reaches every one of them, so a role named
+    # after a single side is wrong wherever that happens. One word is right at every reach.
+    # It also stops the roster telling a relative on one side that another side exists.
+    # `yard_admin` is untouched: the VALUE is what every predicate compares against, and
+    # this is a copy pass.
     ROLE_CHOICES = [
         (MEMBER, "Member"),
         (POD_OWNER, "Group Owner"),
-        (YARD_ADMIN, "Side Admin"),
+        (YARD_ADMIN, "Admin"),
         (INSTANCE_ADMIN, "Family Admin"),
         (SUPERVISED, "Child Account"),
     ]
@@ -157,16 +164,34 @@ class Member(models.Model):
             "The same as a member. Setting a group's rule and adding people to it comes "
             "from creating a group, not from this label."
         ),
+        # REACH IS STATED FROM WHERE THE READER STANDS (2026-09-20). This said "only on
+        # their own side of the family. Cannot manage an admin, or anyone who also belongs
+        # to the other side" — two sentences that only parse for somebody who knows a
+        # second side exists, printed for an admin who may not be able to see one.
+        #
+        # AND IT DOES NOT PROMISE A SET. "the members they can see" was the first
+        # replacement and it was measured wrong: the roster shows this role a peer admin, a
+        # bridging member and their own row, none of which they may act on
+        # (`permissions.can_manage_member`). So the first sentence names the CAPABILITY,
+        # the second names the one refusal worth stating in prose, and the third points at
+        # the row — which is where the limit is already explained, per person, in words that
+        # name who can.
         YARD_ADMIN: (
-            "Adds and removes members, but only on their own side of the family. "
-            "Cannot manage an admin, or anyone who also belongs to the other side."
+            "Adds and removes members. Cannot change another admin. Where a row has no "
+            "controls, it says who can."
         ),
         # "This is the whole instance." was the second sentence here until 2026-09-19. It
         # was the only place in the product that used the word at a relative, and it told
         # them nothing they could act on. Its replacement ("The whole family, not one side
         # of it.") restated the first sentence and went the same way in the copy pass: say
         # the thing once and stop.
-        INSTANCE_ADMIN: "Manages anyone, on either side.",
+        #
+        # "Manages anyone, on either side." until 2026-09-20, then "Manages everyone and
+        # runs this Backyard." for a few hours — which promised a thing the ROLE does not
+        # confer. A relative promoted here through the roster manages people; running the
+        # box is a server shell somebody else may hold (S-805). What actually separates the
+        # two admin roles is the one thing the other cannot do.
+        INSTANCE_ADMIN: "Manages everyone, including the admins.",
         SUPERVISED: "A managed account with no sign-in of its own. A parent edits it.",
     }
 
@@ -451,6 +476,17 @@ class Post(models.Model):
         on_delete=models.SET_NULL,
         related_name="moderated_posts",
     )
+    # The arrival card a join writes (S-905, posting.announce_arrival), rather than
+    # something a person sat down and wrote. The feed draws it like any other post; Email
+    # Updates never list one as an entry and collapse a window's arrivals into one line
+    # naming who joined (#208).
+    #
+    # WRITTEN, never inferred. The only other way to recognise an arrival card is its body
+    # text, and the body is the author's to edit for fifteen minutes (posting.EDIT_WINDOW,
+    # which the S-905 receipt records a newcomer using to introduce themselves). Matching
+    # on text would therefore both miss real arrivals and catch a member who happened to
+    # type the same two words.
+    is_arrival = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["-created_at"]

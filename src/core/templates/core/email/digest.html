@@ -29,6 +29,13 @@
         </div>
       {% endfor %}
 
+      {% comment %} WHO JOINED, in one line rather than an entry each (#208). The cards are
+         still in the feed; this message names the week's arrivals the way a person would
+         mention them, after the posts and before what is coming up. {% endcomment %}
+      {% if arrivals %}
+        <p style="margin: 24px 0 0; padding: 16px 0 0; border-top: 1px solid #dde4df;">Joined {{ arrivals.period_text }}: {{ arrivals.names_text }}.</p>
+      {% endif %}
+
       {% if dates_block %}
         <div style="margin: 24px 0; padding: 16px 0 0; border-top: 1px solid #dde4df;">
           <p style="margin: 0;"><strong>Coming Up In The Next Week</strong></p>

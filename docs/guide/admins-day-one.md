@@ -22,7 +22,7 @@ A household is one home. One link covers everyone in it.
 The link is shown once. Make another from **Invites**.
 
 Only the Family Admin can hand a side over. The first person to join with that link becomes
-the Side Admin, and everyone after them joins as a member.
+an Admin, and everyone after them joins as a member.
 
 ## 2. Add A Grandparent
 

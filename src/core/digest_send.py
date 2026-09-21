@@ -101,6 +101,11 @@ def _window_has_posts(
     A named seam rather than an inline `.exists()`: it is the FIRST of two looks at the
     same question (the second is on the built blocks, at send time), and a test needs to
     be able to stand between them.
+
+    An arrival card is not a post for this question (#208): `window_posts` leaves them
+    out, so a week in which a side of the family joined and nobody wrote anything still
+    sends nothing, and the joiners are simply named in the next message that has news in
+    it. "If nobody posted, nothing is sent" is what How It Works promises.
     """
     return digest_links.window_posts(member, yard_id, window_start, window_end).exists()
 

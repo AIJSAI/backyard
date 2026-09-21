@@ -66,12 +66,17 @@ class Reader:
         """
         assets = scoping.visible_media(self.member)
         if self.digest_issue is not None:
-            issue_posts = digest_links.issue_posts(self.digest_issue)
+            # The issue's whole SLICE, not the entries it listed (#208). `digest_post_view`
+            # opens any post in the slice — arrival cards included, so a link already in an
+            # inbox still opens the card it was sent for — and a page the token may open
+            # must not render broken images. The ceiling is the same one either way: this
+            # member, this yard, this window, resolved live.
+            issue_slice = digest_links.issue_slice(self.digest_issue)
             # Both attachment shapes must be narrowed. Filtering on `post__in` alone
             # would let a digest token fetch the photos on any REPLY that member can
             # see, in any yard and any week — exactly the widening this narrowing
             # exists to prevent, reintroduced through the S-404 path.
-            assets = assets.filter(Q(post__in=issue_posts) | Q(comment__post__in=issue_posts))
+            assets = assets.filter(Q(post__in=issue_slice) | Q(comment__post__in=issue_slice))
         return assets
 
     def visible_profile_photos(self) -> QuerySet[ProfilePhoto]:
