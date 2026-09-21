@@ -115,8 +115,10 @@ def test_the_yard_admin_description_is_true_on_all_three_of_its_claims(side: Yar
     three parts and each is checked against the code: the first names the CAPABILITY (this
     role adds and removes members), the second names the one refusal worth stating in prose
     (never another admin, so no privilege inversion), and the third points at the roster
-    row, which is where every other limit — a bridging member, a child, yourself — is
-    already explained per person in words that name who can.
+    row, which is where every other limit — a bridging member, a child, a peer admin — is
+    already explained per person in words that name who can. Their OWN row is the exception,
+    and it is pinned below: it always carries Edit Profile, so it has controls, prints no
+    sentence, and leaves "nobody removes or re-roles themselves" unsaid.
 
     THE SENTENCE HAS MOVED TWICE ON 2026-09-20 AND THE CAPABILITY HAS NOT. It read "only on
     their own side of the family. Cannot manage an admin, or anyone who also belongs to the
@@ -148,6 +150,11 @@ def test_the_yard_admin_description_is_true_on_all_three_of_its_claims(side: Yar
     # roster rows explain themselves. Measured rather than asserted from the prose.
     visible = set(scoping.visible_members(admin).values_list("pk", flat=True))
     assert {an_admin.pk, bridger.pk} <= visible, "the key describes rows that are on screen"
+    # The one limit the roster does NOT state, pinned so the third clause's scope stays
+    # honest: an admin's own row always carries Edit Profile, so `has_actions` is true,
+    # `_no_actions_reason` never returns "you", and no sentence is printed there.
+    assert permissions.can_edit_profile_of(admin, admin), "self-edit is why that row has controls"
+    assert not permissions.can_manage_member(admin, admin), "and why it would otherwise explain"
     # And the retired wording cannot grow back on the one surface that prints it.
     assert "other side" not in text, "the role key names a side the reader may not have"
 
@@ -206,8 +213,10 @@ def test_the_descriptions_and_the_permission_matrix_have_not_drifted() -> None:
         "only within their own yards",
         "no privilege inversion",  # yard_admin, "Cannot change another admin"
         "requires the instance admin",  # yard_admin, a bridging member: the row says who can
-        # The rule behind the third clause, and behind the roster row that carries it: a
-        # row with no controls is never a defect, it is one of these rules landing.
+        # The rule behind the rows the third clause points at. NOT behind the actor's own
+        # row: that one always carries Edit Profile, so it has controls and prints no
+        # sentence, which is why "nobody removes or re-roles themselves" is the one limit
+        # the roster never says out loud.
         "no self-administration",
         "manages anyone",  # instance_admin, "Manages everyone, including the admins"
         "no independent login",  # supervised

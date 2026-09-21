@@ -125,9 +125,10 @@ Whoever holds the link can set that password. It works once, it stops working af
 and making a new one cancels any earlier one. When they use it, they are signed out
 everywhere else.
 
-You see this control for the members you manage. Anyone else is the Family Admin's to
-recover, and the row on **`Members`** says so. An admin's own recovery needs the server, by
-design.
+You see this control for the members you manage who have a password. It is not there for a
+grandparent on a No-Login Link, because there is no password to reset. Anyone else is the
+Family Admin's to recover, and the row on **`Members`** says so. An admin's own recovery
+needs the server, by design.
 
 Worth doing before it happens: ask everyone on your side to add an email address under
 **`Settings` → `Your Sign-In Email`**, so they can reset their own password.
