@@ -23,7 +23,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0033_a_member_can_add_a_profile_photo"),
+        ("core", "0035_an_arrival_card_says_so"),
     ]
 
     operations = [
