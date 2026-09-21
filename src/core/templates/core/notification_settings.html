@@ -192,6 +192,30 @@
 
         localSubscription().then(function (subscription) {
           var live = !!subscription && Notification.permission === 'granted';
+          // A REGISTRATION MADE WITH A DIFFERENT KEY IS NOT A LIVE ONE. Rotating the VAPID
+          // pair is entirely server-side, so the browser keeps handing back a subscription
+          // that every push is now refused for (403, which deletes the row after five
+          // posts). Without this the page reads ON for ever, re-announces the dead
+          // registration on every visit, and never offers Turn On -- so the rotation cure
+          // the self-host runbook documents can never actually be reached.
+          //
+          // GUARDED on both reads: a browser that does not expose `options` or the key
+          // behaves exactly as it did before, which is the honest failure mode for a
+          // comparison that cannot be made.
+          var options = subscription && subscription.options;
+          var key = options && options.applicationServerKey;
+          if (live && key) {
+            var mine = keyBytes(root.getAttribute('data-public-key'));
+            var theirs = new Uint8Array(key);
+            var same = theirs.length === mine.length;
+            for (var i = 0; same && i < mine.length; i += 1) {
+              if (theirs[i] !== mine[i]) { same = false; }
+            }
+            if (!same) {
+              return subscription.unsubscribe().then(function () { show(false); },
+                                                     function () { show(false); });
+            }
+          }
           show(live);
           // RE-ANNOUNCE, when the browser holds a registration and the server lists no
           // device for this member. A row is deleted server-side whenever a push service

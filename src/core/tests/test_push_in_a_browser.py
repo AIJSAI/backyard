@@ -101,6 +101,15 @@ _BROWSER_QUIRKS = """
   // (1) No push service is reachable from a headless browser, so subscribe() rejects.
   const b64url = (bytes) => btoa(String.fromCharCode.apply(null, bytes))
     .replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+  const bytesToB64url = b64url;
+  const b64urlToBytes = (value) => {
+    const padded = (value + '='.repeat((4 - value.length % 4) % 4))
+      .replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(padded);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i += 1) { bytes[i] = raw.charCodeAt(i); }
+    return bytes;
+  };
   const make = async () => {
     const pair = await crypto.subtle.generateKey(
       { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
@@ -114,15 +123,25 @@ _BROWSER_QUIRKS = """
       }
     };
   };
+  // `options.applicationServerKey` is what a real PushSubscription exposes and what the
+  // page compares against the key rendered into it, so the stub carries it too: the
+  // subscription remembers the key it was MADE with, which is the whole point of the
+  // check (a rotation changes the page's key and not the browser's registration).
   const wrap = (json) => ({
     endpoint: json.endpoint,
     toJSON: () => json,
-    unsubscribe: async () => { write(subKey, ''); return true; }
+    options: { applicationServerKey: b64urlToBytes(json.madeWith).buffer },
+    unsubscribe: async () => {
+      write(subKey, '');
+      window.__backyardUnsubscribed = true;
+      return true;
+    }
   });
 
   navigator.serviceWorker.ready.then((registration) => {
-    registration.pushManager.subscribe = async () => {
+    registration.pushManager.subscribe = async (options) => {
       const json = await make();
+      json.madeWith = bytesToB64url(new Uint8Array(options.applicationServerKey));
       write(subKey, JSON.stringify(json));
       return wrap(json);
     };
@@ -347,6 +366,85 @@ _A_REGISTRATION_THE_SERVER_REFUSES = """
   });
 })();
 """
+
+
+def test_a_registration_made_with_the_same_key_is_still_live(
+    live_server: Any, playwright: Playwright, settings: Any
+) -> None:
+    """The guard must not fire on the ordinary case. Same key, so the re-announce this
+    test's sibling covers still happens and the page still reads ON."""
+    cookie = _seed(settings)
+    browser, page = _page(playwright, live_server.url, cookie, allow=True)
+    try:
+        page.goto(f"{live_server.url}/settings/notifications/")
+        page.get_by_role("button", name="Turn On Notifications").tap()
+        page.wait_for_function("() => !!document.querySelector('ul.devices')", timeout=15_000)
+        PushSubscription.objects.all().delete()
+
+        page.goto(f"{live_server.url}/settings/notifications/")
+        page.wait_for_function("() => !!document.querySelector('ul.devices')", timeout=15_000)
+        expect(
+            page.get_by_role("button", name="Turn Off Notifications On This Device")
+        ).to_be_visible()
+        assert PushSubscription.objects.count() == 1
+        assert page.evaluate("() => !!window.__backyardUnsubscribed") is False
+        _let_the_server_finish(page)
+    finally:
+        page.context.close()
+        browser.close()
+
+
+def test_a_registration_made_with_an_older_key_is_cleared_and_turn_on_comes_back(
+    live_server: Any, playwright: Playwright, settings: Any
+) -> None:
+    """F-B: after a VAPID rotation the browser keeps a registration every push is now
+    refused for, and the page read ON for ever.
+
+    Rotation is entirely server-side, so nothing tells the browser. Before this the page
+    hid Turn On, re-announced the dead registration on every visit, watched the row get
+    deleted after five 403s, and re-created it on the next visit — so the cure the
+    self-host runbook documents ("each relative turns notifications on again") could never
+    be reached. The rotation here is the real one: a new pair from the same command the
+    runbook tells an operator to run.
+    """
+    cookie = _seed(settings)
+    browser, page = _page(playwright, live_server.url, cookie, allow=True)
+    try:
+        page.goto(f"{live_server.url}/settings/notifications/")
+        page.get_by_role("button", name="Turn On Notifications").tap()
+        page.wait_for_function("() => !!document.querySelector('ul.devices')", timeout=15_000)
+        assert PushSubscription.objects.count() == 1
+
+        # THE ROTATION. The operator generates a new pair and restarts; the server also
+        # forgets the row, which is what five 403s would have done by then.
+        rotated_public, rotated_private = generate_pair()
+        settings.VAPID_PUBLIC_KEY = rotated_public
+        settings.VAPID_PRIVATE_KEY = rotated_private
+        PushSubscription.objects.all().delete()
+
+        subscribes: list[str] = []
+        page.on(
+            "request",
+            lambda request: (
+                subscribes.append(request.url)
+                if request.url.endswith("/settings/notifications/subscribe/")
+                else None
+            ),
+        )
+        page.goto(f"{live_server.url}/settings/notifications/")
+        expect(page.get_by_role("button", name="Turn On Notifications")).to_be_visible(
+            timeout=15_000
+        )
+        page.wait_for_timeout(1200)  # long enough for a re-announce to have gone out
+        assert page.evaluate("() => !!window.__backyardUnsubscribed") is True, (
+            "the stale registration was left in the browser"
+        )
+        assert subscribes == [], "the dead registration was re-announced to the server"
+        assert PushSubscription.objects.count() == 0
+        _let_the_server_finish(page)
+    finally:
+        page.context.close()
+        browser.close()
 
 
 def test_a_refused_re_announce_shows_the_off_state_instead_of_reloading_forever(

@@ -363,8 +363,10 @@ post, on a lock screen, to whoever is holding the phone.
 
 **Rotating the pair signs every device out of notifications.** A registration is bound to
 the key it was made with, so after a rotation every push is refused, every stored
-subscription is dead, and each relative turns notifications on again from Settings. Do it
-if the private key is exposed; there is no reason to do it otherwise.
+subscription is dead, and each relative turns notifications on again from Settings. The
+Settings page does that half for them: it notices that the phone's registration was made
+with the old key, clears it, and offers Turn On Notifications again on the next visit. Do
+it if the private key is exposed; there is no reason to do it otherwise.
 
 **Extending the list of push services** is `BACKYARD_PUSH_SERVICE_HOSTS`, a comma-separated
 list of hostnames that is ADDED to the built-in set (Apple, Google, Mozilla, Microsoft).
