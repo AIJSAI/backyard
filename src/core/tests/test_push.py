@@ -32,6 +32,7 @@ import requests
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError
 from django.utils import timezone
 
 from core import commenting, notifications, posting, push, push_endpoints, reacting
@@ -920,6 +921,72 @@ def test_writing_a_reply_defers_both_the_email_nudge_and_the_push(
     with django_capture_on_commit_callbacks(execute=False) as callbacks:
         commenting.create_comment(author=family.bridge, post=post, body="hello")
     assert len(callbacks) == 2
+
+
+# --- what the database itself refuses ----------------------------------------------------
+
+
+def test_the_database_refuses_a_second_row_for_one_registration() -> None:
+    """One browser profile has one registration. Held by a NAMED UniqueConstraint rather
+    than `unique=True`, so there is one index rather than two (see the next test)."""
+    yard = Yard.objects.create(name="Maternal", slug="maternal")
+    pod = Pod.objects.create(name="The cousins", kind=Pod.HOUSEHOLD)
+    pod.yards.set([yard])
+    first = _member(pod, "Ann Maternal")
+    second = _member(pod, "Bo Maternal")
+    device = _a_device(first)
+    with pytest.raises(IntegrityError):
+        PushSubscription.objects.create(
+            member=second, endpoint=device.endpoint, p256dh="x", auth="y", label="iPhone"
+        )
+
+
+def test_the_database_refuses_an_endpoint_that_is_not_https() -> None:
+    """The https invariant in the database as well as in the validator.
+
+    `push_views.subscribe` is the only writer today, and the CHECK is for the day that
+    stops being true: a row put in at a psql prompt, or a future importer, cannot make
+    this server POST a VAPID assertion over plain HTTP.
+    """
+    yard = Yard.objects.create(name="Maternal", slug="maternal")
+    pod = Pod.objects.create(name="The cousins", kind=Pod.HOUSEHOLD)
+    pod.yards.set([yard])
+    member = _member(pod, "Ann Maternal")
+    with pytest.raises(IntegrityError):
+        PushSubscription.objects.create(
+            member=member,
+            endpoint="http://fcm.googleapis.com/fcm/send/x",
+            p256dh="x",
+            auth="y",
+            label="iPhone",
+        )
+
+
+def test_the_table_carries_no_dead_pattern_index() -> None:
+    """`unique=True` on a text column builds a SECOND index, `varchar_pattern_ops`, for
+    LIKE queries. Nothing here runs a LIKE on an endpoint — every lookup is an equality on
+    the whole string — so it would be written on every insert and read by nobody. The
+    table is new and unshipped, so it was moved to a named UniqueConstraint before it
+    shipped; this reads the real catalogue rather than trusting the model's Meta.
+    """
+    from django.db import connection
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT indexname, indexdef FROM pg_indexes WHERE tablename = %s ORDER BY indexname",
+            ["core_pushsubscription"],
+        )
+        indexes = cursor.fetchall()
+    definitions = {name: definition for name, definition in indexes}
+    assert not any("pattern_ops" in definition for definition in definitions.values()), (
+        f"a varchar_pattern_ops index is back on core_pushsubscription: {definitions}"
+    )
+    assert any("_like" in name for name in definitions) is False, (
+        f"a _like index is back on core_pushsubscription: {sorted(definitions)}"
+    )
+    # ...and the two that SHOULD be there: the unique endpoint, and the FK on member.
+    assert "one_row_per_browser_registration" in definitions
+    assert any("member_id" in definition for definition in definitions.values())
 
 
 # --- removal ---------------------------------------------------------------------------

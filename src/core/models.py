@@ -812,7 +812,14 @@ class PushSubscription(models.Model):
     member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="push_subscriptions")
     # 500 is the cap `push_endpoints.MAX_ENDPOINT_LENGTH` enforces before this column is
     # ever reached; the real services mint 100-250 characters.
-    endpoint = models.URLField(max_length=500, unique=True)
+    #
+    # `db_index=False` with the uniqueness moved to a named UniqueConstraint in Meta, and
+    # that is not cosmetic: `unique=True` on a text column makes Postgres build a SECOND
+    # index, `..._endpoint_..._like` with `varchar_pattern_ops`, for LIKE queries. Nothing
+    # here ever runs a LIKE on this column — every lookup is an equality on the whole
+    # endpoint — so it is a dead index that is written on every insert and delete and read
+    # by nobody. The table is new and unshipped, so this is the cheap moment to say so.
+    endpoint = models.URLField(max_length=500, db_index=False)
     # The device's RFC 8291 key material, base64url as the browser hands it over. Not a
     # secret of ours and useless without the endpoint, but shape-checked on the way in
     # (core/push_endpoints.py) so a row that cannot possibly encrypt never exists.
@@ -834,6 +841,19 @@ class PushSubscription(models.Model):
 
     class Meta:
         ordering = ["created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["endpoint"], name="one_row_per_browser_registration"),
+            # The https invariant, at the database rather than only in the validator. The
+            # column is written by exactly one code path today, and the point of a CHECK
+            # is the day that stops being true: a row put in at a `psql` prompt, or a
+            # future importer, cannot make this server POST a VAPID assertion over plain
+            # HTTP. It costs nothing on insert and it is the one SSRF clause a constraint
+            # can express (a host allowlist is a setting, not a column rule).
+            models.CheckConstraint(
+                condition=models.Q(endpoint__startswith="https://"),
+                name="a_push_endpoint_is_https",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"Push subscription for {self.member} ({self.label or 'a device'})"
