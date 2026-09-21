@@ -23,8 +23,16 @@
   {% comment %} Already on the home screen: the steps are noise, so they go and this stays.
      Two readings, because the two platforms answer differently — Chrome and Android report
      the display mode, older iOS reports `navigator.standalone`. {% endcomment %}
+  {% comment %} The one thing left to offer somebody who has already installed it (S-107).
+     Rendered only where the control exists — an instance with no VAPID pair has no
+     Notifications section to send them to — and only in the already-installed branch,
+     because on an iPhone the button on that page does nothing until Backyard is opened
+     from the home screen. The install is the step that makes the offer true. {% endcomment %}
   <div class="notice" data-install-done hidden>
     <p>Backyard is installed on this device. Open it from your home screen.</p>
+    {% if push_available %}
+      <p><a href="{% url 'notification_settings' %}">Turn On Notifications</a></p>
+    {% endif %}
   </div>
 
   {% comment %} An in-app browser (Instagram, Facebook, LinkedIn) cannot add anything to a

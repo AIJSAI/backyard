@@ -86,6 +86,85 @@ def test_the_certificate_refresh_does_nothing_on_a_plain_http_instance(
     assert calls == []
 
 
+def test_finished_jobs_are_pruned_on_a_daily_schedule() -> None:
+    """TS-PG-7, which is rated High and committed to scheduling this "from the wave it
+    installs" while nothing did. Push raises the rate it matters at: one post is one job
+    row, one reply is two, and `procrastinate_jobs` plus `procrastinate_events` grow
+    without bound until the disk on a family box fills."""
+    scheduled = {pt.task.name: pt for pt in app.periodic_registry.periodic_tasks.values()}
+    assert "prune_finished_jobs" in scheduled
+    assert scheduled["prune_finished_jobs"].cron == "50 4 * * *"
+    # Both windows named, and the failed one longer: a succeeded job is a receipt nobody
+    # reads, a failed one is the only record of what went wrong.
+    assert tasks.SUCCEEDED_JOB_RETENTION_HOURS == 24 * 7
+    assert tasks.FAILED_JOB_RETENTION_HOURS == 24 * 30
+    assert tasks.FAILED_JOB_RETENTION_HOURS > tasks.SUCCEEDED_JOB_RETENTION_HOURS
+
+
+def test_the_prune_calls_procrastinates_own_deletion_with_both_windows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """It must not grow a DELETE of its own: which statuses count as finished, and which
+    timestamp age is measured from, stay the library's business (it reads the newest
+    `procrastinate_events` row, not `scheduled_at`)."""
+    calls: list[dict[str, object]] = []
+
+    async def record(**kwargs: object) -> None:
+        calls.append(kwargs)
+
+    monkeypatch.setattr(app.job_manager, "delete_old_jobs", record)
+    tasks.prune_finished_jobs_task.func(timestamp=0)
+
+    assert calls == [
+        {
+            "nb_hours": tasks.FAILED_JOB_RETENTION_HOURS,
+            "include_failed": True,
+            "include_cancelled": True,
+            "include_aborted": True,
+        },
+        {"nb_hours": tasks.SUCCEEDED_JOB_RETENTION_HOURS},
+    ]
+
+
+@pytest.mark.django_db(transaction=True)
+def test_the_prune_really_removes_a_finished_job_row() -> None:
+    """Against a real Postgres, through Procrastinate's own SQL. The rows are inserted
+    with raw SQL because Procrastinate's Django models are deliberately read-only, and an
+    event row is inserted with them because the deletion measures age from the newest
+    event, not from the job."""
+    from django.db import connection
+
+    with connection.cursor() as cursor:
+        for status, age_hours in (("succeeded", 24 * 8), ("succeeded", 1), ("failed", 24 * 8)):
+            cursor.execute(
+                "INSERT INTO procrastinate_jobs (queue_name, task_name, priority, args, status)"
+                " VALUES ('push', 'push_new_post', 0, '{}', %s::procrastinate_job_status)"
+                " RETURNING id",
+                [status],
+            )
+            job_id = cursor.fetchone()[0]
+            # The event TYPE is the job's own final status: the enum has succeeded and
+            # failed, and no "finished". The deletion reads the newest event's `at`.
+            cursor.execute(
+                "INSERT INTO procrastinate_events (job_id, type, at)"
+                " VALUES (%s, %s::procrastinate_job_event_type,"
+                " NOW() - (%s || ' HOUR')::INTERVAL)",
+                [job_id, status, age_hours],
+            )
+        cursor.execute("SELECT count(*) FROM procrastinate_jobs")
+        assert cursor.fetchone()[0] == 3
+
+    tasks.prune_finished_jobs_task.func(timestamp=0)
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT status::text FROM procrastinate_jobs ORDER BY id")
+        left = [row[0] for row in cursor.fetchall()]
+        cursor.execute("DELETE FROM procrastinate_jobs")
+    # The eight-day-old SUCCEEDED row is gone; the recent one and the failed one stay,
+    # because a failure is kept thirty days.
+    assert left == ["succeeded", "failed"]
+
+
 def test_transcode_task_is_registered_but_not_periodic() -> None:
     # The first enqueued (non-periodic) task: registered so a video upload can defer it,
     # but not on the periodic registry — it fires per upload, not on a cron (S-402).

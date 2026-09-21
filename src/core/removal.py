@@ -44,7 +44,7 @@ from django.db import models, transaction
 from django.utils import timezone
 
 from . import pods
-from .models import Comment, MediaAsset, Member, Pod, PodMembership, Post
+from .models import Comment, MediaAsset, Member, Pod, PodMembership, Post, PushSubscription
 from .revocation import revoke_member_credentials
 
 KEEP = "keep"
@@ -168,7 +168,25 @@ def remove_member(member: Member, *, content: str) -> None:
         #    on the volume unreachable and unpurgeable. ANONYMIZE would need this on its
         #    own terms regardless: a face is the most identifying field there is.
         media.purge_profile_photo(member)
-        # 5. The content choice, inside the same transaction as the revocation.
+        # 5. Their phones stop being told anything (S-107).
+        #
+        # NOT in the TM-1 revocation registry, and the distinction is the same one
+        # `_void_digest_capabilities` already draws: a PushSubscription grants the member
+        # NOTHING — it is a delivery address, like the digest's `address` and `enabled`,
+        # not a bearer credential they hold. The registry is derived twice over
+        # (regeneration, and the BY-14 household shrink), and both of those are acts on
+        # somebody who is STILL HERE, where silently switching a relative's own phone off
+        # is the punishment `_REGENERATION_STEPS` exists to avoid. Removal is the one act
+        # where the person is gone, so it is the one act that deletes these.
+        #
+        # It must happen, and it is not covered by anything above: the rows cascade from
+        # Member, and removal deliberately KEEPS the Member row (deactivated) so authored
+        # content stays attributable. Without this line a removed ex keeps receiving a
+        # name and the first words of a post on their lock screen — the T-MINOR-1 channel
+        # this whole flow exists to close, arriving by a road that did not exist when it
+        # was written.
+        PushSubscription.objects.filter(member=member).delete()
+        # 6. The content choice, inside the same transaction as the revocation.
         if content == ANONYMIZE:
             _anonymize(member)
         elif content == DELETE:

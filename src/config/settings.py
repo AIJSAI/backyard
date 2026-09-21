@@ -122,6 +122,11 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # "Keep Me Signed In" (S-107), immediately after the auth middleware because it reads
+    # the signed-in member. It does nothing at all unless the session carries the stamp
+    # core/sessions.py writes at sign-in, so the No-Login Link session, an unticked
+    # sign-in and every anonymous request pass through it without a query.
+    "core.middleware.RememberedSessionMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",  # required by allauth
@@ -430,6 +435,58 @@ validate_email_transport(
     resend_inbound_secret=RESEND_INBOUND_SECRET,
 )
 
+# --- Web push (S-107): the installed app's notifications ----------------------
+# OFF unless an operator sets a VAPID key pair, and a half-set pair refuses to boot.
+# config/push_guard.py carries the reasoning; the short version is that a key pair with
+# one half missing renders a working-looking Turn On Notifications button whose
+# notifications can never arrive, which is a silent failure on the one feature whose job
+# is to break silence.
+#
+# These are the ONLY place the keys are read. Every other module asks
+# `settings.PUSH_ENABLED` and `settings.VAPID_*`, never `os.environ` (the house rule for
+# configuration), so there is one answer to "is push on here" and one place to change it.
+from config.push_guard import validate_vapid  # noqa: E402
+
+VAPID_PUBLIC_KEY = os.environ.get("BACKYARD_VAPID_PUBLIC_KEY", "").strip()
+VAPID_PRIVATE_KEY = os.environ.get("BACKYARD_VAPID_PRIVATE_KEY", "").strip()
+VAPID_SUBJECT = os.environ.get("BACKYARD_VAPID_SUBJECT", "").strip()
+# ONE ARGUMENT PER LINE, and the trailing comma is what keeps it that way. Written on a
+# single line, the tail of this call matches gitleaks' `generic-api-key` rule — a name
+# ending in the credential keyword, a separator, and a ten-plus-character value — so the
+# `secrets` job failed on a line that holds no secret at all. A line ending in a comma
+# cannot match that rule's terminator, which is the cheapest cure that does not weaken the
+# scanner's own configuration. (The shape is DESCRIBED and not quoted here for the same
+# reason: a comment ships, and the scanner reads comments too.)
+PUSH_ENABLED = validate_vapid(
+    public_key=VAPID_PUBLIC_KEY,
+    private_key=VAPID_PRIVATE_KEY,
+    subject=VAPID_SUBJECT,
+)
+
+# THE PUSH-SERVICE ALLOWLIST, and the only copy of it. A subscription endpoint is a URL
+# the BROWSER hands the server, and the server then POSTs to it — so without this the
+# subscribe route is a server-side request forgery primitive with a member's login in
+# front of it (threat model T-PUSH-1). These are the hosts the four browser engines
+# actually mint endpoints on. A leading `*.` matches one or more labels in front of the
+# suffix; everything else is an exact hostname.
+#
+# A SELF-HOSTER EXTENDS IT with BACKYARD_PUSH_SERVICE_HOSTS, a comma-separated list that
+# is ADDED to this set, never replaces it — a self-hosted push relay or a new browser's
+# service is a real case, and silently replacing the defaults would be a way to turn the
+# allowlist off by setting one host. Entries are matched by hostname only, so a value
+# with a scheme or a path in it simply never matches anything.
+PUSH_SERVICE_HOSTS: tuple[str, ...] = (
+    "fcm.googleapis.com",  # Chrome, Edge, and every Chromium browser on Android
+    "updates.push.services.mozilla.com",  # Firefox
+    "web.push.apple.com",  # Safari and every installed iOS home-screen app
+    "*.push.apple.com",  # Apple shards the host per region
+    "*.notify.windows.com",  # Windows / WNS
+) + tuple(
+    host.strip().lower()
+    for host in os.environ.get("BACKYARD_PUSH_SERVICE_HOSTS", "").split(",")
+    if host.strip()
+)
+
 # Request logs would otherwise contain capability URLs: django.request logs the
 # path of every 404, and /d/'s expired/mistyped links GUARANTEE token-bearing
 # paths in the log stream (TS-EDGE-LOG). The filter rewrites them before emit;
@@ -507,6 +564,31 @@ SESSION_COOKIE_SAMESITE = "Lax"
 # at this level, which quietly gave every signed-in member — including an instance admin — a
 # six-month cookie, and put a session row write on every request in the product. That is a
 # security-posture change to fix a grandmother's bookmark, and review caught it.
+#
+# S-107 adds the OPT-IN half of that, and it is opt-in in three senses at once: the member
+# ticks Keep Me Signed In at sign-in, the longer life applies to that session only, and an
+# admin never gets it at all. The reason is the home-screen app: an installed Backyard that
+# signs the whole family out every fortnight is not an app, it is a login screen with an
+# icon. The two rejections above still hold and are what shape this:
+#
+#   * NOT SESSION_COOKIE_AGE. That is global, so it would move the admin's session and every
+#     unticked one with it. The longer age is set on the one session, at sign-in, by
+#     core/sessions.py.
+#   * NOT SESSION_SAVE_EVERY_REQUEST. That writes a session row on every request in the
+#     product. RememberedSessionMiddleware re-saves a remembered session only once the
+#     refresh floor below has passed, so a member scrolling the feed for an hour writes
+#     one row, not two hundred.
+#
+# An admin role stays at the two-week default: an admin session mints no-login links,
+# get-back-in links and invites (T-SESS-2), so its blast radius is the instance rather than
+# one relative's feed, and a shared or lost admin phone is the case the shorter life is for.
+# A member PROMOTED after signing in is brought back to two weeks from that moment rather
+# than left with the rest of their 60 days — `permissions.is_admin` is re-asked at every
+# daily refresh, and leaving the remainder would be exactly the long admin session this
+# refuses. It cuts nobody off mid-act; it only takes back an extension they were never
+# entitled to (core/sessions.py::refresh_if_due).
+REMEMBERED_SESSION_AGE = 60 * 60 * 24 * 60  # 60 days
+REMEMBERED_SESSION_REFRESH_AFTER = 60 * 60 * 24  # at most one session write per day, per device
 CSRF_COOKIE_SAMESITE = "Lax"
 X_FRAME_OPTIONS = "DENY"
 SECURE_CONTENT_TYPE_NOSNIFF = True

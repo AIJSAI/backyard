@@ -1,17 +1,23 @@
-"""Notification preferences (S-305): a negative guarantee.
+"""The reply nudge by EMAIL (S-305): a negative guarantee.
 
-The product promise is that Backyard pushes a member nothing unless they explicitly
-opt in, and the only opt-in that exists is replies to their own posts. There is no
-all-activity firehose. This module is intentionally tiny: it reads and flips the one
-boolean. The absence of any other option is the feature, held by tests that assert
-the preference model grows no firehose field and defaults to zero push.
+The product promise is that Backyard sends a member nothing unless they explicitly opt
+in, and there is no all-activity firehose anywhere. This module is intentionally tiny: it
+reads and flips one boolean, and the absence of any other option is the feature, held by
+tests that assert the preference model grows no firehose field.
 
-Web push is still post-v1 per ADR-002, but the opt-in is no longer a dead switch: the
-nudge goes out as EMAIL, over the same Anymail path everything else uses, gated on the
-same one boolean. Before this, the settings page told the member "the only thing you can
-turn on is a nudge when someone replies to your own post", the box was stored, and no
-sending path anywhere read it — so ticking it produced silence indistinguishable from
-nobody having replied.
+THE EMAIL HALF, and since S-107 that distinction is load-bearing rather than pedantic.
+Web push shipped and lives in core/push.py, with its own two preference booleans on the
+same model; this stays the mail path, gated on `notify_on_reply` alone, and the two share
+no code on purpose. They have different audiences (this one reaches the post's author and
+nobody else, where push reaches the whole thread), different failure modes, and separate
+worker jobs, so a refusing push service cannot take the mail down with it. The paragraph
+here used to say "web push is still post-v1 per ADR-002", which stopped being true the day
+push shipped.
+
+Before this module existed the settings page told the member "the only thing you can turn
+on is a nudge when someone replies to your own post", the box was stored, and no sending
+path anywhere read it — so ticking it produced silence indistinguishable from nobody
+having replied.
 
 Four conditions, all required, all of them the guarantee rather than decoration:
 

@@ -30,9 +30,12 @@ same-origin arm for the same CSRF reason.
 from __future__ import annotations
 
 import secrets
+import time
 from collections.abc import Callable
 
 from django.http import HttpRequest, HttpResponse
+
+from . import sessions
 
 # Token is IN the URL: suppress the Referer entirely.
 # /media/ joined this list when the digest surfaces began re-presenting their capability
@@ -103,6 +106,33 @@ class ContentSecurityPolicyMiddleware:
         response = self.get_response(request)
         response.setdefault("Content-Security-Policy", _policy(nonce))
         return response
+
+
+class RememberedSessionMiddleware:
+    """Renew a "Keep Me Signed In" session at most once a day (S-107).
+
+    The rule and every reason behind it live in core/sessions.py. What lives HERE is the
+    cost argument, because that is what made SESSION_SAVE_EVERY_REQUEST the wrong answer
+    when review rejected it: this must not add a query or a session write to an ordinary
+    request. So the order of the checks is the design.
+
+    `session.get` first — the session is already decoded by the time this runs, so a
+    request from an anonymous visitor, a No-Login Link reader, or anybody who did not tick
+    the box costs one dictionary lookup and stops. Only when the stamp is a day old does
+    it touch `request.user` (which is lazy, so asking is what evaluates it) and the member
+    row behind it. That is once per device per day.
+    """
+
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        session = getattr(request, "session", None)
+        if session is not None and sessions.is_due(session, now=time.time()):
+            member = sessions.member_of(getattr(request, "user", None))
+            if member is not None:
+                sessions.refresh_if_due(session, member)
+        return self.get_response(request)
 
 
 def _policy(nonce: str) -> str:

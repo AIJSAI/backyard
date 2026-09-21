@@ -155,6 +155,55 @@ def refresh_domain_status_task(timestamp: int) -> None:
     )
 
 
+# How long a FINISHED Procrastinate job row is kept. Two numbers because a succeeded job
+# is a receipt nobody reads and a failed one is the only record of what went wrong: a
+# transcode that died, a digest send that raised, a push job that could not resolve its
+# post. Seven days is long enough to answer "did last week's digest run"; thirty is long
+# enough that a failure found on a Monday still has its row.
+SUCCEEDED_JOB_RETENTION_HOURS = 24 * 7
+FAILED_JOB_RETENTION_HOURS = 24 * 30
+
+
+@app.periodic(cron="50 4 * * *")  # daily 04:50, after the session purge
+@app.task(name="prune_finished_jobs")
+def prune_finished_jobs_task(timestamp: int) -> None:
+    """Delete finished Procrastinate jobs (threat model TS-PG-7).
+
+    TS-PG-7 is rated High and has committed since it was written to scheduling this "from
+    the wave it installs". Nothing did, and this wave raises the rate: one post is one job
+    row, one reply is two. `procrastinate_jobs` and its `procrastinate_events` grow
+    without bound, which on a family box is slow queue queries and then a full disk that
+    nobody is watching — the same class of silent operational failure T-MON-1 exists for.
+
+    It calls Procrastinate's OWN deletion (`JobManager.delete_old_jobs`, what the library's
+    `builtin_tasks.remove_old_jobs` wraps) rather than issuing a DELETE of our own, so the
+    statuses it treats as finished and the event timestamp it measures age from stay the
+    library's business. `async_to_sync` because that method is async and every task in this
+    module is sync; the worker runs a sync task in a thread with no loop of its own.
+
+    Two passes, not one: the FIRST sweeps everything finished past the long window
+    (failed, cancelled and aborted included), and the SECOND takes succeeded jobs at the
+    short one. A failed job is the only record of what went wrong and outlives a receipt
+    nobody reads. The order does not matter to the outcome; it is written down so the
+    test that pins the two calls and this paragraph cannot drift apart.
+    """
+    from asgiref.sync import async_to_sync
+
+    everything_old = async_to_sync(app.job_manager.delete_old_jobs)
+    everything_old(
+        nb_hours=FAILED_JOB_RETENTION_HOURS,
+        include_failed=True,
+        include_cancelled=True,
+        include_aborted=True,
+    )
+    everything_old(nb_hours=SUCCEEDED_JOB_RETENTION_HOURS)
+    logger.info(
+        "pruned finished jobs (succeeded older than %sh, anything finished older than %sh)",
+        SUCCEEDED_JOB_RETENTION_HOURS,
+        FAILED_JOB_RETENTION_HOURS,
+    )
+
+
 @app.periodic(cron="15 4 * * *")  # daily 04:15
 @app.task(name="clear_sessions")
 def clear_sessions_task(timestamp: int) -> None:
@@ -236,3 +285,43 @@ def notify_reply_task(comment_id: int) -> None:
     if comment is None:
         return  # deleted before the worker picked it up
     notifications.notify_reply(comment)
+
+
+# The two web-push jobs (S-107). Same shape as everything above: they carry an id and
+# nothing else, and re-resolve the post, the audience and every preference live at run
+# time (TS-DJ-11), so a post deleted or a member removed between the write and the tick
+# sends nothing. They are NAMED onto a `push` queue so a future deployment can give them
+# their own worker, but the shipped compose runs ONE worker at concurrency 1 across every
+# queue -- so a hanging push service WOULD hold a transcode behind it, and what actually
+# bounds that is `push.DELIVERY_BUDGET`, not the queue name. Neither job ever raises:
+# `push.send_one` turns every push-service error into a counted failure or a deleted row,
+# because a failing notification must not be retried into a second notification on
+# somebody's lock screen.
+@app.task(name="push_new_post", queue="push")
+def push_new_post_task(post_id: int) -> None:
+    """Notify everyone who may see a just-written post (S-107)."""
+    from . import push
+    from .models import Post
+
+    post = Post.objects.filter(pk=post_id, deleted_at__isnull=True).select_related("author").first()
+    if post is None:
+        return  # deleted, or gone before the worker picked it up
+    sent = push.deliver_new_post(post)
+    logger.info("push: new post %s delivered to %s device(s)", post_id, sent)
+
+
+@app.task(name="push_reply", queue="push")
+def push_reply_task(comment_id: int) -> None:
+    """Notify the post's author and the earlier repliers who may see a reply (S-107)."""
+    from . import push
+    from .models import Comment as CommentModel
+
+    comment = (
+        CommentModel.objects.filter(pk=comment_id, deleted_at__isnull=True)
+        .select_related("author", "post", "post__author")
+        .first()
+    )
+    if comment is None:
+        return  # deleted before the worker picked it up
+    sent = push.deliver_reply(comment)
+    logger.info("push: reply %s delivered to %s device(s)", comment_id, sent)

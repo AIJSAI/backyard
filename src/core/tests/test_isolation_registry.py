@@ -71,6 +71,13 @@ _ISOLATION_EXEMPT: dict[str, str] = {
     "InboundLedger": "internal Message-ID idempotency ledger; never rendered",
     "InboundQuarantine": "instance-admin-only pre-attribution mail hold (T-OP-G2); no yard scoping",
     "NotificationPreference": "a member's own push setting; never cross-member-visible",
+    "PushSubscription": (
+        "a member's own device delivery address (S-107): rendered only on their own "
+        "Settings page, reachable through no read route at all, and every write route is "
+        "filtered on member=self. What it DELIVERS is yard-isolated one layer up — "
+        "core/push.py resolves recipients through visible_posts / visible_comments per "
+        "candidate, which is the same audience query the feed uses (TM-2)"
+    ),
     "PodMute": "a member's own feed-display mute (S-205); a display filter, not a read surface",
     "HouseholdChange": (
         "an admin ledger row for one household change (who, whom, which household, when), "

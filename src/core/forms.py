@@ -25,6 +25,7 @@ from allauth.account.forms import LoginForm as AllauthLoginForm
 from allauth.account.forms import ResetPasswordForm as AllauthResetPasswordForm
 from allauth.account.models import EmailAddress
 
+from core import sessions
 from core.recovery import take_the_recovered_username
 
 
@@ -71,6 +72,35 @@ class LoginForm(AllauthLoginForm):  # type: ignore[misc]  # allauth is untyped
             # to an adult who has used phones for fifteen years is the filler the copy pass
             # was called for.
             self.fields["remember"].label = "Keep Me Signed In"
+
+    def login(self, request: Any, redirect_url: str | None = None) -> Any:
+        """allauth's sign-in, then this product's own lifetime for the new session (S-107).
+
+        AFTER the call, not instead of it: allauth sets the expiry inside
+        `_login_with_password` — `SESSION_COOKIE_AGE` when the box is ticked, a
+        browser-session cookie when it is not — so overriding it there would fight the
+        library on its own private method. `core.sessions.start` lengthens the ticked case
+        to REMEMBERED_SESSION_AGE for an ordinary member and leaves everything else
+        exactly as allauth left it.
+
+        Here rather than on the `user_logged_in` signal, which fires INSIDE
+        `perform_password_login` — before allauth's own `set_expiry` runs, so a receiver's
+        decision would be silently overwritten a few lines later. Measured by reading
+        allauth 65.14's `LoginForm._login_with_password`, which is why this override calls
+        the public `login()` and is not a copy of the private one.
+        """
+        response = super().login(request, redirect_url=redirect_url)
+        member = sessions.member_of(getattr(request, "user", None))
+        if member is not None:
+            sessions.start(
+                request.session,
+                member,
+                # The box is absent whenever ACCOUNT_SESSION_REMEMBER is pinned, and the
+                # login-by-code path never populates it, so `.get` rather than `[...]`:
+                # a missing tick is "not remembered", never a KeyError on the sign-in page.
+                remembered=bool(self.cleaned_data.get("remember")),
+            )
+        return response
 
 
 class AddEmailForm(AllauthAddEmailForm):  # type: ignore[misc]  # allauth is untyped

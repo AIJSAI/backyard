@@ -105,7 +105,14 @@ def test_the_guide_states_the_limitations_a_self_hoster_would_otherwise_hit() ->
     guide = _GUIDE.read_text().lower()
     for claim, why in (
         ("resend-only", "inbound reply-by-email works with exactly one provider"),
-        ("no web push", "the notification opt-in sends email, not a push"),
+        # Was "no web push", which stopped being true with S-107. The honest limitation
+        # moved rather than disappeared: the feature exists, it is OFF until the operator
+        # generates a key pair, and an iPhone gets nothing until the relative has put
+        # Backyard on their home screen — which the server cannot see or prompt for.
+        (
+            "web push is off unless you set a vapid key pair",
+            "notifications send nothing at all until the operator generates one",
+        ),
         ("no key escrow", "a lost backup passphrase is unrecoverable"),
         ("silently", "an unregistered inbound webhook fails with no bounce and no error"),
     ):

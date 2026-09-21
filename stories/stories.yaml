@@ -94,6 +94,31 @@ epics:
                         # dependency: push notifications are their own later story.
     v1: true
     evidence: docs/receipts/2026-07-22-s5-tested-passing-loop.md + src/core/tests/test_get_the_app.py + src/core/tests/test_install_surface_mobile.py
+  - id: S-107
+    epic: E1
+    persona: family-member
+    story: "As a member with Backyard on my home screen, I am told when somebody posts something I can see or replies in a thread I am in, so I do not have to go looking."
+    acceptance:
+    - "A member turns notifications on per device from Settings > Notifications, with the permission asked from that tap (iOS grants it only inside a user gesture in an installed home-screen app)"
+    - "A new post notifies exactly the members who may see it, minus the author, minus supervised accounts, computed with the one audience query; a reply notifies the post author and the earlier repliers who may see that reply"
+    - "Reactions notify nobody, and the automatic arrival card notifies nobody"
+    - "Two per-member toggles, New Posts and Replies, both on once a device is subscribed; each subscribed device is listed with a Remove, and signing out on a device removes that device"
+    - "The feature is OFF with no VAPID key pair set: the page says so, nothing is sent, and a half-set pair refuses to boot"
+    - "Tapping a notification opens the post; the service worker still caches nothing (ADR-002) and opens only a same-origin path"
+    status: passing
+    v1: false
+    security:
+      threat_refs:
+      - T-PUSH-1
+      - T-PUSH-2
+      - T-PUSH-3
+      - T-PUSH-4
+      - T-PUSH-5
+      - T-SESS-3
+      hardening: |
+        The subscription endpoint is client-supplied and the server POSTs to it, so it is validated against an allowlist of push-service hostnames at subscribe time and again on the outbound request itself: https only, no userinfo, no explicit port, no IP literal, length caps, base64url shape checks on both keys, no redirects, one hard timeout, no proxy environment. The endpoint is a capability and is redacted out of every log line and never rendered into a page; the push service's response body is never logged. Recipients resolve through scoping.visible_posts / scoping.visible_comments once per candidate, so there is no second audience rule and no notification crosses the sides of the family. Every route is POST-only, login-required, CSRF-enforced, schema-validated, member-scoped in the query filter, and capped at ten devices per member. Removal deletes a member's subscriptions; 404/410 from a push service deletes the row; a run of 4xx refusals about that registration drops it, while a timeout, a 429 or a 5xx is never counted because it fails every device at once and says nothing about any one of them; one failing device never stops the others, and a whole fan-out is budgeted so a hanging push service cannot hold the single worker. "Keep Me Signed In" is 60 days for an ordinary member, refreshed at most once a day, and is refused to any account with an admin role.
+      source: docs/security/threat-model.md
+    evidence: src/core/tests/test_push.py + src/core/tests/test_push_endpoints_are_bounded.py + src/core/tests/test_push_in_a_browser.py + src/core/tests/test_remembered_sessions.py
   - id: S-104
     epic: E1
     persona: tech-helper

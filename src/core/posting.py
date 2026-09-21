@@ -54,6 +54,7 @@ def create_post(
     audience_yards: list[Yard],
     body: str,
     is_arrival: bool = False,
+    notify: bool = True,
 ) -> Post:
     """Create a post after checking the author may address this audience. Atomic.
 
@@ -64,6 +65,15 @@ def create_post(
     else; the composer never passes it. It is set HERE rather than by an UPDATE
     afterwards because this is the one writer of a Post, so a marked post and an
     unmarked one are the same single insert either way (#208).
+
+    `notify` is the web-push half (S-107) and is a SECOND parameter rather than a read of
+    `is_arrival`, because the two answer different questions: `is_arrival` says what the
+    card IS (Email Updates folds it into one line), `notify` says whether anybody's lock
+    screen lights up. They agree at today's only caller and they are not the same fact —
+    a future quiet post would set one and not the other. Neither is a check on the body
+    text, which would also silence a relative who happened to write "Just joined."
+    themselves: a parameter is answered by the caller who knows, a string comparison is a
+    guess that is wrong on both sides.
     """
     author_pods = scoping.member_pod_ids(author)
     author_yards = scoping.member_yard_ids(author)
@@ -91,6 +101,16 @@ def create_post(
         )
         if audience_yards:
             post.audience_yards.set(audience_yards)
+        if notify:
+            # ON COMMIT, and inside the atomic block so the audience is already set when
+            # the callback is registered. The worker re-resolves everything live anyway
+            # (TS-DJ-11), but a job deferred mid-transaction can be picked up before
+            # `audience_yards.set` has committed — the recipients would then be computed
+            # against a post that is still pod-only, and a yard-wide post would notify a
+            # household. Same seam and the same reasoning as commenting.create_comment.
+            from .tasks import push_new_post_task
+
+            transaction.on_commit(lambda: push_new_post_task.defer(post_id=post.pk))
         return post
 
 
@@ -109,8 +129,12 @@ def announce_arrival(member: Member, pod: Pod) -> Post:
       * POD-SCOPED. audience_yards is empty, so it never reaches a whole side of
         the family. A yard-wide "X joined" for every arrival is a broadcast, and
         this product does not have those.
-      * NO NOTIFICATION. It is a post, not a comment, and S-305's opt-in only
-        fires on replies to your own post — so nothing is pushed at anyone.
+      * NO NOTIFICATION, and since S-107 that is enforced rather than incidental.
+        It was true for free while the only opt-in was replies to your own post;
+        web push notifies a new post, so this passes `notify=False` and a test
+        holds it. Ten relatives joining over a week is ten arrivals, and ten
+        lock-screen notifications for "Just joined." is the broadcast this card
+        was written not to be.
       * The body carries no name. The byline already says who this is; a body
         reading "Priya Whitfield joined" under a byline already reading "Priya
         Whitfield" reads as a bug.
@@ -133,7 +157,12 @@ def announce_arrival(member: Member, pod: Pod) -> Post:
     without a migration. The caller holds the invite, and the invite names the pod.
     """
     return create_post(
-        author=member, pod=pod, audience_yards=[], body=ARRIVAL_BODY, is_arrival=True
+        author=member,
+        pod=pod,
+        audience_yards=[],
+        body=ARRIVAL_BODY,
+        is_arrival=True,
+        notify=False,
     )
 
 

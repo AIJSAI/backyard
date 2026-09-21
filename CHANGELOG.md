@@ -51,6 +51,42 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   arrivals. A period with joins and nothing written still sends nothing at all. One
   additive migration (`0035`), which marks the cards already written.
 
+### Added
+
+- **Notifications on a phone.** A relative who has Backyard on their home screen can be
+  told when somebody posts something they can see, or replies to a post they are in.
+  Settings, Notifications now carries an On This Device section: one button to turn them
+  on, a list of the devices this member has turned them on for with a Remove beside each,
+  and two toggles, New Posts and Replies. Tapping a notification opens the post.
+  Reactions notify nothing, and the "Just joined." card a new member's arrival writes
+  notifies nobody. On an iPhone this works only inside the home-screen app, which is
+  Apple's rule and not a choice here, so the page says so and offers Get The App when the
+  browser cannot do it. Signing out on a device removes that device, so the next person
+  holding the phone gets nothing.
+
+  **It is off unless the operator sets a key pair**, and a self-hoster who never does
+  loses nothing: the page says notifications are not set up on this Backyard and nothing
+  is sent. `manage.py generate_vapid_keys` prints a pair and writes nothing anywhere; the
+  self-host runbook has the whole procedure, including that rotating the pair signs every
+  device out of notifications. Setting one half of the pair without the other refuses to
+  boot rather than rendering a button whose notifications can never arrive.
+
+  The recipients are the same audience query the feed uses, asked once per candidate — a
+  member on the other side of the family is never notified about a post they cannot see,
+  and never learns the name of somebody replying from the other side of a bridging post.
+  The subscription endpoint is client-supplied and the server POSTs to it, so it is
+  checked against an allowlist of push services at subscribe time and again on the
+  outbound request, with no redirects, a hard timeout, and the endpoint redacted out of
+  every log line. The payload is encrypted to the device's own key, so a push service sees
+  an endpoint, a size and a time, never the words. One additive migration (`0036`), and
+  one new dependency (`pywebpush`, MPL-2.0).
+- **Keep Me Signed In now lasts 60 days** on the device it was ticked on, refreshed at most
+  once a day while the app is used. Every session was two weeks and nothing extended it,
+  so an installed home-screen app signed the whole family out every fortnight — on an
+  iPhone into a storage container separate from Safari's, where the password manager that
+  filled the form the first time is one app away. An account with an admin role is
+  deliberately excluded and stays at two weeks, never extended.
+
 ## [0.2.0] — 2026-09-20
 
 The owner compared Backyard with the phone apps relatives already use. This release is the

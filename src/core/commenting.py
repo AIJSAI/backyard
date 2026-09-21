@@ -58,9 +58,15 @@ def create_comment(*, author: Member, post: Post, body: str, via_email: bool = F
     # fixes the ordering — mail for a comment that never committed — and keeps the
     # edge-facing web process free of outbound connections, the same rule that put the
     # link-preview fetch on the worker (S-725, TS-CO-4).
-    from .tasks import notify_reply_task
+    from .tasks import notify_reply_task, push_reply_task
 
     transaction.on_commit(lambda: notify_reply_task.defer(comment_id=comment.pk))
+    # The web-push half (S-107), deferred beside the e-mail one and for every reason
+    # above. TWO jobs rather than one that does both: they have different audiences (the
+    # e-mail goes to the post's author alone, push reaches everyone in the thread), they
+    # fail differently, and a push service that is refusing must not take the e-mail nudge
+    # down with it.
+    transaction.on_commit(lambda: push_reply_task.defer(comment_id=comment.pk))
     return comment
 
 

@@ -304,6 +304,76 @@ setting, so a new domain means new reply addresses and inbound routing to re-poi
 way, messages already sitting in somebody's inbox keep the old sender, so do it before you
 invite people.
 
+## Notifications on a phone
+
+**Optional, and off until you do this.** With no keys set, the Notifications page in
+Settings says notifications are not set up on this Backyard, nothing is sent, and nothing
+else about the instance changes. A family that is happy with the weekly email update can
+skip this section entirely.
+
+Web push signs every notification with an **application-server key pair** (VAPID, RFC
+8292). The pair identifies this instance to Apple's, Google's and Mozilla's push services.
+It is not a per-member secret and it never goes in the database. Generate one **on the
+box**, so no private key is ever pasted into a chat window or a browser:
+
+```bash
+docker compose exec -T web sh -c 'export DJANGO_SECRET_KEY=$(cat /data/secret_key); python manage.py generate_vapid_keys'
+```
+
+It prints three lines and writes nothing. Paste them into `.env`, set the subject to an
+address you read, and rebuild:
+
+```bash
+BACKYARD_VAPID_PUBLIC_KEY=...
+BACKYARD_VAPID_PRIVATE_KEY=...
+BACKYARD_VAPID_SUBJECT=mailto:you@example.com
+```
+
+The subject is **required** once the keys are set, and it has to be a `mailto:`. It is how
+a push service contacts you about this instance, and Apple's refuses a notification that
+does not carry one — so an instance with keys and no subject would work on Android and
+fail silently on every iPhone in the family. Setting one half of the pair and not the
+other **refuses to boot**, with a message naming the variable: a working-looking Turn On
+Notifications button whose notifications can never arrive is worse than no button.
+
+Then restart both services, because the worker is what sends:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+**One worker sends everything.** The compose worker runs a single process at concurrency
+1 across every queue, so a push service that stops answering would otherwise hold the
+transcodes, the email updates and the nightly backup behind it. A whole fan-out is
+therefore budgeted at two minutes; past that the remaining phones are skipped for that
+one post and picked up by the next one. Nothing is deleted and no device is penalised for
+a slow service.
+
+**What a relative does.** Settings, Notifications, Turn On Notifications, then the phone's
+own permission prompt. On an **iPhone this only works inside the home-screen app** — Apple
+grants web push to an installed web app and not to a Safari tab — so the install comes
+first (`/app/` in the product, "Get The App"). The page says so and offers the link when
+the browser cannot do it. Each device is listed with a Remove button, signing out on a
+device removes that device, and the two toggles are New Posts and Replies.
+
+**What the push services see.** An endpoint, a size and a time. The notification body is
+encrypted to the device's own key (RFC 8291), so the words are not readable by Apple,
+Google or Mozilla. What a notification DOES show is a first name and the first words of a
+post, on a lock screen, to whoever is holding the phone.
+
+**Rotating the pair signs every device out of notifications.** A registration is bound to
+the key it was made with, so after a rotation every push is refused, every stored
+subscription is dead, and each relative turns notifications on again from Settings. The
+Settings page does that half for them: it notices that the phone's registration was made
+with the old key, clears it, and offers Turn On Notifications again on the next visit. Do
+it if the private key is exposed; there is no reason to do it otherwise.
+
+**Extending the list of push services** is `BACKYARD_PUSH_SERVICE_HOSTS`, a comma-separated
+list of hostnames that is ADDED to the built-in set (Apple, Google, Mozilla, Microsoft).
+You need it only if you run your own push relay. Leave it unset otherwise: the list is
+what stops a device from asking this server to make an HTTP request to an address of its
+choosing.
+
 ## Backups
 
 **Take one before you need one, and test restoring it.**
@@ -588,13 +658,16 @@ Stated plainly, because finding out later is worse:
 - **There is no "send the email now" button.** The worker sends what is **due** — the
   cadence has to have elapsed since confirmation or since the last window — so testing the
   email update means waiting for a window rather than forcing one.
-- **No web push.** The notification opt-in sends **email**, not a push notification.
+- **Web push is off unless you set a VAPID key pair.** No keys, no notifications, and the
+  Settings page says so — see [Notifications on a phone](#notifications-on-a-phone). Even
+  with keys, an iPhone gets them only once Backyard is on the home screen, and there is no
+  way for the server to know whether a relative ever completed that.
 - **No native apps.** It is an installable PWA; add it to your home screen from the
   browser. That is a deliberate decision, not a gap ([ADR-002](../adr/ADR-002-stack.md)).
 - **Video is transcoded one clip at a time**, and on a small box a long clip takes minutes.
   The post appears immediately and the video fills in.
-- **Profiles are thin.** Names, kinship names, birthdays and contact fields with per-field
-  visibility — but no profile photo and no work/school history yet.
+- **Profiles are thin.** Names, kinship names, birthdays, a profile photo and contact
+  fields with per-field visibility — but no work or school history yet.
 - **Pre-flight migration dumps are plaintext only if you configure NEITHER
   `BACKYARD_BACKUP_PASSPHRASE` nor `BACKYARD_BACKUP_PASSPHRASE_FILE`.** Set either and the
   entrypoint encrypts them too; set neither and the instance warns on every boot that it

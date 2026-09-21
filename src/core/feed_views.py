@@ -15,6 +15,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from urllib.parse import quote, urlsplit, urlunsplit
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
@@ -1082,8 +1083,20 @@ def _reaction_state(member: Member, post: Post) -> JsonResponse:
 
 @login_required
 def notification_settings(request: HttpRequest) -> HttpResponse:
-    """The member's push preferences (S-305): a single opt-in, replies to my posts,
-    off by default. There is no other option to offer."""
+    """The member's notification settings: the e-mail opt-in (S-305) and this device
+    (S-107).
+
+    The FORM is still the e-mail opt-in alone, and the POST branch is untouched. The
+    device section below it is rendered and then decided in the browser, exactly as the
+    install steps are (core/_install_steps.html) and for the same reason: only the browser
+    knows whether it has a PushManager, whether this is an installed home-screen app on
+    iOS, and whether the member has already granted permission. Nothing sniffs a user
+    agent here.
+
+    A SUPERVISED member never reaches this page (TM-10: a child's account has no sign-in),
+    and `push_available` is False for them anyway, so the section is absent rather than
+    shown-and-refused.
+    """
     member = _acting_member(request)
     if request.method == "POST":
         enabled = request.POST.get("notify_on_reply") == "on"
@@ -1095,7 +1108,18 @@ def notification_settings(request: HttpRequest) -> HttpResponse:
         messages.success(request, "Saved.")
         return redirect("notification_settings")
     return render(
-        request, "core/notification_settings.html", {"pref": notifications.preference_for(member)}
+        request,
+        "core/notification_settings.html",
+        {
+            "pref": notifications.preference_for(member),
+            # The public half of the VAPID pair, rendered into the page rather than
+            # fetched from a route of its own: it is public by definition (every
+            # subscriber's browser is handed it), so a second endpoint would be one more
+            # surface for no privacy gained and one more request before the button works.
+            "vapid_public_key": settings.VAPID_PUBLIC_KEY,
+            "push_available": settings.PUSH_ENABLED and not member.is_supervised,
+            "devices": member.push_subscriptions.all(),
+        },
     )
 
 

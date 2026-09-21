@@ -99,6 +99,20 @@ services:
       EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
       EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
       EMAIL_USE_SSL: ${EMAIL_USE_SSL:-0}
+      # Web push (S-107), OPTIONAL and off when unset. Both services are given all three
+      # because the BOOT GUARD refuses a half-set pair (config/push_guard.py) and both
+      # processes run it -- not because web needs the private half: web only renders the
+      # public key into Settings and validates a subscribe against the allowlist, and the
+      # WORKER is the only process that signs and sends. Splitting them would mean a
+      # per-role guard; until then the private key is in web's environment too, and that
+      # is the honest reason. Named here as well as documented, or compose's
+      # substitution-only .env leaves them inert.
+      BACKYARD_VAPID_PUBLIC_KEY: ${BACKYARD_VAPID_PUBLIC_KEY:-}
+      BACKYARD_VAPID_PRIVATE_KEY: ${BACKYARD_VAPID_PRIVATE_KEY:-}
+      BACKYARD_VAPID_SUBJECT: ${BACKYARD_VAPID_SUBJECT:-}
+      # Extra push-service hostnames, added to the built-in allowlist. Only for an
+      # operator running their own relay; see settings.PUSH_SERVICE_HOSTS.
+      BACKYARD_PUSH_SERVICE_HOSTS: ${BACKYARD_PUSH_SERVICE_HOSTS:-}
       # The backup passphrase (S-802). Documented in .env.example and the self-host
       # guide, and — like the EMAIL_* set before it — it did NOTHING until it was named
       # here: compose's .env is substitution-only. A keyfile is still the tighter option
@@ -198,6 +212,20 @@ services:
       EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
       EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
       EMAIL_USE_SSL: ${EMAIL_USE_SSL:-0}
+      # Web push (S-107), OPTIONAL and off when unset. Both services are given all three
+      # because the BOOT GUARD refuses a half-set pair (config/push_guard.py) and both
+      # processes run it -- not because web needs the private half: web only renders the
+      # public key into Settings and validates a subscribe against the allowlist, and the
+      # WORKER is the only process that signs and sends. Splitting them would mean a
+      # per-role guard; until then the private key is in web's environment too, and that
+      # is the honest reason. Named here as well as documented, or compose's
+      # substitution-only .env leaves them inert.
+      BACKYARD_VAPID_PUBLIC_KEY: ${BACKYARD_VAPID_PUBLIC_KEY:-}
+      BACKYARD_VAPID_PRIVATE_KEY: ${BACKYARD_VAPID_PRIVATE_KEY:-}
+      BACKYARD_VAPID_SUBJECT: ${BACKYARD_VAPID_SUBJECT:-}
+      # Extra push-service hostnames, added to the built-in allowlist. Only for an
+      # operator running their own relay; see settings.PUSH_SERVICE_HOSTS.
+      BACKYARD_PUSH_SERVICE_HOSTS: ${BACKYARD_PUSH_SERVICE_HOSTS:-}
       # The worker takes the nightly backup (core/tasks.scheduled_backup_task), so the
       # passphrase has to reach THIS container too — it was passed to web only, and an
       # unset passphrase makes the scheduled backup refuse to run rather than quietly write

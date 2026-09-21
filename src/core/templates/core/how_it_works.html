@@ -65,6 +65,20 @@
     <h2>On Your Phone</h2>
     <p>Add Backyard to your home screen and it opens like an app.
       <a href="{% url 'get_the_app' %}">Get The App</a> has the steps.</p>
+    {% comment %} THE PRIVACY HALF OF S-107, in the one natural sentence the section can
+       carry: what is kept (an address for the phone, from the phone's own push service)
+       and what a notification shows (a name and the first words, on the lock screen).
+       Both are things a reader can ACT on — the second is why somebody might leave them
+       off on a shared phone — which is the test rule 7 sets for a sentence that stays.
+       Only shown where the control exists: the section, like the button itself, is absent
+       on an instance with no keys. {% endcomment %}
+    {% if push_available %}
+      <p>You can turn on notifications for new posts and replies, one device at a time,
+        under <a href="{% url 'notification_settings' %}">Notifications</a>. Backyard
+        stores an address for that phone, given by the phone's own notification service,
+        and a notification shows a first name and the first words of the post on the lock
+        screen.</p>
+    {% endif %}
   {% endif %}
 
   <h2>Joining</h2>
