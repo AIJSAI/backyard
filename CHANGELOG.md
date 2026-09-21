@@ -13,7 +13,35 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
-Nothing yet.
+### Fixed
+
+- **The Sign-In Link's button says "Save Password".** It said "Save And Sign In" and then
+  the next screen asked for the password again, so a relative who had already typed it
+  twice typed it a third time. Saving deliberately creates no session: the sign-in page it
+  lands on carries "Password changed. Sign in as <username>." with the username already in
+  the box, and that flow is unchanged. "You will be signed out everywhere else." stays,
+  because that one is true.
+
+- **One side of the family is not a list on Change Household.** An admin whose reach is a
+  single side read "decide which sides of the family they can see" at the top of the page,
+  and a fieldset legend reading "Sides Of The Family" over one checkbox below it — a second
+  side named to somebody who has never been shown one, beside a control whose only two
+  states were the only possible answer and an error message. With one reachable side the
+  page now states it ("This household joins <Side>.") and offers no list, and the
+  confirmation speaks in the singular too. Two or more sides is untouched: a household can
+  belong to both, and there it is a real choice. Copy and one context variable —
+  authorization, the household-change rules and every refusal are unchanged, and a POST
+  naming a side the actor cannot see is still the same 404 it always was.
+
+### Changed
+
+- **The recovery runbooks know the notification keys exist.** The VAPID pair that 0.3.0
+  added lives in `.env`, and `.env` is not in a backup archive. The restore procedure, the
+  printed succession sheet and the server-move checklist now say what that means: a restore
+  onto a box carrying the old `.env` keeps every phone working, a box rebuilt without it
+  has notifications off until a new pair is generated, and each relative turns them on
+  again from Settings, which clears the stale registration itself. Nothing else depends on
+  the pair.
 
 ## [0.3.0] — 2026-09-21
 
