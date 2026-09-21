@@ -34,6 +34,14 @@
        {% endcomment %}
     <p class="hint">You will be signed out everywhere else.</p>
 
-    <button type="submit">Save And Sign In</button>
+    {% comment %} "Save Password", never "Save And Sign In" (issue 227, found on the v0.2.0
+       role walk at phone width). Saving deliberately creates no session — core/recovery_
+       views.py says why, in the block at the end of the redeem path — so the page that
+       follows is the sign-in form, carrying "Password changed. Sign in as <username>." and
+       the username already in the box. A button that promised the sign-in was describing
+       the screen AFTER the next one, and the person typed their new password a third time
+       wondering what had gone wrong. This names the one act it performs; the flash on the
+       next page says what happens next. {% endcomment %}
+    <button type="submit">Save Password</button>
   </form>
 {% endblock %}

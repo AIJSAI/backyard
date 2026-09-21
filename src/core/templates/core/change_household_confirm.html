@@ -15,13 +15,38 @@
     {% else %}Take {{ target.display_name }} Out Of {{ proposal.household_name }}?{% endif %}
   </h1>
 
+  {% comment %} THE DERIVED SIDE, SAID BACK. A one-side actor's New Household form renders no
+     control for the side, so the POST carries no `yard_ids` and the view derives it — and
+     without this line the confirm page showed the derived value NOWHERE when nothing was
+     gained (the ordinary case: a household made for somebody already on that side). The
+     whole point of this step is that the act is said back in full before it happens, so a
+     value the browser never sent has to appear here or it is confirmed unseen.
+
+     ALWAYS, gained or not, and word for word the sentence the previous screen used, so the
+     admin is re-reading their own page rather than parsing a new one. {% endcomment %}
+  {% if proposal.act == "create" and one_side %}
+    <p class="notice">This household joins <strong>{{ one_side.name }}</strong>.</p>
+  {% endif %}
+
+  {% comment %} ONE SIDE IS NOT A LIST, and "these sides of the family" above a single
+     bullet tells an admin whose whole Backyard is one side that there is another one
+     (voice rule 8). `one_side` is the view's answer about the READER; the side is named
+     from the proposal's own list, the same list the act is carried out against, so the
+     sentence and the change can never describe different things. {% endcomment %}
   {% if proposal.gained %}
     <h2>What {{ target.display_name }} Will Start Seeing</h2>
-    <p>Every post and photograph on these sides of the family, including everything
-    posted before today:</p>
-    <ul class="sides-gained">
-      {% for side in proposal.gained %}<li>{{ side.name }}</li>{% endfor %}
-    </ul>
+    {% if one_side %}
+      {% for side in proposal.gained %}
+        <p>Every post and photograph on <strong>{{ side.name }}</strong>, including
+        everything posted before today.</p>
+      {% endfor %}
+    {% else %}
+      <p>Every post and photograph on these sides of the family, including everything
+      posted before today:</p>
+      <ul class="sides-gained">
+        {% for side in proposal.gained %}<li>{{ side.name }}</li>{% endfor %}
+      </ul>
+    {% endif %}
   {% endif %}
   {% if proposal.act != "remove" %}
     {% comment %} A household is a read surface of its own, not only a door into a side:
@@ -42,13 +67,41 @@
 
   {% if proposal.lost %}
     <h2>What {{ target.display_name }} Will Stop Seeing</h2>
-    <p>These sides of the family go away for them as soon as you do this:</p>
-    <ul class="sides-lost">
-      {% for side in proposal.lost %}<li>{{ side.name }}</li>{% endfor %}
-    </ul>
+    {% if one_side %}
+      {% for side in proposal.lost %}
+        <p><strong>{{ side.name }}</strong> goes away for them as soon as you do this.</p>
+      {% endfor %}
+    {% else %}
+      <p>These sides of the family go away for them as soon as you do this:</p>
+      <ul class="sides-lost">
+        {% for side in proposal.lost %}<li>{{ side.name }}</li>{% endfor %}
+      </ul>
+    {% endif %}
   {% elif proposal.act == "remove" %}
-    <p>Their other household keeps them on the same sides of the family, so this does not
-    change what they can see.</p>
+    {% comment %} THIS BRANCH USED TO END "so this does not change what they can see", which
+       is false and was the one sentence on this page a person could act on wrongly. A
+       household is a read surface of its own, not only a door into a side — the ADD
+       direction of this same template says so a few lines up — so leaving one costs its
+       pod-only posts (`scoping.visible_posts`: an audience-less post resolves through pod
+       membership alone), the photographs on them (`visible_media` inherits the post), and
+       every field anybody in it set to My Household (`profiles._can_see_field`, which for
+       POD visibility needs a SHARED pod). None of that is kept by the other household, and
+       none of it is guessable from "they stay on the same side".
+
+       The side is still not NAMED in either voice: the honest subject is "the same side
+       they are on now", which stays true for a household that belongs to no side at all.
+       Only the word's number follows the reader. {% endcomment %}
+    {% if one_side %}
+      <p>Their other household keeps them on the same side of the family. They will still
+      lose what this household kept to itself: posts it has not shared more widely, the
+      photographs on them, and every birthday and contact detail anybody in it set to My
+      Household, the children's included.</p>
+    {% else %}
+      <p>Their other household keeps them on the same sides of the family. They will still
+      lose what this household kept to itself: posts it has not shared more widely, the
+      photographs on them, and every birthday and contact detail anybody in it set to My
+      Household, the children's included.</p>
+    {% endif %}
   {% endif %}
 
   {% if proposal.act == "remove" %}

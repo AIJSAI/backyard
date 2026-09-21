@@ -1,6 +1,6 @@
 """The get-back-in link ends on a page that says what happened and who you are.
 
-Walk item 2, 2026-09-19. The button says "Save it and sign in". Tapping it saved the
+Walk item 2, 2026-09-19. The button said "Save it and sign in". Tapping it saved the
 password and dropped the person on a blank sign-in form: no message, no confirmation that
 anything had been saved, and an empty username box.
 
@@ -10,7 +10,9 @@ them a link by hand — and a good share of them do not know what username someb
 for them a year ago. The product knew it, had just used it, and did not say it.
 
 Now the sign-in page it lands on says "Password changed. Sign in as <username>."
-once, and the username is already in the box.
+once, and the username is already in the box. The button says "Save Password", which is the
+one act it performs (issue 227): the sign-in is the screen after the next one, and a button
+that promised it had the person typing the new password a third time.
 
 THE SECURITY PROPERTY, which is what most of this file is about: a username is printed
 ONLY after a link was successfully used, and only the username that link belongs to. Every
@@ -106,6 +108,28 @@ def test_saving_lands_on_sign_in_with_the_username_said_and_filled_in() -> None:
     assert member.user is not None
     member.user.refresh_from_db()
     assert member.user.check_password(_NEW_PW)
+
+
+def test_the_button_promises_only_what_saving_does() -> None:
+    """Issue 227, from the v0.2.0 role walk. The button said "Save And Sign In" and then
+    the next screen asked for the password again, so a relative who had already typed it
+    twice typed it a third time and wondered what they had got wrong.
+
+    The flow is deliberate and unchanged — the test above proves what saving DOES do. This
+    is the words: the form promises the one act it performs, plus the sign-out, which is
+    true. Scoped to the form rather than the page so the check stays about the control: the
+    base template's inlined stylesheet carries "sign-in" in its own comments, and a future
+    tightening of this assertion to the hyphenated spelling would read those as copy.
+    """
+    _member, _admin, raw = _locked_out()
+    body = Client().get(reverse("recover", args=[raw])).content.decode()
+    form = body[body.index("<form") : body.index("</form>")]
+
+    assert '<button type="submit">Save Password</button>' in form
+    assert "sign in" not in form.lower(), "the form still promises a session saving never creates"
+    # The one session sentence that IS true stays: redeeming ends every other session the
+    # member had, which is a thing to know before pressing the button, not after.
+    assert "You will be signed out everywhere else." in form
 
 
 def test_it_is_said_once_and_then_never_again() -> None:

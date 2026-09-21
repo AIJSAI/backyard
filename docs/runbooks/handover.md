@@ -52,6 +52,12 @@ python -c "import secrets; print(secrets.token_urlsafe(64))"   # put in DJANGO_S
 # 3. The three Postgres role passwords
 python -c "import secrets; print(secrets.token_urlsafe(24))"   # x3
 
+# 3b. The web-push key pair, if this instance sends phone notifications. It signs every
+#     notification as this Backyard, and the outgoing person has it.
+#     BACKYARD_VAPID_PUBLIC_KEY, BACKYARD_VAPID_PRIVATE_KEY (keep BACKYARD_VAPID_SUBJECT
+#     set, or the box refuses to boot). Generate the pair on the box:
+#       docker compose exec -T web sh -c 'export DJANGO_SECRET_KEY=$(cat /data/secret_key); python manage.py generate_vapid_keys'
+
 # 4. Bring it back up and confirm it serves. `build --pull` and not `up --build`: this is the
 #    last build before somebody else owns the box, so the base image — and with it the pg_dump
 #    client and ffmpeg — gets refreshed rather than served from the local cache. See the
@@ -70,6 +76,13 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml build --pull \
 every backup taken under the old passphrase still needs the old passphrase, forever. So
 either keep both on the sheet with dates, or take a fresh backup under the new passphrase
 and destroy the old archives once you have verified the new one restores.
+
+**Rotating the pair signs every device out of notifications**, and that is the cost, not a
+defect: a registration is bound to the key it was made with, so every phone stops receiving
+until each relative opens Settings, Notifications and turns them on again. The page does the
+tidying for them: it notices the old key, clears the registration and offers Turn On
+Notifications. Rotate anyway: the outgoing person can otherwise send a notification to every
+phone in the family. See "Notifications on a phone" in `self-host.md`.
 
 ---
 

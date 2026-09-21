@@ -13,7 +13,50 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
-Nothing yet.
+### Fixed
+
+- **The Sign-In Link's button says "Save Password".** It said "Save And Sign In" and then
+  the next screen asked for the password again, so a relative who had already typed it
+  twice typed it a third time. Saving deliberately creates no session: the sign-in page it
+  lands on carries "Password changed. Sign in as <username>." with the username already in
+  the box, and that flow is unchanged. "You will be signed out everywhere else." stays,
+  because that one is true.
+
+- **Taking somebody out of a household says what it costs them.** The confirmation said
+  "Their other household keeps them on the same sides of the family, so this does not change
+  what they can see", which is false: leaving a household loses the posts it kept to itself,
+  the photographs on them, and every birthday and contact detail anybody in it set to My
+  Household. Only the side survives. The page now names all of it, in the words the same
+  page has always used about the other direction.
+
+- **One side of the family is not a list on Change Household.** An admin whose reach is a
+  single side read "decide which sides of the family they can see" at the top of the page,
+  and a fieldset legend reading "Sides Of The Family" over one checkbox below it — a second
+  side named to somebody who has never been shown one, beside a control whose only two
+  states were the only possible answer and an error message. With one reachable side the
+  page now states it ("This household joins <Side>.") and offers no list, and the
+  confirmation speaks in the singular too, and names the derived side even when the person
+  is already on it and gains nothing. Two or more sides read the same as before: a household
+  can belong to both, and there it is a real choice.
+
+  The server side moved once: with no control there is no `yard_ids` in the POST, so
+  `_proposal` derives the side from the actor's own reach when the POST names none and they
+  reach exactly one. Authorization and the household-change rules are unchanged, a POST
+  naming a side the actor cannot see is still the same 404 it always was, and "Choose at
+  least one side." still answers an actor who reaches none — or two or more.
+
+### Changed
+
+- **The recovery runbooks know the notification keys exist.** The VAPID pair that 0.3.0
+  added lives in `.env`, and `.env` is not in a backup archive. The restore procedure, the
+  printed succession sheet and the server-move checklist now say what that means: a restore
+  onto a box carrying the old `.env` keeps the phones working, except for a device added
+  after the backup, which re-registers on its owner's next Settings visit; a box rebuilt
+  without it has notifications off until a new pair is generated, and each relative turns
+  them on again from Settings, which clears the stale registration itself and leaves that
+  phone listed twice until the old row drops. All three lines or none: two of them makes the
+  stack refuse to boot. Nothing else depends on the pair, and the handover runbook now
+  rotates it with the rest of the secrets.
 
 ## [0.3.0] — 2026-09-21
 
