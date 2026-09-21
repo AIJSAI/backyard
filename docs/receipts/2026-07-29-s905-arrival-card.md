@@ -87,6 +87,13 @@ Screenshot: `11-second-joiner-sees-first.png` — *"Second Reed · Just joined."
   week with ten arrivals will read repetitively; that is a real consequence, recorded
   here rather than discovered later.
 
+  **Changed 2026-09-20 (#208), and the consequence above is why.** The first Email Update
+  a family actually received had five entries, three of them arrival cards. The cards stay
+  in the feed exactly as this receipt describes them; the message names the period's
+  joiners in one line after the posts instead, and a period with joins and nothing written
+  sends nothing at all. `Post.is_arrival` (migration `0034`) is the mark that makes the
+  two surfaces able to disagree.
+
 ## Found on the walkthrough, fixed here as documentation
 
 **An elder's first impression depends on posting order, and nothing enforces it.** Her

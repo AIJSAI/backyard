@@ -919,6 +919,7 @@ epics:
     story: "As a new member, a quiet intro card in my pod tells the family who just arrived, without a fanfare."
     acceptance:
     - "Joining generates a pod-scoped profile card post; no notification, no yard-wide broadcast"
+    - "Email Updates never list arrival cards as entries: one line after the posts names who joined in the period, scoped like every other name in the message, and a period with joins and no posts still sends nothing"
     status: passing     # S-905 close 2026-07-29: pulled forward from post-v1 because walking a
                         # delegate's onboarding end to end showed the gap it fixes — a household is
                         # invited, relatives join over a week, and nothing anywhere says any of them
@@ -928,7 +929,7 @@ epics:
                         # test_the_card_is_pod_scoped_and_never_a_yard_wide_broadcast, removing the
                         # call fails three others.
     v1: false
-    evidence: src/core/tests/test_arrival_card.py + docs/receipts/2026-07-29-s905-arrival-card.md
+    evidence: src/core/tests/test_arrival_card.py + src/core/tests/test_arrivals_are_one_line_in_email_updates.py + docs/receipts/2026-07-29-s905-arrival-card.md
 
 - id: E8
   title: Deploy and operations
