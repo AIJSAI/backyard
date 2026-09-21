@@ -4,17 +4,18 @@
 
 | Version | Supported |
 |---|---|
-| `v0.2.0` | ✅ current |
+| `v0.3.0` | ✅ current |
+| `v0.2.0` | ⚠️ superseded — installable and safe; `v0.3.0` adds notifications on a phone, a 60-day Keep Me Signed In for members, the "Admin" role name and one joined line in Email Updates (three migrations, two of them additive columns; forward-only) |
 | `v0.1.8` | ⚠️ superseded — installable and safe; `v0.2.0` adds profile photos, the phone-width feed and Get The App (one additive migration) |
 | `v0.1.7` | ⚠️ superseded — installable and safe; `v0.1.8` fixes the photo button on an empty composer |
 | `v0.1.6` | ⚠️ superseded — installable and safe; `v0.1.7` lines the mail header up in Gmail |
 | `v0.1.5` | ⚠️ superseded — installable; `v0.1.6` builds the mailed confirmation and reset links from the configured site address (CHANGELOG, Security) |
-| `v0.1.4` | ⚠️ superseded — upgrade to `v0.2.0`: `v0.1.5` stopped an address being confirmed by anybody but its own signed-in account, which also gates password reset and Email Updates (CHANGELOG, Security) |
-| `v0.1.3` | ⚠️ superseded — installable; upgrade to `v0.2.0`; the Security fixes in `v0.1.5` apply to every earlier tag |
-| `v0.1.2` | ⚠️ superseded — installable; upgrade to `v0.2.0`; the Security fixes in `v0.1.5` apply to every earlier tag |
+| `v0.1.4` | ⚠️ superseded — upgrade to `v0.3.0`: `v0.1.5` stopped an address being confirmed by anybody but its own signed-in account, which also gates password reset and Email Updates (CHANGELOG, Security) |
+| `v0.1.3` | ⚠️ superseded — installable; upgrade to `v0.3.0`; the Security fixes in `v0.1.5` apply to every earlier tag |
+| `v0.1.2` | ⚠️ superseded — installable; upgrade to `v0.3.0`; the Security fixes in `v0.1.5` apply to every earlier tag |
 | `main` | ⚠️ moving target — fixes land here first, but it may be mid-refactor when you arrive |
-| `v0.1.1` | ⚠️ superseded — installable, but its README's own install command fails; use `v0.2.0` |
-| `v0.1.0` | ❌ withdrawn — superseded by `v0.2.0`; do not install |
+| `v0.1.1` | ⚠️ superseded — installable, but its README's own install command fails; use `v0.3.0` |
+| `v0.1.0` | ❌ withdrawn — superseded by `v0.3.0`; do not install |
 
 `0.x` carries no stability promise. Security fixes go to `main` and into the next tag; there
 is no backporting, because there is nothing to backport to.
