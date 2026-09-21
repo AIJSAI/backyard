@@ -22,6 +22,7 @@ dependencies = [
   # declared because a direct import of an undeclared package breaks on the day that
   # transitive edge changes, and because `deps` audits what is declared.
   "requests>=2.32,<3",
+  "pywebpush>=2.5,<3",
 ]
 
 [dependency-groups]
@@ -60,7 +61,10 @@ explicit_package_bases = true
 django_settings_module = "config.settings"
 
 [[tool.mypy.overrides]]
-module = ["whitenoise.*", "gunicorn.*", "allauth.*", "anymail.*"]
+# pywebpush and py_vapid ship inline annotations but no py.typed marker, so strict mode
+# refuses to read them. Two calls in core/push.py use them and both are wrapped in the
+# module's own typed functions.
+module = ["whitenoise.*", "gunicorn.*", "allauth.*", "anymail.*", "pywebpush.*", "py_vapid.*"]
 ignore_missing_imports = true
 
 # pillow-heif ships types but re-exports its public API through its package __init__,

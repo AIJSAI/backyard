@@ -713,21 +713,90 @@ class Reaction(models.Model):
 
 
 class NotificationPreference(models.Model):
-    """A member's push preferences (S-305), which are a negative guarantee. The only
-    opt-in that exists is replies to my own posts, and it defaults OFF, so a member
-    is pushed nothing unless they explicitly ask, and even then only for replies to
-    them. There is deliberately no all-activity firehose field: the absence is the
-    feature, and a test asserts this model grows no such option.
+    """A member's notification preferences (S-305, S-107), which are still a negative
+    guarantee: nothing reaches a member who has not asked for it.
+
+    THE GUARANTEE MOVED, and it is worth being exact about how, because the first version
+    of this docstring said "the only opt-in that exists is replies to my own posts" and
+    S-107 adds two more fields. The promise was never "one field": it was that Backyard
+    pushes nobody anything they did not switch on, and that there is no all-activity
+    firehose. Both still hold.
+
+    * `notify_on_reply` is the EMAIL opt-in and is unchanged, off by default.
+    * The two `push_*` fields below only ever apply to a device this member has
+      deliberately subscribed from Settings, by tapping a button and then granting the
+      phone's own permission. With no PushSubscription row they are inert, which is why
+      they default ON: the switch a member actually threw is the subscribe, and landing
+      them in Settings with both halves off would mean turning notifications on twice.
+    * There is still no firehose. Two event types, both about content addressed to this
+      member (a post they can see, a reply in a thread they are in), and reactions
+      deliberately notify nothing at all -- the one place the product could most easily
+      have grown a "someone liked your photo" stream and does not.
     """
 
     member = models.OneToOneField(
         Member, on_delete=models.CASCADE, related_name="notification_preference"
     )
-    # The one and only push opt-in. Off by default (zero push for every event type).
+    # The EMAIL opt-in (S-305). Off by default (zero mail for every event type).
     notify_on_reply = models.BooleanField(default=False)
+    # The two web-push event types (S-107). See the docstring for why these default True
+    # while the one above defaults False: subscribing a device IS the opt-in for these.
+    push_new_posts = models.BooleanField(default=True)
+    push_replies = models.BooleanField(default=True)
 
     def __str__(self) -> str:
         return f"Notification preference for {self.member} (reply={self.notify_on_reply})"
+
+
+class PushSubscription(models.Model):
+    """One device a member asked to be notified on (S-107).
+
+    A row here is a DELIVERY ADDRESS, not a credential the member holds: it grants them
+    nothing, and it lets this server hand one push service a small encrypted payload for
+    one device. That distinction is why it is not in the TM-1 revocation registry and is
+    deleted by `removal.remove_member` instead -- the same line `_void_digest_capabilities`
+    already draws between a digest's emailed capabilities (a credential, revoked) and the
+    subscription row behind them (a preference, left alone). Regenerating an elder's link
+    or moving somebody between households must not silently switch a member's own phone
+    off; removal must, because after it there is nobody here to notify.
+
+    It is still a capability in the OTHER direction, which is what `endpoint` being
+    unique and `push_endpoints.redact` exist for: whoever holds the URL can push to that
+    phone until the browser rotates it. It is never logged whole and never rendered to a
+    page -- the Settings list shows `label` and `created_at`, which is what a person needs
+    to recognise their own phone.
+
+    `endpoint` is UNIQUE across the instance rather than per member, and that is the
+    browser's own model: one registration per browser profile, and re-subscribing returns
+    the same endpoint. Unique globally means a phone that changed hands and signed in as
+    somebody else cannot end up on two members' lists at once, which would be a delivery
+    of one family member's post under another's name.
+    """
+
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="push_subscriptions")
+    # 500 is the cap `push_endpoints.MAX_ENDPOINT_LENGTH` enforces before this column is
+    # ever reached; the real services mint 100-250 characters.
+    endpoint = models.URLField(max_length=500, unique=True)
+    # The device's RFC 8291 key material, base64url as the browser hands it over. Not a
+    # secret of ours and useless without the endpoint, but shape-checked on the way in
+    # (core/push_endpoints.py) so a row that cannot possibly encrypt never exists.
+    p256dh = models.CharField(max_length=200)
+    auth = models.CharField(max_length=40)
+    # "iPhone", "Android", "Mac" -- derived from the user agent at subscribe time, and
+    # deliberately that coarse. It is there so a member can tell their own two devices
+    # apart in the Remove list, not so the instance keeps a device fingerprint.
+    label = models.CharField(max_length=40, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_success_at = models.DateTimeField(null=True, blank=True)
+    # Consecutive failures that were NOT a 404/410 (those delete the row outright). Reset
+    # to zero on every success, so this counts a run, not a lifetime.
+    failure_count = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self) -> str:
+        return f"Push subscription for {self.member} ({self.label or 'a device'})"
 
 
 class Invite(models.Model):
