@@ -4,8 +4,11 @@
 src/core/digest.py must never grow a data-access path of its own: no model
 manager, no raw SQL, no cursor. Every content byte it emits has to come through
 core.scoping (directly or via digest_links/profiles, which are themselves
-scoping-bound). A batch principal with its own query is the T-YARD-9 bug — a
-cross-yard fusion mailed to an inbox is unrecallable — so the rule is enforced
+scoping-bound). It may also ask `digesting` for the READER'S OWN settings — the
+cadence word the joined line uses (#208) — which is the member's own choice and not
+family content; anything family-shaped still has to come through the guard. A batch
+principal with its own query is the T-YARD-9 bug — a cross-yard fusion mailed to an
+inbox is unrecallable — so the rule is enforced
 here as a build failure, not a review comment.
 
 The guard proves itself non-vacuous on every run (the parents[N] lesson): each

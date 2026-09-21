@@ -1,8 +1,9 @@
 """The /d/ read surface: what a digest deep link opens (S-501, TM-2, TM-5).
 
 The token authenticates (member, issue); everything rendered resolves through
-the one audience query at request time via digest_links.issue_posts and
-scoping.require_visible_post, so this surface holds no authorization logic of
+the one audience query at request time — the entries via digest_links.issue_posts,
+the joined line via digest.arrivals_block, one post via scoping.require_visible_post
+inside digest_links.issue_slice — so this surface holds no authorization logic of
 its own. It is read-only by construction: GET-only routes, no forms, no session
 minted, and the capability ceiling is the issue's own slice (a valid token
 never reaches another yard's content, the directory, or any contact field).

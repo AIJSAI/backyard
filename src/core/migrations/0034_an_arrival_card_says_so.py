@@ -1,8 +1,11 @@
 """Mark the arrival card as an arrival card (#208).
 
-ADDITIVE. One boolean on `core_post`, default False, so every post that exists reads as
-an ordinary post and every reader that does not know about the column is unaffected. A
-deploy that runs this and a rollback that does not are both correct.
+ADDITIVE, FORWARD-ONLY. One boolean on `core_post`, default False, so every post that
+exists reads as an ordinary post and every reader that does not know about the column is
+unaffected. Django drops the database default after backfilling it, so the column ends NOT
+NULL with no default: running this and then serving the PREVIOUS image would refuse every
+INSERT into `core_post`, joining included. A rollback un-applies this migration too, the
+same as migration 0016's `via_email`.
 
 THE BACKFILL, and exactly how an existing arrival card is identified. Not by its body:
 `posting.ARRIVAL_BODY` is what `announce_arrival` writes, but its author may edit it for
