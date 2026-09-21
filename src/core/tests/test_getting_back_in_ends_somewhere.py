@@ -117,8 +117,9 @@ def test_the_button_promises_only_what_saving_does() -> None:
 
     The flow is deliberate and unchanged — the test above proves what saving DOES do. This
     is the words: the form promises the one act it performs, plus the sign-out, which is
-    true. Scoped to the form rather than the page, because the base template's inlined
-    stylesheet carries the word "sign-in" in its own comments.
+    true. Scoped to the form rather than the page so the check stays about the control: the
+    base template's inlined stylesheet carries "sign-in" in its own comments, and a future
+    tightening of this assertion to the hyphenated spelling would read those as copy.
     """
     _member, _admin, raw = _locked_out()
     body = Client().get(reverse("recover", args=[raw])).content.decode()
