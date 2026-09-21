@@ -481,6 +481,10 @@ def test_leaving_one_of_two_households_on_the_same_side_loses_nothing(
     # this does not change what they can see", which is false: the household they leave
     # takes its own posts, photographs and My Household fields with it.
     assert "kept to itself" in " ".join(body.split())
+    assert "every birthday and contact detail" in " ".join(body.split()), (
+        "a birthday set to My Household goes with the household, and the ADD direction of "
+        "this same page has always said so"
+    )
 
 
 # --------------------------------------------------------------------------------------
@@ -1135,6 +1139,10 @@ def test_the_confirm_page_says_a_removal_keeps_them_on_the_same_side_and_names_w
 
     assert "keeps them on the same side of the family" in flat
     assert "kept to itself" in flat
+    assert "every birthday and contact detail" in flat, (
+        "a birthday set to My Household goes with the household, and the ADD direction of "
+        "this same page has always said so"
+    )
     assert _PLURAL_IN_BODY not in flat
 
 

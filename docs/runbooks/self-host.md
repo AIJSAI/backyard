@@ -366,7 +366,8 @@ the key it was made with, so after a rotation every push is refused, every store
 subscription is dead, and each relative turns notifications on again from Settings. The
 Settings page does that half for them: it notices that the phone's registration was made
 with the old key, clears it, and offers Turn On Notifications again on the next visit. Do
-it if the private key is exposed; there is no reason to do it otherwise.
+it if the private key is exposed, and do it at a handover, because the outgoing person
+still has it (`handover.md`, "Rotate every secret"). There is no other reason to.
 
 **Extending the list of push services** is `BACKYARD_PUSH_SERVICE_HOSTS`, a comma-separated
 list of hostnames that is ADDED to the built-in set (Apple, Google, Mozilla, Microsoft).

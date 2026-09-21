@@ -25,9 +25,9 @@ a point somebody deliberately stopped at, with a full green gate behind it.
 - **Taking somebody out of a household says what it costs them.** The confirmation said
   "Their other household keeps them on the same sides of the family, so this does not change
   what they can see", which is false: leaving a household loses the posts it kept to itself,
-  the photographs on them, and every contact detail anybody in it set to My Household. Only
-  the side survives. The page now names all three, which is what the same page has always
-  said about the other direction.
+  the photographs on them, and every birthday and contact detail anybody in it set to My
+  Household. Only the side survives. The page now names all of it, in the words the same
+  page has always used about the other direction.
 
 - **One side of the family is not a list on Change Household.** An admin whose reach is a
   single side read "decide which sides of the family they can see" at the top of the page,
