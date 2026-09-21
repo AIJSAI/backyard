@@ -326,8 +326,15 @@ def test_the_period_word_is_the_readers_own_cadence(
 
 
 def test_a_member_with_no_subscription_reads_as_weekly(world: World) -> None:
-    """The builder is also called by tests, previews and a resend before a subscription
-    exists; weekly is the product's default and the fall-back `subscribe` already uses."""
+    """Weekly is the product's default and the fall-back `subscribe` already uses. Asserted
+    on the function the builder calls, because that is the one a relative's mail goes
+    through: the builder is also run by tests, previews and a resend before a subscription
+    row exists, and a missing row must not leave a hole in the sentence."""
+    start = world.window_end - datetime.timedelta(days=7)
+    assert (
+        digesting.period_text_for_window(world.maternal_cousin, start, world.window_end)
+        == "this week"
+    )
     assert digesting.cadence_period_text(world.maternal_cousin) == "this week"
 
 

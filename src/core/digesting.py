@@ -102,7 +102,8 @@ def period_text_for_window(
     issue is anchored at confirmation and can be any length at all. The header prints the
     real date range two lines above, so "this week" over sixteen days is a sentence the
     reader can check and find wrong. The cadence word is used only while the window still
-    fits it.
+    roughly fits it: half as long again is the tolerance, so an hourly cron's jitter does
+    not turn every ordinary message into "recently".
     """
     cadence = _cadence_of(member)
     if window_end - window_start > _CADENCE_PERIOD[cadence] * 1.5:

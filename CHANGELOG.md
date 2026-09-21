@@ -20,11 +20,11 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   longer spends an entry on each of them: after the posts it reads "Joined this week: Rose,
   Sam and Ada.", with the names held to the same audience rule as everything else in the
   message, so a name never crosses a side of the family. The period word is the reader's
-  own frequency while the message still covers one period, and "Joined recently" when it
-  covers longer, which happens whenever a quiet period was skipped. The first Email Update
-  a family actually received had five entries and three of them were arrivals. A period
-  with joins and nothing written still sends nothing at all. One additive migration
-  (`0034`), which marks the cards already written.
+  own frequency while the message still covers about one period, and "Joined recently"
+  once it stretches to half as long again, which is what a skipped quiet period does. The
+  first Email Update a family actually received had five entries and three of them were
+  arrivals. A period with joins and nothing written still sends nothing at all. One
+  additive migration (`0034`), which marks the cards already written.
 
 ## [0.2.0] — 2026-09-20
 

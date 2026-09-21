@@ -8,8 +8,8 @@ scoping-bound). It may also ask `digesting` for the READER'S OWN settings — th
 cadence word the joined line uses (#208) — which is the member's own choice and not
 family content; anything family-shaped still has to come through the guard. A batch
 principal with its own query is the T-YARD-9 bug — a cross-yard fusion mailed to an
-inbox is unrecallable — so the rule is enforced
-here as a build failure, not a review comment.
+inbox is unrecallable — so the rule is enforced here as a build failure, not a review
+comment.
 
 The guard proves itself non-vacuous on every run (the parents[N] lesson): each
 banned pattern is checked against a fixture line that MUST match, so a typo in
