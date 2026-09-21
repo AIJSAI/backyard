@@ -586,7 +586,11 @@ def test_a_row_whose_host_left_the_allowlist_is_never_posted_to(
     assert push.send_one(device, {"title": "t", "body": "b", "url": "/", "tag": "t"}) is False
     assert wire.calls == []
     device.refresh_from_db()
-    assert device.failure_count == 1  # counted as a failure, not silently ignored
+    # NOT counted, and that is the right answer for the same reason a timeout is not: the
+    # push service never answered. This is the operator's own allowlist refusing, so it
+    # fails every device on that host at once and says nothing about any registration. The
+    # row stays until the operator puts the host back or the member removes the device.
+    assert device.failure_count == 0
 
 
 def test_the_session_refuses_an_endpoint_it_is_handed_directly(push_on: None) -> None:
@@ -624,11 +628,14 @@ def test_a_gone_subscription_is_deleted(
     assert not PushSubscription.objects.filter(pk=device.pk).exists()
 
 
-def test_other_failures_are_counted_and_the_row_goes_after_enough_of_them(
+def test_a_four_hundred_about_this_registration_is_counted_and_the_row_goes(
     family: Family, push_on: None, wire: Wire
 ) -> None:
+    """A 4xx that is not 404/410/429 IS evidence about this registration. 403 is the real
+    case: it is what a push service answers after the VAPID pair has been rotated, and
+    the row should go so the member's next visit to Settings re-subscribes it."""
     device = _a_device(family.bridge)
-    wire.status = 500
+    wire.status = 403
     for attempt in range(1, push.MAX_CONSECUTIVE_FAILURES):
         device.refresh_from_db()
         assert push.send_one(device, {"title": "t", "body": "b", "url": "/", "tag": "t"}) is False
@@ -636,6 +643,70 @@ def test_other_failures_are_counted_and_the_row_goes_after_enough_of_them(
         assert device.failure_count == attempt
     assert push.send_one(device, {"title": "t", "body": "b", "url": "/", "tag": "t"}) is False
     assert not PushSubscription.objects.filter(pk=device.pk).exists()
+
+
+@pytest.mark.parametrize(
+    ("status", "what"),
+    [
+        (429, "the service asking everyone to slow down"),
+        (500, "the service's own bad day"),
+        (502, "a gateway in front of the service"),
+        (503, "the service unavailable"),
+    ],
+)
+def test_an_answer_that_is_not_about_this_registration_is_never_counted(
+    family: Family, push_on: None, wire: Wire, status: int, what: str
+) -> None:
+    """Only an answer that is EVIDENCE about this registration counts.
+
+    A 429 or a 5xx fails every device at once, so counting them is how an outage becomes a
+    deletion of the family's whole subscription table. Measured before the fix: six
+    devices, five posts, zero rows left, nobody told.
+    """
+    device = _a_device(family.bridge)
+    wire.status = status
+    for _ in range(push.MAX_CONSECUTIVE_FAILURES + 2):
+        device.refresh_from_db()
+        assert push.send_one(device, {"title": "t", "body": "b", "url": "/", "tag": "t"}) is False
+    device.refresh_from_db()
+    assert device.failure_count == 0, f"{what} was counted against the device"
+    assert PushSubscription.objects.filter(pk=device.pk).exists()
+
+
+def test_an_outage_across_several_posts_leaves_every_device_standing(
+    family: Family, push_on: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The blast radius this rule exists for, at the size the reviewer measured it.
+
+    Six devices, five posts, every send refused by the transport. Before the fix that was
+    an empty `core_pushsubscription` and a family whose phones had all gone quiet with
+    nothing on any screen to say why.
+    """
+    devices = [
+        _a_device(family.bridge, label="one"),
+        _a_device(family.bridge, label="two"),
+        _a_device(family.bridge, label="three"),
+        _a_device(family.maternal_cousin, label="four"),
+        _a_device(family.maternal_cousin, label="five"),
+        _a_device(family.maternal_cousin, label="six"),
+    ]
+
+    def no_route(*args: Any, **kwargs: Any) -> None:
+        raise requests.ConnectionError("no route to host")
+
+    monkeypatch.setattr(requests.Session, "request", no_route)
+    for index in range(5):
+        post = posting.create_post(
+            author=family.maternal,
+            pod=family.maternal_pod,
+            audience_yards=[family.maternal_yard],
+            body=f"Post {index}",
+        )
+        assert push.deliver_new_post(post) == 0
+    assert PushSubscription.objects.count() == len(devices)
+    for device in devices:
+        device.refresh_from_db()
+        assert device.failure_count == 0
 
 
 def test_one_dead_device_never_stops_the_others(family: Family, push_on: None, wire: Wire) -> None:
@@ -741,11 +812,17 @@ def test_one_session_serves_the_whole_fan_out_and_still_validates_every_request(
     assert len(validated) == 6
 
 
-def test_a_transport_exception_is_a_counted_failure_not_a_crash(
+def test_a_transport_exception_is_not_counted_against_the_device(
     family: Family, push_on: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A push service that refuses the connection, a DNS failure, a timeout. The task must
-    never raise out: a retried job would be a second notification on a lock screen."""
+    """A refused connection, a DNS failure, a timeout. The task must never raise out — a
+    retried job would be a second notification on a lock screen — and it must not count
+    either: no answer at all is this box's network, and it says nothing about whether a
+    registration is still good.
+
+    This test used to assert the opposite (`failure_count == 1`) and was right about the
+    crash and wrong about the counting.
+    """
     device = _a_device(family.bridge)
 
     def boom(*args: Any, **kwargs: Any) -> None:
@@ -754,7 +831,8 @@ def test_a_transport_exception_is_a_counted_failure_not_a_crash(
     monkeypatch.setattr(requests.Session, "request", boom)
     assert push.send_one(device, {"title": "t", "body": "b", "url": "/", "tag": "t"}) is False
     device.refresh_from_db()
-    assert device.failure_count == 1
+    assert device.failure_count == 0
+    assert PushSubscription.objects.filter(pk=device.pk).exists()
 
 
 def test_neither_the_endpoint_nor_the_service_response_reaches_a_log(
@@ -775,7 +853,7 @@ def test_neither_the_endpoint_nor_the_service_response_reaches_a_log(
     """
     monkeypatch.setattr(logging.getLogger("core"), "propagate", True)
     device = _a_device(family.bridge)
-    wire.status = 500
+    wire.status = 403  # a counted refusal, so the "N in a row" line is the one under test
     with caplog.at_level(logging.INFO, logger="core.push"):
         push.send_one(device, {"title": "t", "body": "b", "url": "/", "tag": "t"})
     written = "\n".join(record.getMessage() for record in caplog.records)

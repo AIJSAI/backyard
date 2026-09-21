@@ -68,10 +68,18 @@ SEND_TIMEOUT = 10
 # the remaining devices are simply not tried: nothing is deleted and no failure is
 # counted, because a slow service is not a dead one, and the next post notifies them.
 DELIVERY_BUDGET = 120
-# Consecutive non-404/410 failures before the row is dropped. A push service that has
-# been refusing for five posts in a row is either gone or has rotated the endpoint
-# without telling us, and a row that never delivers is a row that only ever costs a
-# request. The member's device re-subscribes on its next visit to Settings.
+# Consecutive 4xx refusals ABOUT THIS REGISTRATION before the row is dropped (see
+# `_failed`: a timeout, a 429 or a 5xx is not evidence and is never counted). A push
+# service that has answered 4xx for five posts in a row is either gone or has rotated the
+# endpoint without telling us, and a row that never delivers is a row that only ever costs
+# a request. The member's device re-subscribes on its next visit to Settings.
+#
+# THE READ-MODIFY-WRITE IS SAFE ONLY AT WORKER CONCURRENCY 1, which is what
+# docker-compose ships. Two workers sending to one device at once would both read the same
+# `failure_count` and write the same `count`, so a run would be undercounted; nothing is
+# corrupted and nothing is deleted early, it just takes longer to reach the threshold. A
+# deployment that raises the worker's concurrency should make this an F() expression or a
+# SELECT FOR UPDATE.
 MAX_CONSECUTIVE_FAILURES = 5
 # 404 (gone) and 410 (expired) are the push protocol's own "this device is finished"
 # answers (RFC 8030). They are not failures to count; they are a delete.
@@ -294,8 +302,14 @@ def send_one(
     * 404 or 410 — the push service says this registration is finished (RFC 8030). The
       row is deleted. This is the ordinary end of a subscription's life: a browser
       rotating its endpoint, an app deleted from a home screen.
-    * anything else — one more consecutive failure, and the row goes once there have been
-      MAX_CONSECUTIVE_FAILURES of them. Cleared by the next success.
+    * another 4xx — one more consecutive failure, and the row goes once there have been
+      MAX_CONSECUTIVE_FAILURES of them. Cleared by the next success. 403 is the real case:
+      it is what a service answers after the VAPID pair has been rotated, and it
+      self-heals when the member next opens Settings.
+    * NO ANSWER, a 429, or a 5xx — not counted at all, and nothing is deleted. None of
+      them is evidence about THIS registration: they fail every device on that service at
+      once, and counting them emptied the family's whole subscription table after five
+      posts of an outage, with nobody told. `_failed` carries the measurement.
     * the exception is never rendered into the log. `WebPushException.__str__` embeds the
       push service's RESPONSE BODY, and `webpush()` builds its message from the same
       thing — so `logger.warning("...%s", exc)` would put a third party's response text,
@@ -339,6 +353,21 @@ def _failed(subscription: PushSubscription, *, status: int | None) -> bool:
             push_endpoints.redact(subscription.endpoint),
         )
         PushSubscription.objects.filter(pk=subscription.pk).delete()
+        return False
+    if status is None or status == 429 or status >= 500:
+        # NOT COUNTED. No answer at all -- a DNS failure, a dropped route, a timeout -- is
+        # this box's network; a 429 is the service asking everyone to slow down; a 5xx is the
+        # service's own bad day. None of them says anything about THIS registration, and each
+        # fails every device at once. Counting them deletes the family's whole subscription
+        # table after five posts with nobody told: measured at six devices, five posts under
+        # `requests.ConnectionError`, zero rows left. Only a 4xx FROM the service is evidence
+        # about a registration (a rotated VAPID pair answers 403, which still counts and
+        # still self-heals).
+        logger.info(
+            "push was not delivered and not counted (status %s): %s",
+            status,
+            push_endpoints.redact(subscription.endpoint),
+        )
         return False
     count = subscription.failure_count + 1
     if count >= MAX_CONSECUTIVE_FAILURES:

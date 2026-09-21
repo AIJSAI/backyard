@@ -824,8 +824,12 @@ class PushSubscription(models.Model):
     label = models.CharField(max_length=40, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_success_at = models.DateTimeField(null=True, blank=True)
-    # Consecutive failures that were NOT a 404/410 (those delete the row outright). Reset
-    # to zero on every success, so this counts a run, not a lifetime.
+    # Consecutive refusals that are EVIDENCE ABOUT THIS REGISTRATION: a 4xx from the push
+    # service other than 404/410 (which delete the row outright) or 429. A timeout, a
+    # dropped route and a 5xx are never counted — they fail every device at once and say
+    # nothing about any one of them, and counting them emptied the whole table after five
+    # posts of an outage (core/push.py::_failed). Reset to zero on every success, so this
+    # counts a run, not a lifetime.
     failure_count = models.PositiveSmallIntegerField(default=0)
 
     class Meta:
