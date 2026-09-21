@@ -155,6 +155,53 @@ def refresh_domain_status_task(timestamp: int) -> None:
     )
 
 
+# How long a FINISHED Procrastinate job row is kept. Two numbers because a succeeded job
+# is a receipt nobody reads and a failed one is the only record of what went wrong: a
+# transcode that died, a digest send that raised, a push job that could not resolve its
+# post. Seven days is long enough to answer "did last week's digest run"; thirty is long
+# enough that a failure found on a Monday still has its row.
+SUCCEEDED_JOB_RETENTION_HOURS = 24 * 7
+FAILED_JOB_RETENTION_HOURS = 24 * 30
+
+
+@app.periodic(cron="50 4 * * *")  # daily 04:50, after the session purge
+@app.task(name="prune_finished_jobs")
+def prune_finished_jobs_task(timestamp: int) -> None:
+    """Delete finished Procrastinate jobs (threat model TS-PG-7).
+
+    TS-PG-7 is rated High and has committed since it was written to scheduling this "from
+    the wave it installs". Nothing did, and this wave raises the rate: one post is one job
+    row, one reply is two. `procrastinate_jobs` and its `procrastinate_events` grow
+    without bound, which on a family box is slow queue queries and then a full disk that
+    nobody is watching — the same class of silent operational failure T-MON-1 exists for.
+
+    It calls Procrastinate's OWN deletion (`JobManager.delete_old_jobs`, what the library's
+    `builtin_tasks.remove_old_jobs` wraps) rather than issuing a DELETE of our own, so the
+    statuses it treats as finished and the event timestamp it measures age from stay the
+    library's business. `async_to_sync` because that method is async and every task in this
+    module is sync; the worker runs a sync task in a thread with no loop of its own.
+
+    Two passes, not one: the second sweeps EVERYTHING finished past the long window, the
+    first takes succeeded jobs at the short one. A failed job is the only record of what
+    went wrong and outlives a receipt nobody reads.
+    """
+    from asgiref.sync import async_to_sync
+
+    everything_old = async_to_sync(app.job_manager.delete_old_jobs)
+    everything_old(
+        nb_hours=FAILED_JOB_RETENTION_HOURS,
+        include_failed=True,
+        include_cancelled=True,
+        include_aborted=True,
+    )
+    everything_old(nb_hours=SUCCEEDED_JOB_RETENTION_HOURS)
+    logger.info(
+        "pruned finished jobs (succeeded older than %sh, anything finished older than %sh)",
+        SUCCEEDED_JOB_RETENTION_HOURS,
+        FAILED_JOB_RETENTION_HOURS,
+    )
+
+
 @app.periodic(cron="15 4 * * *")  # daily 04:15
 @app.task(name="clear_sessions")
 def clear_sessions_task(timestamp: int) -> None:
