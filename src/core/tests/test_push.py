@@ -239,7 +239,7 @@ def test_a_reply_on_a_bridging_post_never_crosses_the_family(
 ) -> None:
     """A post addressed to BOTH sides is the one place where "can see the post" is not
     enough. Ann and Bo can both see the post. When Bo replies, Ann must not be told
-    "Bo replied" — she cannot see Bo at all, and the notification would name him.
+    "Bo Replied" — she cannot see Bo at all, and the notification would name him.
 
     This is why `recipients_for_reply` asks `visible_comments`, which intersects with
     `visible_members` (the T-YARD-4 fix in scoping.py), and not `visible_posts`.
@@ -441,7 +441,7 @@ def test_a_post_payload_names_the_author_and_opens_the_post(family: Family) -> N
         body="We got the tickets",
     )
     payload = push.post_payload(post)
-    assert payload["title"] == "Ann posted"  # the FIRST name, via Member.short_name
+    assert payload["title"] == "Ann Posted"  # the FIRST name, via Member.short_name
     assert payload["body"] == "We got the tickets"
     assert payload["url"] == f"/posts/{post.pk}/"
     assert payload["tag"] == f"post-{post.pk}"
@@ -455,7 +455,7 @@ def test_a_reply_carries_its_post_s_tag_so_a_busy_thread_collapses(family: Famil
     )
     reply = Comment.objects.create(post=post, author=family.bridge, body="An answer")
     assert push.reply_payload(reply)["tag"] == push.post_payload(post)["tag"]
-    assert push.reply_payload(reply)["title"] == "Bridging replied"
+    assert push.reply_payload(reply)["title"] == "Bridging Replied"
 
 
 def test_a_long_body_is_cut_at_a_word_and_carries_no_ellipsis(family: Family) -> None:
@@ -526,13 +526,13 @@ def test_the_members_own_words_beat_the_media_line(family: Family) -> None:
 
 def test_a_display_name_with_no_first_word_still_names_somebody(family: Family) -> None:
     """`short_name` is empty for a whitespace-only display name, and a notification
-    reading " posted" is worse than one naming somebody in full."""
+    reading " Posted" is worse than one naming somebody in full."""
     family.maternal.display_name = "Moone"
     family.maternal.save(update_fields=["display_name"])
     post = posting.create_post(
         author=family.maternal, pod=family.maternal_pod, audience_yards=[], body="x"
     )
-    assert push.post_payload(post)["title"] == "Moone posted"
+    assert push.post_payload(post)["title"] == "Moone Posted"
 
 
 # --- the send itself -------------------------------------------------------------------
@@ -544,7 +544,7 @@ def test_a_real_encrypted_request_reaches_the_push_service(
     """The whole stack, with only the socket stubbed: ECDH against the device's key,
     aes128gcm encryption, the VAPID assertion, and the POST."""
     device = _a_device(family.bridge)
-    assert push.send_one(device, {"title": "Ann posted", "body": "x", "url": "/", "tag": "t"})
+    assert push.send_one(device, {"title": "Ann Posted", "body": "x", "url": "/", "tag": "t"})
     (method, url, kwargs) = wire.calls[0]
     assert method == "POST"
     assert url == device.endpoint
@@ -558,7 +558,7 @@ def test_a_real_encrypted_request_reaches_the_push_service(
     assert isinstance(kwargs["data"], bytes)
     with pytest.raises(ValueError):
         json.loads(kwargs["data"])
-    assert b"Ann posted" not in kwargs["data"]
+    assert b"Ann Posted" not in kwargs["data"]
 
 
 def test_the_outbound_request_follows_no_redirect_and_carries_a_timeout(

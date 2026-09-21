@@ -91,7 +91,7 @@ def _who(member: Member) -> str:
     """The first name the family would use, falling back to the whole display name.
 
     `short_name` is empty for a display name that is only whitespace, and a notification
-    reading " posted" is worse than one naming somebody in full.
+    reading " Posted" is worse than one naming somebody in full.
     """
     return member.short_name or member.display_name
 
@@ -133,12 +133,12 @@ def post_payload(post: Post) -> dict[str, str]:
     if len(body) < _TOO_SHORT_TO_BE_A_LINE:
         body = _media_line(post)
     return {
-        # Lower-case "posted" / "replied" is this brief's own spelling, and it is the
-        # sentence a phone puts on a lock screen rather than a heading on a page — the
-        # one place the product writes an event rather than a label. If the owner reads
-        # it and wants the product's Title Case (the reply e-mail's subject is "<Name>
-        # Replied To Your Post"), these two f-strings are the whole change.
-        "title": f"{_who(post.author)} posted",
+        # TITLE CASE, because a notification title is the push analogue of an e-mail
+        # subject and the guide capitalises every word in one (docs/design/voice.md). The
+        # product already writes "<Name> Replied To Your Post" as the reply e-mail's
+        # subject; a lock-screen line is the same kind of line. The BODY below stays
+        # sentence case with a full stop, like every other piece of body text here.
+        "title": f"{_who(post.author)} Posted",
         "body": body,
         "url": f"/posts/{post.pk}/",
         "tag": _tag(post.pk),
@@ -149,7 +149,7 @@ def reply_payload(comment: Comment) -> dict[str, str]:
     """The notification for a reply. The same tag as its post, so a busy thread
     collapses into one entry on the device instead of fifty."""
     return {
-        "title": f"{_who(comment.author)} replied",
+        "title": f"{_who(comment.author)} Replied",
         "body": _first_words(comment.body),
         "url": f"/posts/{comment.post_id}/",
         "tag": _tag(comment.post_id),
@@ -205,7 +205,7 @@ def recipients_for_reply(comment: Comment) -> list[Member]:
     The audience question here is asked of `visible_comments`, not `visible_posts`, and
     the difference is the whole cross-side guarantee: `visible_comments` intersects with
     `visible_members`, so on a post addressed to BOTH sides of the family nobody is told
-    "<name> replied" about a person they cannot see. Getting this wrong would name one
+    "<name> Replied" about a person they cannot see. Getting this wrong would name one
     side of the family to the other on a lock screen.
     """
     earlier = Comment.objects.filter(post_id=comment.post_id, deleted_at__isnull=True).exclude(
