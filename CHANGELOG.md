@@ -40,6 +40,17 @@ a point somebody deliberately stopped at, with a full green gate behind it.
     survives a line break, a stripped inline tag and the code's own hyphen spelling for
     every multi-word entry.
 
+- **Email Updates name the period's arrivals in one line.** When a household joins, every
+  new member still gets a "Just joined." card and the feed still shows it. The message no
+  longer spends an entry on each of them: after the posts it reads "Joined this week: Rose,
+  Sam and Ada.", with the names held to the same audience rule as everything else in the
+  message, so a name never crosses a side of the family. The period word is the reader's
+  own frequency while the message still covers about one period, and "Joined recently"
+  once it stretches to half as long again, which is what a skipped quiet period does. The
+  first Email Update a family actually received had five entries and three of them were
+  arrivals. A period with joins and nothing written still sends nothing at all. One
+  additive migration (`0035`), which marks the cards already written.
+
 ## [0.2.0] — 2026-09-20
 
 The owner compared Backyard with the phone apps relatives already use. This release is the

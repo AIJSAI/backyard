@@ -8,7 +8,9 @@ Open this post: {{ block.url }}
 {% if block.reply_url %}Reply in Backyard: {{ block.reply_url }}
 {% endif %}
 
-{% endfor %}{% if dates_block %}Coming Up In The Next Week:
+{% endfor %}{% if arrivals %}Joined {{ arrivals.period_text }}: {{ arrivals.names_text }}.
+
+{% endif %}{% if dates_block %}Coming Up In The Next Week:
 {% for entry in dates_block.entries %}  {{ entry.name_line }}'s {{ entry.kind }} ({{ entry.date_text }})
 {% endfor %}
 {% endif %}View in your browser: {{ footer.digest_url }}

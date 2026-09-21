@@ -108,6 +108,33 @@ def in_yard_posts_q(yard_id: int) -> models.Q:
     )
 
 
+def window_slice(
+    member: Member,
+    yard_id: int,
+    window_start: datetime.datetime,
+    window_end: datetime.datetime,
+) -> models.QuerySet[Post]:
+    """Everything one (member, yard, window) slice covers, arrival cards included.
+
+    The audience half of the definition, in one place: the two windows below differ
+    only in which kind of post they keep, so neither can drift into a second idea of
+    what this member may see in this yard over these days.
+
+    This, not `window_posts`, is the CAPABILITY CEILING a digest token opens onto
+    (digest_views.digest_post_view). An arrival card is no longer an entry in the
+    message, but the messages already sitting in relatives' inboxes link to the ones
+    they listed, those links live for three weeks, and a post the reader can see in
+    their own feed must not answer a still-valid link with the guard's 404. What
+    changed is what a message SAYS, not what its holder may read.
+    """
+    return (
+        scoping.visible_posts(member)
+        .filter(in_yard_posts_q(yard_id))
+        .filter(created_at__gte=window_start, created_at__lt=window_end)
+        .distinct()
+    )
+
+
 def window_posts(
     member: Member,
     yard_id: int,
@@ -122,13 +149,30 @@ def window_posts(
     window, which is the shape that leaves half-state behind when a run dies.
     One query definition either way, so the email and the is-it-empty check can
     never disagree about what the window contains.
+
+    ARRIVAL CARDS ARE NOT POSTS HERE (#208), and that is load-bearing twice over.
+    They are not entries in the email or in its web copy — the window's joiners get
+    one line instead — and a window holding nothing but arrivals is an empty window,
+    so it still sends nothing at all. "If nobody posted, nothing is sent" is what
+    How It Works promises a family, and somebody joining is not somebody posting.
     """
-    return (
-        scoping.visible_posts(member)
-        .filter(in_yard_posts_q(yard_id))
-        .filter(created_at__gte=window_start, created_at__lt=window_end)
-        .distinct()
-    )
+    return window_slice(member, yard_id, window_start, window_end).filter(is_arrival=False)
+
+
+def window_arrivals(
+    member: Member,
+    yard_id: int,
+    window_start: datetime.datetime,
+    window_end: datetime.datetime,
+) -> models.QuerySet[Post]:
+    """The arrival cards one (member, yard, window) slice covers, resolved live.
+
+    The other half of the same slice, through the same audience query: a card this
+    member could not see is not in it, so the line built from these names can only
+    ever name people they already know about. A member on one side of a bridging
+    household never learns a name from the other side through it.
+    """
+    return window_slice(member, yard_id, window_start, window_end).filter(is_arrival=True)
 
 
 def issue_posts(issue: DigestIssue) -> models.QuerySet[Post]:
@@ -143,3 +187,39 @@ def issue_posts(issue: DigestIssue) -> models.QuerySet[Post]:
     email went out is simply absent from the still-valid link.
     """
     return window_posts(issue.member, issue.yard_id, issue.window_start, issue.window_end)
+
+
+def issue_arrivals(issue: DigestIssue) -> models.QuerySet[Post]:
+    """The arrival cards one issue covers, resolved live (the mirror of issue_posts)."""
+    return window_arrivals(issue.member, issue.yard_id, issue.window_start, issue.window_end)
+
+
+def issue_slice(issue: DigestIssue) -> models.QuerySet[Post]:
+    """Everything one issue's window covers: what its token may open, entry or not."""
+    return window_slice(issue.member, issue.yard_id, issue.window_start, issue.window_end)
+
+
+def issue_arrival_names(issue: DigestIssue) -> tuple[str, ...]:
+    """Who joined in this issue's window, first names, in the order they arrived.
+
+    `Member.short_name` is the first word of the name they chose, which is how a family
+    says a list of people; a blank display name falls back to words rather than leaving a
+    hole in the sentence, the same fallback the feed's reactor line uses.
+
+    Deduplicated by member: one person can hold two cards inside one window (they joined a
+    household and a group from two links), and a line naming somebody twice reads as a bug.
+    """
+    names: list[str] = []
+    seen: set[int] = set()
+    for card in issue_arrivals(issue).select_related("author").order_by("created_at", "id"):
+        if card.author_id in seen:
+            continue
+        seen.add(card.author_id)
+        full = card.author.display_name.strip() or "A member"
+        short = card.author.short_name
+        # A member removed with "Keep Their Posts, Without Their Name" is called "A family
+        # member" (removal.ANONYMOUS_NAME), whose first word is "A": the one display name
+        # whose short form is not a name at all. Anything under two characters is written
+        # out in full instead, which is also the right answer for a one-letter first name.
+        names.append(short if len(short) > 1 else full)
+    return tuple(names)

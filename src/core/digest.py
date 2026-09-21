@@ -2,13 +2,14 @@
 
 build_digest assembles one email for one (member, yard) issue, and its every
 content byte resolves through the audience guard AT BUILD TIME: posts via
-digest_links.issue_posts (a filter over scoping.visible_posts), comment counts
-via scoping.visible_comments, dates via profiles.upcoming_dates scoped to the
-issue's yard. This module NEVER touches a model manager, raw SQL, or any
-second audience path (TM-2, T-YARD-9). That rule is enforced by
-structure, not vigilance — scripts/check_digest_confinement.py fails CI if a
-banned data-access token ever appears here, and the pytest twin proves the
-guard non-vacuous.
+digest_links.issue_posts (a filter over scoping.visible_posts), the joined
+line's names via digest_links.issue_arrival_names (the same filter over the
+same query), comment counts via scoping.visible_comments, dates via
+profiles.upcoming_dates scoped to the issue's yard. This module NEVER touches
+a model manager, raw SQL, or any second audience path (TM-2, T-YARD-9). That
+rule is enforced by structure, not vigilance — scripts/check_digest_confinement.py
+fails CI if a banned data-access token ever appears here, and the pytest twin
+proves the guard non-vacuous.
 
 The output is a CLOSED union of typed blocks. build_digest validates every
 block against the union and every link against BASE_URL before returning, so a
@@ -23,13 +24,14 @@ own; the send path (next increment) owns minting, transactions, and transport.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.utils import timezone
 
-from . import digest_links, emailing, profiles, scoping
+from . import digest_links, digesting, emailing, profiles, scoping
 from .models import DigestIssue
 
 # The upcoming-dates lookahead (S-903: "the next 7 days in my yards").
@@ -78,6 +80,24 @@ class UpcomingDatesBlock:
 
 
 @dataclass(frozen=True)
+class ArrivalsBlock:
+    """Who joined in this window, as one line after the posts (#208).
+
+    The first Email Update a real family received had five entries, three of which were
+    arrival cards; in a week when a side of the family is being invited the message would
+    be almost nothing else. The cards stay in the feed exactly as they are — this is the
+    message deciding that an arrival is news about the family, not an entry of its own.
+
+    Two values rather than a finished sentence: the three surfaces that show this line
+    (the text part, the HTML part, and the web copy at /d/) each write the words in their
+    own template, which is where the copy guards read them.
+    """
+
+    period_text: str  # "this week" — the reader's own cadence, never a fixed word
+    names_text: str  # "Nell, Sam and Dave" — first names, the way a person writes a list
+
+
+@dataclass(frozen=True)
 class FooterBlock:
     digest_url: str
     unsubscribe_url: str
@@ -86,8 +106,8 @@ class FooterBlock:
 
 # The closed union (S-501's 100%-family gate). A new block type is added HERE,
 # in code review, never discovered in a rendered email.
-DigestBlock = HeaderBlock | PostBlock | UpcomingDatesBlock | FooterBlock
-_BLOCK_UNION = (HeaderBlock, PostBlock, UpcomingDatesBlock, FooterBlock)
+DigestBlock = HeaderBlock | PostBlock | ArrivalsBlock | UpcomingDatesBlock | FooterBlock
+_BLOCK_UNION = (HeaderBlock, PostBlock, ArrivalsBlock, UpcomingDatesBlock, FooterBlock)
 
 
 @dataclass(frozen=True)
@@ -133,6 +153,36 @@ def validate_blocks(blocks: tuple[DigestBlock, ...]) -> None:
                 raise NonFamilyContent(
                     f"reply address off the sending domain: {block.reply_address!r}"
                 )
+
+
+def _as_a_person_writes_a_list(names: Sequence[str]) -> str:
+    """Nell / Nell and Sam / Nell, Sam and Dave. No serial comma, which is how the issue's
+    own example reads and how the rest of the product writes a list of people."""
+    if len(names) <= 2:
+        return " and ".join(names)
+    return f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def arrivals_block(issue: DigestIssue) -> ArrivalsBlock | None:
+    """The joined line for one issue, or None when nobody joined in its window.
+
+    Public, and called by the /d/ web copy as well as by the builder below: two surfaces
+    showing one message must not each decide who joined and how to say it.
+
+    The names come through digest_links, which is scoping-bound like every other read
+    here, so the line can only name people this recipient may already see. The cadence
+    comes through digesting, which owns the subscription: it is the reader's own setting
+    rather than family content, and this module still holds no data path of its own.
+    """
+    names = digest_links.issue_arrival_names(issue)
+    if not names:
+        return None
+    return ArrivalsBlock(
+        period_text=digesting.period_text_for_window(
+            issue.member, issue.window_start, issue.window_end
+        ),
+        names_text=_as_a_person_writes_a_list(names),
+    )
 
 
 def build_digest(
@@ -206,9 +256,13 @@ def build_digest(
     window_start = timezone.localtime(issue.window_start).strftime("%b %-d")
     window_end = timezone.localtime(issue.window_end).strftime("%b %-d")
     window_text = f"{window_start} to {window_end}"
+    # After the posts and before the dates: the posts are what happened, the joined line
+    # is who arrived while it did, and the dates are what is still coming.
+    arrivals = arrivals_block(issue)
     blocks: tuple[DigestBlock, ...] = (
         HeaderBlock(yard_name=yard.name, window_text=window_text),
         *post_blocks,
+        *((arrivals,) if arrivals else ()),
         *((UpcomingDatesBlock(entries=date_entries),) if date_entries else ()),
         FooterBlock(
             digest_url=digest_url,
@@ -222,6 +276,7 @@ def build_digest(
         "separator": REPLY_SEPARATOR,
         "header": blocks[0],
         "post_blocks": post_blocks,
+        "arrivals": arrivals,
         "dates_block": next((b for b in blocks if isinstance(b, UpcomingDatesBlock)), None),
         "footer": blocks[-1],
     }
