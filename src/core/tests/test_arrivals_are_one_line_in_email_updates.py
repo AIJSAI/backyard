@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import datetime
 import importlib
+import io
 from dataclasses import dataclass
 from typing import cast
 
@@ -39,8 +40,9 @@ from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
+from PIL import Image
 
-from core import digest, digest_links, digesting, posting, scoping
+from core import digest, digest_links, digest_send, digesting, posting, removal, scoping
 from core.digest_send import send_due_digests
 from core.invites import mint_invite
 from core.models import (
@@ -80,6 +82,13 @@ def _member_in(pod: Pod, name: str) -> Member:
     member = Member.objects.create(display_name=name)
     PodMembership.objects.create(member=member, pod=pod)
     return member
+
+
+def _png(colour: tuple[int, int, int] = (10, 90, 60)) -> bytes:
+    """The same throwaway image the reply-media tests ingest."""
+    buf = io.BytesIO()
+    Image.new("RGB", (48, 32), colour).save(buf, format="PNG")
+    return buf.getvalue()
 
 
 @pytest.fixture
@@ -202,10 +211,38 @@ def test_a_window_of_nothing_but_joins_sends_nothing_and_records_nothing(world: 
     assert not DigestDelivery.objects.exists()
 
 
+def test_the_is_there_anything_to_send_seam_does_not_count_an_arrival(world: World) -> None:
+    """The rule at its own seam rather than only through a whole run. `_window_has_posts`
+    is what decides whether a period is worth a message at all, and it is the first of the
+    two looks the send path takes, so an arrival must not make a silent period read as
+    news there either."""
+    _joins(world.m_pod, "Rose Reed")
+    assert (
+        digest_send._window_has_posts(
+            world.maternal_cousin, world.maternal.id, world.window_start, world.window_end
+        )
+        is False
+    )
+
+    _post(world.maternal_cousin, world.m_pod, "SOMETHING-HAPPENED")
+    assert (
+        digest_send._window_has_posts(
+            world.maternal_cousin, world.maternal.id, world.window_start, world.window_end
+        )
+        is True
+    )
+
+
 def test_the_joiners_of_a_silent_week_are_named_by_the_next_real_message(world: World) -> None:
     """The half that makes the skip honest rather than lossy: skipping is only correct if
     the days it skipped are still covered, and the people who arrived in them still get
-    said out loud."""
+    said out loud.
+
+    And the WORD has to survive its own rule: this message covers sixteen days because the
+    silent week was left open, so it says "recently" rather than claiming a week for
+    somebody who arrived eight days before it. An ordinary one-period window still says
+    "this week", which `test_the_period_word_is_the_readers_own_cadence` pins.
+    """
     _confirmed(world.maternal_cousin, "cousin@example.com")
     _joins(world.m_pod, "Rose Reed")
     silent_run = timezone.now()
@@ -220,7 +257,7 @@ def test_the_joiners_of_a_silent_week_are_named_by_the_next_real_message(world: 
     assert second.sent == 1
     body = mail.outbox[0].body
     assert "LATE-BODY" in body
-    assert "Joined this week: Rose." in " ".join(body.split()), body
+    assert "Joined recently: Rose." in " ".join(body.split()), body
 
 
 # --- the audience rule, on the bridging household ------------------------------------
@@ -294,6 +331,20 @@ def test_a_member_with_no_subscription_reads_as_weekly(world: World) -> None:
     assert digesting.cadence_period_text(world.maternal_cousin) == "this week"
 
 
+def test_a_window_longer_than_its_period_says_recently(world: World) -> None:
+    """The word is checkable against the date range printed two lines above it, so it is
+    used only while the window still fits the cadence. A window is whatever the last run
+    left open: the quiet-period rule and a first issue anchored at confirmation both
+    stretch it past one period."""
+    start = timezone.now() - datetime.timedelta(days=16)
+    end = timezone.now()
+    assert digesting.period_text_for_window(world.maternal_cousin, start, end) == "recently"
+    # ...and a window that still fits keeps the cadence word, so the rule is not simply
+    # "always recently".
+    fits = end - datetime.timedelta(days=7)
+    assert digesting.period_text_for_window(world.maternal_cousin, fits, end) == "this week"
+
+
 @pytest.mark.parametrize(
     ("names", "expected"),
     [
@@ -328,6 +379,18 @@ def test_one_person_who_joined_twice_is_named_once(world: World) -> None:
     built = _build(world, world.bridge, world.maternal)
 
     assert "Joined this week: Rose." in " ".join(built.text.split())
+
+
+def test_a_removed_joiner_is_not_named_by_one_letter(world: World) -> None:
+    """Removal's "Keep Their Posts, Without Their Name" leaves the card and renames its
+    author "A family member". The feed byline reads that; the line must not read "A"."""
+    _post(world.maternal_cousin, world.m_pod, "SOMETHING-HAPPENED")
+    joiner = _joins(world.m_pod, "Rose Reed")
+    Member.objects.filter(pk=joiner.pk).update(display_name=removal.ANONYMOUS_NAME)
+
+    built = _build(world, world.maternal_cousin, world.maternal)
+
+    assert "Joined this week: A family member." in " ".join(built.text.split())
 
 
 def test_a_hostile_display_name_arrives_inert_in_the_html_part(world: World) -> None:
@@ -407,6 +470,29 @@ def test_the_web_copy_carries_the_same_line(world: World) -> None:
     assert posting.ARRIVAL_BODY not in html
 
 
+def test_the_web_copy_never_says_nothing_is_here_above_a_joined_line(world: World) -> None:
+    """One line saying the range is empty, above a line naming who arrived in it, is the
+    two contradicting lines the voice guide forbids.
+
+    Reachable only after the fact: an issue is minted only for a window with a real post
+    in it, and the page re-resolves live, so the posts have to have been deleted after the
+    message went out. The still-valid link has to survive that either way.
+    """
+    post = _post(world.maternal_cousin, world.m_pod, "REAL-BODY")
+    _joins(world.m_pod, "Rose Reed")
+    token = digest_links.mint(_issue(world, world.maternal_cousin, world.maternal))
+    Post.objects.filter(pk=post.pk).update(deleted_at=timezone.now())
+
+    html = Client().get(f"/d/{token}/").content.decode()
+
+    assert "Joined this week: Rose." in " ".join(html.split())
+    assert "No posts in this date range." not in html
+
+    # Non-vacuity: with nobody left to name, the empty state is the page's one line again.
+    Post.objects.filter(is_arrival=True).update(deleted_at=timezone.now())
+    assert "No posts in this date range." in Client().get(f"/d/{token}/").content.decode()
+
+
 def test_a_link_from_a_message_sent_before_this_change_still_opens(world: World) -> None:
     """The messages already in relatives' inboxes listed the arrival cards and link to
     them, and those links live for three weeks. Dropping the cards from what a message
@@ -419,11 +505,40 @@ def test_a_link_from_a_message_sent_before_this_change_still_opens(world: World)
 
     assert Client().get(f"/d/{token}/posts/{card.id}/").status_code == 200
 
-    # The ceiling itself, unmoved: the other side's arrival is still a 404 through it.
+    # And the other side's arrival is still a 404 through the same token — through the
+    # audience guard, which is the first of the two gates. The ceiling itself (a post this
+    # member CAN see, outside the issue) is asserted by
+    # test_digest_links.py::test_capability_ceiling_is_the_issue_slice, and that test still
+    # passes unchanged with the slice widened.
     theirs = _joins(world.p_pod, "Priya Reed")
     assert (
         Client().get(f"/d/{token}/posts/{Post.objects.get(author=theirs).id}/").status_code == 404
     )
+
+
+def test_a_reply_photo_on_an_arrival_card_opens_from_an_old_link(world: World) -> None:
+    """The half of the old-link promise that is not the page. A message sent before this
+    change listed the arrival cards and deep-links to them; the page opening while every
+    photo under it 404s is the promise kept in name only.
+
+    The media ceiling itself is unmoved, and is pinned on both attachment shapes by a post
+    outside the issue's window rather than by an arrival card:
+    test_media.py::test_a_digest_token_cannot_fetch_media_outside_its_own_issue and
+    test_reply_media.py::test_a_digest_token_cannot_widen_into_a_general_reply_media_credential.
+    Both still pass unchanged with the slice widened.
+    """
+    from core import commenting, media
+
+    _post(world.maternal_cousin, world.m_pod, "REAL-BODY")
+    joiner = _joins(world.m_pod, "Rose Reed")
+    card = Post.objects.get(author=joiner)
+    reply = commenting.create_comment(author=world.maternal_cousin, post=card, body="welcome")
+    asset = media.ingest_photo(comment=reply, raw=_png())
+    token = digest_links.mint(_issue(world, world.maternal_cousin, world.maternal))
+
+    assert Client().get(f"/d/{token}/posts/{card.id}/").status_code == 200
+    photo = Client().get(reverse("serve_media", args=[asset.token]) + f"?d={token}")
+    assert photo.status_code == 200, "the page opened and its reply photo did not"
 
 
 # --- the 0034 backfill ----------------------------------------------------------------
