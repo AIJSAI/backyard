@@ -5,7 +5,7 @@
 | Version | Supported |
 |---|---|
 | `v0.3.1` | ✅ current |
-| `v0.3.0` | ⚠️ superseded — installable and safe; `v0.3.1` fixes two screens found on the production walk and teaches the recovery runbooks about the notification keys (no migration) |
+| `v0.3.0` | ⚠️ superseded — installable and safe; `v0.3.1` fixes three screens found on the production walk (the Sign-In Link button, Change Household for an admin on one side, what a removal from a household costs) and teaches the recovery runbooks about the notification keys (no migration) |
 | `v0.2.0` | ⚠️ superseded — installable and safe; `v0.3.0` adds notifications on a phone, a 60-day Keep Me Signed In for members, the "Admin" role name and one joined line in Email Updates (three migrations, two of them additive columns; forward-only) |
 | `v0.1.8` | ⚠️ superseded — installable and safe; `v0.2.0` adds profile photos, the phone-width feed and Get The App (one additive migration) |
 | `v0.1.7` | ⚠️ superseded — installable and safe; `v0.1.8` fixes the photo button on an empty composer |
