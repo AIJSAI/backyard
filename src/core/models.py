@@ -451,6 +451,17 @@ class Post(models.Model):
         on_delete=models.SET_NULL,
         related_name="moderated_posts",
     )
+    # The arrival card a join writes (S-905, posting.announce_arrival), rather than
+    # something a person sat down and wrote. The feed draws it like any other post; Email
+    # Updates never list one as an entry and collapse a window's arrivals into one line
+    # naming who joined (#208).
+    #
+    # WRITTEN, never inferred. The only other way to recognise an arrival card is its body
+    # text, and the body is the author's to edit for fifteen minutes (posting.EDIT_WINDOW,
+    # which the S-905 receipt records a newcomer using to introduce themselves). Matching
+    # on text would therefore both miss real arrivals and catch a member who happened to
+    # type the same two words.
+    is_arrival = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["-created_at"]
