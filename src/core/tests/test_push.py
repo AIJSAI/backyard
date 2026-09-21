@@ -156,19 +156,18 @@ def push_on(settings: Any) -> None:
 
 
 class Wire:
-    """Every request that would have left the box, and the answer it was given."""
+    """Every request that would have left the box, and the answer it was given.
+
+    What it deliberately does NOT offer is a decrypted payload: only the device's own
+    private key opens one, and the server never has it. So this suite asserts WORDING
+    against `push.post_payload` / `push.reply_payload` and DELIVERY against the wire.
+    That split is the honest one — it is exactly what the server can know.
+    """
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, dict[str, Any]]] = []
         self.status = 201
         self.status_for: dict[str, int] = {}
-
-    def payloads(self) -> list[dict[str, str]]:
-        """The decrypted payloads are NOT readable here (only the device's private key
-        opens them), so this suite asserts wording against `push.post_payload` /
-        `push.reply_payload` and delivery against the wire. That split is honest: it is
-        exactly what the server can know."""
-        raise NotImplementedError
 
     def endpoints(self) -> list[str]:
         return [url for _method, url, _kwargs in self.calls]
