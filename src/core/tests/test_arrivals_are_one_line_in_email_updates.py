@@ -44,6 +44,7 @@ from core import digest, digest_links, digesting, posting, scoping
 from core.digest_send import send_due_digests
 from core.invites import mint_invite
 from core.models import (
+    DigestDelivery,
     DigestIssue,
     DigestSubscription,
     Member,
@@ -198,6 +199,7 @@ def test_a_window_of_nothing_but_joins_sends_nothing_and_records_nothing(world: 
     assert not DigestIssue.objects.filter(member=world.maternal_cousin).exists(), (
         "a week of arrivals recorded an issue, so the next period would start after it"
     )
+    assert not DigestDelivery.objects.exists()
 
 
 def test_the_joiners_of_a_silent_week_are_named_by_the_next_real_message(world: World) -> None:
