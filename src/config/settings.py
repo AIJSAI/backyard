@@ -579,10 +579,14 @@ SESSION_COOKIE_SAMESITE = "Lax"
 #     refresh floor below has passed, so a member scrolling the feed for an hour writes
 #     one row, not two hundred.
 #
-# An admin role stays at the two-week default and is never extended: an admin session mints
-# no-login links, get-back-in links and invites (T-SESS-2), so its blast radius is the
-# instance rather than one relative's feed, and a shared or lost admin phone is the case the
-# shorter life is for.
+# An admin role stays at the two-week default: an admin session mints no-login links,
+# get-back-in links and invites (T-SESS-2), so its blast radius is the instance rather than
+# one relative's feed, and a shared or lost admin phone is the case the shorter life is for.
+# A member PROMOTED after signing in is brought back to two weeks from that moment rather
+# than left with the rest of their 60 days — `permissions.is_admin` is re-asked at every
+# daily refresh, and leaving the remainder would be exactly the long admin session this
+# refuses. It cuts nobody off mid-act; it only takes back an extension they were never
+# entitled to (core/sessions.py::refresh_if_due).
 REMEMBERED_SESSION_AGE = 60 * 60 * 24 * 60  # 60 days
 REMEMBERED_SESSION_REFRESH_AFTER = 60 * 60 * 24  # at most one session write per day, per device
 CSRF_COOKIE_SAMESITE = "Lax"

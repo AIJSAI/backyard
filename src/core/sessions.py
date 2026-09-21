@@ -71,9 +71,13 @@ def refresh_if_due(session: SessionBase, member: Member) -> None:
     the ordinary request cost zero queries and zero session writes.
     """
     if permissions.is_admin(member):
-        # Promoted since sign-in. Stop extending, and let the session run out on whatever
-        # remains of its current expiry rather than cutting a working admin off mid-act.
+        # Promoted since sign-in. Stop extending AND bring the life back to the ordinary
+        # two weeks from now: an admin session mints no-login links, get-back-in links and
+        # invites (T-SESS-2), so leaving the remaining 60 days on it would be exactly the
+        # long admin session this rule exists to refuse. Two weeks from now cuts nobody
+        # off mid-act; it only refuses the extension they were never entitled to.
         session.pop(REMEMBERED_AT, None)
+        session.set_expiry(settings.SESSION_COOKIE_AGE)
         return
     _stamp(session)
 

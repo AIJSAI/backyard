@@ -143,6 +143,10 @@ def test_a_member_promoted_to_admin_stops_being_extended() -> None:
     member.save(update_fields=["role"])
     assert client.get(reverse("feed")).status_code == 200
     assert sessions.REMEMBERED_AT not in client.session
+    age = _expiry_age(client)
+    assert age is not None and age <= settings.SESSION_COOKIE_AGE, (
+        "a promoted admin kept the remembered session's remaining life"
+    )
 
 
 # --- everybody else ----------------------------------------------------------------------
@@ -171,9 +175,18 @@ def test_the_no_login_link_session_is_untouched() -> None:
 def test_an_anonymous_request_never_reaches_the_member_lookup(
     django_assert_num_queries: Any,
 ) -> None:
-    """The cost argument, measured. A visitor with no session stamp must not add a query
-    to the home page, which is the route a stranger hits."""
-    assert Client().get(reverse("how_it_works")).status_code == 200
+    """The cost argument, actually MEASURED. This test requested the fixture and then
+    never used it, so it asserted a status code and claimed a measurement.
+
+    TWO is the measured number, and neither is the middleware's: they are the SAVEPOINT
+    and RELEASE that `ATOMIC_REQUESTS` opens around the request, which `django_db` sees
+    because the whole test already runs inside a transaction. Zero real statements — the
+    page names no member, and `RememberedSessionMiddleware` stops at one dictionary lookup
+    on a session with no stamp. If somebody makes the middleware touch `request.user` on
+    every request, this goes to three or more and says so.
+    """
+    with django_assert_num_queries(2):
+        assert Client().get(reverse("how_it_works")).status_code == 200
     assert sessions.is_due({}, now=time.time()) is False  # type: ignore[arg-type]
 
 
