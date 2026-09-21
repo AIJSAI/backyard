@@ -88,14 +88,22 @@ def test_the_worker_opens_only_a_same_origin_path() -> None:
     server-side defect away from opening somebody else's origin from inside the installed
     app, where a relative has no address bar to read.
 
-    The guard is asserted here as SOURCE, because the rule is three characters long and
-    each of them is the whole control: a single leading slash (so "https://elsewhere" is
-    out), NOT a second one (so the protocol-relative "//elsewhere/" is out), and then
-    resolution against this worker's own origin rather than trust in the string.
+    The guard is asserted here as SOURCE, because each clause is the whole control: a
+    single leading slash (so "https://elsewhere" is out), NOT a second one (so the
+    protocol-relative form is out), NOT a backslash, and then the resolved origin compared
+    against this worker's own. `test_the_served_worker_refuses_every_hostile_url` in the
+    e2e lane runs the served function against a table of real values; this is the cheap
+    guard that runs on every unit pass.
     """
     body = Client().get(reverse("service_worker")).content.decode()
     assert "charAt(0) !== '/'" in body
     assert "charAt(1) === '/'" in body
+    # The backslash arm and the origin comparison. A leading "/" followed by a backslash
+    # resolves to ANOTHER ORIGIN under the URL parser, which the two checks above accept,
+    # so the served worker must carry both the character test and the post-resolution
+    # origin test -- the one that holds whatever the next parser quirk turns out to be.
+    assert "charCodeAt(1) === 92" in body
+    assert "resolved.origin === self.location.origin" in body
     assert "new URL(value, self.location.origin)" in body
     assert "'/feed/'" in body  # the fallback when the payload carries nothing usable
     # The handlers must not have reintroduced a cache while adding themselves.

@@ -174,8 +174,15 @@ def icon_maskable_512(request: HttpRequest) -> HttpResponse:
 # app, where a relative has no address bar to read. So the worker refuses anything that is
 # not a single-slash absolute PATH ("/posts/12/"), which rejects "https://elsewhere/",
 # "javascript:..." and the protocol-relative "//elsewhere/" that a naive startsWith('/')
-# check accepts, and then resolves it against this worker's OWN origin rather than
-# trusting the string.
+# check accepts, and then COMPARES THE RESOLVED ORIGIN.
+#
+# The character tests alone were not enough, and that is why the comparison is there. A
+# leading slash followed by a BACKSLASH is resolved by the WHATWG URL parser as a second
+# slash whenever the base has a special scheme, so it lands on another origin while
+# passing both of the character tests above (measured by the review lens in node). The
+# backslash arm is written as `charCodeAt(1) === 92` rather than as a literal, so no
+# escape has to survive this Python string; the origin comparison after resolution is the
+# check that holds whatever the next parser quirk turns out to be.
 _SERVICE_WORKER = """\
 // Backyard service worker (minimal by design, ADR-002): no precache, no cache.
 self.addEventListener('install', (event) => { self.skipWaiting(); });
@@ -186,13 +193,21 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(fetch(event.request));
 });
 
-// Only a same-origin absolute path, resolved against this origin. "//elsewhere/" is a
-// protocol-relative URL and is refused; anything unusable falls back to the feed.
+// Only a same-origin absolute path, resolved against this origin. A protocol-relative
+// value (a slash followed by a slash) is refused -- and so is a slash followed by a
+// BACKSLASH, because the URL parser treats a backslash under a special scheme as a second
+// slash and resolves it to another origin (charCodeAt 92, spelled that way so no escape
+// has to survive the server-side string literal). The resolved origin is then compared,
+// which is the check that holds whatever the next parser quirk turns out to be. Anything
+// unusable falls back to the feed.
 function backyardPath(value) {
-  if (typeof value !== 'string' || value.charAt(0) !== '/' || value.charAt(1) === '/') {
-    return new URL('/feed/', self.location.origin).href;
+  const feed = new URL('/feed/', self.location.origin).href;
+  if (typeof value !== 'string' || value.charAt(0) !== '/'
+      || value.charAt(1) === '/' || value.charCodeAt(1) === 92) {
+    return feed;
   }
-  return new URL(value, self.location.origin).href;
+  const resolved = new URL(value, self.location.origin);
+  return resolved.origin === self.location.origin ? resolved.href : feed;
 }
 
 self.addEventListener('push', (event) => {

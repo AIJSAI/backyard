@@ -278,3 +278,81 @@ def test_a_browser_that_refuses_permission_says_so_plainly(
     finally:
         page.context.close()
         browser.close()
+
+
+# --- the service worker's same-origin guard, exercised rather than grepped ---------------
+
+
+def test_the_served_worker_refuses_every_hostile_url(
+    live_server: Any, playwright: Playwright, settings: Any
+) -> None:
+    """Run the SERVED worker's `backyardPath` against real values in a real URL parser.
+
+    `test_pwa.py` asserts the guard's clauses are present in the response; this asserts
+    they WORK, which is the only way to catch the class of defect that put this test here.
+    A leading slash followed by a backslash passes both character tests and resolves to
+    another origin under the WHATWG parser, so a substring test on the old two-clause
+    guard was green while the guard was bypassed.
+
+    The worker source is served into a ROUTED page of this test's own, on the live
+    server's origin so `self.location.origin` is the real one, and with no
+    Content-Security-Policy so an inline script runs. The product's own pages carry a
+    nonce-based policy with no `unsafe-eval`, so neither `eval` nor `new Function` can
+    load the source there, and `page.add_script_tag` injects an un-nonced tag the policy
+    refuses. Nothing about the product changes for this: the bytes under test are exactly
+    what `/service-worker.js` served.
+
+    Defining the worker in a window is safe: `self` is the window, `addEventListener`
+    exists, and `self.registration` / `self.clients` are touched only inside handlers that
+    nothing here fires.
+    """
+    _seed(settings)
+    worker = Client().get("/service-worker.js").content.decode()
+    browser = playwright.chromium.launch()
+    context = browser.new_context()
+    page = context.new_page()
+    try:
+        page.route(
+            "**/a-probe-page-that-is-not-a-route",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/html",
+                body=f"<!doctype html><script>{worker}</script>",
+            ),
+        )
+        page.goto(f"{live_server.url}/a-probe-page-that-is-not-a-route")
+        feed = f"{live_server.url}/feed/"
+
+        # The good case, so the table below is not vacuously "everything is the feed".
+        assert page.evaluate("() => backyardPath('/posts/12/')") == f"{live_server.url}/posts/12/"
+
+        hostile = {
+            "protocol-relative": "//elsewhere.example/x",
+            # THE ONE THIS TEST EXISTS FOR. The parser reads the backslash as a second
+            # slash under a special scheme, so this lands on elsewhere.example while
+            # passing "starts with one slash and not two".
+            "slash-backslash": "/\\elsewhere.example/x",
+            "slash-backslash-backslash": "/\\\\elsewhere.example/x",
+            "absolute": "https://elsewhere.example/x",
+            "scheme-relative-with-scheme": "javascript:alert(1)",
+            "empty": "",
+            "a-bare-backslash": "\\\\elsewhere.example/x",
+        }
+        for name, value in hostile.items():
+            assert page.evaluate("(v) => backyardPath(v)", value) == feed, (
+                f"backyardPath let {name} ({value!r}) through"
+            )
+        # The non-string arm. Its own loop and its own annotation: a payload that is not a
+        # string at all is what a malformed or truncated push body looks like.
+        not_strings: tuple[tuple[str, Any], ...] = (
+            ("null", None),
+            ("a number", 12),
+            ("an object", {"url": "/x"}),
+        )
+        for name, other in not_strings:
+            assert page.evaluate("(v) => backyardPath(v)", other) == feed, (
+                f"backyardPath let {name} through"
+            )
+    finally:
+        page.context.close()
+        browser.close()
