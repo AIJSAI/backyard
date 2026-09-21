@@ -256,9 +256,9 @@ BANNED: dict[str, str] = {
     # RETIRED 2026-09-20, the same way "digest" is: the word is gone from the product and
     # the guard is what stops it coming back. `yard_admin` is still the stored value and
     # every predicate still compares against it — only the name a relative reads moved.
-    # Two reasons, both the owner's: one of the two people holding these controls belongs
-    # to a household on BOTH sides, so her reach already covers both and "Side Admin" was
-    # the wrong word for her; and the name told a reader on one side that another side
+    # Two reasons. An admin whose own household belongs to more than one side of the family
+    # already reaches every one of them, so a role named after a single side is wrong
+    # wherever that happens; and the name told a reader on one side that another side
     # exists, which is the one thing this product's copy must not do.
     "side admin": "Admin",
     "side admins": "Admins",
@@ -297,7 +297,15 @@ def vocabulary_offences(text: str, allowed: Collection[str] = ()) -> list[str]:
     for word, replacement in BANNED.items():
         if word in allowed:
             continue
-        if re.search(rf"\b{re.escape(word)}\b", text, re.I):
+        # A MULTI-WORD ENTRY HAS TO SURVIVE THE LINE BREAK A TEMPLATE PUTS INSIDE IT.
+        # `visible_text` keeps the source's newlines and leaves a space where it strips a
+        # tag, so "Side\n  Admin" and "Side <strong>Admin</strong>" are both the banned
+        # phrase on the screen and neither matched a pattern with one literal space in it.
+        # Measured 2026-09-20: a planted wrap passed a green guard. The hyphen is in the
+        # separator for the same reason, because "side-admin" is how the code spells it
+        # and a copy author reaching for the code's spelling is the likeliest way back in.
+        pattern = r"[\s-]+".join(re.escape(part) for part in word.split())
+        if re.search(rf"\b{pattern}\b", text, re.I):
             found.append(f"{word!r} (say: {replacement})")
     return found
 

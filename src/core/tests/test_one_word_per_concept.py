@@ -33,12 +33,10 @@ And one more, ruled on 2026-09-20 and retired the same way "digest" was:
 
     Admin               never Side Admin
 
-One of the two relatives being handed the admin controls belongs to a household on BOTH
-sides of the family, so her reach already covers both and "Side Admin" was the wrong word
-for her; the other manages one side. "Admin" is honest at either reach, because an admin's
-reach is the ordinary members they can see. It also stops a badge telling a relative on one
-side that a second side exists. The stored value `yard_admin` is untouched, like every
-other value here.
+An admin whose own household belongs to more than one side of the family already reaches
+every one of them, so a role named after a single side is wrong wherever that happens. It
+also stops a badge telling a relative on one side that a second side exists. The stored
+value `yard_admin` is untouched, like every other value here.
 
 WHAT IS COVERED. Everything a person reads: a template's visible text, every model choice
 LABEL (which a template scan cannot see, because the template only says `{{ ... }}`), the
@@ -141,6 +139,14 @@ def test_the_guard_is_not_vacuous() -> None:
     assert vocabulary_offences(visible_text("<p>Ask them to make you a side admin.</p>"))
     assert vocabulary_offences(visible_text("<p>Side Admins add and remove members.</p>"))
     assert not vocabulary_offences(visible_text('<span class="role">Admin</span>'))
+    # A template wraps wherever it runs out of room and a stripped inline tag leaves a
+    # space behind. Measured 2026-09-20: both of these passed a green guard.
+    assert vocabulary_offences(visible_text("<p>Ask the Side\n    Admin for help.</p>"))
+    assert vocabulary_offences(visible_text("<p>Ask the Side <strong>Admin</strong>.</p>"))
+    assert vocabulary_offences(visible_text("<p>Ask the side-admin for help.</p>"))
+    # The same hole, and the same cure, for every other multi-word entry.
+    assert vocabulary_offences(visible_text("<p>Turn on the Family\n  email.</p>"))
+    assert vocabulary_offences(visible_text("<p>You look\n  after a side of the family.</p>"))
     assert vocabulary_offences(visible_text("<p>Post when you feel like it.</p>"))
     assert vocabulary_offences(visible_text("<p>Members are taken straight to the feed.</p>"))
     assert vocabulary_offences(visible_text("<p>Tell us the name they will see.</p>"))
@@ -248,8 +254,8 @@ def test_no_role_description_shows_a_banned_word_to_a_person() -> None:
     models.py and invisible to every template scan for the same reason as the labels.
 
     "You look after a side of the family" is the exact sentence the owner rewrote to "You
-    are an Admin. You can add and remove the members you can see.", so "look after" is on
-    the banned list and this is the surface it was on."""
+    are an Admin. You can add and remove members.", so "look after" is on the banned list
+    and this is the surface it was on."""
     from core.models import Member
 
     offenders = [
