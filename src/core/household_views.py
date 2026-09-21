@@ -302,8 +302,8 @@ def _sides_in_reach(actor: Member) -> list[Yard]:
 def _the_only_side(actor: Member) -> Yard | None:
     """The one side this admin reaches, or None when they reach two or more.
 
-    A Backyard has exactly one side until somebody creates the second, and a side admin
-    usually reaches one however many exist — so for most readers of these two pages the
+    A Backyard has exactly one side until somebody creates the second, and an admin on one
+    side usually reaches one however many exist — so for most readers of these two pages the
     word "sides" names a thing they have never been shown. Voice rule 8: describe it from
     where the reader stands. `== 1` and not `<= 1`: an admin who reaches no side at all has
     nothing to name, and the refusal is the honest answer there.

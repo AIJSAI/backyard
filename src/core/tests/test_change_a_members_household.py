@@ -477,6 +477,10 @@ def test_leaving_one_of_two_households_on_the_same_side_loses_nothing(
 
     assert _block(body, "sides-lost") == ""
     assert "keeps them on the same sides of the family" in body
+    # ...and it must not stop there. The plural half of the same sentence used to end "so
+    # this does not change what they can see", which is false: the household they leave
+    # takes its own posts, photographs and My Household fields with it.
+    assert "kept to itself" in " ".join(body.split())
 
 
 # --------------------------------------------------------------------------------------
@@ -1102,12 +1106,21 @@ def test_the_confirm_page_still_lists_sides_for_a_reader_who_has_two(
     assert _yard(world, "paternal").name in _block(body, "sides-gained")
 
 
-def test_the_confirm_page_says_a_removal_keeps_them_on_the_same_side(
+def test_the_confirm_page_says_a_removal_keeps_them_on_the_same_side_and_names_what_it_costs(
     one_side: dict[str, Member | Pod | Yard],
 ) -> None:
-    """The branch that says nothing changes. It does not NAME the side in either voice —
-    "the same side they are on now" stays true for a household that belongs to none — so
-    only the word's number follows the reader."""
+    """Keeping the side is not keeping everything, and this branch used to say it was.
+
+    It ended "so this does not change what they can see", which is false in three measured
+    ways: `scoping.visible_posts` resolves an audience-less post through pod membership
+    alone, `scoping.visible_media` inherits that post's audience, and
+    `profiles._can_see_field` needs a SHARED pod for a field set to My Household. The other
+    household keeps none of those.
+
+    The side itself is still not NAMED in either voice — "the same side they are on now"
+    stays true for a household that belongs to none — so only the word's number follows the
+    reader.
+    """
     cousin = _who(one_side, "cousin")
     PodMembership.objects.create(member=cousin, pod=_pod(one_side, "home"))
     PodMembership.objects.create(member=cousin, pod=_pod(one_side, "spare"))
@@ -1121,6 +1134,7 @@ def test_the_confirm_page_says_a_removal_keeps_them_on_the_same_side(
     flat = " ".join(body.split())
 
     assert "keeps them on the same side of the family" in flat
+    assert "kept to itself" in flat
     assert _PLURAL_IN_BODY not in flat
 
 
@@ -1149,3 +1163,45 @@ def test_the_confirm_page_names_the_one_side_a_removal_costs(
     assert f"<strong>{named}</strong> goes away for them as soon as you do this." in flat
     assert _block(body, "sides-lost") == "", "a one-item list is still being rendered"
     assert _PLURAL_IN_BODY not in flat
+
+
+def test_the_create_confirm_page_names_the_derived_side_even_when_nothing_is_gained(
+    one_side: dict[str, Member | Pod | Yard],
+) -> None:
+    """The ordinary case for a one-side Backyard: a household made for somebody who is
+    already on that side, so `proposal.gained` is empty and every sentence about gaining a
+    side is skipped. The side was derived by the view from a POST that never named it, and
+    it appeared on the confirm page NOWHERE — the one screen whose whole job is to say the
+    act back before it happens was confirming a value the admin could not see."""
+    admin, side = _who(one_side, "admin"), _yard(one_side, "side")
+    # Already on the side, through the household the fixture's admin shares with them.
+    cousin = _member(_pod(one_side, "home"), "An Already Placed Cousin")
+
+    body = _propose(
+        _client_for(admin), cousin, act="create", household_name="The Davis family"
+    ).content.decode()
+    flat = " ".join(body.split())
+
+    assert _block(body, "sides-gained") == "", "this case gains no side; the fixture is wrong"
+    assert f"This household joins <strong>{_as_rendered(side.name)}</strong>." in flat
+
+
+def test_an_instance_with_no_sides_says_so_instead_of_an_empty_fieldset(
+    world: dict[str, Member | Pod | Yard],
+) -> None:
+    """`one_side` is `== 1`, not `<= 1`, so an actor who reaches NO side lands in the
+    two-or-more branch and used to get a legend over nothing at all. The Family Admin sees
+    every side there is, so deleting them all is the reachable shape of it."""
+    cousin = _who(world, "cousin")
+    Yard.objects.all().delete()
+
+    body = _client_for(_who(world, "owner")).get(_url(cousin)).content.decode()
+
+    assert "No side you can put a household in yet." in body
+    assert 'name="yard_ids"' not in body, "a checkbox was rendered for a side that is gone"
+    # And the form is still honest on submit: the view refuses, it does not invent a side.
+    refused = _propose(
+        _client_for(_who(world, "owner")), cousin, act="create", household_name="The Ash family"
+    )
+    assert "Choose at least one side." in refused.content.decode()
+    assert not Pod.objects.filter(name="The Ash family").exists()

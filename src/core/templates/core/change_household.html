@@ -87,10 +87,18 @@
     {% else %}
       <fieldset>
         <legend>Sides Of The Family</legend>
+        {% comment %} ZERO sides reaches this branch too, because `one_side` is `== 1` and
+           not `<= 1`: an actor who reaches none has nothing to state. Without the
+           `{% empty %}` below that rendered a legend over nothing at all — a labelled box
+           with no controls in it, which a screen reader announces as a group and then
+           reads no members of. The sentence is what the page can honestly say; submitting
+           anyway still earns "Choose at least one side." from the view. {% endcomment %}
         {% for side in sides %}
           <label class="inline-check">
             <input type="checkbox" name="yard_ids" value="{{ side.id }}"> {{ side.name }}
           </label>
+        {% empty %}
+          <p class="muted">No side you can put a household in yet.</p>
         {% endfor %}
       </fieldset>
     {% endif %}
