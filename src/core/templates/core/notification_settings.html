@@ -47,6 +47,17 @@
 
       <p data-push-failed hidden>That did not save. Try again.</p>
 
+      {% comment %} THE TOGGLES SAVE THE INSTANT THEY CHANGE, and until now they only ever
+         spoke on failure — with a Save Changes button (the e-mail section's, below) in
+         plain sight, so a relative who unticked Replies had no way to tell whether it
+         took, or whether the button underneath was waiting for them. A status line, in
+         the same quiet ink as the rest of the page rather than a green banner: the save
+         is ordinary and the page should not celebrate it. `role="status"` so a screen
+         reader hears it without the focus moving. Sentence case with a full stop, which
+         is the guide's shape for a confirmation ("Saved.", like every other one here).
+         {% endcomment %}
+      <p class="muted" data-push-saved role="status" aria-live="polite" hidden>Saved.</p>
+
       <p data-push-off hidden><button type="button" data-push-on>Turn On Notifications</button></p>
 
       <div data-push-on-state hidden>
@@ -124,6 +135,8 @@
         var unsupported = root.querySelector('[data-push-unsupported]');
         var blocked = root.querySelector('[data-push-blocked]');
         var failed = root.querySelector('[data-push-failed]');
+        var saved = root.querySelector('[data-push-saved]');
+        var savedTimer = null;
         var offRow = root.querySelector('[data-push-off]');
         var onState = root.querySelector('[data-push-on-state]');
         var turnOn = root.querySelector('[data-push-on]');
@@ -163,6 +176,7 @@
 
         function complain() {
           failed.hidden = false;
+          saved.hidden = true;
           // The tap is over, whatever happened, so the button comes back: a control left
           // disabled after a failure is a page a relative has to reload to use again.
           turnOn.disabled = false;
@@ -315,7 +329,15 @@
               Array.prototype.forEach.call(boxes, function (each) {
                 values[each.getAttribute('data-push-toggle')] = each.checked;
               });
-              send(root.getAttribute('data-toggles'), values).catch(function () {
+              saved.hidden = true;
+              send(root.getAttribute('data-toggles'), values).then(function () {
+                // It saved, so say so. Shown until the next change or a few seconds,
+                // whichever comes first: a confirmation that never leaves stops being a
+                // confirmation and becomes part of the furniture.
+                saved.hidden = false;
+                window.clearTimeout(savedTimer);
+                savedTimer = window.setTimeout(function () { saved.hidden = true; }, 4000);
+              }, function () {
                 // Put the box back where it was: a control that says "on" while the server
                 // says "off" is worse than one that did not move.
                 box.checked = !box.checked;

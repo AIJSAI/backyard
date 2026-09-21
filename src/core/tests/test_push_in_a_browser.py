@@ -55,7 +55,14 @@ from playwright.sync_api import Page, Playwright, expect
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from core.management.commands.generate_vapid_keys import generate_pair
-from core.models import Member, Pod, PodMembership, PushSubscription, Yard
+from core.models import (
+    Member,
+    NotificationPreference,
+    Pod,
+    PodMembership,
+    PushSubscription,
+    Yard,
+)
 
 User = get_user_model()
 _PW = "aX9!mnpq2ffz"
@@ -441,6 +448,38 @@ def test_a_registration_made_with_an_older_key_is_cleared_and_turn_on_comes_back
         )
         assert subscribes == [], "the dead registration was re-announced to the server"
         assert PushSubscription.objects.count() == 0
+        _let_the_server_finish(page)
+    finally:
+        page.context.close()
+        browser.close()
+
+
+def test_a_toggle_says_it_saved(live_server: Any, playwright: Playwright, settings: Any) -> None:
+    """F-I: the two toggles save the instant they change, and only spoke on failure.
+
+    With the e-mail section's Save Changes button in plain sight just below them, a
+    relative who unticked Replies had no way to tell whether it took or whether the button
+    underneath was waiting for them. Read off the 390px screenshots, not off the code.
+    """
+    cookie = _seed(settings)
+    browser, page = _page(playwright, live_server.url, cookie, allow=True)
+    try:
+        page.goto(f"{live_server.url}/settings/notifications/")
+        page.get_by_role("button", name="Turn On Notifications").tap()
+        page.wait_for_function("() => !!document.querySelector('ul.devices')", timeout=15_000)
+
+        replies = page.get_by_label("Replies")
+        expect(replies).to_be_checked()
+        expect(page.get_by_text("Saved.")).to_be_hidden()
+
+        replies.uncheck()
+        expect(page.get_by_text("Saved.")).to_be_visible(timeout=10_000)
+        expect(page.get_by_text("That did not save.")).to_be_hidden()
+
+        # ...and the server really holds what the page just claimed.
+        preference = NotificationPreference.objects.get()
+        assert preference.push_replies is False
+        assert preference.push_new_posts is True
         _let_the_server_finish(page)
     finally:
         page.context.close()
