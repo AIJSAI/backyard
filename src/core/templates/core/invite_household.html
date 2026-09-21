@@ -21,7 +21,7 @@
        admin" is a bigger act there than the two ticked boxes may have suggested.
        {% endcomment %}
     {% if grants_side_admin %}
-      <p class="notice">The first person to join with this link becomes the Side Admin for
+      <p class="notice">The first person to join with this link becomes an Admin for
         <strong>{{ yard_name }}</strong>. Everyone after them joins as a member.</p>
     {% endif %}
     {% include "core/_handover_artifacts.html" with handover_link=minted_link handover_qr=qr_svg handover_host=link_host handover_label="Invite Link" handover_share_title="Join Backyard" %}
@@ -131,7 +131,7 @@
                  {% if grants_side_admin_ticked %}checked{% endif %}>
           Hand-Over Link
         </label>
-        <p class="hint">The first person to join with this link becomes the Side Admin for
+        <p class="hint">The first person to join with this link becomes an Admin for
           every side this household belongs to, and can add and remove members there.
           Everyone after them joins as a member.</p>
       </fieldset>

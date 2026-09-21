@@ -15,6 +15,31 @@ a point somebody deliberately stopped at, with a full green gate behind it.
 
 ### Changed
 
+- **The role a relative reads as "Side Admin" is "Admin".** An admin whose own household
+  belongs to more than one side of the family already reaches every one of them, so a role
+  named after a single side is wrong wherever that happens, and the name told a reader on
+  one side that a second side exists. Labels and copy only: `yard_admin` is still the
+  stored value, every permission predicate is untouched, and the migration (`0034`) alters
+  nothing but the words (`sqlmigrate` emits a no-op between BEGIN and COMMIT).
+  - A role sentence names the capability and stops. Admin: "Adds and removes members.
+    Cannot change another admin. Where a row has no controls, it says who can." Family
+    Admin: "Manages everyone, including the admins." (a relative promoted through the roster
+    manages people and does not run the server). The welcome says "You can add and remove
+    members." and the second-factor line says "adds and removes members", both instead of
+    "on your side".
+  - The roster row an admin cannot act on says "Outside what you manage" rather than "Also
+    on the other side". A child account's row says "A child account, so their parent changes
+    it." instead of naming the Family Admin, which the permission matrix contradicts
+    (TM-10). An admin's own row always carries Edit Profile, so it never prints a sentence:
+    "nobody removes or re-roles themselves" is the one limit the roster leaves unsaid
+    (tracked).
+  - The Family Admin's own pages still say "both sides", because that reader can see every
+    side. Those pages hardcode two and the number of sides is data: tracked separately.
+  - "Side Admin" is a retired word in `copy_scan.py`, the way "digest" is, so it cannot come
+    back through a template, a choice label, a role description or an email, and the ban
+    survives a line break, a stripped inline tag and the code's own hyphen spelling for
+    every multi-word entry.
+
 - **Email Updates name the period's arrivals in one line.** When a household joins, every
   new member still gets a "Just joined." card and the feed still shows it. The message no
   longer spends an entry on each of them: after the posts it reads "Joined this week: Rose,
