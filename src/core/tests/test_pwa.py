@@ -65,6 +65,43 @@ def test_service_worker_is_minimal_javascript_that_caches_nothing() -> None:
     assert "caches.open" not in body and "cache.put" not in body and "cache.add" not in body
 
 
+def test_the_worker_shows_a_notification_and_opens_the_post() -> None:
+    """S-107's two handlers, read off the SERVED bytes rather than out of the source.
+
+    `push` builds the notification the device shows, `notificationclick` opens the post.
+    Both carry the 192 icon the manifest already declares, and both go through the same
+    `data.url` guard — which is the next test.
+    """
+    body = Client().get(reverse("service_worker")).content.decode()
+    assert "addEventListener('push'" in body
+    assert "showNotification" in body
+    assert "addEventListener('notificationclick'" in body
+    assert "notification.close()" in body
+    assert "clients.matchAll" in body  # focus an open window before opening a new one
+    assert "openWindow" in body
+    assert "'/icon-192.png'" in body  # the icon the manifest already ships
+
+
+def test_the_worker_opens_only_a_same_origin_path() -> None:
+    """`data.url` arrives inside an encrypted payload, so only this server can have
+    written it — but a worker that calls `openWindow` on whatever it is handed is one
+    server-side defect away from opening somebody else's origin from inside the installed
+    app, where a relative has no address bar to read.
+
+    The guard is asserted here as SOURCE, because the rule is three characters long and
+    each of them is the whole control: a single leading slash (so "https://elsewhere" is
+    out), NOT a second one (so the protocol-relative "//elsewhere/" is out), and then
+    resolution against this worker's own origin rather than trust in the string.
+    """
+    body = Client().get(reverse("service_worker")).content.decode()
+    assert "charAt(0) !== '/'" in body
+    assert "charAt(1) === '/'" in body
+    assert "new URL(value, self.location.origin)" in body
+    assert "'/feed/'" in body  # the fallback when the payload carries nothing usable
+    # The handlers must not have reintroduced a cache while adding themselves.
+    assert "caches" not in body
+
+
 def test_member_pages_link_the_manifest_and_register_the_worker() -> None:
     yard = Yard.objects.create(name="Maternal", slug="maternal")
     pod = Pod.objects.create(name="Cousins")

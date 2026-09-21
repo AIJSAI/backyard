@@ -229,6 +229,18 @@ _UNLINKED_BY_DESIGN = {
     "mfa_generate_recovery_codes": "reached from the same page, for one-time codes",
     "mfa_view_recovery_codes": "reached from the same page once codes exist",
     "mfa_download_recovery_codes": "a download of those codes, offered as an attachment",
+    # --- web push on this device (S-107) -------------------------------------------
+    # Four POST-only JSON routes behind the buttons on Settings > Notifications. The
+    # crawl follows hrefs, and these have none by construction: the subscribe MUST be
+    # driven by the page's script because iOS grants notification permission only from
+    # inside a user gesture, and the other three are the same section's own calls. The
+    # entrance a person uses is the Turn On Notifications button, which the crawl does
+    # reach — the page is linked from Settings.
+    "push_subscribe": "a POST from the Notifications page's own script; the permission "
+    "prompt must come from the tap, so this cannot be a link",
+    "push_unsubscribe": "the same section's Turn Off button, and the sign-out page",
+    "push_remove_device": "the Remove button beside one device in that same list",
+    "push_preferences": "the two toggles in that same section",
 }
 
 

@@ -52,23 +52,46 @@ def test_reply_optin_can_be_toggled(member: Member) -> None:
     assert notifications.preference_for(member).notify_on_reply is False
 
 
-def test_the_only_push_optin_is_reply() -> None:
-    """The negative guarantee as a drift guard: replies-to-my-post is the ONLY
-    boolean opt-in on the preference model. Adding an all-activity firehose field
-    fails here, which is the point."""
+def test_the_preference_model_grows_no_firehose() -> None:
+    """The negative guarantee as a drift guard, in the shape S-107 left it.
+
+    It used to read `== {"notify_on_reply"}` and the name of the test was "the only push
+    optin is reply". The PROMISE was never "one field" — it was that Backyard pushes
+    nobody anything they did not switch on, and that there is no all-activity stream. Web
+    push adds two event types, both of which are inert until the member has deliberately
+    subscribed a device from Settings, and the set is pinned EXACTLY so a third one cannot
+    arrive quietly. The two names that must never appear are the firehose shapes.
+    """
     boolean_optins = {
         field.name
         for field in NotificationPreference._meta.get_fields()
         if isinstance(field, models.BooleanField)
     }
-    assert boolean_optins == {"notify_on_reply"}
+    assert boolean_optins == {"notify_on_reply", "push_new_posts", "push_replies"}
+    # Reactions are the easiest firehose to grow and the product deliberately has none:
+    # S-304 shows who reacted and never a count, and nothing anywhere pushes a "liked".
+    assert not any("reaction" in name or "activity" in name for name in boolean_optins)
+
+
+def test_web_push_defaults_on_once_a_device_is_subscribed() -> None:
+    """The two push toggles default TRUE while the e-mail one defaults FALSE, and that is
+    not an inconsistency: subscribing a device IS the opt-in for the push pair, and
+    landing a member in Settings with both halves off would make them turn notifications
+    on twice. With no subscription row they mean nothing at all."""
+    pref = NotificationPreference()
+    assert pref.notify_on_reply is False
+    assert pref.push_new_posts is True
+    assert pref.push_replies is True
 
 
 def test_settings_page_offers_only_the_reply_optin(member: Member) -> None:
+    """With no VAPID pair configured — which is every self-hoster who has not generated
+    one, and the default in this suite — the page is exactly what it always was."""
     body = _client_for(member).get(reverse("notification_settings")).content.decode()
     assert 'name="notify_on_reply"' in body  # the one opt-in is present
     # structural drift guard: exactly one opt-in control, so no firehose toggle exists
     assert body.count('type="checkbox"') == 1
+    assert "Notifications are not set up on this Backyard." in body
 
 
 def test_settings_post_enables_then_disables(member: Member) -> None:

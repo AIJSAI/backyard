@@ -40,6 +40,7 @@ from core.models import (
     Pod,
     PodMembership,
     Post,
+    PushSubscription,
     Reaction,
     Yard,
 )
@@ -913,6 +914,49 @@ def test_the_preview_counts_the_rows_the_receipt_reports(
         problems.append(f"preview and receipt disagree on counts: {disagree}")
 
     assert not problems, "\n".join(problems) + f"\n\npreview: {promised}\nreceipt: {receipt}"
+
+
+@pytest.mark.django_db
+def test_a_subscribed_device_is_reported_as_well_as_deleted(
+    two_families: dict[str, Family],
+) -> None:
+    """S-107's model needs no special case in `wipe()`, and this is what proves it.
+
+    `PushSubscription` cascades from `Member`, so it falls out of the same
+    `Member.objects.filter(seeded_by=...).delete()` the receipt is built from, and
+    `_collect` sees it because that function materialises Django's FAST DELETES as well as
+    `collector.data` (read the comment there: reading `.data` alone made this module blind
+    to whole models). The one model that DID need a receipt line — `ProfilePhoto` — needed
+    it because `_purge` deletes those rows itself before the cascade runs, and nothing
+    here does that.
+
+    So this is an assertion rather than a change: the operator's dry run and the receipt
+    they read afterwards both name the devices, and a real family's device survives.
+    """
+    demo, real = two_families["demo"], two_families["real"]
+    for member, label in ((demo.author, "iPhone"), (demo.elder, "Android")):
+        PushSubscription.objects.create(
+            member=member,
+            endpoint=f"https://fcm.googleapis.com/fcm/send/{label}-demo",
+            p256dh="x",
+            auth="y",
+            label=label,
+        )
+    survivor = PushSubscription.objects.create(
+        member=real.author,
+        endpoint="https://fcm.googleapis.com/fcm/send/a-real-phone",
+        p256dh="x",
+        auth="y",
+        label="iPhone",
+    )
+
+    promised = demo_data.preview(MARKER)
+    receipt = demo_data.wipe(MARKER)
+
+    label = PushSubscription._meta.label
+    assert promised[label] == 2, "the dry run did not mention the devices it will delete"
+    assert receipt[label] == 2, "the receipt did not account for the devices it deleted"
+    assert PushSubscription.objects.filter(pk=survivor.pk).exists()
 
 
 @pytest.mark.django_db(transaction=True)
