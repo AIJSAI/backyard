@@ -49,7 +49,7 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   once it stretches to half as long again, which is what a skipped quiet period does. The
   first Email Update a family actually received had five entries and three of them were
   arrivals. A period with joins and nothing written still sends nothing at all. One
-  additive migration (`0034`), which marks the cards already written.
+  additive migration (`0035`), which marks the cards already written.
 
 ## [0.2.0] — 2026-09-20
 

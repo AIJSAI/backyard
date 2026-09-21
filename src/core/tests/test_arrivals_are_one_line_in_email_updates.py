@@ -22,7 +22,7 @@ What these tests hold, and why each one is here:
 * The web copy of an issue carries the same line, from the same function.
 * A deep link in a message sent BEFORE this change still opens the card it was sent for,
   while the other side's arrival is still a 404 through the same token.
-* The 0034 backfill marks the cards a join actually wrote, and nothing else.
+* The 0035 backfill marks the cards a join actually wrote, and nothing else.
 """
 
 from __future__ import annotations
@@ -548,7 +548,7 @@ def test_a_reply_photo_on_an_arrival_card_opens_from_an_old_link(world: World) -
     assert photo.status_code == 200, "the page opened and its reply photo did not"
 
 
-# --- the 0034 backfill ----------------------------------------------------------------
+# --- the 0035 backfill ----------------------------------------------------------------
 
 
 def test_the_backfill_marks_the_cards_a_join_wrote_and_nothing_else(world: World) -> None:
@@ -556,10 +556,10 @@ def test_the_backfill_marks_the_cards_a_join_wrote_and_nothing_else(world: World
     same transaction wrote — never by its body.
 
     Driven on rows the real join path produced, with the mark cleared to stand them back
-    up as they were before 0034: that is the only honest fixture for a backfill, because
+    up as they were before 0035: that is the only honest fixture for a backfill, because
     anything hand-built is a guess about what the old code wrote.
     """
-    backfill = importlib.import_module("core.migrations.0034_an_arrival_card_says_so")
+    backfill = importlib.import_module("core.migrations.0035_an_arrival_card_says_so")
     _, raw = mint_invite(world.m_pod, None)
     Client().post(
         reverse("join", args=[raw]),

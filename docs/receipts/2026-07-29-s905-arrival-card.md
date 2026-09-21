@@ -91,7 +91,7 @@ Screenshot: `11-second-joiner-sees-first.png` — *"Second Reed · Just joined."
   a family actually received had five entries, three of them arrival cards. The cards stay
   in the feed exactly as this receipt describes them; the message names the period's
   joiners in one line after the posts instead, and a period with joins and nothing written
-  sends nothing at all. `Post.is_arrival` (migration `0034`) is the mark that makes the
+  sends nothing at all. `Post.is_arrival` (migration `0035`) is the mark that makes the
   two surfaces able to disagree.
 
 ## Found on the walkthrough, fixed here as documentation

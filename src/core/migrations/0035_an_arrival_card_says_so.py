@@ -58,7 +58,7 @@ def _mark_the_cards_a_join_wrote(apps: Apps, schema_editor: BaseDatabaseSchemaEd
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0033_a_member_can_add_a_profile_photo"),
+        ("core", "0034_labels_a_relative_reads_iii"),
     ]
 
     operations = [
