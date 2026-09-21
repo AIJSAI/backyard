@@ -34,7 +34,7 @@ give.*
 ## Install
 
 ```bash
-git clone --branch v0.3.0 https://github.com/AIJSAI/backyard.git && cd backyard
+git clone --branch v0.3.1 https://github.com/AIJSAI/backyard.git && cd backyard
 cp .env.example .env        # then fill in the five REQUIRED values at the top of it
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```

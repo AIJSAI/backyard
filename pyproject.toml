@@ -1,6 +1,6 @@
 [project]
 name = "backyard"
-version = "0.3.0"
+version = "0.3.1"
 description = "A private, self-hosted social network for your extended family"
 readme = "README.md"
 requires-python = ">=3.13"

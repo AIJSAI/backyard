@@ -13,6 +13,16 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
+Nothing yet.
+
+## [0.3.1] — 2026-09-21
+
+Screens found on the production walk of 0.3.0, and the runbooks an operator reads in a bad
+hour. The Sign-In Link page's button says what it does, Change Household speaks of one side
+to an admin who reaches one, taking someone out of a household says what they lose, and the
+recovery sheet and the restore, server-move and handover runbooks now account for the
+notification keys in `.env`. No migration.
+
 ### Fixed
 
 - **The Sign-In Link's button says "Save Password".** It said "Save And Sign In" and then
@@ -1221,6 +1231,7 @@ Everything here is a correction, not a feature. `v0.1.0` is **withdrawn**: insta
 - The demo family is fully invented; no real relative's name appears.
 - Fonts ship with their licence text (SIL OFL 1.1).
 
+[0.3.1]: https://github.com/AIJSAI/backyard/tree/v0.3.1
 [0.3.0]: https://github.com/AIJSAI/backyard/tree/v0.3.0
 [0.2.0]: https://github.com/AIJSAI/backyard/tree/v0.2.0
 [0.1.8]: https://github.com/AIJSAI/backyard/tree/v0.1.8
