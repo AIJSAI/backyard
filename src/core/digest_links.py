@@ -216,5 +216,10 @@ def issue_arrival_names(issue: DigestIssue) -> tuple[str, ...]:
             continue
         seen.add(card.author_id)
         full = card.author.display_name.strip() or "A member"
-        names.append(card.author.short_name or full)
+        short = card.author.short_name
+        # A member removed with "Keep Their Posts, Without Their Name" is called "A family
+        # member" (removal.ANONYMOUS_NAME), whose first word is "A": the one display name
+        # whose short form is not a name at all. Anything under two characters is written
+        # out in full instead, which is also the right answer for a one-letter first name.
+        names.append(short if len(short) > 1 else full)
     return tuple(names)
