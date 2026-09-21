@@ -123,10 +123,19 @@ class Member(models.Model):
     # Title Case, like every other label a person reads (the copy pass, 2026-09-19). These
     # render as a badge on the roster and as the options in the role select, both of which
     # the owner's rule covers word for word.
+    #
+    # "Side Admin" became "Admin" on 2026-09-20, and the reason is a person rather than a
+    # style: one of the two relatives being handed these controls lives in a household that
+    # belongs to BOTH sides, so her reach already covers both and "Side Admin" was simply
+    # the wrong word for her. The other manages one side. "Admin" is honest for both,
+    # because an admin's reach is the ordinary members they can see, whichever sides those
+    # members are on. It also stops the roster telling a relative on one side that another
+    # side exists. `yard_admin` is untouched: the VALUE is what every predicate compares
+    # against, and this is a copy pass.
     ROLE_CHOICES = [
         (MEMBER, "Member"),
         (POD_OWNER, "Group Owner"),
-        (YARD_ADMIN, "Side Admin"),
+        (YARD_ADMIN, "Admin"),
         (INSTANCE_ADMIN, "Family Admin"),
         (SUPERVISED, "Child Account"),
     ]
@@ -157,16 +166,29 @@ class Member(models.Model):
             "The same as a member. Setting a group's rule and adding people to it comes "
             "from creating a group, not from this label."
         ),
+        # REACH IS STATED FROM WHERE THE READER STANDS (2026-09-20). This said "only on
+        # their own side of the family. Cannot manage an admin, or anyone who also belongs
+        # to the other side" — two sentences that only parse for somebody who knows a
+        # second side exists, printed for an admin who may not be able to see one. The
+        # capability is unchanged and still exercised on all three of its claims by
+        # test_role_descriptions.py; the second clause names the refusal the roster itself
+        # prints on those rows ("only <the family admin> can change this") instead of
+        # naming a side the reader may have no screen for.
         YARD_ADMIN: (
-            "Adds and removes members, but only on their own side of the family. "
-            "Cannot manage an admin, or anyone who also belongs to the other side."
+            "Adds and removes the members they can see. Cannot manage another admin, "
+            "or a member only the Family Admin can change."
         ),
         # "This is the whole instance." was the second sentence here until 2026-09-19. It
         # was the only place in the product that used the word at a relative, and it told
         # them nothing they could act on. Its replacement ("The whole family, not one side
         # of it.") restated the first sentence and went the same way in the copy pass: say
         # the thing once and stop.
-        INSTANCE_ADMIN: "Manages anyone, on either side.",
+        #
+        # "Manages anyone, on either side." until 2026-09-20: the reader of this one IS the
+        # person who sees every side, so the fact was true, but it read as the counterpart
+        # to a "Side Admin" that no longer exists. What separates the two roles now is
+        # reach plus the box itself.
+        INSTANCE_ADMIN: "Manages everyone and runs this Backyard.",
         SUPERVISED: "A managed account with no sign-in of its own. A parent edits it.",
     }
 

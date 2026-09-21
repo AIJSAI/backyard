@@ -29,6 +29,17 @@ The vocabulary, as ruled on 2026-09-19:
     no-login link       never elder path, never token
     this Backyard       never instance
 
+And one more, ruled on 2026-09-20 and retired the same way "digest" was:
+
+    Admin               never Side Admin
+
+One of the two relatives being handed the admin controls belongs to a household on BOTH
+sides of the family, so her reach already covers both and "Side Admin" was the wrong word
+for her; the other manages one side. "Admin" is honest at either reach, because an admin's
+reach is the ordinary members they can see. It also stops a badge telling a relative on one
+side that a second side exists. The stored value `yard_admin` is untouched, like every
+other value here.
+
 WHAT IS COVERED. Everything a person reads: a template's visible text, every model choice
 LABEL (which a template scan cannot see, because the template only says `{{ ... }}`), the
 role descriptions on the roster, and the subject and body of every e-mail this product can
@@ -124,6 +135,12 @@ def test_the_guard_is_not_vacuous() -> None:
     assert vocabulary_offences(visible_text("<p>Do you want the Family email?</p>"))
     assert vocabulary_offences(visible_text("<p>This is the elder path.</p>"))
     assert vocabulary_offences(visible_text("<p>You look after a side of the family.</p>"))
+    # Retired 2026-09-20. Both the badge's spelling and a sentence's, because the role was
+    # named in both shapes across six screens.
+    assert vocabulary_offences(visible_text('<span class="role">Side Admin</span>'))
+    assert vocabulary_offences(visible_text("<p>Ask them to make you a side admin.</p>"))
+    assert vocabulary_offences(visible_text("<p>Side Admins add and remove members.</p>"))
+    assert not vocabulary_offences(visible_text('<span class="role">Admin</span>'))
     assert vocabulary_offences(visible_text("<p>Post when you feel like it.</p>"))
     assert vocabulary_offences(visible_text("<p>Members are taken straight to the feed.</p>"))
     assert vocabulary_offences(visible_text("<p>Tell us the name they will see.</p>"))
@@ -231,7 +248,7 @@ def test_no_role_description_shows_a_banned_word_to_a_person() -> None:
     models.py and invisible to every template scan for the same reason as the labels.
 
     "You look after a side of the family" is the exact sentence the owner rewrote to "You
-    are a Side Admin. You can add and remove members on your side.", so "look after" is on
+    are an Admin. You can add and remove the members you can see.", so "look after" is on
     the banned list and this is the surface it was on."""
     from core.models import Member
 
@@ -251,7 +268,12 @@ def test_the_choice_sweep_actually_sees_the_product() -> None:
     where = {w for w, _ in pairs}
     assert "Member.role" in where, "the roles were not scanned, and they are the reason"
     labels = {label for w, label in pairs if w == "Member.role"}
-    assert {"Side Admin", "Family Admin"} <= labels, labels
+    assert {"Admin", "Family Admin"} <= labels, labels
+    # The retired name, held down from the other direction: the sweep above reads these
+    # labels, so a "Side Admin" written back into ROLE_CHOICES fails
+    # test_no_model_choice_label_shows_a_banned_word_to_a_person, and this says out loud
+    # that the label is the surface that guard is for.
+    assert "Side Admin" not in labels, labels
 
 
 # --- the e-mails --------------------------------------------------------------------

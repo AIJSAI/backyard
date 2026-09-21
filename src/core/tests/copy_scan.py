@@ -253,6 +253,15 @@ BANNED: dict[str, str] = {
     "nags": "(delete the sentence)",
     "look after": "the role, plainly: adds and removes members",
     "looks after": "the role, plainly: adds and removes members",
+    # RETIRED 2026-09-20, the same way "digest" is: the word is gone from the product and
+    # the guard is what stops it coming back. `yard_admin` is still the stored value and
+    # every predicate still compares against it — only the name a relative reads moved.
+    # Two reasons, both the owner's: one of the two people holding these controls belongs
+    # to a household on BOTH sides, so her reach already covers both and "Side Admin" was
+    # the wrong word for her; and the name told a reader on one side that another side
+    # exists, which is the one thing this product's copy must not do.
+    "side admin": "Admin",
+    "side admins": "Admins",
     # The filler, the idioms and the reassurance, quoted from his critique.
     "feel like it": "(delete the sentence)",
     "and you are done": "(delete it; the screen already ended)",

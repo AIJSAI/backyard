@@ -370,8 +370,8 @@ def assign_role(request: HttpRequest, member_id: int) -> HttpResponse:
         # page — on a phone the admin could not see the row they had just changed, so the
         # only honest reading was "did that work?". The same calm flash the composer uses.
         # The label is the one the roster shows, VERBATIM: the role names are Title Case
-        # proper nouns now ("Side Admin"), so lower-casing the first letter into the
-        # sentence would print "side Admin" and disagree with the badge beside it.
+        # proper nouns now ("Admin", "Family Admin"), so lower-casing the first letter into
+        # the sentence would print "family Admin" and disagree with the badge beside it.
         label = dict(Member.ROLE_CHOICES)[new_role]
         article = "an" if label[:1].lower() in "aeiou" else "a"
         messages.success(request, f"{target.display_name} is now {article} {label}.")

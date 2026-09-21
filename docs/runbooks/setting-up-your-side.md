@@ -1,6 +1,6 @@
 # Setting Up Your Side
 
-For the Side Admin who brings people in. The short version is a page in the product:
+For the Admin who brings people in. The short version is a page in the product:
 **`Members` → `Admin Guide`**. Read that on your phone. Read this when you want the detail.
 
 **The one rule that matters:** post something to your whole side of the family before you
@@ -14,9 +14,9 @@ hand anyone a no-login link. "Add A Grandparent" below says why.
 2. Sign in with the account you were given.
 3. Look at the top of the page for **`Members`**. Everything below happens there.
 
-**If `Members` is not there, stop.** That link appears only for a Side Admin or a Family
+**If `Members` is not there, stop.** That link appears only for an Admin or a Family
 Admin, and without it every step below leads to a page that refuses you. Ask the Family
-Admin to make you a Side Admin, then sign out and sign in again.
+Admin to make you an Admin, then sign out and sign in again.
 
 You do not need a terminal, a server login, or anything installed.
 

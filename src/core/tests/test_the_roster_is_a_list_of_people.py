@@ -149,8 +149,13 @@ def test_a_bridging_relative_a_side_admin_cannot_touch_says_why() -> None:
     row = _row_for(html, "Jo Reed")
 
     assert "member-manage" not in row, "the row offers Manage with nothing behind it"
-    assert "Also on the other side" in row
-    # It names the person who CAN, so the side admin knows who to ask rather than
+    # "Also on the other side" until 2026-09-20. This line is rendered for one reader only
+    # — an admin whose reach does not cover everybody on their roster — so it was the
+    # product telling somebody on one side that a second side exists. The reason is stated
+    # as what it is now; the rule, the key and the named person are unchanged.
+    assert "Outside what you manage" in row
+    assert "other side" not in row, row
+    # It names the person who CAN, so the admin knows who to ask rather than
     # tapping at a row that will never answer.
     assert family_admin.short_name in row, row
 

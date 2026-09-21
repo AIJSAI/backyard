@@ -13,7 +13,24 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
-Nothing yet.
+### Changed
+
+- **The role a relative reads as "Side Admin" is "Admin".** One of the two people being
+  handed these controls lives in a household that belongs to both sides of the family, so
+  her reach already covers both and "Side Admin" was the wrong word for her; the other
+  manages one side. One word is honest for both, because an admin's reach is the ordinary
+  members they can see. The reach is now stated from where the reader stands rather than by
+  naming a side: the role key says "Adds and removes the members they can see. Cannot manage
+  another admin, or a member only the Family Admin can change.", the welcome and the
+  second-factor line say "the members you can see" instead of "on your side", and the row an
+  admin cannot act on says "Outside what you manage" rather than "Also on the other side",
+  which was the product telling a relative on one side that a second side exists. The Family
+  Admin keeps its name and its own pages still name both sides, because that reader can see
+  both. Labels and copy only: `yard_admin` is still the stored value, every permission
+  predicate is untouched, and the migration (`0034`) alters nothing but the words
+  (`sqlmigrate` emits a no-op between BEGIN and COMMIT). "Side Admin" is now a
+  retired word in `copy_scan.py`, the way "digest" is, so it cannot come back through a
+  template, a choice label, a role description or an email.
 
 ## [0.2.0] — 2026-09-20
 

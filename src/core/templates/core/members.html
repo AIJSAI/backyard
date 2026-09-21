@@ -118,8 +118,13 @@
        browser hoists it out on parse, which breaks the line it is meant to sit on.
        {% endcomment %}
     <aside class="second-factor-prompt">
+      {% comment %} "adds and removes members on your side" until 2026-09-20. An admin
+         whose household belongs to both sides reaches both, so the line was wrong for one
+         of the two people it is written for, and it named a second side to the other. What
+         holds at every reach is what they can see, which is the sentence the role key and
+         the welcome now use as well. {% endcomment %}
       <span>{% if is_instance_admin %}Your sign-in manages everyone, on both sides.{% else %}Your
-        sign-in adds and removes members on your side.{% endif %}
+        sign-in adds and removes the members you can see.{% endif %}
         {% comment %} One fact, one command, stop. This carried ": the fingerprint or face
            you already unlock your phone with, about a minute" — an explanation of a phone
            unlock to somebody holding a phone, and then a time estimate, which is
@@ -344,7 +349,14 @@
             {% if row.no_actions_reason == "you" %}
               This is your own account. Another admin has to change it.
             {% elif row.no_actions_reason == "other-side" %}
-              Also on the other side, so only
+              {% comment %} "Also on the other side" until 2026-09-20. This row is rendered
+                 for one reader only — an admin whose reach does not cover everyone in it —
+                 and it told them a second side of the family exists, which is the one
+                 thing the product must not say to somebody who cannot see one. The reason
+                 is now stated as what it is: this person is outside what the reader
+                 manages. The rule, the key and the person named are all unchanged.
+                 {% endcomment %}
+              Outside what you manage, so only
               {% if help_contact %}{{ help_contact }}{% else %}the Family Admin{% endif %}
               can change this.
             {% elif row.no_actions_reason == "admin" %}

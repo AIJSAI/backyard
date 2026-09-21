@@ -41,13 +41,19 @@
 
      THE ROLE IS NAMED AND DESCRIBED LITERALLY. It read "You look after this whole family"
      and "You look after a side of the family": an idiom, for a capability. The owner's own
-     rewrite is the pattern here ("You are a Side Admin. You can add and remove members on
-     your side."), and the role names are the ones the roster badge and the role select
-     already print. {% endcomment %}
+     rewrite is the pattern here ("You are an Admin. You can add and remove the members you
+     can see."), and the role names are the ones the roster badge and the role select
+     already print.
+
+     "ON YOUR SIDE" WENT WITH THE RENAME (2026-09-20). An admin whose household belongs to
+     both sides reaches both, so the sentence was wrong for exactly the person it was
+     written for, and it named a second side to anybody it was right for. What is true at
+     every reach is what they can SEE. The family admin's line keeps both sides: he is the
+     one reader who has both on his screen. {% endcomment %}
   {% if is_admin %}
     <p class="notice">{% if is_instance_admin %}You are a Family Admin. You can add and
-      remove members on both sides.{% else %}You are a Side Admin. You can add and remove
-      members on your side.{% endif %}
+      remove members on both sides.{% else %}You are an Admin. You can add and remove the
+      members you can see.{% endif %}
       Start in <a href="{% url 'members' %}">Members</a>, or read the
       <a href="{% url 'admins_day_one' %}">admin guide</a>.</p>
   {% endif %}

@@ -111,8 +111,17 @@ def test_the_roster_no_longer_offers_a_role_that_does_nothing(side: Yard) -> Non
 
 
 def test_the_yard_admin_description_is_true_on_all_three_of_its_claims(side: Yard) -> None:
-    """The longest promise on the page, so the one most worth exercising: manages
-    members on their own side, cannot touch an admin, cannot touch a bridging member."""
+    """The longest promise on the page, so the one most worth exercising: manages the
+    ordinary members it can see, cannot touch an admin, cannot touch a bridging member.
+
+    THE SENTENCE MOVED ON 2026-09-20, THE THREE CLAIMS DID NOT. It read "only on their own
+    side of the family. Cannot manage an admin, or anyone who also belongs to the other
+    side" — which states this role's reach by naming a side the reader may not be able to
+    see, and is wrong for an admin whose own household belongs to both. So the reach is now
+    stated from where the reader stands, and the bridging refusal is named the way the
+    roster itself names it on those rows ("only <the family admin> can change this"). All
+    three behaviours are still exercised below, against the real predicate.
+    """
     other = Yard.objects.create(name="Paternal", slug="paternal")
     admin = _member(side, Member.YARD_ADMIN, name="Yard Admin")
     same_side = _member(side, Member.MEMBER, name="Same Side")
@@ -124,14 +133,16 @@ def test_the_yard_admin_description_is_true_on_all_three_of_its_claims(side: Yar
     PodMembership.objects.create(member=bridger, pod=bridge)
 
     text = Member.ROLE_DESCRIPTIONS[Member.YARD_ADMIN]
-    assert "only on their own side of the family" in text
+    assert "Adds and removes the members they can see" in text
     assert permissions.can_manage_member(admin, same_side), "cannot manage their own side"
     # "Cannot touch an admin" until the copy pass of 2026-09-19: "touch" is an idiom, and
     # the guide says say the literal thing. The claim is identical; the word is not.
-    assert "Cannot manage an admin" in text
+    assert "Cannot manage another admin" in text
     assert not permissions.can_manage_member(admin, an_admin), "privilege inversion"
-    assert "belongs to the other side" in text
+    assert "only the Family Admin can change" in text
     assert not permissions.can_manage_member(admin, bridger), "reached a bridging member"
+    # And the retired wording cannot grow back on the one surface that prints it.
+    assert "other side" not in text, "the role key names a side the reader may not have"
 
 
 def test_the_instance_admin_description_is_true_they_reach_everyone(side: Yard) -> None:
@@ -142,7 +153,12 @@ def test_the_instance_admin_description_is_true_they_reach_everyone(side: Yard) 
     far = Member.objects.create(display_name="Far Cousin", role=Member.MEMBER)
     PodMembership.objects.create(member=far, pod=far_pod)
 
-    assert "Manages anyone, on either side" in Member.ROLE_DESCRIPTIONS[Member.INSTANCE_ADMIN]
+    # "Manages anyone, on either side." until 2026-09-20. The claim is unchanged — this
+    # reader is the one person who sees every side — but the sentence read as the
+    # counterpart to a "Side Admin" that no longer exists, so what separates the two roles
+    # is now said plainly: everyone, plus the box.
+    assert "Manages everyone" in Member.ROLE_DESCRIPTIONS[Member.INSTANCE_ADMIN]
+    assert "runs this Backyard" in Member.ROLE_DESCRIPTIONS[Member.INSTANCE_ADMIN]
     assert permissions.can_manage_member(boss, far)
     a_yard_admin = _member(side, Member.YARD_ADMIN, name="A Yard Admin")
     assert permissions.can_manage_member(boss, a_yard_admin)
