@@ -20,6 +20,8 @@ What these tests hold, and why each one is here:
 * An arrival is recognised by a MARK, never by its body text: a member who writes those
   words themselves is still an entry, and the card stays in the feed.
 * The web copy of an issue carries the same line, from the same function.
+* A deep link in a message sent BEFORE this change still opens the card it was sent for,
+  while the other side's arrival is still a 404 through the same token.
 * The 0034 backfill marks the cards a join actually wrote, and nothing else.
 """
 
