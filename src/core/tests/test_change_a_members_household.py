@@ -30,6 +30,7 @@ from django.http import HttpResponse
 from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.html import escape
 
 from core import households, posting, supervised
 from core.models import (
@@ -911,3 +912,240 @@ def test_two_concurrent_removals_cannot_strand_a_member(
     assert len(errors) == 1 and isinstance(errors[0], households.HouseholdChangeRefused), (
         f"exactly one of the two must be refused, not {errors}"
     )
+
+
+# --------------------------------------------------------------------------------------
+# One side of the family is not a list (walk 2026-09-20).
+#
+# What the walk saw, signed in as an admin whose whole reach is one side: a page whose
+# opening sentence said the households somebody is in "decide which sides of the family
+# they can see", and a New Household form with a fieldset legend reading "Sides Of The
+# Family" over a single checkbox. Both name a second side to a reader who has never been
+# shown one — voice.md rule 8, describe a thing from where the reader stands — and the
+# checkbox had the two states a control must never have, "the only possible answer" and "an
+# error message".
+#
+# `core/invite_household.html` cured exactly this on walk item 9. The same shape is applied
+# here: one reachable side is STATED and the list is not rendered, so the POST carries no
+# `yard_ids` and `household_views._proposal` derives the side from the actor's own reach.
+# Two or more sides is untouched, because there it is a real choice — a household can
+# belong to both, which is the bridge the whole isolation model is built around.
+#
+# Nothing about authorization moves. The tests below pin that, too: the side is derived
+# from the actor's reach and never from the browser, and a POST naming a side the actor
+# cannot see is refused exactly as it was.
+# --------------------------------------------------------------------------------------
+
+_PLURAL_IN_BODY = "sides of the family"
+_PLURAL_AS_A_LEGEND = "Sides Of The Family"
+
+
+def _as_rendered(name: str) -> str:
+    """A side's name the way the page writes it.
+
+    Families name a side with an apostrophe in it — "Mom's side" is the name the live
+    instance uses — and Django escapes it to `Mom&#x27;s side`. Asserting on the raw name
+    is a false failure about escaping, not a measurement of what the page says.
+    """
+    return escape(name)
+
+
+@pytest.fixture
+def one_side() -> dict[str, Member | Pod | Yard]:
+    """A Backyard with exactly one side of the family: every fresh install, until somebody
+    stands up the second (S-708), and the state the walk was done in.
+
+    The target is in NO household, which is the case this feature exists for — an account
+    that already exists and belongs in a household — and the only way an add can hand over
+    a side on a Backyard that has one.
+    """
+    side = Yard.objects.create(name="Mom's side", slug="moms-side")
+    home = Pod.objects.create(name="The Fletchers", kind=Pod.HOUSEHOLD)
+    home.yards.set([side])
+    spare = Pod.objects.create(name="The other Fletchers", kind=Pod.HOUSEHOLD)
+    spare.yards.set([side])
+    return {
+        "side": side,
+        "home": home,
+        "spare": spare,
+        "admin": _member(home, "The Only Admin", Member.INSTANCE_ADMIN),
+        "cousin": _member(None, "A Cousin With No Household"),
+    }
+
+
+def test_one_side_is_stated_and_never_offered_as_a_list(
+    one_side: dict[str, Member | Pod | Yard],
+) -> None:
+    body = _client_for(_who(one_side, "admin")).get(_url(_who(one_side, "cousin"))).content.decode()
+
+    assert "This household joins" in body
+    assert _as_rendered(_yard(one_side, "side").name) in body, "it must say WHICH side, by name"
+    assert _PLURAL_AS_A_LEGEND not in body, "the legend still names sides this admin has not got"
+    assert _PLURAL_IN_BODY not in body, "the page still talks about sides in the plural"
+    # Scoped by FIELD NAME rather than "no checkbox on the page": the page may grow another
+    # control one day, and the property held here is about the sides control alone.
+    assert 'name="yard_ids"' not in body, "a lone side checkbox is still on the page"
+
+
+def test_one_side_creates_the_household_in_that_side_with_no_field_in_the_post(
+    one_side: dict[str, Member | Pod | Yard],
+) -> None:
+    """The browser now sends no `yard_ids` at all, because there is no control to send one.
+    The household must still land in the one side, and the confirm step must still name it
+    before anything happens."""
+    admin, cousin, side = _who(one_side, "admin"), _who(one_side, "cousin"), _yard(one_side, "side")
+    client = _client_for(admin)
+
+    shown = _propose(client, cousin, act="create", household_name="The Davis family")
+    assert _as_rendered(side.name) in shown.content.decode(), (
+        "the confirm step stopped naming the side"
+    )
+    assert not Pod.objects.filter(name="The Davis family").exists()
+
+    done = _carry_out(client, cousin, act="create", household_name="The Davis family")
+
+    assert done.status_code == 302, done.status_code
+    made = Pod.objects.get(name="The Davis family")
+    assert {yard.pk for yard in made.yards.all()} == {side.pk}
+    assert PodMembership.objects.filter(member=cousin, pod=made).exists()
+
+
+def test_a_yard_admin_who_reaches_one_side_gets_the_singular_and_their_own_side(
+    world: dict[str, Member | Pod | Yard],
+) -> None:
+    """Two sides EXIST here; this admin reaches one. The reader is what decides the words,
+    so they get the statement — and the side derived for them is theirs, not the first row
+    in the table."""
+    client = _client_for(_who(world, "side_admin"))
+
+    body = client.get(_url(_who(world, "cousin"))).content.decode()
+    assert "This household joins" in body
+    assert _yard(world, "maternal").name in body
+    assert _yard(world, "paternal").name not in body
+    assert _PLURAL_AS_A_LEGEND not in body
+
+    done = _carry_out(client, _who(world, "cousin"), act="create", household_name="The Lane family")
+    assert done.status_code == 302, done.status_code
+    assert {yard.pk for yard in Pod.objects.get(name="The Lane family").yards.all()} == {
+        _yard(world, "maternal").pk
+    }
+
+
+def test_a_hand_made_post_naming_an_unreachable_side_is_still_refused(
+    world: dict[str, Member | Pod | Yard],
+) -> None:
+    """The security property the derived side must not cost us. A yard admin's own form now
+    submits no side, so the view has a branch that supplies one — and a POST that NAMES the
+    far side must never reach it. It is the same byte-identical 404 as a side that does not
+    exist (S-202 parity), never a quiet rewrite to the side they are allowed, which would
+    turn an attempted scope escape into a success somewhere else."""
+    client = _client_for(_who(world, "side_admin"))
+    before = Pod.objects.count()
+
+    response = client.post(
+        _url(_who(world, "cousin")),
+        {
+            "act": "create",
+            "household_name": "The Cross family",
+            "yard_ids": [str(_yard(world, "paternal").id)],
+        },
+    )
+
+    assert response.status_code == 404
+    assert Pod.objects.count() == before
+    assert not Pod.objects.filter(name="The Cross family").exists()
+
+
+def test_two_sides_still_offer_the_choice(world: dict[str, Member | Pod | Yard]) -> None:
+    """The bridging-household control is a real choice with two real answers, and it stays
+    exactly as it was: a legend, two checkboxes, neither pre-ticked."""
+    body = _client_for(_who(world, "owner")).get(_url(_who(world, "cousin"))).content.decode()
+    fieldset = body[body.index("<fieldset") : body.index("</fieldset>")]
+
+    assert _PLURAL_AS_A_LEGEND in body
+    assert fieldset.count('type="checkbox"') == 2
+    assert "checked" not in fieldset, "the product answered a real choice for them"
+    assert _yard(world, "maternal").name in fieldset
+    assert _yard(world, "paternal").name in fieldset
+    assert "This household joins" not in body, "the single-side statement is not for this reader"
+
+
+def test_the_confirm_page_names_one_side_in_the_singular(
+    one_side: dict[str, Member | Pod | Yard],
+) -> None:
+    body = _propose(
+        _client_for(_who(one_side, "admin")),
+        _who(one_side, "cousin"),
+        act="add",
+        pod_id=_pod(one_side, "home").id,
+    ).content.decode()
+    flat = " ".join(body.split())
+
+    named = _as_rendered(_yard(one_side, "side").name)
+    assert f"Every post and photograph on <strong>{named}</strong>" in flat
+    assert _block(body, "sides-gained") == "", "a one-item list is still being rendered"
+    assert _PLURAL_IN_BODY not in flat
+
+
+def test_the_confirm_page_still_lists_sides_for_a_reader_who_has_two(
+    world: dict[str, Member | Pod | Yard],
+) -> None:
+    body = _propose(
+        _client_for(_who(world, "owner")),
+        _who(world, "cousin"),
+        act="add",
+        pod_id=_pod(world, "far").id,
+    ).content.decode()
+    flat = " ".join(body.split())
+
+    assert f"Every post and photograph on these {_PLURAL_IN_BODY}" in flat
+    assert _yard(world, "paternal").name in _block(body, "sides-gained")
+
+
+def test_the_confirm_page_says_a_removal_keeps_them_on_the_same_side(
+    one_side: dict[str, Member | Pod | Yard],
+) -> None:
+    """The branch that says nothing changes. It does not NAME the side in either voice —
+    "the same side they are on now" stays true for a household that belongs to none — so
+    only the word's number follows the reader."""
+    cousin = _who(one_side, "cousin")
+    PodMembership.objects.create(member=cousin, pod=_pod(one_side, "home"))
+    PodMembership.objects.create(member=cousin, pod=_pod(one_side, "spare"))
+
+    body = _propose(
+        _client_for(_who(one_side, "admin")),
+        cousin,
+        act="remove",
+        pod_id=_pod(one_side, "home").id,
+    ).content.decode()
+    flat = " ".join(body.split())
+
+    assert "keeps them on the same side of the family" in flat
+    assert _PLURAL_IN_BODY not in flat
+
+
+def test_the_confirm_page_names_the_one_side_a_removal_costs(
+    one_side: dict[str, Member | Pod | Yard],
+) -> None:
+    """The losing half of the singular, which on a one-side Backyard needs the second
+    household to belong to no side — the shape an instance has while somebody is still
+    standing the first side up (S-708). Contrived, and it is the only arrangement in which
+    a one-side reader can be told they are losing something: leaving their only household
+    is refused outright, and leaving one of two on the same side costs nothing."""
+    cousin, side = _who(one_side, "cousin"), _yard(one_side, "side")
+    unattached = Pod.objects.create(name="An unattached household", kind=Pod.HOUSEHOLD)
+    PodMembership.objects.create(member=cousin, pod=_pod(one_side, "home"))
+    PodMembership.objects.create(member=cousin, pod=unattached)
+
+    body = _propose(
+        _client_for(_who(one_side, "admin")),
+        cousin,
+        act="remove",
+        pod_id=_pod(one_side, "home").id,
+    ).content.decode()
+    flat = " ".join(body.split())
+
+    named = _as_rendered(side.name)
+    assert f"<strong>{named}</strong> goes away for them as soon as you do this." in flat
+    assert _block(body, "sides-lost") == "", "a one-item list is still being rendered"
+    assert _PLURAL_IN_BODY not in flat

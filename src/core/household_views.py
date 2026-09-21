@@ -120,6 +120,11 @@ def change_household(request: HttpRequest, member_id: int) -> HttpResponse:
             "actor": actor,
             "target": target,
             "proposal": proposal,
+            # Carried onto the confirmation for the same reason the first page has it: this
+            # is the page that says out loud what the act hands over, and to an admin whose
+            # whole Backyard is one side, "these sides of the family" over a one-item list
+            # is a sentence about a second side they have never been told exists.
+            "one_side": _the_only_side(actor),
             # The nonce for THIS confirmation, minted only now: a replayed submit (the back
             # button, a double tap on a slow phone) finds it spent and lands back here
             # instead of acting twice.
@@ -156,6 +161,26 @@ def _proposal(request: HttpRequest, actor: Member, target: Member) -> _Proposal:
             else scoping.require_visible_yard(actor, yard_id)
             for yard_id in yard_ids
         ]
+        # ONE side of the family is not a choice, so the New Household form renders a
+        # statement instead of a lone checkbox (walk 2026-09-20, the same defect
+        # `admin_views.invite_household` cured as walk item 9). With no control there is no
+        # `yard_ids` in the POST, so the side is resolved HERE.
+        #
+        # Derived from the actor's own reach — the same set the form was rendered from —
+        # and NOT from a hidden field, which is a value the browser hands back and would
+        # have to be re-checked to be trusted. There is nothing here for a hand-made POST
+        # to widen: the single side came out of `visible_yards`, which is the queryset
+        # `require_visible_yard` filters on, and an instance admin may create in any side.
+        #
+        # Strictly a fallback for a POST that names NO side, never a correction of one that
+        # does: a POST naming a side the actor cannot see still 404s in the resolution
+        # above rather than being quietly swapped for one they can. And strictly `== 1`
+        # (inside `_the_only_side`) — with no reachable side at all, "Choose at least one
+        # side." is still the honest answer.
+        if not yards:
+            only = _the_only_side(actor)
+            if only is not None:
+                yards = [only]
         already = scoping.member_yard_ids(target)
         return _Proposal(
             act=CREATE,
@@ -251,9 +276,37 @@ def _choices(
             )
             for pod in current
         ],
-        "sides": list(
-            Yard.objects.order_by("name")
-            if permissions.is_instance_admin(actor)
-            else scoping.visible_yards(actor).order_by("name")
-        ),
+        "sides": _sides_in_reach(actor),
+        # The side to speak of in the singular, or None when this admin reaches more than
+        # one. Worked out here rather than in the template so the page's words and the side
+        # the form would submit come from one list (`_the_only_side` reads the same
+        # `_sides_in_reach`), and so the judgement is written down in one place.
+        "one_side": _the_only_side(actor),
     }
+
+
+def _sides_in_reach(actor: Member) -> list[Yard]:
+    """Every side of the family this admin may put a household in.
+
+    The instance admin owns the instance and stands up new sides (S-708), so theirs is
+    every side; a yard admin's is their own, which is the set `require_visible_yard`
+    filters on. The same reach `admin_views.invite_household` computes for its own form.
+    """
+    return list(
+        Yard.objects.order_by("name")
+        if permissions.is_instance_admin(actor)
+        else scoping.visible_yards(actor).order_by("name")
+    )
+
+
+def _the_only_side(actor: Member) -> Yard | None:
+    """The one side this admin reaches, or None when they reach two or more.
+
+    A Backyard has exactly one side until somebody creates the second, and a side admin
+    usually reaches one however many exist — so for most readers of these two pages the
+    word "sides" names a thing they have never been shown. Voice rule 8: describe it from
+    where the reader stands. `== 1` and not `<= 1`: an admin who reaches no side at all has
+    nothing to name, and the refusal is the honest answer there.
+    """
+    sides = _sides_in_reach(actor)
+    return sides[0] if len(sides) == 1 else None

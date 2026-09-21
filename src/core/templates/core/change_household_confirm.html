@@ -15,13 +15,25 @@
     {% else %}Take {{ target.display_name }} Out Of {{ proposal.household_name }}?{% endif %}
   </h1>
 
+  {% comment %} ONE SIDE IS NOT A LIST, and "these sides of the family" above a single
+     bullet tells an admin whose whole Backyard is one side that there is another one
+     (voice rule 8). `one_side` is the view's answer about the READER; the side is named
+     from the proposal's own list, the same list the act is carried out against, so the
+     sentence and the change can never describe different things. {% endcomment %}
   {% if proposal.gained %}
     <h2>What {{ target.display_name }} Will Start Seeing</h2>
-    <p>Every post and photograph on these sides of the family, including everything
-    posted before today:</p>
-    <ul class="sides-gained">
-      {% for side in proposal.gained %}<li>{{ side.name }}</li>{% endfor %}
-    </ul>
+    {% if one_side %}
+      {% for side in proposal.gained %}
+        <p>Every post and photograph on <strong>{{ side.name }}</strong>, including
+        everything posted before today.</p>
+      {% endfor %}
+    {% else %}
+      <p>Every post and photograph on these sides of the family, including everything
+      posted before today:</p>
+      <ul class="sides-gained">
+        {% for side in proposal.gained %}<li>{{ side.name }}</li>{% endfor %}
+      </ul>
+    {% endif %}
   {% endif %}
   {% if proposal.act != "remove" %}
     {% comment %} A household is a read surface of its own, not only a door into a side:
@@ -42,13 +54,28 @@
 
   {% if proposal.lost %}
     <h2>What {{ target.display_name }} Will Stop Seeing</h2>
-    <p>These sides of the family go away for them as soon as you do this:</p>
-    <ul class="sides-lost">
-      {% for side in proposal.lost %}<li>{{ side.name }}</li>{% endfor %}
-    </ul>
+    {% if one_side %}
+      {% for side in proposal.lost %}
+        <p><strong>{{ side.name }}</strong> goes away for them as soon as you do this.</p>
+      {% endfor %}
+    {% else %}
+      <p>These sides of the family go away for them as soon as you do this:</p>
+      <ul class="sides-lost">
+        {% for side in proposal.lost %}<li>{{ side.name }}</li>{% endfor %}
+      </ul>
+    {% endif %}
   {% elif proposal.act == "remove" %}
-    <p>Their other household keeps them on the same sides of the family, so this does not
-    change what they can see.</p>
+    {% comment %} The side is not NAMED here, in either voice: this branch is the one that
+       says nothing changes, and the honest subject of it is "the same side they are on
+       now" — which stays true for a household that belongs to no side at all. Only the
+       word's number follows the reader. {% endcomment %}
+    {% if one_side %}
+      <p>Their other household keeps them on the same side of the family, so this does not
+      change what they can see.</p>
+    {% else %}
+      <p>Their other household keeps them on the same sides of the family, so this does not
+      change what they can see.</p>
+    {% endif %}
   {% endif %}
 
   {% if proposal.act == "remove" %}

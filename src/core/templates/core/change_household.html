@@ -11,10 +11,22 @@
   {% comment %} Plain words, and the side of the family named on every household. The person
      reading this is a relative who was made an admin last week; "The Fletchers" in a
      dropdown does not tell them which side of the family they are about to hand over, and
-     that is the one thing this page has to get right. {% endcomment %}
-  <p class="notice">A household is who somebody lives with. The households they are in
-  decide which sides of the family they can see, including every post and photograph
-  already on them.</p>
+     that is the one thing this page has to get right.
+
+     TO AN ADMIN WHO REACHES ONE SIDE, "which sides of the family" names a second side they
+     have never been shown (voice rule 8, and the same defect invite_household cured as
+     walk item 9). `one_side` is the view's answer, not a count done here, so the side this
+     sentence names can never disagree with the set the form below was rendered from.
+     {% endcomment %}
+  {% if one_side %}
+    <p class="notice">A household is who somebody lives with. The households they are in
+    decide whether they can see <strong>{{ one_side.name }}</strong>, including every post
+    and photograph already on it.</p>
+  {% else %}
+    <p class="notice">A household is who somebody lives with. The households they are in
+    decide which sides of the family they can see, including every post and photograph
+    already on them.</p>
+  {% endif %}
 
   {% if errors %}
     <div class="errors" role="alert">
@@ -57,17 +69,31 @@
     <label for="household-name">Name</label>
     <input id="household-name" name="household_name" maxlength="100" autocomplete="off"
            placeholder="The Fletchers">
-    <fieldset>
-      <legend>Sides Of The Family</legend>
-      {% comment %} Checkboxes, not one select: a household can belong to BOTH sides — that
-         is the household that bridges the two, which the whole privacy design is built
-         around. {% endcomment %}
-      {% for side in sides %}
-        <label class="inline-check">
-          <input type="checkbox" name="yard_ids" value="{{ side.id }}"> {{ side.name }}
-        </label>
-      {% endfor %}
-    </fieldset>
+    {% comment %} ONE SIDE IS NOT A CHOICE, so it is written as a statement — the shape
+       core/invite_household.html already uses for the same act, arrived at on walk item 9.
+       A lone checkbox under a legend reading "Sides Of The Family" has two states, "the
+       only possible answer" and "an error message", and the legend itself tells an admin
+       who reaches one side that there are others.
+
+       It carries NO hidden field: with no control there is no `yard_ids` in the POST, and
+       household_views._proposal derives the side from the actor's own reach instead — a
+       fact the server already holds and a hand-made POST cannot widen.
+
+       Two or more sides is untouched. The checkboxes are the bridging-household control —
+       a household can belong to BOTH sides, which is the case the whole privacy design is
+       built around — and there it is a real choice with real answers. {% endcomment %}
+    {% if one_side %}
+      <p class="notice">This household joins <strong>{{ one_side.name }}</strong>.</p>
+    {% else %}
+      <fieldset>
+        <legend>Sides Of The Family</legend>
+        {% for side in sides %}
+          <label class="inline-check">
+            <input type="checkbox" name="yard_ids" value="{{ side.id }}"> {{ side.name }}
+          </label>
+        {% endfor %}
+      </fieldset>
+    {% endif %}
     {# The second of the two, under New Household. Same reason as the first. #}
     <button type="submit">Create Household And Add</button>
   </form>
