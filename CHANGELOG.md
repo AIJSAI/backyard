@@ -13,6 +13,17 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
+Nothing yet.
+
+## [0.3.0] — 2026-09-21
+
+Backyard can now tell a relative's phone when somebody posts or replies, with no app store:
+Settings > Notifications, per device, off until a person turns it on, and off for the whole
+instance until the operator generates a key pair. Members who tick Keep Me Signed In stay
+signed in for 60 days. The role a relative reads as "Side Admin" is "Admin", and Email
+Updates name a period's arrivals in one line. Three migrations (`0034` labels only, `0035`
+and `0036` additive and forward-only: un-apply them before serving an older image).
+
 ### Changed
 
 - **The role a relative reads as "Side Admin" is "Admin".** An admin whose own household
@@ -1167,6 +1178,7 @@ Everything here is a correction, not a feature. `v0.1.0` is **withdrawn**: insta
 - The demo family is fully invented; no real relative's name appears.
 - Fonts ship with their licence text (SIL OFL 1.1).
 
+[0.3.0]: https://github.com/AIJSAI/backyard/tree/v0.3.0
 [0.2.0]: https://github.com/AIJSAI/backyard/tree/v0.2.0
 [0.1.8]: https://github.com/AIJSAI/backyard/tree/v0.1.8
 [0.1.7]: https://github.com/AIJSAI/backyard/tree/v0.1.7
