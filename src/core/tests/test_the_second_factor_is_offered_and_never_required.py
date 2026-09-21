@@ -159,22 +159,22 @@ def test_a_side_admin_is_not_told_their_sign_in_opens_every_side(
 ) -> None:
     """R2-4. The card said "You look after this Backyard, so your sign-in opens every side
     of the family" to whoever opened the roster — and this admin's sign-in does not.
-    `permissions.can_manage_member` stops them at what they can see, and the roster itself
-    tells them so, one line under every row it will not let them touch ("Outside what you
-    manage, so only <name> can change this").
+    `permissions.can_manage_member` stops well short of it, and the roster itself says so,
+    one line under every row it will not let them touch ("Outside what you manage, so only
+    <name> can change this").
 
-    Overstating what a password unlocks is not harmless urgency: the two relatives this
-    is written for can see the claim is wrong from the page it is printed on, and a
-    security prompt that is visibly wrong about you is one you learn to skip.
+    Overstating what a password unlocks is not harmless urgency: an admin can see the claim
+    is wrong from the page it is printed on, and a security prompt that is visibly wrong
+    about you is one you learn to skip.
 
     The SENTENCE changed on 2026-09-20 and the claim did not. "adds and removes members on
-    your side" was wrong for an admin whose own household belongs to both sides — one of
-    the two people this is written for — and it named a second side to the other. What is
-    true at either reach is what they can see.
+    your side" is wrong wherever an admin's own household belongs to more than one side of
+    the family, because then they already reach every one of them. The line now names the
+    CAPABILITY and stops; the row is where the limit is stated, per person.
     """
     prompt = _prompt(side_admin_client)
     assert "manages everyone" not in prompt, prompt
-    assert "adds and removes the members you can see" in prompt, prompt
+    assert "adds and removes members" in prompt, prompt
     assert "your side" not in prompt, prompt
 
 

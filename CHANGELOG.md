@@ -15,22 +15,29 @@ a point somebody deliberately stopped at, with a full green gate behind it.
 
 ### Changed
 
-- **The role a relative reads as "Side Admin" is "Admin".** One of the two people being
-  handed these controls lives in a household that belongs to both sides of the family, so
-  her reach already covers both and "Side Admin" was the wrong word for her; the other
-  manages one side. One word is honest for both, because an admin's reach is the ordinary
-  members they can see. The reach is now stated from where the reader stands rather than by
-  naming a side: the role key says "Adds and removes the members they can see. Cannot manage
-  another admin, or a member only the Family Admin can change.", the welcome and the
-  second-factor line say "the members you can see" instead of "on your side", and the row an
-  admin cannot act on says "Outside what you manage" rather than "Also on the other side",
-  which was the product telling a relative on one side that a second side exists. The Family
-  Admin keeps its name and its own pages still name both sides, because that reader can see
-  both. Labels and copy only: `yard_admin` is still the stored value, every permission
-  predicate is untouched, and the migration (`0034`) alters nothing but the words
-  (`sqlmigrate` emits a no-op between BEGIN and COMMIT). "Side Admin" is now a
-  retired word in `copy_scan.py`, the way "digest" is, so it cannot come back through a
-  template, a choice label, a role description or an email.
+- **The role a relative reads as "Side Admin" is "Admin".** An admin whose own household
+  belongs to more than one side of the family already reaches every one of them, so a role
+  named after a single side is wrong wherever that happens. One word is right at every
+  reach. A role sentence now names the capability and stops, rather than describing the
+  people it reaches: the role key says "Adds and removes members. Cannot change another
+  admin. Where a row has no controls, it says who can.", the welcome and the second-factor
+  line say "adds and removes members" instead of "on your side", and the row an admin
+  cannot act on says "Outside what you manage" rather than "Also on the other side", which
+  was the product telling a relative on one side that a second side exists. The set an
+  admin can act on is narrower than the set the roster shows them, so the limit is stated
+  on the row that carries it, per person, in words that name who can. The Family Admin's
+  key reads "Manages everyone, including the admins.": a relative promoted through the
+  roster manages people and does not run the box. The Family Admin keeps its name and its
+  own pages still say "both sides", because that reader can see every side. Those pages
+  hardcode two and the number of sides is data: tracked separately.
+  A child account's row now says "A child account, so their parent changes it." instead of
+  naming the Family Admin, which the permission matrix contradicts (TM-10).
+  Labels and copy only: `yard_admin` is still the stored value, every permission predicate
+  is untouched, and the migration (`0034`) alters nothing but the words (`sqlmigrate` emits
+  a no-op between BEGIN and COMMIT). "Side Admin" is now a retired word in `copy_scan.py`,
+  the way "digest" is, so it cannot come back through a template, a choice label, a role
+  description or an email — and the ban survives a line break, a stripped inline tag and
+  the code's own hyphen spelling, which it did not when it was first written.
 
 ## [0.2.0] — 2026-09-20
 

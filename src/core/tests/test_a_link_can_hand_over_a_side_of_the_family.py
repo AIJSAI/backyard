@@ -500,7 +500,7 @@ def test_the_welcomes_last_screen_points_a_new_admin_at_their_job(world: World) 
     client.force_login(user, backend=_BACKEND)
     html = client.get(reverse("welcome_hello")).content.decode()
 
-    line = "You are an Admin. You can add and remove the members you can see."
+    line = "You are an Admin. You can add and remove members."
     assert line in _text(html), _text(html)[:1200]
     # The two destinations, asserted on the raw markup: a pointer with no route is a
     # sentence, and the point of the line is that it is one tap from where they landed.
@@ -669,6 +669,6 @@ def test_an_admin_is_told_what_their_role_lets_them_do(world: World) -> None:
     client.force_login(world.side_admin.user, backend=_BACKEND)
     body = _text(client.get(reverse("welcome_hello")).content.decode())
 
-    line = "You are an Admin. You can add and remove the members you can see."
+    line = "You are an Admin. You can add and remove members."
     assert line in body, body[:1200]
     assert "You are a Family Admin" not in body

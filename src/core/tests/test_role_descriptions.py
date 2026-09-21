@@ -24,7 +24,7 @@ import pathlib
 
 import pytest
 
-from core import permissions, pods
+from core import permissions, pods, scoping
 from core.models import Member, Pod, PodMembership, Yard
 
 pytestmark = pytest.mark.django_db
@@ -111,16 +111,19 @@ def test_the_roster_no_longer_offers_a_role_that_does_nothing(side: Yard) -> Non
 
 
 def test_the_yard_admin_description_is_true_on_all_three_of_its_claims(side: Yard) -> None:
-    """The longest promise on the page, so the one most worth exercising: manages the
-    ordinary members it can see, cannot touch an admin, cannot touch a bridging member.
+    """The longest promise on the page, so the one most worth exercising. The sentence has
+    three parts and each is checked against the code: the first names the CAPABILITY (this
+    role adds and removes members), the second names the one refusal worth stating in prose
+    (never another admin, so no privilege inversion), and the third points at the roster
+    row, which is where every other limit — a bridging member, a child, yourself — is
+    already explained per person in words that name who can.
 
-    THE SENTENCE MOVED ON 2026-09-20, THE THREE CLAIMS DID NOT. It read "only on their own
-    side of the family. Cannot manage an admin, or anyone who also belongs to the other
-    side" — which states this role's reach by naming a side the reader may not be able to
-    see, and is wrong for an admin whose own household belongs to both. So the reach is now
-    stated from where the reader stands, and the bridging refusal is named the way the
-    roster itself names it on those rows ("only <the family admin> can change this"). All
-    three behaviours are still exercised below, against the real predicate.
+    THE SENTENCE HAS MOVED TWICE ON 2026-09-20 AND THE CAPABILITY HAS NOT. It read "only on
+    their own side of the family. Cannot manage an admin, or anyone who also belongs to the
+    other side", which states the reach by naming a side the reader may not be able to see.
+    Its first replacement said "the members they can see", and that was measured wrong in
+    the other direction: the visible set is strictly wider than the manageable one, which
+    the assertions below now pin rather than argue.
     """
     other = Yard.objects.create(name="Paternal", slug="paternal")
     admin = _member(side, Member.YARD_ADMIN, name="Yard Admin")
@@ -133,14 +136,18 @@ def test_the_yard_admin_description_is_true_on_all_three_of_its_claims(side: Yar
     PodMembership.objects.create(member=bridger, pod=bridge)
 
     text = Member.ROLE_DESCRIPTIONS[Member.YARD_ADMIN]
-    assert "Adds and removes the members they can see" in text
+    assert "Adds and removes members" in text
     assert permissions.can_manage_member(admin, same_side), "cannot manage their own side"
     # "Cannot touch an admin" until the copy pass of 2026-09-19: "touch" is an idiom, and
     # the guide says say the literal thing. The claim is identical; the word is not.
-    assert "Cannot manage another admin" in text
+    assert "Cannot change another admin" in text
     assert not permissions.can_manage_member(admin, an_admin), "privilege inversion"
-    assert "only the Family Admin can change" in text
+    assert "Where a row has no controls, it says who can" in text
     assert not permissions.can_manage_member(admin, bridger), "reached a bridging member"
+    # The visible set is wider than the manageable one, which is the whole reason the
+    # roster rows explain themselves. Measured rather than asserted from the prose.
+    visible = set(scoping.visible_members(admin).values_list("pk", flat=True))
+    assert {an_admin.pk, bridger.pk} <= visible, "the key describes rows that are on screen"
     # And the retired wording cannot grow back on the one surface that prints it.
     assert "other side" not in text, "the role key names a side the reader may not have"
 
@@ -153,12 +160,16 @@ def test_the_instance_admin_description_is_true_they_reach_everyone(side: Yard) 
     far = Member.objects.create(display_name="Far Cousin", role=Member.MEMBER)
     PodMembership.objects.create(member=far, pod=far_pod)
 
-    # "Manages anyone, on either side." until 2026-09-20. The claim is unchanged — this
-    # reader is the one person who sees every side — but the sentence read as the
-    # counterpart to a "Side Admin" that no longer exists, so what separates the two roles
-    # is now said plainly: everyone, plus the box.
-    assert "Manages everyone" in Member.ROLE_DESCRIPTIONS[Member.INSTANCE_ADMIN]
-    assert "runs this Backyard" in Member.ROLE_DESCRIPTIONS[Member.INSTANCE_ADMIN]
+    # "Manages anyone, on either side." until 2026-09-20, then "Manages everyone and runs
+    # this Backyard." for a few hours — which promised a thing the ROLE does not confer.
+    # A relative promoted here through the roster manages people; running the box is a
+    # server shell, and S-805 is the whole story of who holds one. What the sentence names
+    # instead is the one thing that separates this role from the other admin, and it is
+    # exercised on the line below.
+    text = Member.ROLE_DESCRIPTIONS[Member.INSTANCE_ADMIN]
+    assert "Manages everyone" in text
+    assert "including the admins" in text
+    assert "runs this Backyard" not in text, "the role key promises the server"
     assert permissions.can_manage_member(boss, far)
     a_yard_admin = _member(side, Member.YARD_ADMIN, name="A Yard Admin")
     assert permissions.can_manage_member(boss, a_yard_admin)
@@ -188,10 +199,17 @@ def test_the_descriptions_and_the_permission_matrix_have_not_drifted() -> None:
         # and invites — which neither the code nor reality granted — and stay green.
         "grants nothing",
         "pod.owner",
-        "only within their own yards",  # yard_admin, own side
-        "no privilege inversion",  # yard_admin, cannot touch an admin
-        "requires the instance admin",  # yard_admin, cannot touch a bridging member
-        "manages anyone",  # instance_admin
+        # yard_admin. The key stopped paraphrasing this rule BY NAME on 2026-09-20 — it no
+        # longer says "own side" to a reader who may have only one — but the rule is still
+        # what bounds "Adds and removes members", so a rewrite of it here still has to
+        # reach the sentence on the roster.
+        "only within their own yards",
+        "no privilege inversion",  # yard_admin, "Cannot change another admin"
+        "requires the instance admin",  # yard_admin, a bridging member: the row says who can
+        # The rule behind the third clause, and behind the roster row that carries it: a
+        # row with no controls is never a defect, it is one of these rules landing.
+        "no self-administration",
+        "manages anyone",  # instance_admin, "Manages everyone, including the admins"
         "no independent login",  # supervised
     ):
         assert phrase.lower() in matrix.lower(), (

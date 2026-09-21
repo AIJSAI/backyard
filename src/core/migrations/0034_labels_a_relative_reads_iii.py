@@ -1,11 +1,9 @@
 """Choice LABELS only — the words a person reads, never a stored value.
 
-One label: the role a relative reads as "Side Admin" is "Admin" (2026-09-20). One of the
-two people being handed these controls belongs to a household on both sides of the family,
-so her reach already covers both and "Side Admin" was the wrong word for her; the other
-manages one side. "Admin" is honest for both, because an admin's reach is the ordinary
-members they can see. It also stops the roster naming a second side to a relative who has
-no screen showing one.
+One label: the role a relative reads as "Side Admin" is "Admin" (2026-09-20). An admin
+whose own household belongs to more than one side of the family already reaches every one
+of them, so a role named after a single side is wrong wherever that happens. It also stops
+the roster naming a second side to a relative who has no screen showing one.
 
 STATE ONLY. `yard_admin` is untouched — it is what the database stores, what every
 permission predicate compares against, and what the `invite_grants_only_the_side_admin_role`

@@ -124,14 +124,12 @@ class Member(models.Model):
     # render as a badge on the roster and as the options in the role select, both of which
     # the owner's rule covers word for word.
     #
-    # "Side Admin" became "Admin" on 2026-09-20, and the reason is a person rather than a
-    # style: one of the two relatives being handed these controls lives in a household that
-    # belongs to BOTH sides, so her reach already covers both and "Side Admin" was simply
-    # the wrong word for her. The other manages one side. "Admin" is honest for both,
-    # because an admin's reach is the ordinary members they can see, whichever sides those
-    # members are on. It also stops the roster telling a relative on one side that another
-    # side exists. `yard_admin` is untouched: the VALUE is what every predicate compares
-    # against, and this is a copy pass.
+    # "Side Admin" became "Admin" on 2026-09-20. An admin whose own household belongs to
+    # more than one side of the family already reaches every one of them, so a role named
+    # after a single side is wrong wherever that happens. One word is right at every reach.
+    # It also stops the roster telling a relative on one side that another side exists.
+    # `yard_admin` is untouched: the VALUE is what every predicate compares against, and
+    # this is a copy pass.
     ROLE_CHOICES = [
         (MEMBER, "Member"),
         (POD_OWNER, "Group Owner"),
@@ -169,14 +167,18 @@ class Member(models.Model):
         # REACH IS STATED FROM WHERE THE READER STANDS (2026-09-20). This said "only on
         # their own side of the family. Cannot manage an admin, or anyone who also belongs
         # to the other side" — two sentences that only parse for somebody who knows a
-        # second side exists, printed for an admin who may not be able to see one. The
-        # capability is unchanged and still exercised on all three of its claims by
-        # test_role_descriptions.py; the second clause names the refusal the roster itself
-        # prints on those rows ("only <the family admin> can change this") instead of
-        # naming a side the reader may have no screen for.
+        # second side exists, printed for an admin who may not be able to see one.
+        #
+        # AND IT DOES NOT PROMISE A SET. "the members they can see" was the first
+        # replacement and it was measured wrong: the roster shows this role a peer admin, a
+        # bridging member and their own row, none of which they may act on
+        # (`permissions.can_manage_member`). So the first sentence names the CAPABILITY,
+        # the second names the one refusal worth stating in prose, and the third points at
+        # the row — which is where the limit is already explained, per person, in words that
+        # name who can.
         YARD_ADMIN: (
-            "Adds and removes the members they can see. Cannot manage another admin, "
-            "or a member only the Family Admin can change."
+            "Adds and removes members. Cannot change another admin. Where a row has no "
+            "controls, it says who can."
         ),
         # "This is the whole instance." was the second sentence here until 2026-09-19. It
         # was the only place in the product that used the word at a relative, and it told
@@ -184,11 +186,12 @@ class Member(models.Model):
         # of it.") restated the first sentence and went the same way in the copy pass: say
         # the thing once and stop.
         #
-        # "Manages anyone, on either side." until 2026-09-20: the reader of this one IS the
-        # person who sees every side, so the fact was true, but it read as the counterpart
-        # to a "Side Admin" that no longer exists. What separates the two roles now is
-        # reach plus the box itself.
-        INSTANCE_ADMIN: "Manages everyone and runs this Backyard.",
+        # "Manages anyone, on either side." until 2026-09-20, then "Manages everyone and
+        # runs this Backyard." for a few hours — which promised a thing the ROLE does not
+        # confer. A relative promoted here through the roster manages people; running the
+        # box is a server shell somebody else may hold (S-805). What actually separates the
+        # two admin roles is the one thing the other cannot do.
+        INSTANCE_ADMIN: "Manages everyone, including the admins.",
         SUPERVISED: "A managed account with no sign-in of its own. A parent edits it.",
     }
 

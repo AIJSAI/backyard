@@ -83,8 +83,9 @@ the home screen.
 choose a side of the family or a group when posting. A grandparent sees what their household
 sees.
 
-**Can I see the other side of the family?** No. The two sides never see each other. A
-household that belongs to both sides sees both, and neither side sees the other through it.
+**Can somebody outside my side of the family see my posts?** No. A side of the family is
+private to itself. A household that belongs to more than one side sees each of them, and
+nothing crosses between sides through that household.
 
 **Will it email me?** Only what a member turns on. Under **`Settings` → `Notifications`** they
 can ask for an email when someone replies to their post.
@@ -99,8 +100,8 @@ you no longer want.
 
 **Someone joined with the wrong name.** They can change it themselves under **`Settings`**. To
 do it for them, open **`Members`**, tap **Manage** on their row, then **Edit Profile**. That
-works for anyone on your own side. For someone who belongs to both sides, or for another
-admin, the control is not there and it is the Family Admin's job.
+works for the members you manage. Where the control is not there, the row on **`Members`**
+says so and names who can.
 
 That page shows their name, their nickname and their two dates, and nothing else. Their phone
 number, email address and home address are not shown to you and you cannot change them. Each
@@ -124,8 +125,8 @@ Whoever holds the link can set that password. It works once, it stops working af
 and making a new one cancels any earlier one. When they use it, they are signed out
 everywhere else.
 
-You see this control for members on your own side. Another admin, or somebody who belongs to
-both sides, is the Family Admin's to recover. An admin's own recovery needs the server, by
+You see this control for the members you manage. Anyone else is the Family Admin's to
+recover, and the row on **`Members`** says so. An admin's own recovery needs the server, by
 design.
 
 Worth doing before it happens: ask everyone on your side to add an email address under

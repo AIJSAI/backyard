@@ -161,7 +161,8 @@ class RosterRow:
     # ended after the name and the badge — no actions, and nothing saying why — so a side
     # admin looking at their sister's household could not tell whether the product was
     # broken, whether they had done something wrong, or whether this was deliberate. It is
-    # deliberate every time, and there are only three reasons, so the row says which.
+    # deliberate every time, and each reason is a rule somebody wrote down, so the row says
+    # which one landed (a fourth, the child account, was added on 2026-09-20).
     #
     # A KEY, not a sentence: the sentence names the family admin, and that name is resolved
     # at render time from the database by the `help_contact` context processor rather than
@@ -185,7 +186,7 @@ class RosterRow:
 def _no_actions_reason(
     actor: Member, member: Member, *, has_actions: bool, reachable_yard_ids: set[int]
 ) -> str:
-    """Which of the three reasons this row is read-only, or "" if it is not.
+    """Which reason this row is read-only, or "" if it is not.
 
     Ordered most-specific first, and each arm is a fact about THIS pair rather than a
     guess: a wrong explanation here is worse than none, because the admin would act on it.
@@ -194,6 +195,13 @@ def _no_actions_reason(
         return ""
     if member.pk == actor.pk:
         return "you"
+    if member.is_supervised:
+        # TM-10: a child account belongs to their managing parent, not to the family admin,
+        # so the catch-all "only <the family admin> can change this" is wrong here. This
+        # arm is only ever reached for somebody who is NOT the managing parent — the parent
+        # gets Edit Profile on the row through `can_edit_profile_of`, which makes
+        # `has_actions` true and returns "" above.
+        return "supervised"
     if member.role in (Member.YARD_ADMIN, Member.INSTANCE_ADMIN):
         return "admin"
     # The bridging case, and the one the walk actually hit: this person belongs to a
