@@ -18,8 +18,14 @@ public address. Fill in your own; nothing real belongs in a public runbook.
 
 - [ ] You can reach both machines.
 - [ ] You have the **`.env` from the old box**. It holds the three database passwords, the
-      backup passphrase and the mail credentials. Without it the archive is unreadable and
-      the family's history is gone — there is no key escrow.
+      backup passphrase, the mail credentials and, if this instance sends phone
+      notifications, the web-push key pair (`BACKYARD_VAPID_PUBLIC_KEY`,
+      `BACKYARD_VAPID_PRIVATE_KEY`, `BACKYARD_VAPID_SUBJECT`). Without it the archive is
+      unreadable and the family's history is gone — there is no key escrow. Step 2 copies
+      the file whole, so the pair comes with it and every phone that has notifications on
+      keeps them; a box rebuilt without the old `.env` has them off until you generate a
+      new pair (["Notifications on a phone"](self-host.md#notifications-on-a-phone)), and
+      then every relative turns them on again from Settings.
 - [ ] You know which **tag** the old box is running, and the new box will run the same one.
       A move and an upgrade at once gives you two suspects for one symptom.
 - [ ] You have done a **restore drill** (`backup-restore.md`) at least once, on any box. Do

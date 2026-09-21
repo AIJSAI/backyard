@@ -114,6 +114,11 @@ like "the stack is not running".
    That only works if the mount is in `docker-compose.prod.yml`, so unless you can see it
    there, use the `.env` line above.)*
 
+   *(If you still have the old `.env`, copy its three `BACKYARD_VAPID_*` lines across too
+   and phone notifications keep working. Without them notifications are off — everything
+   else restores — until you generate a new pair; see "Notifications on a phone" in
+   `docs/runbooks/self-host.md`.)*
+
 2. **Stream the archive in as the app user.** Do not use `docker compose cp`: it lands the
    file owned by the host's user and the container's unprivileged user cannot read it
    (`backup-restore.md`, "Getting the archive INTO the container").

@@ -364,6 +364,7 @@ none of it is an error, and all of it will look like one.
 | Everyone's session | Flushed | Everybody is signed out |
 | Invites minted since the backup | Gone | Whoever was mid-join |
 | **Members removed since the backup** | **Come back** | The removed person and everyone who can see them |
+| Phone notifications | Keep working if the box has the **old `.env`**; off instance-wide if it does not | Everybody who turned them on |
 
 The first four are one mechanism: a restore bumps every `Member.token_generation`,
 and every derived credential carries the generation it was minted under (ADR-003
@@ -379,6 +380,29 @@ afterwards and check the roster before telling anyone the instance is up.
 
 Mint fresh elder links for every grandparent as part of the restore, not after
 somebody reports that theirs is broken.
+
+**Notifications are the one thing that depends on a file the archive does not
+hold.** Web push signs every notification with a VAPID key pair
+(`BACKYARD_VAPID_PUBLIC_KEY`, `BACKYARD_VAPID_PRIVATE_KEY`,
+`BACKYARD_VAPID_SUBJECT`), those three lines live in `.env`, and `.env` is not in
+a backup. Restore onto a box carrying the **old `.env`** and every phone keeps
+working untouched: the registrations come back with the database and each one was
+made with that same public key.
+
+Restore **without** the old pair — the box and its `.env` are both gone — and
+notifications are simply off. Nothing is sent, and the Notifications page in
+Settings says they are not set up on this Backyard. To bring them back, generate a
+new pair on the box (`generate_vapid_keys`, then the three lines into `.env`, then
+restart **web and worker** — the command block is under ["Notifications on a
+phone"](self-host.md#notifications-on-a-phone)). Every registration in the
+restored database was made with the OLD public key, so each relative turns
+notifications on again from Settings — which does the tidying itself: the page
+notices that the phone's registration was made with a different key, clears it,
+and offers **Turn On Notifications**. Meanwhile the server drops a stale row after
+five consecutive refusals from the push service, so nothing accumulates.
+
+Nothing else depends on the pair: posts, photographs, members and Email Updates
+all restore and work exactly as they did.
 
 ### Getting the archive INTO the container
 
