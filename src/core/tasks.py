@@ -241,10 +241,13 @@ def notify_reply_task(comment_id: int) -> None:
 # The two web-push jobs (S-107). Same shape as everything above: they carry an id and
 # nothing else, and re-resolve the post, the audience and every preference live at run
 # time (TS-DJ-11), so a post deleted or a member removed between the write and the tick
-# sends nothing. They run on the `push` queue so a slow push service cannot delay a
-# transcode, and neither ever raises: `push.send_one` turns every push-service error into
-# a counted failure or a deleted row, because a failing notification must not be retried
-# into a second notification on somebody's lock screen.
+# sends nothing. They are NAMED onto a `push` queue so a future deployment can give them
+# their own worker, but the shipped compose runs ONE worker at concurrency 1 across every
+# queue -- so a hanging push service WOULD hold a transcode behind it, and what actually
+# bounds that is `push.DELIVERY_BUDGET`, not the queue name. Neither job ever raises:
+# `push.send_one` turns every push-service error into a counted failure or a deleted row,
+# because a failing notification must not be retried into a second notification on
+# somebody's lock screen.
 @app.task(name="push_new_post", queue="push")
 def push_new_post_task(post_id: int) -> None:
     """Notify everyone who may see a just-written post (S-107)."""

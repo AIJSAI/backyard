@@ -342,6 +342,13 @@ Then restart both services, because the worker is what sends:
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
+**One worker sends everything.** The compose worker runs a single process at concurrency
+1 across every queue, so a push service that stops answering would otherwise hold the
+transcodes, the email updates and the nightly backup behind it. A whole fan-out is
+therefore budgeted at two minutes; past that the remaining phones are skipped for that
+one post and picked up by the next one. Nothing is deleted and no device is penalised for
+a slow service.
+
 **What a relative does.** Settings, Notifications, Turn On Notifications, then the phone's
 own permission prompt. On an **iPhone this only works inside the home-screen app** — Apple
 grants web push to an installed web app and not to a Safari tab — so the install comes

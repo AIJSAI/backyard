@@ -23,6 +23,7 @@ import base64
 import json
 import logging
 import secrets as stdlib_secrets
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -33,7 +34,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from core import commenting, notifications, posting, push, reacting
+from core import commenting, notifications, posting, push, push_endpoints, reacting
 from core.management.commands.generate_vapid_keys import generate_pair
 from core.models import (
     Comment,
@@ -655,6 +656,89 @@ def test_one_dead_device_never_stops_the_others(family: Family, push_on: None, w
     for survivor in (alive_one, alive_two):
         survivor.refresh_from_db()
         assert survivor.last_success_at is not None
+
+
+def test_the_fan_out_stops_at_its_budget_without_punishing_anybody(
+    family: Family, push_on: None, wire: Wire, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A hanging push service must not hold the whole worker.
+
+    docker-compose runs ONE Procrastinate worker at concurrency 1 across every queue, so a
+    service that black-holes costs SEND_TIMEOUT twice per device, serially, with the
+    transcode, the digest and the nightly BACKUP waiting behind it. Past the budget the
+    remaining devices are simply skipped, and skipped is not failed: a slow service is not
+    a dead one, so nothing is deleted, no failure is counted, and the next post reaches
+    them.
+
+    The clock is stubbed rather than the sleep, so the test costs nothing: the first
+    device is inside the budget and every device after it is past it.
+    """
+    for label in ("iPhone", "Mac", "Android"):
+        _a_device(family.bridge, label=label)
+    post = posting.create_post(
+        author=family.maternal,
+        pod=family.maternal_pod,
+        audience_yards=[family.maternal_yard],
+        body="Something",
+    )
+    # Patched on `time` itself, not on `push.time`: strict mypy refuses to treat a
+    # module's imports as its exported attributes, and `core.push` reads `time.monotonic`
+    # through the same module object either way.
+    ticks = iter([0.0, 0.0, push.DELIVERY_BUDGET + 1, push.DELIVERY_BUDGET + 2])
+    monkeypatch.setattr(time, "monotonic", lambda: next(ticks))
+
+    assert push.deliver_new_post(post) == 1  # the first device only
+    assert len(wire.calls) == 1
+    assert PushSubscription.objects.filter(member=family.bridge).count() == 3
+    for skipped in PushSubscription.objects.filter(member=family.bridge):
+        assert skipped.failure_count == 0, "a device that was never tried was counted against"
+
+
+def test_one_session_serves_the_whole_fan_out_and_still_validates_every_request(
+    family: Family, push_on: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One TLS handshake for a family, not one per phone — and the SSRF control unchanged.
+
+    The endpoint is re-validated inside `PushServiceSession.request`, so reusing the
+    session across devices weakens nothing: every request still passes the allowlist. This
+    asserts both halves, because the cheap version of this change (share the session) is
+    exactly the one that would be wrong if the validation had lived in the constructor.
+    """
+    for label in ("iPhone", "Mac", "Android"):
+        _a_device(family.bridge, label=label)
+    post = posting.create_post(
+        author=family.maternal,
+        pod=family.maternal_pod,
+        audience_yards=[family.maternal_yard],
+        body="Something",
+    )
+    sessions_used: list[int] = []
+    validated: list[str] = []
+    real_validate = push_endpoints.validate_endpoint
+
+    def counting_validate(raw: str) -> str:
+        validated.append(raw)
+        return real_validate(raw)
+
+    def fake_request(
+        self: requests.Session, method: str, url: str, **kwargs: Any
+    ) -> requests.Response:
+        sessions_used.append(id(self))
+        response = requests.Response()
+        response.status_code = 201
+        response.url = url
+        response._content = b""
+        return response
+
+    monkeypatch.setattr(push_endpoints, "validate_endpoint", counting_validate)
+    monkeypatch.setattr(requests.Session, "request", fake_request)
+
+    assert push.deliver_new_post(post) == 3
+    assert len(set(sessions_used)) == 1, "a session was built per device"
+    # Twice per device: once in send_one before the call, once inside the session on the
+    # request that actually goes out. The second is the one that survives a row edited at
+    # a database shell.
+    assert len(validated) == 6
 
 
 def test_a_transport_exception_is_a_counted_failure_not_a_crash(

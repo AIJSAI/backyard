@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any
 
 import requests
@@ -60,6 +61,13 @@ logger = logging.getLogger(__name__)
 # concurrency 1 (docker-compose), so a hanging service must not hold the queue: ten
 # seconds is generous for a request that is one small POST and no body to read.
 SEND_TIMEOUT = 10
+# The budget for a WHOLE fan-out, not for one device. The worker is one process at
+# concurrency 1 over every queue (docker-compose), so without this a push service that
+# hangs costs SEND_TIMEOUT twice -- connect and read -- for every device in the family,
+# with the transcode, digest and nightly BACKUP jobs waiting behind it. Past the budget
+# the remaining devices are simply not tried: nothing is deleted and no failure is
+# counted, because a slow service is not a dead one, and the next post notifies them.
+DELIVERY_BUDGET = 120
 # Consecutive non-404/410 failures before the row is dropped. A push service that has
 # been refusing for five posts in a row is either gone or has rotated the endpoint
 # without telling us, and a row that never delivers is a row that only ever costs a
@@ -273,7 +281,12 @@ def _vapid() -> Vapid01:
     return Vapid01.from_string(private_key=settings.VAPID_PRIVATE_KEY)
 
 
-def send_one(subscription: PushSubscription, payload: dict[str, str]) -> bool:
+def send_one(
+    subscription: PushSubscription,
+    payload: dict[str, str],
+    *,
+    session: PushServiceSession | None = None,
+) -> bool:
     """Push one payload to one device. Never raises; returns whether it landed.
 
     THE FAILURE RULES, which are the reason this returns rather than raises:
@@ -306,7 +319,7 @@ def send_one(subscription: PushSubscription, payload: dict[str, str]) -> bool:
             # it comes back; the tag means a week of replies is still one entry.
             ttl=7 * 24 * 60 * 60,
             timeout=SEND_TIMEOUT,
-            requests_session=PushServiceSession(),
+            requests_session=session or PushServiceSession(),
         )
     except WebPushException as exc:
         return _failed(subscription, status=exc.status_code)
@@ -348,9 +361,22 @@ def _failed(subscription: PushSubscription, *, status: int | None) -> bool:
 
 
 def _deliver(members: list[Member], payload: dict[str, str]) -> int:
-    """Push one payload to every device of every recipient, isolating each failure."""
-    devices = PushSubscription.objects.filter(member__in=members)
-    return sum(1 for device in devices if send_one(device, payload))
+    """Push one payload to every device of every recipient, isolating each failure.
+
+    ONE session for the whole fan-out rather than one per device: the endpoint is
+    re-validated on every request (PushServiceSession.request), so the control is
+    unchanged, and a family-sized send stops paying a TLS handshake per phone.
+    """
+    session = PushServiceSession()
+    started = time.monotonic()
+    delivered = 0
+    for device in PushSubscription.objects.filter(member__in=members):
+        if time.monotonic() - started > DELIVERY_BUDGET:
+            logger.warning("push: delivery budget spent; some devices were not tried")
+            break
+        if send_one(device, payload, session=session):
+            delivered += 1
+    return delivered
 
 
 def deliver_new_post(post: Post) -> int:
