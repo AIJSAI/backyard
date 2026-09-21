@@ -107,7 +107,12 @@ def digest_post_view(request: HttpRequest, token: str, post_id: int) -> HttpResp
     # guard already returned rather than re-fetching it, so there is exactly one path
     # through require_visible_post and no second query that could disagree with it.
     prefetch_related_objects([post], _GALLERY)
-    if not digest_links.issue_posts(resolved.issue).filter(pk=post.pk).exists():
+    # The whole window, not just its entries (#208): the arrival cards dropped out of what
+    # a message LISTS, and the messages already in relatives' inboxes link to the ones they
+    # listed for three weeks after they were sent. The ceiling is unchanged — this member,
+    # this yard, this window, resolved live — so a still-valid link keeps opening a post its
+    # holder can see in their own feed rather than answering with the guard's 404.
+    if not digest_links.issue_slice(resolved.issue).filter(pk=post.pk).exists():
         raise Http404
     comments = (
         scoping.visible_comments(resolved.member)

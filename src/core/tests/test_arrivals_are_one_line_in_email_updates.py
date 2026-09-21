@@ -387,12 +387,10 @@ def test_the_feed_still_shows_the_card_the_message_leaves_out(world: World) -> N
 
 
 def test_the_web_copy_carries_the_same_line(world: World) -> None:
-    """The signed-out copy of one message at /d/ says what the message said. It is also
-    where the mark's second effect shows: an arrival card is not an entry on the page and
-    its deep link is not part of the issue, so nothing there links to one."""
+    """The signed-out copy of one message at /d/ says what the message said: the arrival
+    card is not an entry on the page either, and the joined line is."""
     _post(world.maternal_cousin, world.m_pod, "REAL-BODY")
-    joiner = _joins(world.m_pod, "Rose Reed")
-    card = Post.objects.get(author=joiner)
+    _joins(world.m_pod, "Rose Reed")
     issue = _issue(world, world.maternal_cousin, world.maternal)
     token = digest_links.mint(issue)
 
@@ -403,7 +401,25 @@ def test_the_web_copy_carries_the_same_line(world: World) -> None:
     assert "Joined this week: Rose." in " ".join(html.split())
     assert "REAL-BODY" in html
     assert posting.ARRIVAL_BODY not in html
-    assert Client().get(f"/d/{token}/posts/{card.id}/").status_code == 404
+
+
+def test_a_link_from_a_message_sent_before_this_change_still_opens(world: World) -> None:
+    """The messages already in relatives' inboxes listed the arrival cards and link to
+    them, and those links live for three weeks. Dropping the cards from what a message
+    lists must not turn a link somebody already has into the guard's 404 for a post they
+    can see in their own feed. The ceiling is unchanged: the window, the yard, the guard."""
+    _post(world.maternal_cousin, world.m_pod, "REAL-BODY")
+    joiner = _joins(world.m_pod, "Rose Reed")
+    card = Post.objects.get(author=joiner)
+    token = digest_links.mint(_issue(world, world.maternal_cousin, world.maternal))
+
+    assert Client().get(f"/d/{token}/posts/{card.id}/").status_code == 200
+
+    # The ceiling itself, unmoved: the other side's arrival is still a 404 through it.
+    theirs = _joins(world.p_pod, "Priya Reed")
+    assert (
+        Client().get(f"/d/{token}/posts/{Post.objects.get(author=theirs).id}/").status_code == 404
+    )
 
 
 # --- the 0034 backfill ----------------------------------------------------------------

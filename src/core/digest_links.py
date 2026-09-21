@@ -108,7 +108,7 @@ def in_yard_posts_q(yard_id: int) -> models.Q:
     )
 
 
-def _window_slice(
+def window_slice(
     member: Member,
     yard_id: int,
     window_start: datetime.datetime,
@@ -116,9 +116,16 @@ def _window_slice(
 ) -> models.QuerySet[Post]:
     """Everything one (member, yard, window) slice covers, arrival cards included.
 
-    The audience half of the definition, in one place: the two public windows below
-    differ only in which kind of post they keep, so neither can drift into a second
-    idea of what this member may see in this yard over these days.
+    The audience half of the definition, in one place: the two windows below differ
+    only in which kind of post they keep, so neither can drift into a second idea of
+    what this member may see in this yard over these days.
+
+    This, not `window_posts`, is the CAPABILITY CEILING a digest token opens onto
+    (digest_views.digest_post_view). An arrival card is no longer an entry in the
+    message, but the messages already sitting in relatives' inboxes link to the ones
+    they listed, those links live for three weeks, and a post the reader can see in
+    their own feed must not answer a still-valid link with the guard's 404. What
+    changed is what a message SAYS, not what its holder may read.
     """
     return (
         scoping.visible_posts(member)
@@ -149,7 +156,7 @@ def window_posts(
     so it still sends nothing at all. "If nobody posted, nothing is sent" is what
     How It Works promises a family, and somebody joining is not somebody posting.
     """
-    return _window_slice(member, yard_id, window_start, window_end).filter(is_arrival=False)
+    return window_slice(member, yard_id, window_start, window_end).filter(is_arrival=False)
 
 
 def window_arrivals(
@@ -165,7 +172,7 @@ def window_arrivals(
     ever name people they already know about. A member on one side of a bridging
     household never learns a name from the other side through it.
     """
-    return _window_slice(member, yard_id, window_start, window_end).filter(is_arrival=True)
+    return window_slice(member, yard_id, window_start, window_end).filter(is_arrival=True)
 
 
 def issue_posts(issue: DigestIssue) -> models.QuerySet[Post]:
@@ -185,6 +192,11 @@ def issue_posts(issue: DigestIssue) -> models.QuerySet[Post]:
 def issue_arrivals(issue: DigestIssue) -> models.QuerySet[Post]:
     """The arrival cards one issue covers, resolved live (the mirror of issue_posts)."""
     return window_arrivals(issue.member, issue.yard_id, issue.window_start, issue.window_end)
+
+
+def issue_slice(issue: DigestIssue) -> models.QuerySet[Post]:
+    """Everything one issue's window covers: what its token may open, entry or not."""
+    return window_slice(issue.member, issue.yard_id, issue.window_start, issue.window_end)
 
 
 def issue_arrival_names(issue: DigestIssue) -> tuple[str, ...]:
