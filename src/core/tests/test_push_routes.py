@@ -13,11 +13,13 @@ exempted would pass a whole suite silently.
 from __future__ import annotations
 
 import json
+import logging
 import secrets
 from typing import Any
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError
 from django.test import Client
 from django.urls import reverse
 
@@ -206,17 +208,32 @@ def test_re_subscribing_the_same_device_is_not_a_new_device(push_on: None) -> No
     assert PushSubscription.objects.filter(member=member).count() == 1
 
 
-def test_a_phone_that_changed_hands_follows_the_new_sign_in(push_on: None) -> None:
+def test_a_phone_that_changed_hands_follows_the_new_sign_in(
+    push_on: None, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """One browser profile has one registration, so an existing row for this endpoint
     means this same profile was somebody else's. The row must follow the sign-in, or the
-    next notification for the old member lands on a phone somebody else is holding."""
+    next notification for the old member lands on a phone somebody else is holding.
+
+    It is still one member's row disappearing from another member's act, so it is written
+    down — redacted, because the endpoint is a capability (T-PUSH-2). `propagate` is
+    forced on because settings.LOGGING deliberately routes the whole `core` logger to the
+    redacting handler and nowhere else, so caplog's root handler never sees it.
+    """
+    monkeypatch.setattr(logging.getLogger("core"), "propagate", True)
     first = _member("Ann Poster")
     second = _member("Bo Poster")
     body = a_valid_subscription_body()
     assert _post(_signed_in(first), "push_subscribe", body).status_code == 200
-    assert _post(_signed_in(second), "push_subscribe", body).status_code == 200
+    with caplog.at_level(logging.INFO, logger="core.push_views"):
+        assert _post(_signed_in(second), "push_subscribe", body).status_code == 200
     assert not PushSubscription.objects.filter(member=first).exists()
     assert PushSubscription.objects.filter(member=second).count() == 1
+
+    written = "\n".join(record.getMessage() for record in caplog.records)
+    assert "reassigned" in written, "a row moving between members was not recorded"
+    assert body["endpoint"].rsplit("/", 1)[-1] not in written  # the capability is redacted
+    assert "fcm.googleapis.com" in written  # the useful half is kept
 
 
 def test_a_host_typed_in_another_case_is_the_same_device(push_on: None) -> None:
@@ -246,6 +263,50 @@ def test_unsubscribe_normalises_before_it_filters(push_on: None) -> None:
     shouted = body["endpoint"].replace("fcm.googleapis.com", "FCM.GoogleAPIs.com")
     assert _post(_signed_in(member), "push_unsubscribe", {"endpoint": shouted}).status_code == 200
     assert not PushSubscription.objects.exists()
+
+
+def test_a_racing_subscribe_is_retried_rather_than_a_five_hundred(
+    push_on: None, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """D3: two requests carrying one endpoint both pass the delete before either commits.
+
+    The loser hits the unique index. Without the retry it is a 500 on a tap that actually
+    worked; with it, the second attempt's delete sees the winner's committed row and
+    removes it. The first attempt is failed here rather than raced with a second
+    connection, because the retry is what is under test, not Postgres.
+    """
+    member = _member()
+    body = a_valid_subscription_body()
+    real_create = PushSubscription.objects.create
+    attempts: list[int] = []
+
+    def create_once_then_conflict(**kwargs: Any) -> Any:
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise IntegrityError("duplicate key value violates unique constraint")
+        return real_create(**kwargs)
+
+    monkeypatch.setattr(PushSubscription.objects, "create", create_once_then_conflict)
+    response = _post(_signed_in(member), "push_subscribe", body)
+    assert response.status_code == 200
+    assert len(attempts) == 2
+    assert PushSubscription.objects.filter(member=member).count() == 1
+
+
+def test_a_subscribe_that_keeps_conflicting_is_refused_not_a_five_hundred(
+    push_on: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One retry, and then a sentence the member can read. An unhandled IntegrityError
+    here would be a 500 on the one control this whole feature is reached through."""
+    member = _member()
+
+    def always_conflict(**kwargs: Any) -> Any:
+        raise IntegrityError("duplicate key value violates unique constraint")
+
+    monkeypatch.setattr(PushSubscription.objects, "create", always_conflict)
+    response = _post(_signed_in(member), "push_subscribe", a_valid_subscription_body())
+    assert response.status_code == 400
+    assert response.json()["message"] == "That did not save. Try again."
 
 
 def test_a_supervised_account_cannot_subscribe(push_on: None) -> None:

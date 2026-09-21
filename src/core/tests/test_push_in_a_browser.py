@@ -254,6 +254,129 @@ def test_turning_them_off_again_removes_the_row(
         browser.close()
 
 
+def test_a_double_tap_makes_one_device_and_no_error(
+    live_server: Any, playwright: Playwright, settings: Any
+) -> None:
+    """A slow phone gets tapped twice. The page's in-flight guard is what stops the two
+    subscribes; the server's once-retried savepoint is the belt behind it. Either way the
+    member ends with one device and no failure sentence."""
+    cookie = _seed(settings)
+    browser, page = _page(playwright, live_server.url, cookie, allow=True)
+    try:
+        page.goto(f"{live_server.url}/settings/notifications/")
+        turn_on = page.get_by_role("button", name="Turn On Notifications")
+        expect(turn_on).to_be_visible()
+        # dispatchEvent rather than two taps: it fires both clicks in one task, which is
+        # what a double tap does and what a second tap after a reload would not.
+        page.evaluate(
+            """() => {
+              const b = document.querySelector('[data-push-on]');
+              b.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+              b.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            }"""
+        )
+        page.wait_for_function("() => !!document.querySelector('ul.devices')", timeout=15_000)
+        expect(page.locator("ul.devices > li")).to_have_count(1)
+        expect(page.get_by_text("That did not save.")).to_be_hidden()
+        assert PushSubscription.objects.count() == 1
+        _let_the_server_finish(page)
+    finally:
+        page.context.close()
+        browser.close()
+
+
+def test_a_row_the_server_forgot_is_re_announced_exactly_once(
+    live_server: Any, playwright: Playwright, settings: Any
+) -> None:
+    """D5: the browser's registration outlives the server's row.
+
+    A push service answering 404/410, a run of failed sends, or a removal all delete the
+    row while the phone keeps its registration — so the page would read ON with Your
+    Devices empty beside it. It re-announces, exactly once, and then settles.
+    """
+    cookie = _seed(settings)
+    browser, page = _page(playwright, live_server.url, cookie, allow=True)
+    try:
+        page.goto(f"{live_server.url}/settings/notifications/")
+        page.get_by_role("button", name="Turn On Notifications").tap()
+        page.wait_for_function("() => !!document.querySelector('ul.devices')", timeout=15_000)
+        assert PushSubscription.objects.count() == 1
+
+        # What a push service's 410 does, from the server's side only.
+        PushSubscription.objects.all().delete()
+        page.goto(f"{live_server.url}/settings/notifications/")
+        page.wait_for_function("() => !!document.querySelector('ul.devices')", timeout=15_000)
+        expect(page.locator("ul.devices > li")).to_have_count(1)
+        assert PushSubscription.objects.count() == 1
+
+        # ...and it SETTLES. One more load with the row present must not re-announce or
+        # reload again; a loop here would be a page a relative cannot read.
+        page.goto(f"{live_server.url}/settings/notifications/")
+        expect(
+            page.get_by_role("button", name="Turn Off Notifications On This Device")
+        ).to_be_visible()
+        page.wait_for_timeout(1200)
+        assert PushSubscription.objects.count() == 1
+        expect(page.locator("ul.devices > li")).to_have_count(1)
+        _let_the_server_finish(page)
+    finally:
+        page.context.close()
+        browser.close()
+
+
+# A registration the server will NOT take: the host is nobody's push service, so the real
+# subscribe route refuses it with the real message. Used to exercise the reload-loop guard
+# without stubbing the server's answer — `page.route` cannot see this fetch anyway, because
+# the page is controlled by the service worker and Playwright does not intercept a request
+# that passes through one.
+_A_REGISTRATION_THE_SERVER_REFUSES = """
+(() => {
+  // Granted, and a registration in hand: the two halves the page reads as "on". Added
+  // after _BROWSER_QUIRKS so this definition and this getSubscription are the live ones.
+  Object.defineProperty(Notification, 'permission', {
+    get: () => 'granted', configurable: true
+  });
+  const endpoint = 'https://not-a-push-service.example/x';
+  const subscription = {
+    endpoint,
+    toJSON: () => ({ endpoint, keys: { p256dh: 'AAAA', auth: 'BBBB' } }),
+    unsubscribe: async () => true
+  };
+  navigator.serviceWorker.ready.then((registration) => {
+    registration.pushManager.getSubscription = async () => subscription;
+  });
+})();
+"""
+
+
+def test_a_refused_re_announce_shows_the_off_state_instead_of_reloading_forever(
+    live_server: Any, playwright: Playwright, settings: Any
+) -> None:
+    """The reload-loop guard. A re-announce can be refused — the device cap, the feature
+    switched off between the two loads, a value the validator will not take — and a page
+    that reloads on refusal comes back, re-announces, is refused and reloads forever.
+
+    The refusal here is REAL: the browser is made to hold a registration on a host that is
+    not a push service, so `subscribe` answers its own 400 and nothing about the server is
+    stubbed. (It could not be stubbed from the page anyway: this page is controlled by the
+    service worker, and Playwright does not intercept a request that passes through one.)
+    """
+    cookie = _seed(settings)
+    browser, page = _page(playwright, live_server.url, cookie, allow=True)
+    page.context.add_init_script(_A_REGISTRATION_THE_SERVER_REFUSES)
+    try:
+        page.goto(f"{live_server.url}/settings/notifications/")
+        expect(page.get_by_text("That did not save.")).to_be_visible(timeout=15_000)
+        expect(page.get_by_role("button", name="Turn On Notifications")).to_be_visible()
+        expect(page.get_by_role("heading", name="Your Devices")).to_have_count(0)
+        page.wait_for_timeout(1500)  # long enough for a loop to have gone round twice
+        assert PushSubscription.objects.count() == 0
+        _let_the_server_finish(page)
+    finally:
+        page.context.close()
+        browser.close()
+
+
 def test_a_browser_that_refuses_permission_says_so_plainly(
     live_server: Any, playwright: Playwright, settings: Any
 ) -> None:

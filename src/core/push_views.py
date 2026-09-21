@@ -24,15 +24,19 @@ rejected, because that branch is where an IDOR usually survives review.
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.db import IntegrityError, transaction
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.http import require_POST
 
 from . import notifications, push_endpoints
 from .models import Member, PushSubscription
+
+logger = logging.getLogger(__name__)
 
 # One member, ten devices. A family member has a phone, maybe a tablet and a laptop; ten
 # is far above that and is a bound on what one account can make this server hold and POST
@@ -166,14 +170,36 @@ def subscribe(request: HttpRequest) -> HttpResponse:
     # Delete-then-create rather than update_or_create: `created_at` should say when THIS
     # member added THIS device, and a reassigned row carrying somebody else's date would
     # be the one piece of another member's history visible on this page.
-    PushSubscription.objects.filter(endpoint=endpoint).delete()
-    PushSubscription.objects.create(
-        member=member,
-        endpoint=endpoint,
-        p256dh=p256dh,
-        auth=auth,
-        label=device_label(request.META.get("HTTP_USER_AGENT", "")),
-    )
+    #
+    # The row may belong to SOMEBODY ELSE -- the family tablet somebody else signed in on
+    # -- and taking it is the right answer, because whoever holds the endpoint is whoever
+    # is holding that phone. It is still one member's row disappearing from another
+    # member's act, so it is written down (redacted: the endpoint is a capability).
+    if PushSubscription.objects.filter(endpoint=endpoint).exclude(member=member).exists():
+        logger.info(
+            "push: a device registered to another member was reassigned: %s",
+            push_endpoints.redact(endpoint),
+        )
+
+    # RETRIED ONCE on a unique violation. Two requests can carry the same endpoint at the
+    # same moment -- a double tap on a slow phone, two tabs -- and both pass the delete
+    # before either has committed its insert, so the loser hits the unique index and 500s
+    # on a tap that actually worked. Measured against a real Postgres with two connections.
+    # One retry is enough: once the winner has committed, the loser's delete sees the row
+    # and removes it. The inner atomic() is the savepoint that keeps the caught
+    # IntegrityError from poisoning the ATOMIC_REQUESTS transaction; it is load-bearing.
+    label = device_label(request.META.get("HTTP_USER_AGENT", ""))
+    for attempt in (1, 2):
+        try:
+            with transaction.atomic():
+                PushSubscription.objects.filter(endpoint=endpoint).delete()
+                PushSubscription.objects.create(
+                    member=member, endpoint=endpoint, p256dh=p256dh, auth=auth, label=label
+                )
+            break
+        except IntegrityError:
+            if attempt == 2:
+                return _refused("That did not save. Try again.")
     return JsonResponse({"ok": True})
 
 
