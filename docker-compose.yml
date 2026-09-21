@@ -99,6 +99,18 @@ services:
       EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
       EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
       EMAIL_USE_SSL: ${EMAIL_USE_SSL:-0}
+      # Web push (S-107), OPTIONAL and off when unset. BOTH services need the pair, for
+      # different halves: web renders the public key into Settings and validates a
+      # subscribe, and the WORKER is what actually sends — a pair passed to web alone
+      # would render a working button whose notifications never arrive, which is the exact
+      # silent failure config/push_guard.py refuses to boot on. Named here as well as
+      # documented, or compose's substitution-only .env leaves them inert.
+      BACKYARD_VAPID_PUBLIC_KEY: ${BACKYARD_VAPID_PUBLIC_KEY:-}
+      BACKYARD_VAPID_PRIVATE_KEY: ${BACKYARD_VAPID_PRIVATE_KEY:-}
+      BACKYARD_VAPID_SUBJECT: ${BACKYARD_VAPID_SUBJECT:-}
+      # Extra push-service hostnames, added to the built-in allowlist. Only for an
+      # operator running their own relay; see settings.PUSH_SERVICE_HOSTS.
+      BACKYARD_PUSH_SERVICE_HOSTS: ${BACKYARD_PUSH_SERVICE_HOSTS:-}
       # The backup passphrase (S-802). Documented in .env.example and the self-host
       # guide, and — like the EMAIL_* set before it — it did NOTHING until it was named
       # here: compose's .env is substitution-only. A keyfile is still the tighter option
@@ -198,6 +210,18 @@ services:
       EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
       EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
       EMAIL_USE_SSL: ${EMAIL_USE_SSL:-0}
+      # Web push (S-107), OPTIONAL and off when unset. BOTH services need the pair, for
+      # different halves: web renders the public key into Settings and validates a
+      # subscribe, and the WORKER is what actually sends — a pair passed to web alone
+      # would render a working button whose notifications never arrive, which is the exact
+      # silent failure config/push_guard.py refuses to boot on. Named here as well as
+      # documented, or compose's substitution-only .env leaves them inert.
+      BACKYARD_VAPID_PUBLIC_KEY: ${BACKYARD_VAPID_PUBLIC_KEY:-}
+      BACKYARD_VAPID_PRIVATE_KEY: ${BACKYARD_VAPID_PRIVATE_KEY:-}
+      BACKYARD_VAPID_SUBJECT: ${BACKYARD_VAPID_SUBJECT:-}
+      # Extra push-service hostnames, added to the built-in allowlist. Only for an
+      # operator running their own relay; see settings.PUSH_SERVICE_HOSTS.
+      BACKYARD_PUSH_SERVICE_HOSTS: ${BACKYARD_PUSH_SERVICE_HOSTS:-}
       # The worker takes the nightly backup (core/tasks.scheduled_backup_task), so the
       # passphrase has to reach THIS container too — it was passed to web only, and an
       # unset passphrase makes the scheduled backup refuse to run rather than quietly write
