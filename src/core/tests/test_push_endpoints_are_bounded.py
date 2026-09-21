@@ -82,6 +82,42 @@ def test_a_host_outside_the_allowlist_is_refused(endpoint: str) -> None:
         push_endpoints.validate_endpoint(endpoint)
 
 
+@pytest.mark.parametrize(
+    ("typed", "stored"),
+    [
+        ("https://FCM.googleapis.com/fcm/send/AbC", "https://fcm.googleapis.com/fcm/send/AbC"),
+        ("HTTPS://fcm.googleapis.com/fcm/send/AbC", "https://fcm.googleapis.com/fcm/send/AbC"),
+        ("https://Fcm.GoogleAPIs.Com/fcm/send/AbC", "https://fcm.googleapis.com/fcm/send/AbC"),
+        # The PATH is case-SENSITIVE and it IS the registration's identity, so it is left
+        # exactly as the browser minted it. Normalising it would merge two real devices.
+        ("https://fcm.googleapis.com/fcm/send/AbC", "https://fcm.googleapis.com/fcm/send/AbC"),
+        ("https://fcm.googleapis.com/fcm/send/abc", "https://fcm.googleapis.com/fcm/send/abc"),
+    ],
+)
+def test_the_scheme_and_host_come_back_lower_cased(typed: str, stored: str) -> None:
+    """Scheme and host are case-insensitive (RFC 3986); the unique index is not.
+
+    Returning the string as typed would let `https://FCM.googleapis.com/x` and
+    `https://fcm.googleapis.com/x` be two rows for one phone — exactly the "a device that
+    changed hands sits on two members' lists" case the unique constraint exists to make
+    impossible.
+    """
+    assert push_endpoints.validate_endpoint(typed) == stored
+
+
+def test_a_normalised_endpoint_survives_being_validated_again() -> None:
+    """The send path validates a STORED value, so normalisation has to be idempotent or
+    every second send of a re-cased endpoint would be refused."""
+    once = push_endpoints.validate_endpoint("https://FCM.googleapis.com/fcm/send/AbC")
+    assert push_endpoints.validate_endpoint(once) == once
+
+
+def test_the_query_and_fragment_survive_normalisation() -> None:
+    """WNS mints its endpoint with the registration in the query string."""
+    windows = "https://sin.notify.windows.com/w/?token=AbC%2Fd"
+    assert push_endpoints.validate_endpoint(windows) == windows
+
+
 def test_a_self_hoster_can_extend_the_allowlist(settings: pytest.FixtureRequest) -> None:
     """The documented extension point, proven to work and proven to be ADDITIVE.
 

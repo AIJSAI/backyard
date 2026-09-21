@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from django.conf import settings
 
@@ -125,7 +125,13 @@ def validate_endpoint(raw: str) -> str:
         raise UnsafeEndpoint("A subscription endpoint must name a push service, not an address.")
     if not _hostname_allowed(hostname):
         raise UnsafeEndpoint("That is not a push service this Backyard sends to.")
-    return endpoint
+    # NORMALISED, never returned as typed. Scheme and host are case-INSENSITIVE (RFC 3986)
+    # and the unique index is not, so returning the raw string lets
+    # `https://FCM.googleapis.com/x` and `https://fcm.googleapis.com/x` be two rows for one
+    # phone -- which is precisely the "a device that changed hands sits on two members'
+    # lists" case the unique constraint exists to make impossible. The PATH is left alone:
+    # it is case-sensitive and it IS the registration's identity.
+    return urlunsplit(("https", hostname, parts.path, parts.query, parts.fragment))
 
 
 def _validate_key(raw: str, *, what: str, max_length: int, expected_bytes: int) -> str:

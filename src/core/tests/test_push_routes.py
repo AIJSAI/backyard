@@ -219,6 +219,35 @@ def test_a_phone_that_changed_hands_follows_the_new_sign_in(push_on: None) -> No
     assert PushSubscription.objects.filter(member=second).count() == 1
 
 
+def test_a_host_typed_in_another_case_is_the_same_device(push_on: None) -> None:
+    """D2: scheme and host are case-insensitive and the unique index is not, so without
+    normalisation one phone reported twice is two rows — and on two members' lists, which
+    is the one thing the unique constraint exists to make impossible."""
+    first = _member("Ann Poster")
+    second = _member("Bo Poster")
+    body = a_valid_subscription_body()
+    assert _post(_signed_in(first), "push_subscribe", body).status_code == 200
+
+    shouted = dict(body)
+    shouted["endpoint"] = body["endpoint"].replace("fcm.googleapis.com", "FCM.GoogleAPIs.com")
+    assert _post(_signed_in(second), "push_subscribe", shouted).status_code == 200
+
+    assert PushSubscription.objects.count() == 1
+    assert PushSubscription.objects.get().member_id == second.pk
+    assert PushSubscription.objects.get().endpoint == body["endpoint"]
+
+
+def test_unsubscribe_normalises_before_it_filters(push_on: None) -> None:
+    """The sign-out path is the one where a row left behind keeps notifying a phone
+    somebody else is now holding, so a differently-cased host must still match."""
+    member = _member()
+    body = a_valid_subscription_body()
+    assert _post(_signed_in(member), "push_subscribe", body).status_code == 200
+    shouted = body["endpoint"].replace("fcm.googleapis.com", "FCM.GoogleAPIs.com")
+    assert _post(_signed_in(member), "push_unsubscribe", {"endpoint": shouted}).status_code == 200
+    assert not PushSubscription.objects.exists()
+
+
 def test_a_supervised_account_cannot_subscribe(push_on: None) -> None:
     child = _member("A Child", supervised=True)
     response = _post(_signed_in(child), "push_subscribe", a_valid_subscription_body())

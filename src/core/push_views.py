@@ -187,8 +187,13 @@ def unsubscribe(request: HttpRequest) -> HttpResponse:
     browser holds, not which row it is, and the whole point is that the next person
     holding the phone is not notified about this family.
 
-    Never validated against the allowlist, deliberately. This only ever DELETES, and an
-    endpoint that would fail validation is precisely a row that should go.
+    Never REFUSED on the allowlist, deliberately. This only ever DELETES, and an endpoint
+    that would fail validation is precisely a row that should go. It is still normalised
+    the same way `subscribe` normalises, because a stored row carries the normalised form
+    and a browser that reports its endpoint with a differently-cased host would otherwise
+    match nothing and leave the row behind — on the sign-out path, which is the one where
+    a leftover row keeps notifying somebody else's phone. A value that cannot be
+    normalised at all is deleted as typed, which is the same best-effort answer as before.
     """
     member = _member(request)
     try:
@@ -197,6 +202,10 @@ def unsubscribe(request: HttpRequest) -> HttpResponse:
         )
     except BadRequest as exc:
         return _refused(str(exc))
+    try:
+        endpoint = push_endpoints.validate_endpoint(endpoint)
+    except push_endpoints.UnsafeEndpoint:
+        pass  # delete whatever was stored under the raw value instead
     PushSubscription.objects.filter(member=member, endpoint=endpoint).delete()
     return JsonResponse({"ok": True})
 
