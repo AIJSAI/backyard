@@ -255,7 +255,7 @@ def test_the_family_admin_mints_one_and_the_page_says_what_it_does(world: World)
     assert invite.grants_role == Member.YARD_ADMIN
     # The side name is wrapped in <strong>, so the sentence is asserted up to it and the
     # rest on its own rather than with a tag-stripper's stray space inside the assertion.
-    assert "becomes the Side Admin for Maternal" in body, body[-1200:]
+    assert "becomes an Admin for Maternal" in body, body[-1200:]
     assert "Everyone after them joins as a member." in body
 
 
@@ -285,7 +285,7 @@ def test_a_household_on_both_sides_hands_over_both_and_says_so(world: World) -> 
         grants=True,
     )
     body = _text(response.content.decode())
-    assert "becomes the Side Admin for Maternal and Paternal" in body, body[-1200:]
+    assert "becomes an Admin for Maternal and Paternal" in body, body[-1200:]
 
     raw = _raw_token_from(response.content.decode())
     joined = invites.redeem_invite(raw, display_name="The Delegate", user_id=None)
@@ -466,14 +466,12 @@ def test_the_invite_ledger_says_which_links_carry_it_and_whether_it_was_taken(
     raw = _raw_token_from(response.content.decode())
 
     ledger = _text(_client_for(world.family_admin).get(reverse("member_invites")).content.decode())
-    assert "The first person to join with this link becomes the Side Admin." in ledger, ledger[
-        :1500
-    ]
+    assert "The first person to join with this link becomes an Admin." in ledger, ledger[:1500]
 
     invites.redeem_invite(raw, display_name="The Delegate", user_id=None)
 
     ledger = _text(_client_for(world.family_admin).get(reverse("member_invites")).content.decode())
-    assert "The Delegate joined first and is the Side Admin." in ledger, ledger[:1500]
+    assert "The Delegate joined first and is an Admin." in ledger, ledger[:1500]
 
 
 def test_an_ordinary_invite_says_nothing_about_a_role(world: World) -> None:
@@ -486,7 +484,7 @@ def test_an_ordinary_invite_says_nothing_about_a_role(world: World) -> None:
         grants=False,
     )
     ledger = _client_for(world.family_admin).get(reverse("member_invites")).content.decode()
-    assert "becomes the Side Admin" not in ledger
+    assert "becomes an Admin" not in ledger
 
 
 def test_the_welcomes_last_screen_points_a_new_admin_at_their_job(world: World) -> None:
@@ -502,7 +500,7 @@ def test_the_welcomes_last_screen_points_a_new_admin_at_their_job(world: World) 
     client.force_login(user, backend=_BACKEND)
     html = client.get(reverse("welcome_hello")).content.decode()
 
-    line = "You are a Side Admin. You can add and remove members on your side."
+    line = "You are an Admin. You can add and remove members."
     assert line in _text(html), _text(html)[:1200]
     # The two destinations, asserted on the raw markup: a pointer with no route is a
     # sentence, and the point of the line is that it is one tap from where they landed.
@@ -522,7 +520,7 @@ def test_an_ordinary_newcomer_is_not_shown_the_admin_line(world: World) -> None:
     client.force_login(user, backend=_BACKEND)
     body = client.get(reverse("welcome_hello")).content.decode()
 
-    assert "You are a Side Admin" not in body
+    assert "You are an Admin" not in body
 
 
 # --- the form survives its own errors ---------------------------------------------------
@@ -616,9 +614,9 @@ def test_a_dead_link_nobody_used_says_it_handed_out_nothing(world: World, kill: 
 
     ledger = _text(_client_for(world.family_admin).get(reverse("member_invites")).content.decode())
 
-    dead = "This link no longer works, and nobody used it, so nobody became Side Admin."
+    dead = "This link no longer works, and nobody used it, so nobody became an Admin."
     assert dead in ledger, ledger
-    assert "The first person to join with this link becomes the Side Admin." not in ledger
+    assert "The first person to join with this link becomes an Admin." not in ledger
 
 
 def test_a_dead_link_whose_role_was_taken_still_names_who_took_it(world: World) -> None:
@@ -632,16 +630,16 @@ def test_a_dead_link_whose_role_was_taken_still_names_who_took_it(world: World) 
 
     ledger = _text(_client_for(world.family_admin).get(reverse("member_invites")).content.decode())
 
-    assert "The Delegate joined first and is the Side Admin." in ledger, ledger
-    assert "nobody became Side Admin" not in ledger
+    assert "The Delegate joined first and is an Admin." in ledger, ledger
+    assert "nobody became an Admin" not in ledger
 
 
 def test_a_live_link_still_says_what_it_will_do(world: World) -> None:
     """The third state, so the branch above cannot swallow the live one."""
     invites.mint_invite(world.m_pod, world.family_admin, grants_role=Member.YARD_ADMIN)
     ledger = _text(_client_for(world.family_admin).get(reverse("member_invites")).content.decode())
-    assert "The first person to join with this link becomes the Side Admin." in ledger
-    assert "nobody became Side Admin" not in ledger
+    assert "The first person to join with this link becomes an Admin." in ledger
+    assert "nobody became an Admin" not in ledger
 
 
 # --- the welcome line is true of whoever reads it -----------------------------------------
@@ -660,15 +658,17 @@ def test_the_family_admin_is_not_told_they_look_after_one_side(world: World) -> 
 
     line = "You are a Family Admin. You can add and remove members on both sides."
     assert line in body, body[:1200]
-    assert "You are a Side Admin" not in body
+    assert "You are an Admin" not in body
 
 
-def test_a_side_admin_is_told_they_look_after_a_side(world: World) -> None:
+def test_an_admin_is_told_what_their_role_lets_them_do(world: World) -> None:
+    """Named for the line rather than for a side: "on your side" went on 2026-09-20,
+    because an admin whose household belongs to both sides reaches both."""
     assert world.side_admin.user is not None
     client = Client()
     client.force_login(world.side_admin.user, backend=_BACKEND)
     body = _text(client.get(reverse("welcome_hello")).content.decode())
 
-    line = "You are a Side Admin. You can add and remove members on your side."
+    line = "You are an Admin. You can add and remove members."
     assert line in body, body[:1200]
     assert "You are a Family Admin" not in body

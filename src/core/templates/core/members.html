@@ -118,8 +118,13 @@
        browser hoists it out on parse, which breaks the line it is meant to sit on.
        {% endcomment %}
     <aside class="second-factor-prompt">
+      {% comment %} "adds and removes members on your side" until 2026-09-20. An admin whose
+         own household belongs to more than one side of the family already reaches every one
+         of them, so a line named after a single side is wrong wherever that happens. The
+         sentence names the CAPABILITY, which is what this prompt is arguing about; the row
+         below is where the limit on it is stated, per person. {% endcomment %}
       <span>{% if is_instance_admin %}Your sign-in manages everyone, on both sides.{% else %}Your
-        sign-in adds and removes members on your side.{% endif %}
+        sign-in adds and removes members.{% endif %}
         {% comment %} One fact, one command, stop. This carried ": the fingerprint or face
            you already unlock your phone with, about a minute" — an explanation of a phone
            unlock to somebody holding a phone, and then a time estimate, which is
@@ -344,9 +349,22 @@
             {% if row.no_actions_reason == "you" %}
               This is your own account. Another admin has to change it.
             {% elif row.no_actions_reason == "other-side" %}
-              Also on the other side, so only
+              {% comment %} "Also on the other side" until 2026-09-20. This row is rendered
+                 for one reader only — an admin whose reach does not cover everyone in it —
+                 and it told them a second side of the family exists, which is the one
+                 thing the product must not say to somebody who cannot see one. The reason
+                 is now stated as what it is: this person is outside what the reader
+                 manages. The rule, the key and the person named are all unchanged.
+                 {% endcomment %}
+              Outside what you manage, so only
               {% if help_contact %}{{ help_contact }}{% else %}the Family Admin{% endif %}
               can change this.
+            {% elif row.no_actions_reason == "supervised" %}
+              {% comment %} The catch-all named the Family Admin here until 2026-09-20,
+                 which the permission matrix contradicts: a child account is their managing
+                 parent's (TM-10), and the parent is who an admin should be sent to.
+                 {% endcomment %}
+              A child account, so their parent changes it.
             {% elif row.no_actions_reason == "admin" %}
               An admin, so only
               {% if help_contact %}{{ help_contact }}{% else %}the Family Admin{% endif %}

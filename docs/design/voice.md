@@ -96,7 +96,7 @@ sentences:
 - deleting a post or a person's content is permanent and erases photos;
 - taking a post down is permanent and the author is not told;
 - a no-login link lets anyone holding it read and react as that person;
-- a hand-over link makes its FIRST joiner the side admin;
+- a hand-over link makes its FIRST joiner an admin;
 - a link is shown once and expires;
 - who can see a post before it is shared more widely.
 
@@ -145,7 +145,7 @@ sentences:
 | Choose how often you would like it, or choose No thanks. | Select a frequency. |
 | You can change this later under Settings, and every email we send has a link at the bottom that stops them. | Change this anytime in Settings. |
 | Only if you feel like it. Your household will see this. | Optional. Visible to your household. |
-| You look after a side of the family. | You are a Side Admin. You can add and remove members on your side. |
+| You look after a side of the family. | You are an Admin. You can add and remove members. (The owner's own rewrite was "You are a Side Admin. You can add and remove members on your side."; the role was renamed on 2026-09-20 and the clause naming a side went with it, see the glossary.) |
 | Confirming means we can send you a way back in if you ever forget your password, and it starts the Family email if one has been pointed at this address. | Confirm this address to use it for password reset. If it is your primary address and you turned on email updates at this address, they start once it is confirmed. (Longer than the owner's draft on purpose: a mail must say what its link does. Both halves are true: a reset link is mailed only to a confirmed address, and the link starts email updates only in that one case.) |
 | We have sent one email to that address. Tap the link in it and you are done. Check your spam folder if it is not in your inbox. | A confirmation email has been sent to \<address\>. Check your spam folder if it does not arrive. |
 | (password hint, several sentences) | Choose a memorable password. |
@@ -167,7 +167,7 @@ Use exactly these words.
 | its settings link | Email Updates | page title "Email Updates"; label "How Often" |
 | its e-mail subject | "New In \<Side\>: \<Mon D\> To \<Mon D\>" | built in `core/digest.py`; the side's own name is never re-cased. The body opens with the date range, no greeting |
 | the why-you-got-this line | "You are receiving this because Email Updates is on. Turn it off: \<link\>" | |
-| roles | Member, Side Admin, Family Admin | plainly: "Side Admin: adds and removes members on one side." "Family Admin: manages everyone and both sides." Never "look after" |
+| roles | Member, Admin, Family Admin | plainly: "Admin: adds and removes members. Cannot change another admin. Where a row has no controls, it says who can." "Family Admin: manages everyone, including the admins." Never "look after". **"Side Admin" was retired on 2026-09-20** and is banned in `copy_scan.py`, for two reasons: an admin whose own household belongs to more than one side of the family already reaches every one of them, so a role named after a single side is wrong wherever that happens; and the name told a reader on one side that a second side exists. A role sentence names the CAPABILITY and stops — not the set of people it reaches, which is narrower than the set on screen — and the roster row states the limit per person, in words that name who can |
 | the elder link | No-Login Link | |
 | the recovery link | Sign-In Link (admin-issued) | the admin's page is "Create A Sign-In Link" |
 | the password-reset control | "Forgot Your Password?" | on the sign-in page and on Change Your Password, and quoted by that name wherever a page or an error names it |

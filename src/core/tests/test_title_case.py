@@ -143,7 +143,7 @@ def test_the_guard_is_not_vacuous() -> None:
             '{% element button type="submit" style="width:100%" %}save changes{% endelement %}',
             "{% element button %}",
         ),
-        ('<span class="role">side admin</span>', "badge"),
+        ('<span class="role">family admin</span>', "badge"),
         ('<option value="x">no change</option>', "<option>"),
         # The shared e-mail layout draws the heading and the one button; each message
         # fills them from a child template, where the words have no element around them.
