@@ -188,6 +188,10 @@ def subscribe(request: HttpRequest) -> HttpResponse:
     # One retry is enough: once the winner has committed, the loser's delete sees the row
     # and removes it. The inner atomic() is the savepoint that keeps the caught
     # IntegrityError from poisoning the ATOMIC_REQUESTS transaction; it is load-bearing.
+    #
+    # The retry depends on READ COMMITTED, Django's default here: attempt 2's DELETE takes
+    # a fresh snapshot and sees the winner's committed row. Under REPEATABLE READ it would
+    # fail again.
     label = device_label(request.META.get("HTTP_USER_AGENT", ""))
     for attempt in (1, 2):
         try:
@@ -197,8 +201,12 @@ def subscribe(request: HttpRequest) -> HttpResponse:
                     member=member, endpoint=endpoint, p256dh=p256dh, auth=auth, label=label
                 )
             break
-        except IntegrityError:
-            if attempt == 2:
+        except IntegrityError as exc:
+            # The UNIQUE constraint only. The CHECK (`a_push_endpoint_is_https`) is also an
+            # IntegrityError and retrying it would answer "try again" to a value that can
+            # never be stored; `validate_endpoint` makes that unreachable from here, and
+            # this keeps it unreachable if it ever stops making it so.
+            if "one_row_per_browser_registration" not in str(exc) or attempt == 2:
                 return _refused("That did not save. Try again.")
     return JsonResponse({"ok": True})
 
@@ -268,6 +276,14 @@ def remove_device(request: HttpRequest) -> HttpResponse:
     doomed = PushSubscription.objects.filter(member=member, pk=raw).first()
     if doomed is None:
         return JsonResponse({"ok": True, "this_device": False})
+    # Normalised before the comparison, for the reason `unsubscribe` normalises: the
+    # stored row carries the normalised form, and a browser reporting a differently-cased
+    # host would otherwise be told this is not its own device -- leaving a live
+    # registration behind for a row that has just gone.
+    try:
+        here = push_endpoints.validate_endpoint(here) if here else here
+    except push_endpoints.UnsafeEndpoint:
+        pass  # compare as typed, which is what it would have done anyway
     this_device = bool(here) and doomed.endpoint == here
     doomed.delete()
     return JsonResponse({"ok": True, "this_device": this_device})

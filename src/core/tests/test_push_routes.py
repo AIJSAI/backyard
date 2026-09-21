@@ -283,7 +283,9 @@ def test_a_racing_subscribe_is_retried_rather_than_a_five_hundred(
     def create_once_then_conflict(**kwargs: Any) -> Any:
         attempts.append(1)
         if len(attempts) == 1:
-            raise IntegrityError("duplicate key value violates unique constraint")
+            raise IntegrityError(
+                'duplicate key value violates unique constraint "one_row_per_browser_registration"'
+            )
         return real_create(**kwargs)
 
     monkeypatch.setattr(PushSubscription.objects, "create", create_once_then_conflict)
@@ -301,12 +303,54 @@ def test_a_subscribe_that_keeps_conflicting_is_refused_not_a_five_hundred(
     member = _member()
 
     def always_conflict(**kwargs: Any) -> Any:
-        raise IntegrityError("duplicate key value violates unique constraint")
+        raise IntegrityError(
+            'duplicate key value violates unique constraint "one_row_per_browser_registration"'
+        )
 
     monkeypatch.setattr(PushSubscription.objects, "create", always_conflict)
     response = _post(_signed_in(member), "push_subscribe", a_valid_subscription_body())
     assert response.status_code == 400
     assert response.json()["message"] == "That did not save. Try again."
+
+
+def test_an_integrity_error_that_is_not_the_race_is_not_retried(
+    push_on: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The retry names one constraint and must catch only that one.
+
+    The https CHECK is an IntegrityError too, and retrying it would answer "try again" to
+    a value that can never be stored, whatever anybody does. `validate_endpoint` makes
+    that unreachable from this route today; this keeps it unreachable if it ever stops.
+    """
+    member = _member()
+    attempts: list[int] = []
+
+    def refuse_the_check(**kwargs: Any) -> Any:
+        attempts.append(1)
+        raise IntegrityError('new row violates check constraint "a_push_endpoint_is_https"')
+
+    monkeypatch.setattr(PushSubscription.objects, "create", refuse_the_check)
+    response = _post(_signed_in(member), "push_subscribe", a_valid_subscription_body())
+    assert response.status_code == 400
+    assert len(attempts) == 1, "a constraint that can never be satisfied was retried"
+
+
+def test_remove_device_knows_its_own_device_through_a_differently_cased_host(
+    push_on: None,
+) -> None:
+    """F-C: the stored row carries the normalised form. A browser reporting its endpoint
+    with a differently-cased host would otherwise be told this is not its own device,
+    which leaves a live registration behind for a row that has just gone."""
+    member = _member()
+    body = a_valid_subscription_body()
+    assert _post(_signed_in(member), "push_subscribe", body).status_code == 200
+    device = PushSubscription.objects.get(member=member)
+    shouted = body["endpoint"].replace("fcm.googleapis.com", "FCM.GoogleAPIs.com")
+    response = _post(
+        _signed_in(member), "push_remove_device", {"id": device.pk, "endpoint": shouted}
+    )
+    assert response.json() == {"ok": True, "this_device": True}
+    assert not PushSubscription.objects.exists()
 
 
 def test_a_supervised_account_cannot_subscribe(push_on: None) -> None:

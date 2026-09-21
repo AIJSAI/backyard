@@ -80,6 +80,15 @@ def test_the_worker_shows_a_notification_and_opens_the_post() -> None:
     assert "clients.matchAll" in body  # focus an open window before opening a new one
     assert "openWindow" in body
     assert "'/icon-192.png'" in body  # the icon the manifest already ships
+    # THE LINKAGE, which is what makes the guard in the next test worth anything: BOTH
+    # handlers must route the payload's url through `backyardPath`. A worker that checked
+    # the url on the way in and then opened `event.notification.data.url` raw would pass
+    # every other assertion here while opening whatever it was handed.
+    assert "data: { url: backyardPath(payload.url) }" in body
+    assert (
+        "const target = backyardPath(event.notification.data && event.notification.data.url);"
+        in body
+    )
 
 
 def test_the_worker_opens_only_a_same_origin_path() -> None:
