@@ -25,6 +25,7 @@ import logging
 import secrets as stdlib_secrets
 import time
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -766,6 +767,48 @@ def test_the_fan_out_stops_at_its_budget_without_punishing_anybody(
         assert skipped.failure_count == 0, "a device that was never tried was counted against"
 
 
+def test_the_budget_rotates_so_the_same_devices_are_not_starved_for_ever(
+    family: Family, push_on: None, wire: Wire, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The budget's own promise is "the next post notifies them", and that is only true if
+    the ORDER rotates.
+
+    Under `Meta.ordering = ["created_at"]` a device at the head of the list is at the head
+    of every fan-out, so the same tail is skipped on every post for ever — and D4 made a
+    hanging row immortal, because a timeout is never counted. Ordering by
+    `last_success_at` (nulls first) floats the devices the last send never reached to the
+    front of the next one.
+    """
+    devices = [_a_device(family.bridge, label=f"phone-{index}") for index in range(4)]
+    post = posting.create_post(
+        author=family.maternal,
+        pod=family.maternal_pod,
+        audience_yards=[family.maternal_yard],
+        body="Something",
+    )
+
+    # A budget that admits exactly two devices per fan-out: the clock is inside the
+    # budget for the first two checks and past it for everything after.
+    def two_at_a_time() -> Any:
+        ticks = [0.0, 0.0, 0.0, push.DELIVERY_BUDGET + 1, push.DELIVERY_BUDGET + 2]
+        stream = iter(ticks)
+        return lambda: next(stream)
+
+    monkeypatch.setattr(time, "monotonic", two_at_a_time())
+    assert push.deliver_new_post(post) == 2
+    first_round = set(wire.endpoints())
+
+    wire.calls.clear()
+    monkeypatch.setattr(time, "monotonic", two_at_a_time())
+    assert push.deliver_new_post(post) == 2
+    second_round = set(wire.endpoints())
+
+    assert first_round & second_round == set(), (
+        "the second fan-out reached the same devices as the first, so the tail is starved"
+    )
+    assert first_round | second_round == {device.endpoint for device in devices}
+
+
 def test_one_session_serves_the_whole_fan_out_and_still_validates_every_request(
     family: Family, push_on: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -834,6 +877,133 @@ def test_a_transport_exception_is_not_counted_against_the_device(
     device.refresh_from_db()
     assert device.failure_count == 0
     assert PushSubscription.objects.filter(pk=device.pk).exists()
+
+
+def test_a_row_the_allowlist_refuses_says_so_in_its_own_words(
+    family: Family,
+    push_on: None,
+    wire: Wire,
+    settings: Any,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The one refusal here that never heals by itself, and the only one an operator can
+    act on, so it is the only one at WARNING and the only one that names the setting.
+
+    Not counted and not deleted — deleting rows because somebody mistyped a setting is
+    exactly the blast radius `_failed` exists to refuse — but it will repeat on every post
+    until it is fixed, which is the thing a silent INFO line would hide.
+    """
+    monkeypatch.setattr(logging.getLogger("core"), "propagate", True)
+    device = _a_device(family.bridge)
+    settings.PUSH_SERVICE_HOSTS = ("updates.push.services.mozilla.com",)
+    with caplog.at_level(logging.INFO, logger="core.push"):
+        assert push.send_one(device, {"title": "t", "body": "b", "url": "/", "tag": "t"}) is False
+
+    warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert warnings, "a refusal that repeats on every post was logged below WARNING"
+    written = warnings[0].getMessage()
+    assert "BACKYARD_PUSH_SERVICE_HOSTS" in written  # what an operator would go and change
+    assert device.endpoint.rsplit("/", 1)[-1] not in written  # still a capability
+    assert wire.calls == []
+    device.refresh_from_db()
+    assert device.failure_count == 0
+    assert PushSubscription.objects.filter(pk=device.pk).exists()
+
+
+def test_the_refusal_raised_inside_the_session_lands_in_the_same_clause(
+    family: Family, push_on: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The endpoint is validated twice: in `send_one` before the call, and again inside
+    `PushServiceSession.request` on the outbound request itself.
+
+    MEASURED here rather than assumed: pywebpush hands its POST straight to the session
+    and wraps nothing, so a refusal raised in the session arrives as `UnsafeEndpoint`
+    rather than as a `WebPushException` — which is what puts it in the not-counted clause
+    instead of the counted one. `send_one`'s own check is stubbed out so the only
+    validation left is the session's.
+    """
+    device = _a_device(family.bridge)
+    calls: list[str] = []
+    real = push_endpoints.validate_endpoint
+
+    def pass_the_first_refuse_the_second(raw: str) -> str:
+        calls.append(raw)
+        if len(calls) == 1:
+            return real(raw)
+        raise push_endpoints.UnsafeEndpoint("That is not a push service this Backyard sends to.")
+
+    monkeypatch.setattr(push_endpoints, "validate_endpoint", pass_the_first_refuse_the_second)
+    assert push.send_one(device, {"title": "t", "body": "b", "url": "/", "tag": "t"}) is False
+    assert len(calls) == 2, "the session's own validation did not run"
+    device.refresh_from_db()
+    assert device.failure_count == 0
+    assert PushSubscription.objects.filter(pk=device.pk).exists()
+
+
+def test_the_shared_session_neither_keeps_nor_replays_a_cookie(
+    family: Family, push_on: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One session serves a whole fan-out, so a `Set-Cookie` from a push service would
+    otherwise be kept and replayed on the next relative's device at that same host.
+
+    Stubbed at the ADAPTER rather than at `Session.request`, which is what the rest of
+    this file stubs: cookie extraction happens inside `Session.send`, so a stub one layer
+    higher skips the very machinery under test and would pass with the policy deleted
+    (measured — it did).
+
+    The guarantee is "nothing is STORED, so nothing is ever replayed", and that is the
+    order the assertions are in. Requests builds a FRESH jar per request from the
+    session's (`Session.prepare_request` -> `merge_cookies`), and the fresh one carries
+    the default policy — so the session's policy governs what is kept, not what is sent,
+    and what is kept is what there would be to send. Measured while writing this: a cookie
+    forced into the jar past the policy IS sent, which is why the policy is set on the jar
+    that receives rather than relied on at the outgoing edge.
+    """
+    import email.message
+
+    from requests.adapters import HTTPAdapter
+
+    first = _a_device(family.bridge, label="one")
+    second = _a_device(family.maternal_cousin, label="two")
+    offered = email.message.Message()
+    offered["Set-Cookie"] = "sticky=1; Path=/"
+    sent_headers: list[str | None] = []
+
+    class _Raw:
+        """The shape `requests.cookies.extract_cookies_to_jar` looks for on a raw
+        response: anything without `_original_response.msg` is skipped entirely."""
+
+        def __init__(self) -> None:
+            self._original_response = SimpleNamespace(msg=offered)
+
+        def release_conn(self) -> None:
+            return None
+
+    def fake_send(self: HTTPAdapter, request: Any, **kwargs: Any) -> requests.Response:
+        sent_headers.append(request.headers.get("Cookie"))
+        response = requests.Response()
+        response.status_code = 201
+        response.url = request.url
+        response.request = request
+        response.raw = _Raw()
+        response.headers["Set-Cookie"] = "sticky=1; Path=/"
+        response._content = b""
+        return response
+
+    monkeypatch.setattr(HTTPAdapter, "send", fake_send)
+    session = push.PushServiceSession()
+    try:
+        for device in (first, second):
+            push.send_one(
+                device, {"title": "t", "body": "b", "url": "/", "tag": "t"}, session=session
+            )
+    finally:
+        session.close()
+
+    assert len(sent_headers) == 2, "the adapter was never reached, so nothing was proven"
+    assert len(session.cookies) == 0, "a push service's Set-Cookie was stored on the session"
+    assert sent_headers == [None, None], "a cookie was replayed onto the next family member's phone"
 
 
 def test_neither_the_endpoint_nor_the_service_response_reaches_a_log(

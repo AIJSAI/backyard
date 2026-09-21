@@ -43,11 +43,13 @@ from __future__ import annotations
 import json
 import logging
 import time
+from http import cookiejar
 from typing import Any
 
 import requests
 from django.conf import settings
 from django.db import models
+from django.db.models import F
 from django.utils import timezone
 from py_vapid import Vapid01
 from pywebpush import WebPushException, webpush
@@ -264,6 +266,16 @@ class PushServiceSession(requests.Session):
         super().__init__()
         self.trust_env = False
         self.max_redirects = 0
+        # NO COOKIES, IN EITHER DIRECTION. One session now serves a whole fan-out, so a
+        # `Set-Cookie` from a push service would otherwise be kept and replayed on the
+        # next relative's device at that same host. Web Push has no use for a cookie, and
+        # a session this project owns should carry nothing between two family members'
+        # phones. An empty allowed-domains policy refuses to STORE one, which is the half
+        # that matters: requests builds a fresh jar per request from this one
+        # (`Session.prepare_request` -> `merge_cookies`) and that copy carries the default
+        # policy, so a jar-level policy governs what is kept rather than what is sent --
+        # measured. Nothing kept is nothing to replay.
+        self.cookies.set_policy(cookiejar.DefaultCookiePolicy(allowed_domains=[]))
 
     # The override is narrowed deliberately: `requests.Session.request` takes fifteen
     # keywords, and this takes the two pywebpush passes plus a kwargs bag. Mirroring the
@@ -310,6 +322,10 @@ def send_one(
       them is evidence about THIS registration: they fail every device on that service at
       once, and counting them emptied the family's whole subscription table after five
       posts of an outage, with nobody told. `_failed` carries the measurement.
+    * THE ALLOWLIST REFUSING A STORED ROW — not counted either, and not deleted, but
+      logged at WARNING with its own sentence: it is the operator's configuration rather
+      than anybody's network, and it is the only refusal in this list that cannot heal on
+      its own.
     * the exception is never rendered into the log. `WebPushException.__str__` embeds the
       push service's RESPONSE BODY, and `webpush()` builds its message from the same
       thing — so `logger.warning("...%s", exc)` would put a third party's response text,
@@ -335,6 +351,26 @@ def send_one(
             timeout=SEND_TIMEOUT,
             requests_session=session or PushServiceSession(),
         )
+    except push_endpoints.UnsafeEndpoint:
+        # THE ALLOWLIST REFUSED A STORED ROW. Not the push service's answer and not this
+        # box's network: it is configuration, and it will refuse identically on every post
+        # until an operator restores the host or the member removes the device. NOT
+        # counted, for the same reason a timeout is not -- deleting rows on a setting
+        # somebody may have mistyped is exactly the blast radius `_failed` exists to
+        # refuse -- but logged at WARNING in its own words, because this is the one refusal
+        # here that never heals by itself and the only one an operator can act on.
+        #
+        # It catches BOTH validations: the one above, and the one inside
+        # `PushServiceSession.request`. Measured: pywebpush hands its POST straight to the
+        # session and wraps nothing, so the refusal raised in the session arrives here as
+        # itself rather than as a WebPushException.
+        logger.warning(
+            "push refused before it was sent: the host is not in BACKYARD_PUSH_SERVICE_HOSTS, "
+            "so this row can never be delivered to and will repeat on every post until the "
+            "host is restored or the member removes the device: %s",
+            push_endpoints.redact(subscription.endpoint),
+        )
+        return False
     except WebPushException as exc:
         return _failed(subscription, status=exc.status_code)
     except Exception:  # noqa: BLE001 - one dead device must never stop the others
@@ -394,17 +430,31 @@ def _deliver(members: list[Member], payload: dict[str, str]) -> int:
 
     ONE session for the whole fan-out rather than one per device: the endpoint is
     re-validated on every request (PushServiceSession.request), so the control is
-    unchanged, and a family-sized send stops paying a TLS handshake per phone.
+    unchanged, and a family-sized send stops paying a TLS handshake per phone. It is
+    closed in a `finally`: the worker is long-lived, so the pooled sockets go when the
+    fan-out does rather than when the garbage collector gets round to it.
     """
     session = PushServiceSession()
     started = time.monotonic()
     delivered = 0
-    for device in PushSubscription.objects.filter(member__in=members):
-        if time.monotonic() - started > DELIVERY_BUDGET:
-            logger.warning("push: delivery budget spent; some devices were not tried")
-            break
-        if send_one(device, payload, session=session):
-            delivered += 1
+    try:
+        # LEAST RECENTLY DELIVERED FIRST, which is the only ordering under which the
+        # budget's promise ("the next post notifies them") is true. `Meta.ordering` is
+        # `created_at`, so a device that hangs stays at the head of every fan-out and the
+        # same tail is skipped on every post, for ever -- measured at three consecutive
+        # sends reaching the same two of six devices. Ordering by `last_success_at` floats
+        # the starved devices to the front of the next send, and it gives that column its
+        # first reader.
+        for device in PushSubscription.objects.filter(member__in=members).order_by(
+            F("last_success_at").asc(nulls_first=True), "created_at"
+        ):
+            if time.monotonic() - started > DELIVERY_BUDGET:
+                logger.warning("push: delivery budget spent; some devices were not tried")
+                break
+            if send_one(device, payload, session=session):
+                delivered += 1
+    finally:
+        session.close()
     return delivered
 
 

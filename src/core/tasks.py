@@ -181,9 +181,11 @@ def prune_finished_jobs_task(timestamp: int) -> None:
     library's business. `async_to_sync` because that method is async and every task in this
     module is sync; the worker runs a sync task in a thread with no loop of its own.
 
-    Two passes, not one: the second sweeps EVERYTHING finished past the long window, the
-    first takes succeeded jobs at the short one. A failed job is the only record of what
-    went wrong and outlives a receipt nobody reads.
+    Two passes, not one: the FIRST sweeps everything finished past the long window
+    (failed, cancelled and aborted included), and the SECOND takes succeeded jobs at the
+    short one. A failed job is the only record of what went wrong and outlives a receipt
+    nobody reads. The order does not matter to the outcome; it is written down so the
+    test that pins the two calls and this paragraph cannot drift apart.
     """
     from asgiref.sync import async_to_sync
 
