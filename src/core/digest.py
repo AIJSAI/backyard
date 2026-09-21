@@ -178,7 +178,9 @@ def arrivals_block(issue: DigestIssue) -> ArrivalsBlock | None:
     if not names:
         return None
     return ArrivalsBlock(
-        period_text=digesting.cadence_period_text(issue.member),
+        period_text=digesting.period_text_for_window(
+            issue.member, issue.window_start, issue.window_end
+        ),
         names_text=_as_a_person_writes_a_list(names),
     )
 

@@ -75,18 +75,39 @@ _CADENCE_PERIOD_TEXT = {
 }
 
 
-def cadence_period_text(member: Member) -> str:
-    """The words for the period one of this member's Email Updates covers.
-
-    Read from the subscription, not from the issue window: a window is whatever the last
-    run left open — a first issue is anchored at confirmation and can be any length — while
-    the cadence is what the member actually chose, and the line has to match what they
-    picked. Weekly on anything unknown or missing, the same fall-back `subscribe` applies
-    to an unrecognised cadence and the default the settings page selects.
-    """
+def _cadence_of(member: Member) -> str:
+    """This member's stored cadence, weekly on anything unknown or missing — the same
+    fall-back `subscribe` applies to an unrecognised cadence and the default the settings
+    page selects."""
     subscription = DigestSubscription.objects.filter(member=member).only("cadence").first()
     cadence = subscription.cadence if subscription is not None else DigestSubscription.WEEKLY
-    return _CADENCE_PERIOD_TEXT.get(cadence, _CADENCE_PERIOD_TEXT[DigestSubscription.WEEKLY])
+    return cadence if cadence in _CADENCE_PERIOD_TEXT else DigestSubscription.WEEKLY
+
+
+def cadence_period_text(member: Member) -> str:
+    """The words for one of this member's periods, read from the subscription: the cadence
+    is what they actually chose. A caller holding an issue uses `period_text_for_window`
+    instead, because a window is not always one period long."""
+    return _CADENCE_PERIOD_TEXT[_cadence_of(member)]
+
+
+def period_text_for_window(
+    member: Member, window_start: datetime.datetime, window_end: datetime.datetime
+) -> str:
+    """The words for the period THIS issue covers, which is not always one cadence.
+
+    A window is whatever the last run left open. #208's own quiet-period rule skips a
+    period that holds joins and nothing written, so the next message's window is two
+    periods long and the joiners it names arrived before the one it would claim; a first
+    issue is anchored at confirmation and can be any length at all. The header prints the
+    real date range two lines above, so "this week" over sixteen days is a sentence the
+    reader can check and find wrong. The cadence word is used only while the window still
+    fits it.
+    """
+    cadence = _cadence_of(member)
+    if window_end - window_start > _CADENCE_PERIOD[cadence] * 1.5:
+        return "recently"
+    return _CADENCE_PERIOD_TEXT[cadence]
 
 
 def _own_signin_address(member: Member, address: str) -> EmailAddress | None:
