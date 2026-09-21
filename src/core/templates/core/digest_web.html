@@ -33,5 +33,11 @@
   {% empty %}
     <p class="empty">No posts in this date range.</p>
   {% endfor %}
+  {% comment %} The same line the message carries, built by the same function
+     (core.digest.arrivals_block), because this page is the web copy of that message and
+     the two must not be able to name different people. {% endcomment %}
+  {% if arrivals %}
+    <p class="muted">Joined {{ arrivals.period_text }}: {{ arrivals.names_text }}.</p>
+  {% endif %}
 {% endblock %}
 {% block extra_body %}{% include "core/_localise_times.html" %}{% endblock %}

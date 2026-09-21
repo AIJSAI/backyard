@@ -20,7 +20,7 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
-from . import digest_links, scoping
+from . import digest, digest_links, scoping
 from .context_processors import note_the_reader_holds_a_link
 from .models import DigestToken, MediaAsset
 
@@ -75,7 +75,16 @@ def digest_view(request: HttpRequest, token: str) -> HttpResponse:
     return render(
         request,
         "core/digest_web.html",
-        {"issue": resolved.issue, "posts": posts, "token": token},
+        {
+            "issue": resolved.issue,
+            "posts": posts,
+            # The joined line, from the builder the e-mail uses (#208). Asked of the same
+            # function rather than rebuilt here: this page is the web copy of one message,
+            # and a second implementation is how the page and the message start naming
+            # different people.
+            "arrivals": digest.arrivals_block(resolved.issue),
+            "token": token,
+        },
     )
 
 

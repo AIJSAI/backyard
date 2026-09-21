@@ -65,6 +65,29 @@ _CADENCE_PERIOD = {
     DigestSubscription.MONTHLY: datetime.timedelta(days=30),
 }
 
+# The same three periods in the words a message uses about itself: "Joined this week:
+# Nell, Sam and Dave." (#208). Daily is not offered on the settings page any more (owner
+# direction 2) but the model still stores it, so it still has to read as a sentence.
+_CADENCE_PERIOD_TEXT = {
+    DigestSubscription.DAILY: "today",
+    DigestSubscription.WEEKLY: "this week",
+    DigestSubscription.MONTHLY: "this month",
+}
+
+
+def cadence_period_text(member: Member) -> str:
+    """The words for the period one of this member's Email Updates covers.
+
+    Read from the subscription, not from the issue window: a window is whatever the last
+    run left open — a first issue is anchored at confirmation and can be any length — while
+    the cadence is what the member actually chose, and the line has to match what they
+    picked. Weekly on anything unknown or missing, the same fall-back `subscribe` applies
+    to an unrecognised cadence and the default the settings page selects.
+    """
+    subscription = DigestSubscription.objects.filter(member=member).only("cadence").first()
+    cadence = subscription.cadence if subscription is not None else DigestSubscription.WEEKLY
+    return _CADENCE_PERIOD_TEXT.get(cadence, _CADENCE_PERIOD_TEXT[DigestSubscription.WEEKLY])
+
 
 def _own_signin_address(member: Member, address: str) -> EmailAddress | None:
     """This member's OWN sign-in address row, if it is the same address (walk item 24).
