@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import io
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
@@ -55,7 +56,14 @@ def get_the_app(request: HttpRequest) -> HttpResponse:
     the already-installed state are all decided in the browser, because only the
     browser knows. Nothing here sniffs a user agent server-side.
     """
-    return render(request, "core/get_the_app.html")
+    return render(
+        request,
+        "core/get_the_app.html",
+        # The already-installed branch of the steps offers the one thing left to do
+        # (S-107). Absent on an instance whose operator has set no VAPID pair: an
+        # offer that leads to "notifications are not set up" is worse than no offer.
+        {"push_available": settings.PUSH_ENABLED},
+    )
 
 
 def manifest(request: HttpRequest) -> JsonResponse:
@@ -153,6 +161,21 @@ def icon_maskable_512(request: HttpRequest) -> HttpResponse:
 # installability, network passthrough, and NO cache. It stores nothing, so it
 # can never serve a stale page, a cross-account response, or a token surface
 # from cache, and there is no cache for a lost device to mine.
+#
+# S-107 adds `push` and `notificationclick` and NOTHING ELSE. The two handlers hold to
+# the same rule: the payload arrives decrypted by the browser (RFC 8291), is shown, and
+# is never stored — there is still no Cache API use anywhere in this file, and test_pwa
+# asserts that from the served bytes rather than from this comment.
+#
+# `data.url` IS UNTRUSTED INPUT, and it is the one place this worker could be turned into
+# something. It arrives inside an encrypted payload, so only this server can have written
+# it — but a worker that calls `clients.openWindow(data.url)` on whatever it is handed is
+# one server-side defect away from opening an attacker's origin from inside the installed
+# app, where a relative has no address bar to read. So the worker refuses anything that is
+# not a single-slash absolute PATH ("/posts/12/"), which rejects "https://elsewhere/",
+# "javascript:..." and the protocol-relative "//elsewhere/" that a naive startsWith('/')
+# check accepts, and then resolves it against this worker's OWN origin rather than
+# trusting the string.
 _SERVICE_WORKER = """\
 // Backyard service worker (minimal by design, ADR-002): no precache, no cache.
 self.addEventListener('install', (event) => { self.skipWaiting(); });
@@ -161,6 +184,49 @@ self.addEventListener('fetch', (event) => {
   // Network passthrough only. Nothing is cached, so nothing sensitive can be
   // served stale or from a device that changed hands.
   event.respondWith(fetch(event.request));
+});
+
+// Only a same-origin absolute path, resolved against this origin. "//elsewhere/" is a
+// protocol-relative URL and is refused; anything unusable falls back to the feed.
+function backyardPath(value) {
+  if (typeof value !== 'string' || value.charAt(0) !== '/' || value.charAt(1) === '/') {
+    return new URL('/feed/', self.location.origin).href;
+  }
+  return new URL(value, self.location.origin).href;
+}
+
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch (error) { payload = {}; }
+  const title = payload.title || 'Backyard';
+  event.waitUntil(self.registration.showNotification(title, {
+    body: payload.body || '',
+    // The tag collapses every notification about one post into one entry, so a busy
+    // thread is one line on the lock screen and a redelivered job replaces its own
+    // notification instead of adding a second.
+    tag: payload.tag || 'backyard',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    data: { url: backyardPath(payload.url) }
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = backyardPath(event.notification.data && event.notification.data.url);
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then((windows) => {
+      for (const client of windows) {
+        if (client.url === target && 'focus' in client) { return client.focus(); }
+      }
+      // Nothing open on that post: focus an open Backyard and send it there, or open one.
+      for (const client of windows) {
+        if ('navigate' in client && 'focus' in client) {
+          return client.navigate(target).then((navigated) => (navigated || client).focus());
+        }
+      }
+      return self.clients.openWindow(target);
+    }));
 });
 """
 

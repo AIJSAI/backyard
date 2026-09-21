@@ -645,6 +645,29 @@ p.settings-link > a:hover { color: var(--green); text-decoration: underline; }
    carries the gap the rows no longer do. */
 p.settings-link + h2 { margin-top: 1.6rem; }
 
+/* THE DEVICE LIST on Settings > Notifications (S-107): one row per phone a member asked
+   to be notified on. A list, unlike `.settings-link` above, because it IS one — a row is
+   a name, a date and a Remove button rather than a link to somewhere. It stacks at phone
+   width so the button never shares a line with a wrapped date, and Remove keeps the 44px
+   tap target every destructive control in the product has (SC 2.5.5). */
+ul.devices { list-style: none; margin: 0.4rem 0 1.5rem; padding: 0; }
+ul.devices > li {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.9rem;
+  border-top: 1px solid var(--line); padding: 0.5rem 0; min-height: 44px;
+}
+ul.devices > li:first-child { border-top: 0; }
+/* Remove is a per-row secondary action, so it is the quiet button; the loud one on that
+   screen is the control that switches notifications ON. A filled green Remove beside every
+   device made the thing that silences a relative's phone the most prominent item in the
+   list, which is the same mistake the takedown control made under every post.
+   (The label is described rather than quoted on purpose: a CSS comment SHIPS to every
+   client, and a copy guard searching the response for a button's words would find it
+   here. This repository has been bitten by that twice — see docs/RESUME-HERE.md.) */
+ul.devices > li > button { margin-left: auto; font-size: 0.88rem; padding: 0.4rem 0.9rem; }
+/* The list sits under its own heading, which needs the gap the toggles above it do not
+   carry: without it "Your Devices" reads as a label on the Replies checkbox. */
+.push + h3 { margin-top: 1.7rem; margin-bottom: 0; }
+
 /* ---- notices, errors, flags ------------------------------------------------- */
 .notice, .errors {
   border-radius: var(--radius-sm); padding: 0.85rem 1.1rem;

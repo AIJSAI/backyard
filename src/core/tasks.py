@@ -236,3 +236,40 @@ def notify_reply_task(comment_id: int) -> None:
     if comment is None:
         return  # deleted before the worker picked it up
     notifications.notify_reply(comment)
+
+
+# The two web-push jobs (S-107). Same shape as everything above: they carry an id and
+# nothing else, and re-resolve the post, the audience and every preference live at run
+# time (TS-DJ-11), so a post deleted or a member removed between the write and the tick
+# sends nothing. They run on the `push` queue so a slow push service cannot delay a
+# transcode, and neither ever raises: `push.send_one` turns every push-service error into
+# a counted failure or a deleted row, because a failing notification must not be retried
+# into a second notification on somebody's lock screen.
+@app.task(name="push_new_post", queue="push")
+def push_new_post_task(post_id: int) -> None:
+    """Notify everyone who may see a just-written post (S-107)."""
+    from . import push
+    from .models import Post
+
+    post = Post.objects.filter(pk=post_id, deleted_at__isnull=True).select_related("author").first()
+    if post is None:
+        return  # deleted, or gone before the worker picked it up
+    sent = push.deliver_new_post(post)
+    logger.info("push: new post %s delivered to %s device(s)", post_id, sent)
+
+
+@app.task(name="push_reply", queue="push")
+def push_reply_task(comment_id: int) -> None:
+    """Notify the post's author and the earlier repliers who may see a reply (S-107)."""
+    from . import push
+    from .models import Comment as CommentModel
+
+    comment = (
+        CommentModel.objects.filter(pk=comment_id, deleted_at__isnull=True)
+        .select_related("author", "post", "post__author")
+        .first()
+    )
+    if comment is None:
+        return  # deleted before the worker picked it up
+    sent = push.deliver_reply(comment)
+    logger.info("push: reply %s delivered to %s device(s)", comment_id, sent)

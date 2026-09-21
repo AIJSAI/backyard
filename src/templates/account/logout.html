@@ -40,4 +40,62 @@
         {% endslot %}
     {% endelement %}
     <p><a class="btn-quiet" href="{% url 'feed' %}">{% trans "Cancel" %}</a></p>
+    {% comment %} SIGNING OUT TAKES THE NOTIFICATIONS WITH IT (S-107), on this device only.
+
+       A phone gets handed round a family. Without this, signing out on a borrowed phone
+       leaves a live push registration behind: the next person holding it reads "<a
+       cousin> posted" and the first words of a post on the lock screen, for a Backyard
+       they cannot open. That is the same class of leak the service worker caches nothing
+       to avoid (ADR-002), arriving by a different road.
+
+       BEST EFFORT, and never a reason the sign-out does not happen. The form is submitted
+       from here whatever the unsubscribe does, including when there is no registration,
+       no PushManager, or the request fails -- a member who cannot reach the network must
+       still be able to sign out. The server row goes first (so it stops being sent to
+       even if the browser's own teardown fails) and the registration second.
+
+       Only THIS device's row: the endpoint identifies one browser profile, so a relative's
+       other phone keeps its notifications. {% endcomment %}
+    <script nonce="{{ request.csp_nonce }}">
+      (function () {
+        var form = document.querySelector('form[action="{% url 'account_logout' %}"]');
+        if (!form || !('serviceWorker' in navigator) || !('PushManager' in window)) { return; }
+        var going = false;
+        form.addEventListener('submit', function (event) {
+          if (going) { return; }
+          going = true;
+          event.preventDefault();
+          var field = form.querySelector('input[name="csrfmiddlewaretoken"]');
+          // Once. Both the promise chain and the timeout below call this, and whichever
+          // arrives second must not submit a form that is already on its way.
+          var sent = false;
+          var done = function () {
+            if (sent) { return; }
+            sent = true;
+            form.submit();
+          };
+          navigator.serviceWorker.ready.then(function (registration) {
+            return registration.pushManager.getSubscription();
+          }).then(function (subscription) {
+            if (!subscription) { return null; }
+            // No `credentials` option: fetch already sends same-origin cookies by
+            // default, and writing it out matches gitleaks' credential-assignment rule
+            // ("credentials: '...'"), which failed the secrets job on a line holding no
+            // secret. The route is login_required, so the session cookie is load-bearing
+            // and its absence would be a 302 rather than a silent no-op.
+            return fetch('{% url "push_unsubscribe" %}', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': field ? field.value : ''
+              },
+              body: JSON.stringify({ endpoint: subscription.endpoint })
+            }).then(function () { return subscription.unsubscribe(); });
+          }).then(done, done);
+          // A browser that never settles either promise must not strand somebody on this
+          // page. Two seconds, then sign out regardless.
+          window.setTimeout(done, 2000);
+        });
+      })();
+    </script>
 {% endblock content %}

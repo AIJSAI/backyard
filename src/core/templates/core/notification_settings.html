@@ -3,6 +3,93 @@
 {% block body %}
   <h1>Notifications</h1>
   <p class="back-link"><a class="back" href="{% url 'profile_edit' %}">Back To Settings</a></p>
+
+  {% comment %} THE DEVICE SECTION IS DECIDED IN THE BROWSER, like core/_install_steps.html
+     and for the same reason: only the browser knows whether it has a PushManager, whether
+     this is an installed home-screen app on an iPhone, and whether the member has already
+     said yes to the phone's own permission prompt. Nothing here reads a user agent.
+
+     Every sentence the script can show is WRITTEN IN THE MARKUP, hidden, and revealed —
+     none is assembled in JavaScript. That is not tidiness: the three copy guards read
+     templates, and a sentence built out of string concatenation in a script is a sentence
+     nothing in this repository checks.
+
+     The permission request has to come from the TAP on the button below. iOS grants
+     notification permission only from inside a user gesture, and only inside a Home Screen
+     web app, so there is no version of this that works as an ordinary form post and no
+     version that works from a Safari tab. That is why the section is script-driven and why
+     Get The App is the answer offered when the browser cannot do it. {% endcomment %}
+  <h2>On This Device</h2>
+  {% if not push_available %}
+    {% comment %} A self-hoster who has not generated a VAPID pair, and a supervised
+       account. One plain sentence and no button: a control that cannot work is worse than
+       no control, and the operator's cure is in docs/runbooks/self-host.md, not on a
+       relative's settings page. {% endcomment %}
+    <p>Notifications are not set up on this Backyard.</p>
+  {% else %}
+    <div class="push" data-push
+         data-public-key="{{ vapid_public_key }}"
+         data-subscribe="{% url 'push_subscribe' %}"
+         data-unsubscribe="{% url 'push_unsubscribe' %}"
+         data-remove="{% url 'push_remove_device' %}"
+         data-toggles="{% url 'push_preferences' %}">
+      <noscript>
+        <p>Turning notifications on needs JavaScript.</p>
+      </noscript>
+
+      <p data-push-unsupported hidden>This browser cannot show notifications. Add Backyard
+        to your home screen and open it from there:
+        <a href="{% url 'get_the_app' %}">Get The App</a>.</p>
+
+      <p data-push-blocked hidden>Notifications are blocked for Backyard in this browser's
+        settings. Allow them there, then come back.</p>
+
+      <p data-push-failed hidden>That did not save. Try again.</p>
+
+      <p data-push-off hidden><button type="button" data-push-on>Turn On Notifications</button></p>
+
+      <div data-push-on-state hidden>
+        {% comment %} The QUIET button, like Cancel beside a primary. The loud control on
+           this page is Turn On Notifications; a filled green Turn Off in its place made
+           the switch that silences the feature the most prominent thing on the screen.
+           {% endcomment %}
+        <p><button type="button" class="btn-quiet" data-push-turn-off>Turn Off
+          Notifications On This Device</button></p>
+        <label class="inline-check">
+          <input type="checkbox" data-push-toggle="new_posts"{% if pref.push_new_posts %} checked{% endif %}>
+          New Posts
+        </label>
+        <label class="inline-check">
+          <input type="checkbox" data-push-toggle="replies"{% if pref.push_replies %} checked{% endif %}>
+          Replies
+        </label>
+      </div>
+    </div>
+
+    {% comment %} The list is rendered SERVER-SIDE and the page reloads after a subscribe or
+       a remove, so the row a member reads is the row that exists. It carries the label and
+       the date and nothing else: the endpoint is a capability (core/push_endpoints.py) and
+       has no business in markup, a screenshot or view-source. {% endcomment %}
+    {% if devices %}
+      <h3>Your Devices</h3>
+      <ul class="devices">
+        {% for device in devices %}
+          <li>
+            <span>{% if device.label %}{{ device.label }}{% else %}A device{% endif %}</span>
+            {% comment %} "Added" sits OUTSIDE the <time>: core/_localise_times.html
+               REPLACES a stamp's whole text with the reader's own-zone rendering, so a
+               word inside it is a word that disappears in every zone but the server's.
+               {% endcomment %}
+            <span class="muted">Added <time datetime="{{ device.created_at|date:'c' }}"
+              data-when="date">{{ device.created_at|date:"M j, Y" }}</time></span>
+            <button type="button" class="btn-quiet" data-push-remove="{{ device.pk }}">Remove</button>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endif %}
+
+  <h2>By Email</h2>
   {% comment %} The paragraph that stood here ("Backyard never sends you anything unless
      you ask. The one thing you can turn on is a nudge when someone replies to your own
      post") said nothing the one unticked box does not already say. What a person DOES
@@ -25,4 +112,160 @@
       Updates address, so Email Updates has to be on.</p>
     <button type="submit">Save Changes</button>
   </form>
+{% endblock %}
+{% block extra_body %}
+  {% include "core/_localise_times.html" %}
+  {% if push_available %}
+    <script nonce="{{ request.csp_nonce }}">
+      (function () {
+        var root = document.querySelector('[data-push]');
+        if (!root) { return; }
+        var unsupported = root.querySelector('[data-push-unsupported]');
+        var blocked = root.querySelector('[data-push-blocked]');
+        var failed = root.querySelector('[data-push-failed]');
+        var offRow = root.querySelector('[data-push-off]');
+        var onState = root.querySelector('[data-push-on-state]');
+        var turnOn = root.querySelector('[data-push-on]');
+        var turnOff = root.querySelector('[data-push-turn-off]');
+
+        // Every branch a browser can be in, decided here and nowhere on the server.
+        // iOS Safari in a TAB has no PushManager at all -- the API exists only inside an
+        // installed Home Screen web app -- so this one test covers both "too old" and
+        // "not installed yet", and the sentence it reveals offers the install.
+        var capable = 'serviceWorker' in navigator
+          && 'PushManager' in window
+          && 'Notification' in window;
+        if (!capable) { unsupported.hidden = false; return; }
+        if (Notification.permission === 'denied') { blocked.hidden = false; return; }
+
+        // Django's CSRF token, read out of the form already on this page. A header rather
+        // than a body field, because these routes take JSON; the middleware checks both.
+        function token() {
+          var field = document.querySelector('input[name="csrfmiddlewaretoken"]');
+          return field ? field.value : '';
+        }
+
+        // No `credentials` option: fetch already sends same-origin cookies by default,
+        // and writing it out matches gitleaks' credential-assignment rule, which failed
+        // the secrets job on a line holding no secret. All four routes are login_required,
+        // so a missing session cookie would be a redirect, not a silent no-op.
+        function send(url, payload) {
+          return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': token() },
+            body: JSON.stringify(payload)
+          }).then(function (response) {
+            if (!response.ok) { throw new Error(String(response.status)); }
+            return response.json();
+          });
+        }
+
+        function complain() { failed.hidden = false; }
+
+        // base64url to the Uint8Array applicationServerKey wants. The pair is generated by
+        // `manage.py generate_vapid_keys` and the public half is rendered above.
+        function keyBytes(value) {
+          var padded = (value + '='.repeat((4 - value.length % 4) % 4))
+            .replace(/-/g, '+').replace(/_/g, '/');
+          var raw = atob(padded);
+          var bytes = new Uint8Array(raw.length);
+          for (var i = 0; i < raw.length; i += 1) { bytes[i] = raw.charCodeAt(i); }
+          return bytes;
+        }
+
+        function show(subscribed) {
+          offRow.hidden = subscribed;
+          onState.hidden = !subscribed;
+        }
+
+        function localSubscription() {
+          return navigator.serviceWorker.ready.then(function (registration) {
+            return registration.pushManager.getSubscription();
+          });
+        }
+
+        localSubscription().then(function (subscription) {
+          show(!!subscription && Notification.permission === 'granted');
+        }).catch(function () { show(false); });
+
+        turnOn.addEventListener('click', function () {
+          failed.hidden = true;
+          // FROM THE TAP. This call must sit inside the click handler's own task or iOS
+          // refuses it: permission is granted only in response to a user gesture.
+          Notification.requestPermission().then(function (decision) {
+            if (decision === 'denied') { blocked.hidden = false; return; }
+            if (decision !== 'granted') { return; }
+            return navigator.serviceWorker.ready.then(function (registration) {
+              return registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: keyBytes(root.getAttribute('data-public-key'))
+              });
+            }).then(function (subscription) {
+              var raw = subscription.toJSON();
+              return send(root.getAttribute('data-subscribe'), {
+                endpoint: raw.endpoint,
+                p256dh: raw.keys.p256dh,
+                auth: raw.keys.auth
+              });
+            }).then(function () { window.location.reload(); });
+          }).catch(complain);
+        });
+
+        turnOff.addEventListener('click', function () {
+          failed.hidden = true;
+          localSubscription().then(function (subscription) {
+            if (!subscription) { window.location.reload(); return; }
+            var endpoint = subscription.endpoint;
+            // Server first, then the browser's own registration: if the unsubscribe call
+            // fails the row is still there and the member can try again, whereas tearing
+            // the registration down first would leave a row this device can never match.
+            return send(root.getAttribute('data-unsubscribe'), { endpoint: endpoint })
+              .then(function () { return subscription.unsubscribe(); })
+              .then(function () { window.location.reload(); });
+          }).catch(complain);
+        });
+
+        Array.prototype.forEach.call(
+          document.querySelectorAll('[data-push-remove]'),
+          function (button) {
+            button.addEventListener('click', function () {
+              failed.hidden = true;
+              localSubscription().then(function (subscription) {
+                return send(root.getAttribute('data-remove'), {
+                  id: parseInt(button.getAttribute('data-push-remove'), 10),
+                  endpoint: subscription ? subscription.endpoint : null
+                }).then(function (answer) {
+                  // The server says whether the row it removed was THIS browser's, so the
+                  // registration goes with it. The endpoint never has to be written into
+                  // the page for the script to work that out.
+                  if (answer.this_device && subscription) { return subscription.unsubscribe(); }
+                  return null;
+                });
+              }).then(function () { window.location.reload(); }).catch(complain);
+            });
+          }
+        );
+
+        Array.prototype.forEach.call(
+          root.querySelectorAll('[data-push-toggle]'),
+          function (box) {
+            box.addEventListener('change', function () {
+              failed.hidden = true;
+              var boxes = root.querySelectorAll('[data-push-toggle]');
+              var values = {};
+              Array.prototype.forEach.call(boxes, function (each) {
+                values[each.getAttribute('data-push-toggle')] = each.checked;
+              });
+              send(root.getAttribute('data-toggles'), values).catch(function () {
+                // Put the box back where it was: a control that says "on" while the server
+                // says "off" is worse than one that did not move.
+                box.checked = !box.checked;
+                complain();
+              });
+            });
+          }
+        );
+      })();
+    </script>
+  {% endif %}
 {% endblock %}

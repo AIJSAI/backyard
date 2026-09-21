@@ -16,6 +16,7 @@ from core import (
     pod_views,
     profile_views,
     provisioning_views,
+    push_views,
     pwa_views,
     recovery_views,
     views,
@@ -102,6 +103,14 @@ urlpatterns = [
     # single reply opt-in, off by default.
     path("posts/<int:post_id>/react/", feed_views.react, name="react"),
     path("settings/notifications/", feed_views.notification_settings, name="notification_settings"),
+    # Web push, on this device (S-107). Four POST-only JSON routes driven by the
+    # Notifications page's own script: iOS grants notification permission only from
+    # inside a user gesture, so the subscribe cannot be a plain form post. CSRF is
+    # enforced as everywhere else — the script sends the page's own token as a header.
+    path("settings/notifications/subscribe/", push_views.subscribe, name="push_subscribe"),
+    path("settings/notifications/unsubscribe/", push_views.unsubscribe, name="push_unsubscribe"),
+    path("settings/notifications/device/", push_views.remove_device, name="push_remove_device"),
+    path("settings/notifications/toggles/", push_views.preferences, name="push_preferences"),
     # BY-02: the add-an-email prompt shown to a member who has no address on file and
     # therefore no password reset at all. POST-only, so a prefetch cannot clear it before
     # it has been read. (`feed/oriented/` lived beside this and is gone: the orientation

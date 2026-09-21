@@ -38,6 +38,7 @@ from typing import cast
 
 from allauth.account.models import EmailAddress
 from allauth.core import ratelimit
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
@@ -244,4 +245,10 @@ def welcome_app(request: HttpRequest) -> HttpResponse:
     """
     member = _acting_member(request)
     _mark_welcomed(member)
-    return render(request, "core/welcome_app.html", {"member": member})
+    return render(
+        request,
+        "core/welcome_app.html",
+        # The install steps offer Turn On Notifications to somebody who already has
+        # Backyard on their home screen (S-107), and only where the control exists.
+        {"member": member, "push_available": settings.PUSH_ENABLED},
+    )

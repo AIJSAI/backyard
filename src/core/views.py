@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from django.conf import settings
 from django.contrib.auth import get_user_model, login
 from django.contrib.auth.hashers import check_password
 from django.contrib.auth.password_validation import validate_password
@@ -225,8 +226,13 @@ def how_it_works(request: HttpRequest) -> HttpResponse:
     get in can still read what this is and how to get help. It names no member and
     lists no household — the only thing it reads from the database is the first name
     of whoever runs this Backyard, through the same context processor the footer uses.
+
+    `push_available` decides whether the On Your Phone section says anything about
+    notifications. An instance whose operator has set no VAPID pair has no such control,
+    and a privacy page describing a feature that is not there is the same defect as one
+    that omits a feature that is (S-107, config/push_guard.py).
     """
-    return render(request, "core/how_it_works.html")
+    return render(request, "core/how_it_works.html", {"push_available": settings.PUSH_ENABLED})
 
 
 def about(request: HttpRequest) -> HttpResponse:
