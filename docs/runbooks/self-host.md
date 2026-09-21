@@ -664,8 +664,8 @@ Stated plainly, because finding out later is worse:
   browser. That is a deliberate decision, not a gap ([ADR-002](../adr/ADR-002-stack.md)).
 - **Video is transcoded one clip at a time**, and on a small box a long clip takes minutes.
   The post appears immediately and the video fills in.
-- **Profiles are thin.** Names, kinship names, birthdays and contact fields with per-field
-  visibility — but no profile photo and no work/school history yet.
+- **Profiles are thin.** Names, kinship names, birthdays, a profile photo and contact
+  fields with per-field visibility — but no work or school history yet.
 - **Pre-flight migration dumps are plaintext only if you configure NEITHER
   `BACKYARD_BACKUP_PASSPHRASE` nor `BACKYARD_BACKUP_PASSPHRASE_FILE`.** Set either and the
   entrypoint encrypts them too; set neither and the instance warns on every boot that it

@@ -12,7 +12,7 @@ no code on purpose. They have different audiences (this one reaches the post's a
 nobody else, where push reaches the whole thread), different failure modes, and separate
 worker jobs, so a refusing push service cannot take the mail down with it. The paragraph
 here used to say "web push is still post-v1 per ADR-002", which stopped being true the day
-push shipped; ADR-002's own line says the same thing and is the next one to correct.
+push shipped.
 
 Before this module existed the settings page told the member "the only thing you can turn
 on is a nudge when someone replies to your own post", the box was stored, and no sending

@@ -99,12 +99,14 @@ services:
       EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
       EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
       EMAIL_USE_SSL: ${EMAIL_USE_SSL:-0}
-      # Web push (S-107), OPTIONAL and off when unset. BOTH services need the pair, for
-      # different halves: web renders the public key into Settings and validates a
-      # subscribe, and the WORKER is what actually sends — a pair passed to web alone
-      # would render a working button whose notifications never arrive, which is the exact
-      # silent failure config/push_guard.py refuses to boot on. Named here as well as
-      # documented, or compose's substitution-only .env leaves them inert.
+      # Web push (S-107), OPTIONAL and off when unset. Both services are given all three
+      # because the BOOT GUARD refuses a half-set pair (config/push_guard.py) and both
+      # processes run it -- not because web needs the private half: web only renders the
+      # public key into Settings and validates a subscribe against the allowlist, and the
+      # WORKER is the only process that signs and sends. Splitting them would mean a
+      # per-role guard; until then the private key is in web's environment too, and that
+      # is the honest reason. Named here as well as documented, or compose's
+      # substitution-only .env leaves them inert.
       BACKYARD_VAPID_PUBLIC_KEY: ${BACKYARD_VAPID_PUBLIC_KEY:-}
       BACKYARD_VAPID_PRIVATE_KEY: ${BACKYARD_VAPID_PRIVATE_KEY:-}
       BACKYARD_VAPID_SUBJECT: ${BACKYARD_VAPID_SUBJECT:-}
@@ -210,12 +212,14 @@ services:
       EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
       EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
       EMAIL_USE_SSL: ${EMAIL_USE_SSL:-0}
-      # Web push (S-107), OPTIONAL and off when unset. BOTH services need the pair, for
-      # different halves: web renders the public key into Settings and validates a
-      # subscribe, and the WORKER is what actually sends — a pair passed to web alone
-      # would render a working button whose notifications never arrive, which is the exact
-      # silent failure config/push_guard.py refuses to boot on. Named here as well as
-      # documented, or compose's substitution-only .env leaves them inert.
+      # Web push (S-107), OPTIONAL and off when unset. Both services are given all three
+      # because the BOOT GUARD refuses a half-set pair (config/push_guard.py) and both
+      # processes run it -- not because web needs the private half: web only renders the
+      # public key into Settings and validates a subscribe against the allowlist, and the
+      # WORKER is the only process that signs and sends. Splitting them would mean a
+      # per-role guard; until then the private key is in web's environment too, and that
+      # is the honest reason. Named here as well as documented, or compose's
+      # substitution-only .env leaves them inert.
       BACKYARD_VAPID_PUBLIC_KEY: ${BACKYARD_VAPID_PUBLIC_KEY:-}
       BACKYARD_VAPID_PRIVATE_KEY: ${BACKYARD_VAPID_PRIVATE_KEY:-}
       BACKYARD_VAPID_SUBJECT: ${BACKYARD_VAPID_SUBJECT:-}

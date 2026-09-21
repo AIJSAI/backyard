@@ -18,7 +18,7 @@ These apply to all five waves. Each wave's own section adds only what is specifi
 8. **Stack threats bind at kickoff.** Wave kickoff includes reading the [threat model's](security/threat-model.md) stack-specific section 7 rows (landed in the same commit as this plan) whose `binds` name that wave's stories, and carrying their answers into the wave's acceptance tests.
 9. **The RLS deferral is checked at every retro.** Each wave retro checks [ADR-004](adr/ADR-004-rls.md)'s four reopening triggers (T1 an isolation escape, T2 a DB path outside the guard, T3 the audience model materializing, T4 the contributor surface outgrowing the founding instance). This is the one item that turns "defer with triggers" into "defer forever" if it is skipped, so it is a standing rule, not a hope.
 
-One naming note, recorded to keep the checklist honest: the [PATH-TO-100](PATH-TO-100.md) slice list said "PWA+push". ADR-002 moved web push post-v1 (S-305 is the negative guarantee: zero push by default and no firehose option, which needs no push infrastructure). Wave 5 is therefore PWA plus the elder path, and no wave ships push.
+One naming note, recorded to keep the checklist honest: the [PATH-TO-100](PATH-TO-100.md) slice list said "PWA+push". ADR-002 moved web push post-v1 (S-305 is the negative guarantee: zero push by default and no firehose option, which needs no push infrastructure). Wave 5 is therefore PWA plus the elder path, and no wave in THIS plan ships push. Web push arrived later, in S-107, after v1 and outside these waves: pywebpush with self-generated VAPID keys, off unless the operator sets a key pair, two event types and still no firehose. S-305 is unchanged and is still what reaches a member who has subscribed no device.
 
 ## Wave 1: Pods and auth
 
