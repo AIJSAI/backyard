@@ -235,9 +235,13 @@ def welcome_app(request: HttpRequest) -> HttpResponse:
     Nothing is asked for and no content is written, so leaving is free: "Go To Your
     Backyard" is this screen's skip, the same shape screen three already uses. A member
     who posts from screen three lands on the feed instead and never sees this one. The
-    Settings row carries the steps for good; the quiet line on the feed
-    (core/_get_the_app_prompt.html) reaches them only once the e-mail offer above it has
-    been answered, because the feed shows one prompt at a time and that one goes first.
+    Settings row carries the steps for good. The card at the foot of the screen
+    (core/_install_card.html) stands down on all four welcome screens, this one included:
+    screen four IS the offer, and a card spent on screen one would be the only showing this
+    device ever gets, burned two taps before the steps themselves. Somebody who skips out of
+    the welcome meets the card on whichever signed-in page they open next — unless that page
+    is the feed with its e-mail offer on it, because the product shows one prompt at a time
+    and that one goes first.
 
     `_mark_welcomed` again for the reason screen three calls it: idempotent, and it
     records the first moment rather than this one, so a member who arrives here directly

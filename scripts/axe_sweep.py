@@ -158,8 +158,19 @@ with sync_playwright() as p:
     is_admin = None
     for vp_name, (w, h) in VIEWPORTS.items():
         for theme in THEMES:
+            # THE MOBILE PASS HAS TO BE A PHONE, not a narrow window. A viewport alone
+            # reports `pointer: fine` and no touch, and the product asks for a COARSE
+            # pointer before it shows anything phone-only — so the home-screen card, which
+            # is a landmark with a link and a button fixed over the page, was invisible to
+            # this sweep on the one viewport it can appear at. Anything else gated the same
+            # way would be invisible too.
+            phone = vp_name == "mobile"
             ctx = browser.new_context(
-                viewport={"width": w, "height": h}, color_scheme=theme, device_scale_factor=1
+                viewport={"width": w, "height": h},
+                color_scheme=theme,
+                device_scale_factor=1,
+                has_touch=phone,
+                is_mobile=phone,
             )
             ctx.add_init_script(path=str(AXE))
             page = ctx.new_page()

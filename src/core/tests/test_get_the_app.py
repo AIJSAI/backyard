@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -31,7 +32,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core import digest_links, elder_tokens
-from core.models import DigestIssue, Member, Pod, PodMembership, Post, Yard
+from core.models import DigestIssue, DigestToken, Member, Pod, PodMembership, Post, Yard
 
 pytestmark = pytest.mark.django_db
 User = get_user_model()
@@ -268,93 +269,168 @@ def test_the_welcome_step_needs_a_member_like_every_other_screen() -> None:
     assert reverse("account_login") in response.headers["Location"]
 
 
-# --- the quiet line on the feed --------------------------------------------------------
+# --- the card at the foot of the screen -------------------------------------------------
 
 
 def _past_the_email_offer(member: Member) -> None:
-    """The feed shows ONE prompt at a time and the e-mail offer goes first, so the install
-    line is only on the page of a member who has answered that one."""
+    """The product shows ONE prompt at a time and the e-mail offer goes first, so on the
+    feed the card reaches only a member who has answered that one."""
     member.email_prompt_dismissed_at = timezone.now()
     member.save(update_fields=["email_prompt_dismissed_at"])
 
 
 def test_the_feed_shows_one_prompt_at_a_time_and_email_goes_first() -> None:
-    """Two sentences and two "Not Now"s between the composer and the first photograph is
-    the wall of chrome the 2026-09-19 walk took down. Getting back into an account
-    outranks an icon on a home screen, so the install line waits its turn."""
+    """Two offers on one screen is the wall of chrome the 2026-09-19 walk took down.
+    Getting back into an account outranks an icon on a home screen, so on the one page
+    that carries the e-mail offer the card waits its turn."""
     pod, _admin = _family()
     client, member = _member(pod)
     body = client.get(reverse("feed")).content.decode()
     assert 'class="email-prompt"' in body
-    assert "data-app-prompt" not in body
+    assert "data-install-card" not in body
     _past_the_email_offer(member)
     body = client.get(reverse("feed")).content.decode()
     assert 'class="email-prompt"' not in body
-    assert "data-app-prompt" in body
+    assert "data-install-card" in body
 
 
 def test_declining_the_email_offer_does_not_summon_the_next_prompt() -> None:
-    """Measured in review: the install line rendered at the same pixel the e-mail offer had
-    just left, with its own "Not Now" in the same place. One prompt at a time also means
-    not back to back: the page that follows a dismissal draws neither, the next visit may."""
+    """Measured in review, back when the install offer was a line under the composer: it
+    rendered at the same pixel the e-mail offer had just left, with its own "Not Now" in
+    the same place. One prompt at a time also means not back to back: the page that
+    follows a dismissal draws neither, the next visit may."""
     pod, _admin = _family()
     client, _row = _member(pod)
     assert 'class="email-prompt"' in client.get(reverse("feed")).content.decode()
     landed = client.post(reverse("dismiss_email_prompt"), follow=True).content.decode()
     assert 'class="email-prompt"' not in landed
-    assert "data-app-prompt" not in landed, "a second prompt took the first one's seat"
-    assert "data-app-prompt" in client.get(reverse("feed")).content.decode()
+    assert "data-install-card" not in landed, "a second prompt took the first one's seat"
+    assert "data-install-card" in client.get(reverse("feed")).content.decode()
 
 
-def test_the_feed_line_ships_hidden_and_only_a_script_reveals_it() -> None:
-    """No flash. Every reason to show it — a phone, not installed, not already declined —
-    is a browser fact, so the server sends it hidden and the script decides."""
+def test_the_card_ships_hidden_and_only_a_script_reveals_it() -> None:
+    """No flash. Every reason to show it — a phone, not installed, not an in-app browser,
+    not offered before — is a browser fact, so the server sends it hidden and the script
+    decides."""
     pod, _admin = _family()
     client, row = _member(pod)
     _past_the_email_offer(row)
     body = client.get(reverse("feed")).content.decode()
-    assert '<div class="app-prompt" data-app-prompt hidden>' in body
+    assert "data-install-card hidden>" in body
+    # A NAMED REGION, and never a live one: `aria-live` would announce the card over
+    # whatever a screen-reader user was already reading, which a nudge this small has not
+    # earned. Read off the CARD, not off the page: a live region somewhere else on the feed
+    # is somebody else's decision and must not turn this red.
+    opened = body.index('<div class="install-card"')
+    card = body[opened : body.index("</div>", opened)]
+    assert 'role="region"' in card
+    assert 'aria-label="Add Backyard To Your Home Screen"' in card
+    assert "aria-live" not in card, "the card announces itself over what is being read"
     assert "display-mode: standalone" in body
-    assert "pointer: coarse" in body, "the line is phones only"
+    assert "pointer: coarse" in body, "the card is phones only"
+    assert "max-width: 37.4375rem" in body, "the card is not at the stylesheet's own phone width"
     assert re.search(r"try \{\s*if \(window\.localStorage\.getItem", body), (
-        "the read of the dismissal is not inside a try: Safari private mode THROWS there"
+        "the read of the seen mark is not inside a try: Safari private mode THROWS there"
     )
 
 
-def test_the_feed_line_sits_under_the_composer_beside_the_email_offer() -> None:
-    """Item 5 of the phone-width walk cut a screen-tall card down to one line under the
-    composer. A second card above it would put the product straight back."""
+def test_the_card_carries_the_sentence_the_link_and_a_named_way_out() -> None:
+    """One sentence, one way in, one way out. The x is what a thumb sees; "Not Now" is what
+    a screen reader announces, because a control named after its glyph is not named."""
     pod, _admin = _family()
     client, row = _member(pod)
     _past_the_email_offer(row)
     body = client.get(reverse("feed")).content.decode()
-    assert body.index('class="composer') < body.index('class="app-prompt"')
-    assert body.index('class="app-prompt"') < body.index('<ul class="feed">')
+    # From the MARKUP, not from the stylesheet: base.html's inline <style> names the class
+    # first, and a slice that started there would read the CSS and find no words at all.
+    opened = body.index('<div class="install-card"')
+    card = body[opened : body.index("</div>", opened)]
+    assert "Add Backyard to your home screen." in card
+    assert f'href="{reverse("get_the_app")}"' in card
+    assert ">Get The App</a>" in _flat(card)
+    assert 'aria-label="Not Now"' in card
+    assert "data-install-card-dismiss" in card
 
 
-def test_the_archive_page_carries_no_install_line() -> None:
-    """Paging back is a history page: no composer, no email offer, and no nudge. The
-    whole block is inside `if not is_archive_page`, which is what keeps it that way."""
+def test_the_card_is_on_every_signed_in_page_not_only_the_feed() -> None:
+    """The move that this work item IS: installing is something a member decides while they
+    are already using the product, and the line it replaced could only be met by somebody
+    looking at the top of the feed. It comes from base.html now, so Settings, Groups and
+    the Directory carry it on exactly the same terms."""
+    pod, _admin = _family()
+    client, row = _member(pod)
+    _past_the_email_offer(row)
+    for name in ("feed", "profile_edit", "pod_list", "directory"):
+        body = client.get(reverse(name)).content.decode()
+        assert "data-install-card" in body, f"{name} carries no home-screen card"
+    # ...and it is the LAST thing in the document, under the footer, because it is fixed to
+    # the viewport rather than placed in the page's flow.
+    body = client.get(reverse("feed")).content.decode()
+    assert body.index("<footer") < body.index('class="install-card"')
+
+
+def test_the_archive_page_carries_the_card_like_any_other_signed_in_page() -> None:
+    """Paging back used to carry no nudge at all, because the line lived inside the feed's
+    own `if not is_archive_page`. The card is chrome on the viewport rather than an item in
+    the feed, and the archive is a signed-in page a member reads on a phone like any
+    other."""
     pod, _admin = _family()
     client, member = _member(pod)
+    _past_the_email_offer(member)
     post = Post.objects.create(author=member, pod=pod, body="something to page past")
     cursor = f"{post.created_at.isoformat()}_{post.id}"
     archive = client.get(reverse("feed"), {"before": cursor}).content.decode()
     assert "Older Posts" in archive  # non-vacuity: this really is the archive page
-    assert "data-app-prompt" not in archive
-    assert reverse("get_the_app") not in archive
+    assert "data-install-card" in archive
 
 
-def test_the_dismissal_is_per_device_and_survives_no_storage() -> None:
+def test_the_archive_does_not_withhold_the_card_for_an_offer_it_never_draws() -> None:
+    """The e-mail offer is drawn on the feed's FIRST page only (`if not is_archive_page`),
+    and base.html reads `email_prompt` on every page — so a member who has not answered
+    that offer had the card stood down on the archive in deference to a line the archive
+    does not carry. One prompt at a time is about what is ON THE SCREEN."""
+    pod, _admin = _family()
+    client, member = _member(pod)  # deliberately NOT past the e-mail offer
+    post = Post.objects.create(author=member, pod=pod, body="something to page past")
+    cursor = f"{post.created_at.isoformat()}_{post.id}"
+
+    first = client.get(reverse("feed")).content.decode()
+    assert 'class="email-prompt"' in first  # non-vacuity: the offer really is outstanding
+    assert "data-install-card" not in first, "the offer is on this page; the card must wait"
+
+    archive = client.get(reverse("feed"), {"before": cursor}).content.decode()
+    assert 'class="email-prompt"' not in archive, "the archive drew the offer after all"
+    assert "data-install-card" in archive
+
+
+def test_a_signed_out_page_carries_no_card() -> None:
+    """The same gate the manifest is behind: a stranger following an install would get an
+    icon with no name and no app window, so the offer is never made to one."""
+    _family()
+    body = Client().get(reverse("how_it_works")).content.decode()
+    assert "Backyard" in body  # non-vacuity: a real public page rendered
+    assert "data-install-card" not in body
+    assert reverse("get_the_app") not in body
+
+
+def test_the_offer_is_once_ever_and_survives_no_storage() -> None:
     """A departure from the email prompt beside it, which is dismissed on a member column.
-    A second column is a migration this work item does not make, so the decline is kept in
-    localStorage — and every access is wrapped, because Safari's private mode THROWS on
-    localStorage rather than returning null, and an exception would take the rest of the
-    script with it."""
+    A second column is a migration this work item does not make, so the fact that the card
+    was SHOWN is kept in localStorage — written as it appears, so ignoring it counts.
+
+    Every access is wrapped, and not for private browsing: Safari 11 and later give a
+    private window its own ephemeral localStorage, so a private window is offered the card
+    once and then forgets it, which is the right answer there. What THROWS on the property
+    is a browser with site data blocked; nothing can be remembered there, and a once-ever
+    offer that cannot remember would arrive on every page load, so it stays quiet."""
     pod, _admin = _family()
     client, row = _member(pod)
     _past_the_email_offer(row)
     script = client.get(reverse("feed")).content.decode()
+    assert "backyard.install-card.seen" in script
+    # THE OLD LINE'S KEY IS HONOURED. Somebody who pressed Not Now on the sentence this
+    # card replaced has already declined; asking them again would be the migration failing.
+    assert "backyard.install-prompt-dismissed" in script
     # PER ACCESS. A throw on the read would take the click wiring below it along, and a
     # single "try {" anywhere in the script satisfied the first cut of this test.
     assert re.search(r"try \{\s*if \(window\.localStorage\.getItem", script)
@@ -381,7 +457,7 @@ def test_the_no_login_link_pages_carry_no_install_surface() -> None:
     body = client.get(reverse("elder_feed")).content.decode()
     assert body  # non-vacuity
     assert reverse("get_the_app") not in body
-    assert "data-app-prompt" not in body and "data-install" not in body
+    assert "data-install-card" not in body and "data-install" not in body
 
 
 def test_the_email_web_view_carries_no_install_surface() -> None:
@@ -400,17 +476,114 @@ def test_the_email_web_view_carries_no_install_surface() -> None:
     )
     link = reverse("digest_web", args=[digest_links.mint(issue)])
     # The token visitor, and ALSO a member who happens to be signed in when they tap the
-    # link in their mail: what this item adds (the page link, the feed line, the install
-    # button) belongs to member pages and appears on neither. (A signed-in member does get
-    # the manifest link there, as on every page: base.html gates that on the session, and
+    # link in their mail: the page link, the home-screen card and the install button belong
+    # to member pages and appear on neither. What keeps the card off THIS reader is
+    # `viewer_on_a_family_link`, which only a view that has resolved a live token sets —
+    # `user.is_authenticated` alone is true for the second client here. (A signed-in member
+    # does get the manifest link, as on every page: base.html gates that on the session, and
     # they already carry the worker from the feed. ADR-002 is about the visitor with no
     # session, who is asserted worker-free by test_pwa.py.)
-    signed_in, _row = _member(pod, username="reader-of-mail")
+    signed_in, member_of_the_family = _member(pod, username="reader-of-mail")
+    _past_the_email_offer(member_of_the_family)  # so only the token surface rule can be why
     for client in (Client(), signed_in):
         body = client.get(link).content.decode()
         assert "Email Update" in body  # non-vacuity: this is the mail's web copy
         assert reverse("get_the_app") not in body
-        assert "data-app-prompt" not in body and "data-install" not in body
+        assert "data-install-card" not in body and "data-install" not in body
+
+
+def test_a_stale_email_link_carries_no_install_surface_either() -> None:
+    """THE FLAG ALONE DOES NOT COVER THIS, and that is the whole point of the block.
+
+    `viewer_on_a_family_link` is set by a view whose token RESOLVED. An EXPIRED link
+    resolves to nothing and renders Link Expired; a REVOKED one resolves to nothing and
+    renders the byte-identical 404. Neither view ever set the flag, so both pages rendered
+    base.html with the card on them — offered to a relative holding a link that just
+    stopped working, on the one screen in the product that is an apology.
+
+    Both pages drop the `install_offer` block instead.
+
+    DRIVEN SIGNED IN, because that is the reader the block is for. An anonymous visitor is
+    already covered by `user.is_authenticated`, so asserting only on one proves nothing
+    about the mechanism — and the member who taps an old link in their own mail is exactly
+    the person this happens to.
+    """
+    pod, _admin = _family()
+    yard = pod.yards.first()
+    assert yard is not None
+    nana = Member.objects.create(display_name="Nana")
+    PodMembership.objects.create(member=nana, pod=pod)
+    now = timezone.now()
+    issue = DigestIssue.objects.create(
+        member=nana, yard=yard, window_start=now - timedelta(days=7), window_end=now
+    )
+    signed_in, reader = _member(pod, username="reader-of-old-mail")
+    _past_the_email_offer(reader)  # so only the stale-link rule can be why
+
+    stale = digest_links.mint(issue)
+    DigestToken.objects.filter(member=nana).update(expires_at=now - timedelta(seconds=1))
+    for client in (Client(), signed_in):
+        expired = client.get(reverse("digest_web", args=[stale]))
+        assert expired.status_code == 410
+        body = expired.content.decode()
+        assert "Link Expired" in body  # non-vacuity: this really is the expired page
+        assert "data-install-card" not in body and reverse("get_the_app") not in body
+
+    revoked_link = digest_links.mint(issue)
+    elder_tokens.regenerate(nana)  # a revocation bumps the generation the token was minted at
+    for client in (Client(), signed_in):
+        gone = client.get(reverse("digest_web", args=[revoked_link]))
+        assert gone.status_code == 404
+        body = gone.content.decode()
+        assert "Page Not Found" in body  # non-vacuity: the byte-identical 404
+        assert "data-install-card" not in body and reverse("get_the_app") not in body
+
+    # ...and the same member, on a page that IS a place, still gets it: the assertions above
+    # are about those two answers, not about this reader having been disqualified.
+    assert "data-install-card" in signed_in.get(reverse("feed")).content.decode()
+
+
+def test_an_error_page_carries_no_install_surface_even_for_a_member() -> None:
+    """404 is not an exceptional page in this product — it is the answer to every
+    authorization denial (TM-2), so a member meets it on a revoked link, a post that was
+    taken down, a household they left. It is an answer, not a place, and spending this
+    device's one showing of the card there would be the worst screen in the product to be
+    sold anything on."""
+    pod, _admin = _family()
+    client, member = _member(pod)
+    _past_the_email_offer(member)  # so only the error-page rule can be why
+    missing = client.get("/a-route-that-does-not-exist/")
+    assert missing.status_code == 404
+    body = missing.content.decode()
+    assert "Page Not Found" in body  # non-vacuity
+    assert "data-install-card" not in body
+    # ...and the feed, for the same member in the same session, still has it: the assertion
+    # above is about the page, not about this member having been quietly disqualified.
+    assert "data-install-card" in client.get(reverse("feed")).content.decode()
+
+
+def test_the_welcome_never_spends_the_one_showing_the_card_gets() -> None:
+    """A brand-new relative walks join -> welcome 1..4 -> feed. The card is shown ONCE ever
+    per device and remembers the moment it appears, so a firing on screen one would be the
+    only showing that device ever gets, spent three taps before the product's own Get The
+    App screen — which is screen four, and IS this offer, at the moment it works.
+
+    The seen mark lives in localStorage and a request client cannot read it; what this
+    asserts is the thing that writes it, which is the card's own markup being on the page.
+    The browser half is `test_the_welcome_leaves_the_card_unspent` (e2e).
+    """
+    pod, _admin = _family()
+    client, member = _member(pod)
+    _past_the_email_offer(member)  # so only the welcome rule can be why
+    for name in ("welcome", "welcome_family_email", "welcome_hello", "welcome_app"):
+        body = client.get(reverse(name)).content.decode()
+        assert "<h1>" in body, f"{name} did not render"  # non-vacuity
+        assert "data-install-card" not in body, f"the card fires on {name}"
+    # Screen four still carries the offer it is FOR, at length.
+    four = client.get(reverse("welcome_app")).content.decode()
+    assert "<h1>Get The App</h1>" in four and 'data-install-platform="ios"' in four
+    # ...and the feed after it does get the card, unspent.
+    assert "data-install-card" in client.get(reverse("feed")).content.decode()
 
 
 # --- the manifest the steps install ------------------------------------------------------

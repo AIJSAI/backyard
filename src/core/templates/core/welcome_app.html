@@ -12,8 +12,8 @@
    ON A LAPTOP it shows both platforms' steps and is harmless, which is the deliberate
    choice over hiding it: the reader may be a daughter working out what to tell her father
    on the phone, and the steps are the same ones she needs to read out. Hiding a whole
-   screen after it has rendered would also be a flash, which is the thing the feed line next
-   door is written to avoid. {% endcomment %}
+   screen after it has rendered would also be a flash, which is the thing the home-screen
+   card next door is written to avoid. {% endcomment %}
 {% block title %}Get The App{% endblock %}
 {% block extra_head %}{% include "core/_install_steps_style.html" %}{% endblock %}
 {% block body %}
@@ -25,3 +25,10 @@
   <p><a class="btn-secondary btn" href="{% url 'feed' %}">Go To Your Backyard</a></p>
   <p class="muted">Find this again in Settings.</p>
 {% endblock %}
+{% comment %} THE WELCOME DROPS THE HOME-SCREEN CARD, all four screens. Screen four IS the
+   offer, at the moment it works: a relative who has just read what this place is, chosen
+   how often to hear from it and written their first line, holding the phone. The card is
+   shown ONCE EVER per device and remembers the moment it appears, so one firing here
+   would be the only showing this device ever gets, spent taps before the steps
+   themselves. {% endcomment %}
+{% block install_offer %}{% endblock %}

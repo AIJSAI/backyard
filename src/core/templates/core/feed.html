@@ -8,7 +8,7 @@
    card used to sit above it. The sentence and the way to decline share a line when there
    is room and stack when there is not; "Not now" is a quiet button rather than the
    loudest thing on the page, which is what it had become. */
-.email-prompt, .app-prompt {
+.email-prompt {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.9rem;
   /* THE SAME 2rem THE COMPOSER CARD CARRIES BELOW IT (base.html `.composer`). With no
      bottom margin this line sat flush against the first post — `ul.feed` resets its own
@@ -19,18 +19,15 @@
   margin: 0.85rem 0 2rem; font-size: 0.92rem; color: var(--ink-soft);
 }
 .email-prompt form { margin: 0; }
-/* `display: flex` above beats the browser's own `[hidden] { display: none }`, and the install
-   line ships hidden until its script decides it applies (core/_get_the_app_prompt.html). */
-.app-prompt[hidden] { display: none; }
 /* Borderless here, unlike the ghost button it inherits from. Everywhere else .btn-quiet
    sits BESIDE a primary and needs a border to read as a control at all; this one sits at
    the end of a sentence, and a bordered pill on that line is how "Not now" became the
    loudest thing on the page in the first place. It keeps the 44px target. */
-.email-prompt .btn-quiet, .app-prompt .btn-quiet {
+.email-prompt .btn-quiet {
   border-color: transparent; padding-left: 0; padding-right: 0;
   font-size: 0.92rem; text-decoration: underline; text-underline-offset: 3px;
 }
-.email-prompt .btn-quiet:hover, .app-prompt .btn-quiet:hover { background: none; border-color: transparent; }
+.email-prompt .btn-quiet:hover { background: none; border-color: transparent; }
 </style>
 {% endblock %}
 {% block body %}
@@ -196,15 +193,11 @@
       </form>
     </div>
   {% endif %}
-  {% comment %} ONE PROMPT AT A TIME. With the e-mail line above also showing, a new member
-     had two sentences and two "Not Now"s between the composer and the first photograph,
-     which is the wall of chrome the walk of 2026-09-19 took down once already. Getting
-     back into an account outranks an icon, so the app line waits its turn, and it does
-     not arrive on the paint that follows a "Not Now" either (feed_views, `app_prompt_ok`).
-     WHO THIS REACHES: a member whose e-mail offer is answered (an address confirmed, or
-     the offer declined). A brand-new member sees the e-mail offer here first; the last
-     welcome screen and the Settings row are what reach them. {% endcomment %}
-  {% if not email_prompt and app_prompt_ok %}{% include "core/_get_the_app_prompt.html" %}{% endif %}
+  {% comment %} THE INSTALL OFFER IS NOT HERE ANY MORE. It was one quiet line under this
+     one, and it is now a card at the foot of the screen on every signed-in page, included
+     from base.html (core/_install_card.html). The one-prompt rule survived the move: the
+     card reads `email_prompt` and stands down on the one page that carries the offer
+     above, so a member still never has two of these on a screen at once. {% endcomment %}
   {% endif %}
 
   <ul class="feed">
