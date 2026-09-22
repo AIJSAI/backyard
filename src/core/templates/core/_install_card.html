@@ -47,6 +47,12 @@
   (function () {
     var card = document.querySelector('[data-install-card]');
     if (!card) { return; }
+    // THE PAGE IS ALREADY SAYING IT. Get The App and the last welcome screen both carry
+    // the install steps (core/_install_steps.html), and a card offering a link to the page
+    // being read is the two-lines-about-one-thing defect the voice guide names. The turn is
+    // not spent either: nothing below runs, so the mark is not written and the offer is
+    // still to come on the next page this member opens.
+    if (document.querySelector('[data-install]')) { return; }
     // Already installed: this member has done the thing the card asks for. Two readings,
     // because the two platforms answer differently — Chrome and Android report the display
     // mode, older iOS only ever set navigator.standalone.
