@@ -576,13 +576,20 @@ def test_the_scrollport_reserves_the_card_and_focus_lands_clear_of_it(
     it is read here off the computed style because that is the only thing that distinguishes
     it from a rule that never applied: a class on <body> could not reach the root at all.
 
-    THE OUTCOME is the thing a member feels: Tab down the feed, and the control that takes
-    focus is not underneath the card. Measured on this layout, the body's padding is what
-    currently carries the outcome — both engines over-scroll a focused control well clear
-    of the bottom edge, so `scroll-padding` shifts where it lands (56px, measured) without
-    being the difference between covered and not. It is declared anyway, because the
-    browsers' scroll choice is not this product's to rely on and an anchor jump makes the
-    same move. The outcome is asserted so that a change to EITHER reserve is caught here.
+    THE OUTCOME is the thing a member feels: the control that takes focus is not underneath
+    the card. The two reserves carry different halves of it and neither is spare. The body's
+    padding carries the END of the document — the footer's own links, which is what
+    test_the_page_keeps_its_own_controls_out_from_under_the_card walks. `scroll-padding`
+    carries everything ABOVE that: with it removed and the body's padding left alone, a
+    keyboard walk of this feed put 18 of 80 Tab presses on Chromium and 30 of 80 on WebKit
+    onto controls the card was painted over — the composer's own Post button, Love, Reply,
+    Post Options — and `scrollIntoView({block: 'end'})`, which is the move an anchor jump
+    and find-in-page make, left the control entirely behind the card on both engines.
+
+    A SCRIPTED `.focus()` IS NOT THAT CASE, which is why the block-end scroll is what is
+    driven below: Chromium parks a scripted focus scroll near the TOP of the viewport and
+    WebKit does not scroll for one at all, so a `focus()` assertion passes whether the rule
+    is there or not. Both halves are asserted so that removing EITHER reserve is caught.
     """
     cookie = _a_member_with_a_session(posts=8)
     base_url = live_server.url
@@ -626,6 +633,25 @@ def test_the_scrollport_reserves_the_card_and_focus_lands_clear_of_it(
         assert box["y"] + box["height"] <= rect["y"], (
             "the focused control is behind the card: its bottom is "
             f"{box['y'] + box['height']}, the card starts at {rect['y']}"
+        )
+
+        # THE CASE `scroll-padding` IS ACTUALLY FOR: a scroll to the bottom edge of the
+        # scrollport, which is what an anchor jump, find-in-page and Chrome's auto-expanding
+        # <details> all do. Without the rule this lands the control entirely behind the card
+        # on both engines; a scripted focus() does not, on either.
+        landed = page.evaluate(
+            """() => {
+                const card = document.querySelector('[data-install-card]');
+                const loves = [...document.querySelectorAll('main button.love')];
+                const el = loves[loves.length - 1];
+                el.scrollIntoView({block: 'end'});
+                const r = el.getBoundingClientRect(), c = card.getBoundingClientRect();
+                return {bottom: Math.round(r.bottom), cardTop: Math.round(c.top)};
+            }"""
+        )
+        assert landed["bottom"] <= landed["cardTop"], (
+            "a scroll to the bottom edge of the scrollport put the control behind the card: "
+            f"it ends at {landed['bottom']}, the card starts at {landed['cardTop']}"
         )
 
         # ...and the reserve goes with the card, so a page nobody is being offered anything

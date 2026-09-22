@@ -319,10 +319,13 @@ def test_the_card_ships_hidden_and_only_a_script_reveals_it() -> None:
     assert "data-install-card hidden>" in body
     # A NAMED REGION, and never a live one: `aria-live` would announce the card over
     # whatever a screen-reader user was already reading, which a nudge this small has not
-    # earned.
-    assert '<div class="install-card" role="region"' in body
-    assert 'aria-label="Add Backyard To Your Home Screen"' in body
-    assert "aria-live" not in body, "the card announces itself over what is being read"
+    # earned. Read off the CARD, not off the page: a live region somewhere else on the feed
+    # is somebody else's decision and must not turn this red.
+    opened = body.index('<div class="install-card"')
+    card = body[opened : body.index("</div>", opened)]
+    assert 'role="region"' in card
+    assert 'aria-label="Add Backyard To Your Home Screen"' in card
+    assert "aria-live" not in card, "the card announces itself over what is being read"
     assert "display-mode: standalone" in body
     assert "pointer: coarse" in body, "the card is phones only"
     assert "max-width: 37.4375rem" in body, "the card is not at the stylesheet's own phone width"
