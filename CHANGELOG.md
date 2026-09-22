@@ -13,6 +13,15 @@ a point somebody deliberately stopped at, with a full green gate behind it.
      BRACKETED heading as a live entry and an unbracketed one as withdrawn. It carries no
      link at the foot of the file: there is no tag to compare against yet. -->
 
+Nothing yet.
+
+## [0.3.2] — 2026-09-22
+
+The home-screen offer is a card at the foot of every signed-in page on a phone, once ever, with
+a Get The App button, the shape of a sibling product the owner tested on his phone. It stays off
+the welcome screens, the No-Login Link and e-mail pages, error pages, an installed app and a
+desktop, and the page keeps its own controls clear of it. No migration.
+
 - **The home screen is offered on a card at the foot of the screen, once.** It was one
   muted line under the composer, on the feed and nowhere else, so a member who never
   scrolled back to the top of their feed never saw it. It is a card now, on every signed-in
@@ -1238,6 +1247,7 @@ Everything here is a correction, not a feature. `v0.1.0` is **withdrawn**: insta
 - The demo family is fully invented; no real relative's name appears.
 - Fonts ship with their licence text (SIL OFL 1.1).
 
+[0.3.2]: https://github.com/AIJSAI/backyard/tree/v0.3.2
 [0.3.1]: https://github.com/AIJSAI/backyard/tree/v0.3.1
 [0.3.0]: https://github.com/AIJSAI/backyard/tree/v0.3.0
 [0.2.0]: https://github.com/AIJSAI/backyard/tree/v0.2.0
