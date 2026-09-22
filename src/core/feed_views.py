@@ -75,7 +75,7 @@ _MAX_POST_ID = 2**63 - 1
 # The feed draws a 2x2 grid at most; anything past it is a "+N" tile onto the post page,
 # which is where a post's whole gallery lives.
 _FEED_MEDIA_TILES = 4
-# Set by `dismiss_email_prompt`, popped by the next feed render: see `app_prompt_ok`.
+# Set by `dismiss_email_prompt`, popped by the next feed render: see `app_prompt_suppressed`.
 _PROMPT_JUST_DISMISSED = "prompt_just_dismissed"
 # Names per kind on the feed's reactor line before "And Others" takes the reader to the
 # post. Three is what fits one phone line; the thread page still names everybody. Still
@@ -505,12 +505,19 @@ def _render_feed(
             # BY-02: this member has no way to reset their own password. Shown once,
             # quietly, until they dismiss it or add an address.
             "email_prompt": _email_prompt(member),
-            # ONE PROMPT AT A TIME, and not back to back. The install line takes the e-mail
-            # offer's place under the composer, in the same shape with its own "Not Now": a
-            # member who has just declined one must not watch an identical-looking one take
-            # its seat on the very next paint (measured in review at the same pixel). So
-            # the render that follows a dismissal draws neither; the next visit may.
-            "app_prompt_ok": not request.session.pop(_PROMPT_JUST_DISMISSED, False),
+            # ONE PROMPT AT A TIME, and not back to back: a member who has just declined the
+            # e-mail offer must not watch a second offer arrive on the very next paint
+            # (measured in review at the same pixel, when the install line still sat under
+            # the composer). The render that follows a dismissal draws neither; the next
+            # visit may.
+            #
+            # STATED AS THE SUPPRESSION rather than as permission, because base.html reads
+            # it on EVERY signed-in page now that the offer is a card at the foot of the
+            # screen (core/_install_card.html). A `not app_prompt_ok` reading would be false
+            # on every page but this one, which is the one page that sets it, and the card
+            # would never appear anywhere else. An absent variable means "nothing to
+            # suppress", which is the truth everywhere except the paint after a dismissal.
+            "app_prompt_suppressed": request.session.pop(_PROMPT_JUST_DISMISSED, False),
             "errors": errors or [],
             # The end-cap is only honest when the tail is genuinely reached; otherwise the
             # member gets a way back into the archive instead of a false "all caught up".

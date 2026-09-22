@@ -162,7 +162,8 @@ def may_name_the_admin(request: HttpRequest) -> bool:
 
 
 def viewer(request: HttpRequest) -> dict[str, object]:
-    """`viewer_member`, `viewer_is_admin` and `help_contact`, for the site chrome.
+    """`viewer_member`, `viewer_is_admin`, `viewer_on_a_family_link` and `help_contact`,
+    for the site chrome.
 
     Named for the reader rather than for the model, because `member` alone is ambiguous in
     a template that is also rendering somebody else's member row — which the roster and the
@@ -173,6 +174,15 @@ def viewer(request: HttpRequest) -> dict[str, object]:
     return {
         "viewer_member": member,
         "viewer_is_admin": member is not None and permissions.is_admin(member),
+        # THE READER IS HERE ON A LINK, not on a session — which is what tells base.html
+        # that this page is a token surface even when the person holding the link also
+        # happens to be signed in. /t/, /e/ and /d/ plant no worker and link no manifest
+        # (ADR-002), so they must carry no install chrome either, and the ONE thing that
+        # knows a page is one of them is the view that resolved the token.
+        #
+        # The raw attribute rather than `may_name_the_admin` above: that answers "has this
+        # reader been introduced to the family", which every signed-in member has been.
+        "viewer_on_a_family_link": bool(getattr(request, FAMILY_LINK_READER_ATTRIBUTE, False)),
         # Lazy: this processor runs on EVERY render, and in this product a 404 is not
         # exceptional — it is the answer to every authorization denial (TM-2). A template
         # that never prints the help line never pays for the lookup.

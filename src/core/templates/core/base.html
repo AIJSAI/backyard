@@ -1657,6 +1657,56 @@ ul.contacts > li { padding: 0.15rem 0; }
 .manage-card { background: var(--surface); border: 1.5px solid var(--line);
   border-radius: var(--radius); box-shadow: var(--shadow); padding: 0.3rem 1.25rem 1.1rem; margin: 0.9rem 0; }
 
+/* ---- the home-screen card (S-103) ----------------------------------------------------
+   A card at the foot of the screen offering the home screen, on every signed-in page and
+   once ever per device. What it says and when it appears is core/_install_card.html; this
+   is where it sits.
+
+   PHONE WIDTH ONLY, at the stylesheet's own phone breakpoint (below sm, 600px). Nothing
+   below is defined at any other width, so a laptop cannot render it even if the script
+   were to reveal it.
+
+   IT IS THE PRODUCT'S OWN CARD, not a banner: the same 1.5px line, radius and shadow a
+   post carries at sm. A tinted strip across the bottom of a family's photographs would be
+   the wall of chrome the 2026-09-19 walk took down, one edge over.
+
+   `display: none` is the base, so the card is invisible to a desktop regardless of the
+   `hidden` attribute; inside the query `display: flex` would otherwise beat the browser's
+   own `[hidden] { display: none }`, so that is restated at a specificity that wins. */
+.install-card { display: none; }
+@media (max-width: 37.4375rem) {
+  .install-card {
+    display: flex; align-items: center; gap: 0.5rem;
+    position: fixed; left: 0.75rem; right: 0.75rem; z-index: 8;
+    /* Above the home indicator on an iPhone, and 0.75rem off the edge everywhere else. */
+    bottom: calc(0.75rem + env(safe-area-inset-bottom));
+    background: var(--surface);
+    border: 1.5px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 0.5rem 0.5rem 0.5rem 0.9rem;
+  }
+  .install-card[hidden] { display: none; }
+  .install-card > p { margin: 0; flex: 1 1 auto; font-size: 0.95rem; }
+  /* Narrower than a full-width primary: three objects share a 390px line and the sentence
+     is the one that must stay readable. The 44px target is untouched. */
+  .install-card > .btn { flex: none; min-height: 44px; padding: 0.4rem 0.85rem; font-size: 0.95rem; }
+  /* Borderless, like the quiet decline at the end of the e-mail offer's sentence: a
+     bordered pill beside a filled button reads as a second choice rather than as a way to
+     close the card. It keeps the 44px square (SC 2.5.5). */
+  .install-card > .btn-quiet {
+    flex: none; width: 44px; min-height: 44px; padding: 0; border-color: transparent;
+  }
+  .install-card > .btn-quiet:hover { background: var(--surface-sunk); border-color: transparent; }
+  .install-card > .btn-quiet svg { width: 19px; height: 19px; }
+  /* THE PAGE RESERVES THE ROOM. The card is fixed, so without this it sits on top of the
+     composer's Post button and of the last post's own controls — which is exactly what a
+     tab bar's layout does for itself. On <body>, not on <main>: the footer is below main,
+     and padding on main alone leaves the help line and the links under the card at the
+     bottom of every scroll. The class is added by the script when the card is revealed and
+     removed when it is closed, so a page with no card reserves nothing. */
+  body.install-card-open { padding-bottom: 7rem; }
+}
+
 /* ---- reduced motion & print ---------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
@@ -1972,6 +2022,29 @@ ul.contacts > li { padding: 0.15rem 0; }
      to the standalone pages, so its words and its shape cannot drift apart across the
      site again. Everything it decides, and why, is written in the include. {% endcomment %}
   {% include "core/_footer.html" %}
+  {% comment %} The home-screen offer (S-103), on every signed-in page rather than on the
+     feed alone. Four conditions, and each one is a thing only the SERVER knows; everything
+     the browser knows is in the include's own script.
+
+     `user.is_authenticated` — the same gate the manifest and the worker are behind at the
+     top of this file. A signed-out reader following an install would get an icon with no
+     name and no app window.
+
+     `viewer_on_a_family_link` — the token surfaces, and only they set it (a view sets it
+     once its token has RESOLVED: core/context_processors.py). /t/, /e/ and /d/ plant no
+     worker and link no manifest at all (ADR-002), so they carry no install chrome either,
+     and that holds for a member who happens to be signed in when they tap the link in
+     their mail.
+
+     `email_prompt` — ONE PROMPT AT A TIME. Getting back into an account outranks an icon
+     on a home screen, so on the one page that carries the e-mail offer the card waits for
+     the next load. No other page sets the variable, so no other page waits.
+
+     `app_prompt_suppressed` — and not back to back either: the paint that follows a "Not
+     Now" on the e-mail offer draws neither (core/feed_views.py). {% endcomment %}
+  {% if user.is_authenticated and not viewer_on_a_family_link and not email_prompt and not app_prompt_suppressed %}
+    {% include "core/_install_card.html" %}
+  {% endif %}
   {% if user.is_authenticated %}
     <script nonce="{{ request.csp_nonce }}">
       // Register the minimal service worker so member pages are installable

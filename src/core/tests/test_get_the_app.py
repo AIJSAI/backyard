@@ -268,93 +268,138 @@ def test_the_welcome_step_needs_a_member_like_every_other_screen() -> None:
     assert reverse("account_login") in response.headers["Location"]
 
 
-# --- the quiet line on the feed --------------------------------------------------------
+# --- the card at the foot of the screen -------------------------------------------------
 
 
 def _past_the_email_offer(member: Member) -> None:
-    """The feed shows ONE prompt at a time and the e-mail offer goes first, so the install
-    line is only on the page of a member who has answered that one."""
+    """The product shows ONE prompt at a time and the e-mail offer goes first, so on the
+    feed the card reaches only a member who has answered that one."""
     member.email_prompt_dismissed_at = timezone.now()
     member.save(update_fields=["email_prompt_dismissed_at"])
 
 
 def test_the_feed_shows_one_prompt_at_a_time_and_email_goes_first() -> None:
-    """Two sentences and two "Not Now"s between the composer and the first photograph is
-    the wall of chrome the 2026-09-19 walk took down. Getting back into an account
-    outranks an icon on a home screen, so the install line waits its turn."""
+    """Two offers on one screen is the wall of chrome the 2026-09-19 walk took down.
+    Getting back into an account outranks an icon on a home screen, so on the one page
+    that carries the e-mail offer the card waits its turn."""
     pod, _admin = _family()
     client, member = _member(pod)
     body = client.get(reverse("feed")).content.decode()
     assert 'class="email-prompt"' in body
-    assert "data-app-prompt" not in body
+    assert "data-install-card" not in body
     _past_the_email_offer(member)
     body = client.get(reverse("feed")).content.decode()
     assert 'class="email-prompt"' not in body
-    assert "data-app-prompt" in body
+    assert "data-install-card" in body
 
 
 def test_declining_the_email_offer_does_not_summon_the_next_prompt() -> None:
-    """Measured in review: the install line rendered at the same pixel the e-mail offer had
-    just left, with its own "Not Now" in the same place. One prompt at a time also means
-    not back to back: the page that follows a dismissal draws neither, the next visit may."""
+    """Measured in review, back when the install offer was a line under the composer: it
+    rendered at the same pixel the e-mail offer had just left, with its own "Not Now" in
+    the same place. One prompt at a time also means not back to back: the page that
+    follows a dismissal draws neither, the next visit may."""
     pod, _admin = _family()
     client, _row = _member(pod)
     assert 'class="email-prompt"' in client.get(reverse("feed")).content.decode()
     landed = client.post(reverse("dismiss_email_prompt"), follow=True).content.decode()
     assert 'class="email-prompt"' not in landed
-    assert "data-app-prompt" not in landed, "a second prompt took the first one's seat"
-    assert "data-app-prompt" in client.get(reverse("feed")).content.decode()
+    assert "data-install-card" not in landed, "a second prompt took the first one's seat"
+    assert "data-install-card" in client.get(reverse("feed")).content.decode()
 
 
-def test_the_feed_line_ships_hidden_and_only_a_script_reveals_it() -> None:
-    """No flash. Every reason to show it — a phone, not installed, not already declined —
-    is a browser fact, so the server sends it hidden and the script decides."""
+def test_the_card_ships_hidden_and_only_a_script_reveals_it() -> None:
+    """No flash. Every reason to show it — a phone, not installed, not an in-app browser,
+    not offered before — is a browser fact, so the server sends it hidden and the script
+    decides."""
     pod, _admin = _family()
     client, row = _member(pod)
     _past_the_email_offer(row)
     body = client.get(reverse("feed")).content.decode()
-    assert '<div class="app-prompt" data-app-prompt hidden>' in body
+    assert '<div class="install-card" data-install-card hidden>' in body
     assert "display-mode: standalone" in body
-    assert "pointer: coarse" in body, "the line is phones only"
+    assert "pointer: coarse" in body, "the card is phones only"
+    assert "max-width: 37.4375rem" in body, "the card is not at the stylesheet's own phone width"
     assert re.search(r"try \{\s*if \(window\.localStorage\.getItem", body), (
-        "the read of the dismissal is not inside a try: Safari private mode THROWS there"
+        "the read of the seen mark is not inside a try: Safari private mode THROWS there"
     )
 
 
-def test_the_feed_line_sits_under_the_composer_beside_the_email_offer() -> None:
-    """Item 5 of the phone-width walk cut a screen-tall card down to one line under the
-    composer. A second card above it would put the product straight back."""
+def test_the_card_carries_the_sentence_the_link_and_a_named_way_out() -> None:
+    """One sentence, one way in, one way out. The x is what a thumb sees; "Not Now" is what
+    a screen reader announces, because a control named after its glyph is not named."""
     pod, _admin = _family()
     client, row = _member(pod)
     _past_the_email_offer(row)
     body = client.get(reverse("feed")).content.decode()
-    assert body.index('class="composer') < body.index('class="app-prompt"')
-    assert body.index('class="app-prompt"') < body.index('<ul class="feed">')
+    # From the MARKUP, not from the stylesheet: base.html's inline <style> names the class
+    # first, and a slice that started there would read the CSS and find no words at all.
+    opened = body.index('<div class="install-card"')
+    card = body[opened : body.index("</div>", opened)]
+    assert "Add Backyard to your home screen." in card
+    assert f'href="{reverse("get_the_app")}"' in card
+    assert ">Get The App</a>" in _flat(card)
+    assert 'aria-label="Not Now"' in card
+    assert "data-install-card-dismiss" in card
 
 
-def test_the_archive_page_carries_no_install_line() -> None:
-    """Paging back is a history page: no composer, no email offer, and no nudge. The
-    whole block is inside `if not is_archive_page`, which is what keeps it that way."""
+def test_the_card_is_on_every_signed_in_page_not_only_the_feed() -> None:
+    """The move that this work item IS: installing is something a member decides while they
+    are already using the product, and the line it replaced could only be met by somebody
+    looking at the top of the feed. It comes from base.html now, so Settings, Groups and
+    the Directory carry it on exactly the same terms."""
+    pod, _admin = _family()
+    client, row = _member(pod)
+    _past_the_email_offer(row)
+    for name in ("feed", "profile_edit", "pod_list", "directory"):
+        body = client.get(reverse(name)).content.decode()
+        assert "data-install-card" in body, f"{name} carries no home-screen card"
+    # ...and it is the LAST thing in the document, under the footer, because it is fixed to
+    # the viewport rather than placed in the page's flow.
+    body = client.get(reverse("feed")).content.decode()
+    assert body.index("<footer") < body.index('class="install-card"')
+
+
+def test_the_archive_page_carries_the_card_like_any_other_signed_in_page() -> None:
+    """Paging back used to carry no nudge at all, because the line lived inside the feed's
+    own `if not is_archive_page`. The card is chrome on the viewport rather than an item in
+    the feed, and the archive is a signed-in page a member reads on a phone like any
+    other."""
     pod, _admin = _family()
     client, member = _member(pod)
+    _past_the_email_offer(member)
     post = Post.objects.create(author=member, pod=pod, body="something to page past")
     cursor = f"{post.created_at.isoformat()}_{post.id}"
     archive = client.get(reverse("feed"), {"before": cursor}).content.decode()
     assert "Older Posts" in archive  # non-vacuity: this really is the archive page
-    assert "data-app-prompt" not in archive
-    assert reverse("get_the_app") not in archive
+    assert "data-install-card" in archive
 
 
-def test_the_dismissal_is_per_device_and_survives_no_storage() -> None:
+def test_a_signed_out_page_carries_no_card() -> None:
+    """The same gate the manifest is behind: a stranger following an install would get an
+    icon with no name and no app window, so the offer is never made to one."""
+    _family()
+    body = Client().get(reverse("how_it_works")).content.decode()
+    assert "Backyard" in body  # non-vacuity: a real public page rendered
+    assert "data-install-card" not in body
+    assert reverse("get_the_app") not in body
+
+
+def test_the_offer_is_once_ever_and_survives_no_storage() -> None:
     """A departure from the email prompt beside it, which is dismissed on a member column.
-    A second column is a migration this work item does not make, so the decline is kept in
-    localStorage — and every access is wrapped, because Safari's private mode THROWS on
-    localStorage rather than returning null, and an exception would take the rest of the
-    script with it."""
+    A second column is a migration this work item does not make, so the fact that the card
+    was SHOWN is kept in localStorage — written as it appears, so ignoring it counts.
+
+    Every access is wrapped, because Safari's private mode THROWS on localStorage rather
+    than returning null; a throw means nothing can be remembered, and a once-ever offer
+    that cannot remember would arrive on every page load, so it stays quiet instead."""
     pod, _admin = _family()
     client, row = _member(pod)
     _past_the_email_offer(row)
     script = client.get(reverse("feed")).content.decode()
+    assert "backyard.install-card.seen" in script
+    # THE OLD LINE'S KEY IS HONOURED. Somebody who pressed Not Now on the sentence this
+    # card replaced has already declined; asking them again would be the migration failing.
+    assert "backyard.install-prompt-dismissed" in script
     # PER ACCESS. A throw on the read would take the click wiring below it along, and a
     # single "try {" anywhere in the script satisfied the first cut of this test.
     assert re.search(r"try \{\s*if \(window\.localStorage\.getItem", script)
@@ -381,7 +426,7 @@ def test_the_no_login_link_pages_carry_no_install_surface() -> None:
     body = client.get(reverse("elder_feed")).content.decode()
     assert body  # non-vacuity
     assert reverse("get_the_app") not in body
-    assert "data-app-prompt" not in body and "data-install" not in body
+    assert "data-install-card" not in body and "data-install" not in body
 
 
 def test_the_email_web_view_carries_no_install_surface() -> None:
@@ -400,17 +445,20 @@ def test_the_email_web_view_carries_no_install_surface() -> None:
     )
     link = reverse("digest_web", args=[digest_links.mint(issue)])
     # The token visitor, and ALSO a member who happens to be signed in when they tap the
-    # link in their mail: what this item adds (the page link, the feed line, the install
-    # button) belongs to member pages and appears on neither. (A signed-in member does get
-    # the manifest link there, as on every page: base.html gates that on the session, and
+    # link in their mail: the page link, the home-screen card and the install button belong
+    # to member pages and appear on neither. What keeps the card off THIS reader is
+    # `viewer_on_a_family_link`, which only a view that has resolved a live token sets —
+    # `user.is_authenticated` alone is true for the second client here. (A signed-in member
+    # does get the manifest link, as on every page: base.html gates that on the session, and
     # they already carry the worker from the feed. ADR-002 is about the visitor with no
     # session, who is asserted worker-free by test_pwa.py.)
-    signed_in, _row = _member(pod, username="reader-of-mail")
+    signed_in, member_of_the_family = _member(pod, username="reader-of-mail")
+    _past_the_email_offer(member_of_the_family)  # so only the token surface rule can be why
     for client in (Client(), signed_in):
         body = client.get(link).content.decode()
         assert "Email Update" in body  # non-vacuity: this is the mail's web copy
         assert reverse("get_the_app") not in body
-        assert "data-app-prompt" not in body and "data-install" not in body
+        assert "data-install-card" not in body and "data-install" not in body
 
 
 # --- the manifest the steps install ------------------------------------------------------
