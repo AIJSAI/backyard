@@ -97,3 +97,10 @@
   <p class="muted"><a href="{% url 'how_it_works' %}">How It Works</a> explains who can see
     your posts.</p>
 {% endblock %}
+{% comment %} THE WELCOME DROPS THE HOME-SCREEN CARD, all four screens. Screen four IS the
+   offer, at the moment it works: a relative who has just read what this place is, chosen
+   how often to hear from it and written their first line, holding the phone. The card is
+   shown ONCE EVER per device and remembers the moment it appears, so one firing here
+   would be the only showing this device ever gets, spent taps before the steps
+   themselves. {% endcomment %}
+{% block install_offer %}{% endblock %}

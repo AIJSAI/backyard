@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -31,7 +32,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core import digest_links, elder_tokens
-from core.models import DigestIssue, Member, Pod, PodMembership, Post, Yard
+from core.models import DigestIssue, DigestToken, Member, Pod, PodMembership, Post, Yard
 
 pytestmark = pytest.mark.django_db
 User = get_user_model()
@@ -315,7 +316,13 @@ def test_the_card_ships_hidden_and_only_a_script_reveals_it() -> None:
     client, row = _member(pod)
     _past_the_email_offer(row)
     body = client.get(reverse("feed")).content.decode()
-    assert '<div class="install-card" data-install-card hidden>' in body
+    assert "data-install-card hidden>" in body
+    # A NAMED REGION, and never a live one: `aria-live` would announce the card over
+    # whatever a screen-reader user was already reading, which a nudge this small has not
+    # earned.
+    assert '<div class="install-card" role="region"' in body
+    assert 'aria-label="Add Backyard To Your Home Screen"' in body
+    assert "aria-live" not in body, "the card announces itself over what is being read"
     assert "display-mode: standalone" in body
     assert "pointer: coarse" in body, "the card is phones only"
     assert "max-width: 37.4375rem" in body, "the card is not at the stylesheet's own phone width"
@@ -374,6 +381,25 @@ def test_the_archive_page_carries_the_card_like_any_other_signed_in_page() -> No
     assert "data-install-card" in archive
 
 
+def test_the_archive_does_not_withhold_the_card_for_an_offer_it_never_draws() -> None:
+    """The e-mail offer is drawn on the feed's FIRST page only (`if not is_archive_page`),
+    and base.html reads `email_prompt` on every page — so a member who has not answered
+    that offer had the card stood down on the archive in deference to a line the archive
+    does not carry. One prompt at a time is about what is ON THE SCREEN."""
+    pod, _admin = _family()
+    client, member = _member(pod)  # deliberately NOT past the e-mail offer
+    post = Post.objects.create(author=member, pod=pod, body="something to page past")
+    cursor = f"{post.created_at.isoformat()}_{post.id}"
+
+    first = client.get(reverse("feed")).content.decode()
+    assert 'class="email-prompt"' in first  # non-vacuity: the offer really is outstanding
+    assert "data-install-card" not in first, "the offer is on this page; the card must wait"
+
+    archive = client.get(reverse("feed"), {"before": cursor}).content.decode()
+    assert 'class="email-prompt"' not in archive, "the archive drew the offer after all"
+    assert "data-install-card" in archive
+
+
 def test_a_signed_out_page_carries_no_card() -> None:
     """The same gate the manifest is behind: a stranger following an install would get an
     icon with no name and no app window, so the offer is never made to one."""
@@ -389,9 +415,11 @@ def test_the_offer_is_once_ever_and_survives_no_storage() -> None:
     A second column is a migration this work item does not make, so the fact that the card
     was SHOWN is kept in localStorage — written as it appears, so ignoring it counts.
 
-    Every access is wrapped, because Safari's private mode THROWS on localStorage rather
-    than returning null; a throw means nothing can be remembered, and a once-ever offer
-    that cannot remember would arrive on every page load, so it stays quiet instead."""
+    Every access is wrapped, and not for private browsing: Safari 11 and later give a
+    private window its own ephemeral localStorage, so a private window is offered the card
+    once and then forgets it, which is the right answer there. What THROWS on the property
+    is a browser with site data blocked; nothing can be remembered there, and a once-ever
+    offer that cannot remember would arrive on every page load, so it stays quiet."""
     pod, _admin = _family()
     client, row = _member(pod)
     _past_the_email_offer(row)
@@ -459,6 +487,87 @@ def test_the_email_web_view_carries_no_install_surface() -> None:
         assert "Email Update" in body  # non-vacuity: this is the mail's web copy
         assert reverse("get_the_app") not in body
         assert "data-install-card" not in body and "data-install" not in body
+
+
+def test_a_stale_email_link_carries_no_install_surface_either() -> None:
+    """THE FLAG ALONE DOES NOT COVER THIS, and that is the whole point of the block.
+
+    `viewer_on_a_family_link` is set by a view whose token RESOLVED. An EXPIRED link
+    resolves to nothing and renders Link Expired; a REVOKED one resolves to nothing and
+    renders the byte-identical 404. Neither view ever set the flag, so both pages rendered
+    base.html with the card on them — offered to a relative holding a link that just
+    stopped working, on the one screen in the product that is an apology.
+
+    Both pages drop the `install_offer` block instead.
+    """
+    pod, _admin = _family()
+    yard = pod.yards.first()
+    assert yard is not None
+    nana = Member.objects.create(display_name="Nana")
+    PodMembership.objects.create(member=nana, pod=pod)
+    now = timezone.now()
+    issue = DigestIssue.objects.create(
+        member=nana, yard=yard, window_start=now - timedelta(days=7), window_end=now
+    )
+
+    stale = digest_links.mint(issue)
+    DigestToken.objects.filter(member=nana).update(expires_at=now - timedelta(seconds=1))
+    expired = Client().get(reverse("digest_web", args=[stale]))
+    assert expired.status_code == 410
+    body = expired.content.decode()
+    assert "Link Expired" in body  # non-vacuity: this really is the expired page
+    assert "data-install-card" not in body and reverse("get_the_app") not in body
+
+    revoked_link = digest_links.mint(issue)
+    elder_tokens.regenerate(nana)  # a revocation bumps the generation the token was minted at
+    gone = Client().get(reverse("digest_web", args=[revoked_link]))
+    assert gone.status_code == 404
+    body = gone.content.decode()
+    assert "Page Not Found" in body  # non-vacuity: the byte-identical 404
+    assert "data-install-card" not in body and reverse("get_the_app") not in body
+
+
+def test_an_error_page_carries_no_install_surface_even_for_a_member() -> None:
+    """404 is not an exceptional page in this product — it is the answer to every
+    authorization denial (TM-2), so a member meets it on a revoked link, a post that was
+    taken down, a household they left. It is an answer, not a place, and spending this
+    device's one showing of the card there would be the worst screen in the product to be
+    sold anything on."""
+    pod, _admin = _family()
+    client, member = _member(pod)
+    _past_the_email_offer(member)  # so only the error-page rule can be why
+    missing = client.get("/a-route-that-does-not-exist/")
+    assert missing.status_code == 404
+    body = missing.content.decode()
+    assert "Page Not Found" in body  # non-vacuity
+    assert "data-install-card" not in body
+    # ...and the feed, for the same member in the same session, still has it: the assertion
+    # above is about the page, not about this member having been quietly disqualified.
+    assert "data-install-card" in client.get(reverse("feed")).content.decode()
+
+
+def test_the_welcome_never_spends_the_one_showing_the_card_gets() -> None:
+    """A brand-new relative walks join -> welcome 1..4 -> feed. The card is shown ONCE ever
+    per device and remembers the moment it appears, so a firing on screen one would be the
+    only showing that device ever gets, spent three taps before the product's own Get The
+    App screen — which is screen four, and IS this offer, at the moment it works.
+
+    The seen mark lives in localStorage and a request client cannot read it; what this
+    asserts is the thing that writes it, which is the card's own markup being on the page.
+    The browser half is `test_the_welcome_leaves_the_card_unspent` (e2e).
+    """
+    pod, _admin = _family()
+    client, member = _member(pod)
+    _past_the_email_offer(member)  # so only the welcome rule can be why
+    for name in ("welcome", "welcome_family_email", "welcome_hello", "welcome_app"):
+        body = client.get(reverse(name)).content.decode()
+        assert "<h1>" in body, f"{name} did not render"  # non-vacuity
+        assert "data-install-card" not in body, f"the card fires on {name}"
+    # Screen four still carries the offer it is FOR, at length.
+    four = client.get(reverse("welcome_app")).content.decode()
+    assert "<h1>Get The App</h1>" in four and 'data-install-platform="ios"' in four
+    # ...and the feed after it does get the card, unspent.
+    assert "data-install-card" in client.get(reverse("feed")).content.decode()
 
 
 # --- the manifest the steps install ------------------------------------------------------

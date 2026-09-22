@@ -31,7 +31,7 @@ from playwright.sync_api import Playwright, expect
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from core import elder_tokens
-from core.models import Member, Pod, PodMembership, Yard
+from core.models import Member, Pod, PodMembership, Post, Yard
 
 User = get_user_model()
 _BACKEND = "django.contrib.auth.backends.ModelBackend"
@@ -44,9 +44,13 @@ os.environ.setdefault("DJANGO_ALLOW_ASYNC_UNSAFE", "1")
 pytestmark = [pytest.mark.e2e, pytest.mark.django_db(transaction=True)]
 
 
-def _a_member_with_a_session() -> str:
+def _a_member_with_a_session(posts: int = 0) -> str:
     """One member, signed in server-side. The session cookie is injected into each browser
     context, so these drive the INSTALL page rather than re-testing the sign-in form.
+
+    `posts` writes that many of the member's own posts, which is what a test needs when it
+    has to put a control UNDER the card: an empty feed is one screen tall and nothing on it
+    ever reaches the bottom band.
 
     Identifiers are unique per call, the pattern test_the_photo_button_in_a_browser.py
     adopted: a `transaction=True` teardown can lose its flush to a request the live server is
@@ -67,6 +71,8 @@ def _a_member_with_a_session() -> str:
         email_prompt_dismissed_at=timezone.now(),
     )
     PodMembership.objects.create(member=member, pod=pod)
+    for index in range(posts):
+        Post.objects.create(author=member, pod=pod, body=f"Something that happened, {index}.")
     client = Client()
     client.force_login(user, backend=_BACKEND)  # a real DB session the live server shares
     return str(client.cookies["sessionid"].value)
@@ -327,9 +333,19 @@ def test_the_page_keeps_its_own_controls_out_from_under_the_card(
 def test_a_desktop_window_is_never_offered_a_home_screen(
     live_server: Any, playwright: Playwright
 ) -> None:
-    """A home-screen icon means nothing on a laptop. Width alone would also catch a
-    narrowed desktop window, which is why the card reads a coarse pointer too — and this
-    context has neither."""
+    """A home-screen icon means nothing on a laptop.
+
+    TWO MECHANISMS, AND THIS ASSERTS BOTH. `to_be_hidden` alone proves only the
+    STYLESHEET: `.install-card { display: none }` outside the phone query hides the card
+    whatever the script does. So the script's own reading is asserted by its consequences —
+    no seen mark and no class on the root element, neither of which the CSS can produce.
+    Without them a regression that revealed the card on every desktop load, silently
+    spending the phone's one showing on a laptop, would have passed here.
+
+    The second window is 500px wide with a FINE pointer, which is the narrowed desktop
+    window the coarse-pointer reading exists for: it is inside the phone breakpoint, so the
+    width test alone would offer it a home screen.
+    """
     cookie = _a_member_with_a_session()
     base_url = live_server.url
     chromium = playwright.chromium.launch()
@@ -339,6 +355,27 @@ def test_a_desktop_window_is_never_offered_a_home_screen(
         page = _the_feed(context, base_url)
         expect(page.get_by_role("heading", name="Your Backyard")).to_be_visible()  # non-vacuity
         expect(page.locator("[data-install-card]")).to_be_hidden()
+        assert (
+            page.evaluate("() => window.localStorage.getItem('backyard.install-card.seen')") is None
+        ), "a desktop load spent the one showing this person's phone will ever get"
+        assert (
+            page.evaluate("() => document.documentElement.classList.contains('install-card-open')")
+            is False
+        ), "the script revealed the card on a desktop; only the stylesheet hid it"
+        _let_the_server_finish(page)
+
+        # A NARROWED DESKTOP WINDOW: inside the phone breakpoint, and still not a phone.
+        narrow = chromium.new_context(viewport={"width": 500, "height": 900})
+        narrow.add_cookies([{"name": "sessionid", "value": cookie, "url": base_url}])
+        page = _the_feed(narrow, base_url)
+        assert page.evaluate("() => window.matchMedia('(max-width: 37.4375rem)').matches"), (
+            "500px is not inside the phone breakpoint, so this window proves nothing"
+        )
+        assert page.evaluate("() => window.matchMedia('(pointer: fine)').matches")
+        expect(page.locator("[data-install-card]")).to_be_hidden()
+        assert (
+            page.evaluate("() => window.localStorage.getItem('backyard.install-card.seen')") is None
+        )
         _let_the_server_finish(page)
     finally:
         chromium.close()
@@ -421,6 +458,141 @@ def test_the_card_stands_down_where_the_page_already_says_it(
         # ...and the feed, next, still gets it.
         page.goto(f"{base_url}/feed/")
         expect(page.locator("[data-install-card]")).to_be_visible()
+        _let_the_server_finish(page)
+    finally:
+        chromium.close()
+
+
+def test_the_welcome_leaves_the_card_unspent(live_server: Any, playwright: Playwright) -> None:
+    """THE BROWSER HALF OF THE WELCOME RULE, which is the half that matters: the card is
+    remembered the moment it APPEARS, so what has to be proven is that no welcome screen
+    writes the mark. A brand-new relative walks all four and then reaches the feed, and the
+    card is still there to be offered.
+
+    Screen four is the product's own Get The App, three taps in, at the moment it works — a
+    card spent on screen one would be the only showing that device ever gets."""
+    cookie = _a_member_with_a_session()
+    base_url = live_server.url
+    chromium = playwright.chromium.launch()
+    try:
+        context = _phone(chromium, playwright, base_url, cookie)
+        page = context.new_page()
+        for path, heading in (
+            ("/welcome/", "Welcome"),
+            ("/welcome/family-email/", "Email Updates"),
+            ("/welcome/hello/", "Say Hello"),
+            ("/welcome/app/", "Get The App"),
+        ):
+            page.goto(f"{base_url}{path}")
+            expect(page.get_by_role("heading", name=heading)).to_be_visible()  # non-vacuity
+            expect(page.locator("[data-install-card]")).to_be_hidden()
+            assert (
+                page.evaluate("() => window.localStorage.getItem('backyard.install-card.seen')")
+                is None
+            ), f"{path} spent the one showing this device ever gets"
+            _let_the_server_finish(page)
+
+        page.goto(f"{base_url}/feed/")
+        expect(page.locator("[data-install-card]")).to_be_visible()
+        _let_the_server_finish(page)
+    finally:
+        chromium.close()
+
+
+def test_the_post_menu_outranks_the_card(live_server: Any, playwright: Playwright) -> None:
+    """A member opened Post Options on a post low on the screen and the card painted over
+    Edit Post and Delete Post, so a thumb aimed at Delete Post opened Get The App. A menu
+    somebody deliberately opened outranks a nudge nobody asked for."""
+    cookie = _a_member_with_a_session(posts=10)
+    base_url = live_server.url
+    chromium = playwright.chromium.launch()
+    try:
+        context = _phone(chromium, playwright, base_url, cookie)
+        page = _the_feed(context, base_url)
+        card = page.locator("[data-install-card]")
+        expect(card).to_be_visible()
+
+        # PUT A MENU WHERE IT OVERLAPS, which is the whole setup. A menu opens DOWNWARDS
+        # (`top: 100%`), so the one that lands in the card's band is a control sitting just
+        # above the card — and scrolling to the very bottom does not produce one, because
+        # the end-cap, the footer and the reserved room are all below the last post. So the
+        # page is scrolled until a chosen post's control is 30px above the card's top edge.
+        which = page.evaluate(
+            """() => {
+                const top = document.querySelector('[data-install-card]')
+                    .getBoundingClientRect().top;
+                const all = [...document.querySelectorAll('.post-menu > summary')];
+                if (!all.length) { return -1; }
+                const target = all[Math.floor(all.length / 2)];
+                window.scrollBy(0, target.getBoundingClientRect().bottom - (top - 30));
+                return all.indexOf(target);
+            }"""
+        )
+        assert which >= 0, "the feed drew no post menus, so nothing here can overlap"
+        # The <summary> itself, pressed like a thumb. Its accessible name is "Post Options",
+        # but Chromium maps a disclosure summary to no stable role, so the role query is not
+        # the way in here.
+        page.locator(".post-menu > summary").nth(which).click()
+        opened = page.locator(".post-menu").nth(which)
+        items = opened.locator(".post-menu-items")
+        expect(items).to_be_visible()
+        delete = items.get_by_role("link", name="Delete Post")
+        box = delete.bounding_box()
+        assert box is not None
+        centre = [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2]
+        rect = card.bounding_box()
+        assert rect is not None
+        overlaps = (
+            centre[0] >= rect["x"]
+            and centre[0] <= rect["x"] + rect["width"]
+            and centre[1] >= rect["y"]
+            and centre[1] <= rect["y"] + rect["height"]
+        )
+        assert overlaps, (
+            "Delete Post is not inside the card's rectangle, so this test proves nothing "
+            "about which of them a thumb reaches"
+        )
+        landed = page.evaluate(
+            """([x, y]) => {
+                const found = document.elementFromPoint(x, y);
+                return found ? found.outerHTML.slice(0, 120) : '';
+            }""",
+            centre,
+        )
+        assert "Delete Post" in landed, f"the card is painting over the post menu: {landed}"
+        _let_the_server_finish(page)
+    finally:
+        chromium.close()
+
+
+def test_focus_never_lands_behind_the_card(live_server: Any, playwright: Playwright) -> None:
+    """WCAG 2.2 SC 2.4.11. `padding-bottom` on the body only adds room at the END of the
+    document; focusing a control scrolls it to the bottom EDGE of the scrollport, which is
+    exactly where the card is fixed. `scroll-padding-bottom` on the scrollport is what a
+    fixed bar owes the page.
+
+    Driven through the keyboard's own path — `element.focus()` performs the same scroll a
+    Tab does — on a feed long enough that the composer is far above the fold."""
+    cookie = _a_member_with_a_session(posts=8)
+    base_url = live_server.url
+    chromium = playwright.chromium.launch()
+    try:
+        context = _phone(chromium, playwright, base_url, cookie)
+        page = _the_feed(context, base_url)
+        card = page.locator("[data-install-card]")
+        expect(card).to_be_visible()
+
+        page.evaluate("() => window.scrollTo(0, document.body.scrollHeight)")
+        post_button = page.locator(".composer-submit button")
+        page.evaluate("() => document.querySelector('.composer-submit button').focus()")
+        box = post_button.bounding_box()
+        rect = card.bounding_box()
+        assert box is not None and rect is not None
+        assert box["y"] >= 0, "the focused control scrolled off the top instead"
+        assert box["y"] + box["height"] <= rect["y"], (
+            "the focused Post button is behind the card: its bottom is "
+            f"{box['y'] + box['height']}, the card starts at {rect['y']}"
+        )
         _let_the_server_finish(page)
     finally:
         chromium.close()

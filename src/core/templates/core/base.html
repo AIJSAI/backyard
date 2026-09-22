@@ -1163,7 +1163,12 @@ ul.comments:has(> li.empty:only-child) { border-left: 0; padding-left: 0; margin
   background: var(--surface-sunk); color: var(--ink);
 }
 .post-menu-items {
-  position: absolute; right: 0; top: 100%; z-index: 5; min-width: 11.5rem;
+  /* ABOVE THE HOME-SCREEN CARD (z-index 8, ~1680 below). `.post-menu` is `position:
+     relative` with no z-index, so it is not a stacking context and this number competes
+     with the card's directly. At 5 the card painted over Edit Post and Delete Post on any
+     post in the lower third of a phone screen, and a thumb aimed at Delete Post opened
+     Get The App instead. A menu the member deliberately opened outranks a nudge. */
+  position: absolute; right: 0; top: 100%; z-index: 9; min-width: 11.5rem;
   display: flex; flex-direction: column; padding: 0.25rem 0;
   background: var(--surface); border: 1.5px solid var(--line);
   border-radius: var(--radius-sm);
@@ -1703,8 +1708,23 @@ ul.contacts > li { padding: 0.15rem 0; }
      tab bar's layout does for itself. On <body>, not on <main>: the footer is below main,
      and padding on main alone leaves the help line and the links under the card at the
      bottom of every scroll. The class is added by the script when the card is revealed and
-     removed when it is closed, so a page with no card reserves nothing. */
-  body.install-card-open { padding-bottom: 7rem; }
+     removed when it is closed, so a page with no card reserves nothing.
+
+     THE CLASS GOES ON <html>, and the reason is the rule below it rather than this one.
+     The scrollport of this document is the ROOT element, so `scroll-padding` has to be set
+     there; a class on <body> would need `html:has(body.install-card-open)` to reach it.
+     This stylesheet already leans on :has() in a dozen places, but every one of them
+     degrades into a page that still works, and a focus rule is not allowed to: a browser
+     without :has() would put a keyboard user's focus behind the card and leave it there.
+     One class on the element that owns the scrollport costs nothing and depends on
+     nothing. */
+  html.install-card-open body { padding-bottom: 7rem; }
+  /* AND THE SCROLLPORT RESERVES IT TOO. The padding above only adds room at the END of the
+     document. Focusing a control scrolls it to the bottom EDGE of the scrollport, which is
+     under a card fixed there — measured: five controls entirely behind it on a phone feed,
+     the composer's own Post button among them. WCAG 2.2 SC 2.4.11. `scroll-padding` is what
+     a fixed bar owes the page, the same way the padding above is what it owes the footer. */
+  html.install-card-open { scroll-padding-bottom: 7rem; }
 }
 
 /* ---- reduced motion & print ---------------------------------------------------------- */
@@ -1926,7 +1946,11 @@ ul.contacts > li { padding: 0.15rem 0; }
   :root, :root[data-theme="light"], :root[data-theme="dark"] {
     --line: var(--line-strong); --ink-soft: var(--ink);
   }
-  ul.feed > li, .comments > li, .composer, .handover, .preview, .empty,
+  /* `.install-card` belongs in this list more than most of it does: it is the one card in
+     the product that floats OVER other content, so its edge is the only thing saying where
+     the page stops and the card starts. A reader who has asked for more separation is
+     exactly the reader that edge is for. */
+  ul.feed > li, .comments > li, .composer, .handover, .preview, .empty, .install-card,
   .notice, .errors, ul.errorlist, .messages .msg, .entrance .entrance-card { border-width: 2px; }
   a { text-decoration-thickness: 2px; }
 }
@@ -2038,13 +2062,21 @@ ul.contacts > li { padding: 0.15rem 0; }
 
      `email_prompt` — ONE PROMPT AT A TIME. Getting back into an account outranks an icon
      on a home screen, so on the one page that carries the e-mail offer the card waits for
-     the next load. No other page sets the variable, so no other page waits.
+     the next load. The feed's first page is the only page that sets the variable, so it is
+     the only page that waits (core/feed_views.py passes "" on the archive, which draws no
+     offer).
 
      `app_prompt_suppressed` — and not back to back either: the paint that follows a "Not
      Now" on the e-mail offer draws neither (core/feed_views.py). {% endcomment %}
-  {% if user.is_authenticated and not viewer_on_a_family_link and not email_prompt and not app_prompt_suppressed %}
-    {% include "core/_install_card.html" %}
-  {% endif %}
+  {% comment %} A BLOCK, so a screen that is already about the home screen — or that is not
+     a place to be offered anything — can drop it without a second server flag. The welcome
+     screens drop it because screen four IS this offer; the error and expired-link pages
+     drop it because they are not pages, they are answers. {% endcomment %}
+  {% block install_offer %}
+    {% if user.is_authenticated and not viewer_on_a_family_link and not email_prompt and not app_prompt_suppressed %}
+      {% include "core/_install_card.html" %}
+    {% endif %}
+  {% endblock %}
   {% if user.is_authenticated %}
     <script nonce="{{ request.csp_nonce }}">
       // Register the minimal service worker so member pages are installable

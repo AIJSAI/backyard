@@ -12,13 +12,20 @@
    using the product, not only while they are looking at the composer; the feed-only line
    reached a member who never scrolled back to the top of it exactly never.
 
-   NEVER ON A TOKEN SURFACE. The No-Login Link pages (/t/, /e/) and the e-mail web view
-   (/d/) plant no worker and link no manifest at all (ADR-002) — they are intermittent
-   surfaces for readers with no session, and an install prompt there would be an
-   invitation to a home-screen icon that opens a login page. base.html gates this on
-   `viewer_on_a_family_link`, which only a view that has RESOLVED a live token sets, so a
-   member who happens to be signed in when they tap the link in their mail does not get it
-   either.
+   NEVER ON A TOKEN SURFACE, AND THAT TAKES TWO MECHANISMS. The No-Login Link pages (/t/,
+   /e/) and the e-mail web view (/d/) plant no worker and link no manifest at all (ADR-002)
+   — they are intermittent surfaces for readers with no session, and an install prompt
+   there would be an invitation to a home-screen icon that opens a login page.
+
+   A LIVE link is covered by `viewer_on_a_family_link`, which only a view that has RESOLVED
+   a token sets, so a member who happens to be signed in when they tap the link in their
+   mail does not get the card either.
+
+   A STALE one is covered by the `install_offer` BLOCK, not by that flag: an expired digest
+   link renders Link Expired and a revoked one renders the byte-identical 404, and neither
+   view ever resolved a token, so neither sets the flag. Those pages drop the block
+   instead — as do the other error pages and all four welcome screens, each for its own
+   reason, written where it is dropped.
 
    IT NEVER FLASHES. The markup ships `hidden` and only the script reveals it, because
    every reason to show it is a browser fact the server does not have: whether this is a
@@ -29,7 +36,14 @@
    rather than when it is answered, so a member who scrolls straight past it is never asked
    twice. That is the whole rule, and it is why there is no "remind me later": a second
    showing of a nudge this small is worse than never showing it at all. {% endcomment %}
-<div class="install-card" data-install-card hidden>
+{% comment %} A NAMED REGION, not a live region. `aria-live` would announce the card over
+   whatever a screen-reader user was already reading, which is exactly the interruption a
+   nudge this small has not earned; the card is on the page from the first paint and only
+   its `hidden` changes, so there is nothing to announce. A named region is what a landmark
+   at the foot of a page owes a reader moving by landmark: it says what this block is
+   before they enter it. {% endcomment %}
+<div class="install-card" role="region" aria-label="Add Backyard To Your Home Screen"
+     data-install-card hidden>
   <p>Add Backyard to your home screen.</p>
   <a class="btn" href="{% url 'get_the_app' %}" data-install-card-go>Get The App</a>
   {% comment %} The accessible name is the WORDS, not the glyph: a screen reader announces
@@ -74,10 +88,13 @@
     // here so a member who already declined the old offer is not asked again by the new
     // one; nothing writes it any more.
     var declinedTheOldLine = 'backyard.install-prompt-dismissed';
-    // Every access wrapped: Safari's private mode and a browser with site data blocked both
-    // THROW on localStorage rather than returning null. A throw means nothing can be
-    // remembered, and a once-ever offer that cannot remember would arrive on every page
-    // load — so it stays quiet instead.
+    // Every access wrapped, and NOT because of private browsing: Safari 11 and later give a
+    // private window its own ephemeral localStorage, which reads and writes normally and is
+    // thrown away when the window closes — so a private window is offered the card once and
+    // then forgets, which is the right answer for a window that forgets everything else too.
+    // What actually THROWS on the property is a browser with site data blocked. Nothing can
+    // be remembered there, and a once-ever offer that cannot remember would arrive on every
+    // page load, so it stays quiet instead.
     try {
       if (window.localStorage.getItem(seen) || window.localStorage.getItem(declinedTheOldLine)) {
         return;
@@ -87,8 +104,10 @@
     }
     card.hidden = false;
     // The card floats over the page, so the page gives it room; without this it sits on
-    // top of the composer's own button and of the last post's controls.
-    document.body.classList.add('install-card-open');
+    // top of the composer's own button and of the last post's controls, and focusing a
+    // control mid-page scrolls it underneath. On the ROOT element, which is the scrollport
+    // `scroll-padding-bottom` has to be set on (base.html).
+    document.documentElement.classList.add('install-card-open');
     // SEEN THE MOMENT IT APPEARS. Ignoring it counts, which is the difference between this
     // and a prompt that waits to be answered before it stops coming back.
     try {
@@ -98,13 +117,16 @@
     }
     function close() {
       card.hidden = true;
-      document.body.classList.remove('install-card-open');
+      document.documentElement.classList.remove('install-card-open');
     }
     card.querySelector('[data-install-card-dismiss]').addEventListener('click', close);
     // Tapping through to the page is an answer too: the card goes before the navigation
     // does, so a slow load does not leave it sitting over the page being left.
     card.querySelector('[data-install-card-go]').addEventListener('click', close);
-    // Installed from another tab, or from the page this card points at: stop offering it.
+    // If an install completes while THIS page is still open, the offer is answered. It
+    // cannot hear an install that happened in another tab or after the tap through to
+    // /app/ — `appinstalled` fires at the window where the install happened, and that
+    // window is not this one. Cheap, and the seen mark covers those cases anyway.
     window.addEventListener('appinstalled', close);
   })();
 </script>

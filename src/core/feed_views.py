@@ -504,7 +504,12 @@ def _render_feed(
             "is_moderator": permissions.is_admin(member),
             # BY-02: this member has no way to reset their own password. Shown once,
             # quietly, until they dismiss it or add an address.
-            "email_prompt": _email_prompt(member),
+            #
+            # NOT ON THE ARCHIVE. The template only draws the offer on the first page
+            # (`if not is_archive_page`), and base.html reads this variable on EVERY page
+            # now — so passing it here made the archive stand the home-screen card down in
+            # deference to an offer the archive does not carry.
+            "email_prompt": "" if cursor is not None else _email_prompt(member),
             # ONE PROMPT AT A TIME, and not back to back: a member who has just declined the
             # e-mail offer must not watch a second offer arrive on the very next paint
             # (measured in review at the same pixel, when the install line still sat under

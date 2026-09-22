@@ -18,8 +18,9 @@ a point somebody deliberately stopped at, with a full green gate behind it.
   scrolled back to the top of their feed never saw it. It is a card now, on every signed-in
   page, on phones only: a sentence, Get The App, and a way to close it. Shown once ever per
   device and remembered the moment it appears, so ignoring it counts. Never when Backyard
-  is already installed, never inside an in-app browser, and never on the No-Login Link or
-  email pages. Somebody who already declined the old line is not asked again.
+  is already installed, never inside an in-app browser, never on the No-Login Link or email
+  pages — live or expired — and never on the welcome, where screen four is this offer
+  already. Somebody who already declined the old line is not asked again.
 
 ## [0.3.1] — 2026-09-21
 

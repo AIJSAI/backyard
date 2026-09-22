@@ -23,3 +23,8 @@
     <p><a class="btn" href="/">{% if user.is_authenticated %}Go To Your Backyard{% else %}Go To Backyard{% endif %}</a></p>
   </div>
 {% endblock %}
+{% comment %} NO HOME-SCREEN CARD HERE. This is not a page, it is an answer: whoever is
+   reading it came for something else and did not get it. The card is shown once ever per
+   device and remembers the moment it appears, so firing it on an error would spend the one
+   showing on the worst screen in the product to be sold anything on. {% endcomment %}
+{% block install_offer %}{% endblock %}

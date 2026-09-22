@@ -80,7 +80,7 @@ epics:
     - "A page in the product tells a member how to install it, with the steps for the phone they are holding first and the other platform still reachable"
     - "Android gets a real install control driven by beforeinstallprompt, with the browser-menu steps as the visible fallback"
     - "An in-app browser (Instagram, Facebook, LinkedIn) is told to open in a browser first, and a member who already has it installed is told so instead of being shown steps"
-    - "It is offered from Settings, from the end of the welcome, and on a phone from a card at the foot of every signed-in page, shown once ever per device and remembered the moment it appears; never on the feed page that is carrying the e-mail offer, and never on the No-Login Link or email surfaces"
+    - "It is offered from Settings, from the end of the welcome, and on a phone from a card at the foot of every signed-in page, shown once ever per device and remembered the moment it appears; never on the feed page that is carrying the e-mail offer, never on the welcome screens (screen four is the offer), never on an error page, and never on the No-Login Link or email surfaces whether the link is live or stale"
     status: passing     # wave 5: PWA manifest + deterministic icons + minimal no-cache worker; installability fields verified, elder+/d/ surfaces worker-free.
                         # 2026-09-20: the INSTALL SURFACE, which was the missing half — all
                         # of the above had shipped and nothing in the product ever said so,
