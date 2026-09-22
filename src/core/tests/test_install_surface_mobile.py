@@ -261,6 +261,37 @@ def test_the_card_is_offered_once_and_never_again_on_that_phone(
         chromium.close()
 
 
+def test_a_store_that_cannot_keep_the_mark_gets_no_card(
+    live_server: Any, playwright: Playwright
+) -> None:
+    """The once-ever rule fails CLOSED. A full store lets the read succeed and the write
+    throw; a card revealed on that path would come back on every page load, which is the
+    one thing this offer must never do. So the mark is written before the card is shown,
+    and no mark means no card. The seam is `setItem` itself, made to throw the way a
+    browser does at quota, with `getItem` left honest."""
+    cookie = _a_member_with_a_session()
+    base_url = live_server.url
+    chromium = playwright.chromium.launch()
+    try:
+        context = _phone(chromium, playwright, base_url, cookie)
+        context.add_init_script(
+            """Object.defineProperty(Storage.prototype, 'setItem', {
+                 value: function () { throw new DOMException('full', 'QuotaExceededError'); }
+               });"""
+        )
+        page = _the_feed(context, base_url)
+        assert page.evaluate(
+            "() => { try { window.localStorage.setItem('x', '1'); return false; }"
+            " catch (e) { return true; } }"
+        ), "the seam this test drives is not in place, so it proves nothing"
+        expect(page.get_by_role("heading", name="Your Backyard")).to_be_visible()  # non-vacuity
+        expect(page.locator("[data-install-card]")).to_be_hidden()
+        assert "install-card-open" not in page.evaluate("() => document.documentElement.className")
+        _let_the_server_finish(page)
+    finally:
+        chromium.close()
+
+
 def test_the_card_leads_to_the_install_page(live_server: Any, playwright: Playwright) -> None:
     """WebKit, because an iPhone is where the offer has to work: Safari fires no
     `beforeinstallprompt`, so this link to the three steps is the whole route to a home

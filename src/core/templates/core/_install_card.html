@@ -102,19 +102,22 @@
     } catch (error) {
       return;
     }
+    // SEEN THE MOMENT IT APPEARS, and WRITTEN BEFORE IT APPEARS. Ignoring it counts, which
+    // is the difference between this and a prompt that waits to be answered before it stops
+    // coming back. The write goes first because it can fail on its own (a full store) after
+    // the read succeeded; a card revealed on a failed write would come back on every page
+    // load, which is the one thing this offer must never do. No mark, no card.
+    try {
+      window.localStorage.setItem(seen, '1');
+    } catch (error) {
+      return;
+    }
     card.hidden = false;
     // The card floats over the page, so the page gives it room; without this it sits on
     // top of the composer's own button and of the last post's controls, and focusing a
     // control mid-page scrolls it underneath. On the ROOT element, which is the scrollport
     // `scroll-padding-bottom` has to be set on (base.html).
     document.documentElement.classList.add('install-card-open');
-    // SEEN THE MOMENT IT APPEARS. Ignoring it counts, which is the difference between this
-    // and a prompt that waits to be answered before it stops coming back.
-    try {
-      window.localStorage.setItem(seen, '1');
-    } catch (error) {
-      // Nothing to do: the read above has already decided to stay quiet next time.
-    }
     function close() {
       card.hidden = true;
       document.documentElement.classList.remove('install-card-open');
