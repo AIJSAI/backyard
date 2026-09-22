@@ -499,6 +499,11 @@ def test_a_stale_email_link_carries_no_install_surface_either() -> None:
     stopped working, on the one screen in the product that is an apology.
 
     Both pages drop the `install_offer` block instead.
+
+    DRIVEN SIGNED IN, because that is the reader the block is for. An anonymous visitor is
+    already covered by `user.is_authenticated`, so asserting only on one proves nothing
+    about the mechanism — and the member who taps an old link in their own mail is exactly
+    the person this happens to.
     """
     pod, _admin = _family()
     yard = pod.yards.first()
@@ -509,22 +514,30 @@ def test_a_stale_email_link_carries_no_install_surface_either() -> None:
     issue = DigestIssue.objects.create(
         member=nana, yard=yard, window_start=now - timedelta(days=7), window_end=now
     )
+    signed_in, reader = _member(pod, username="reader-of-old-mail")
+    _past_the_email_offer(reader)  # so only the stale-link rule can be why
 
     stale = digest_links.mint(issue)
     DigestToken.objects.filter(member=nana).update(expires_at=now - timedelta(seconds=1))
-    expired = Client().get(reverse("digest_web", args=[stale]))
-    assert expired.status_code == 410
-    body = expired.content.decode()
-    assert "Link Expired" in body  # non-vacuity: this really is the expired page
-    assert "data-install-card" not in body and reverse("get_the_app") not in body
+    for client in (Client(), signed_in):
+        expired = client.get(reverse("digest_web", args=[stale]))
+        assert expired.status_code == 410
+        body = expired.content.decode()
+        assert "Link Expired" in body  # non-vacuity: this really is the expired page
+        assert "data-install-card" not in body and reverse("get_the_app") not in body
 
     revoked_link = digest_links.mint(issue)
     elder_tokens.regenerate(nana)  # a revocation bumps the generation the token was minted at
-    gone = Client().get(reverse("digest_web", args=[revoked_link]))
-    assert gone.status_code == 404
-    body = gone.content.decode()
-    assert "Page Not Found" in body  # non-vacuity: the byte-identical 404
-    assert "data-install-card" not in body and reverse("get_the_app") not in body
+    for client in (Client(), signed_in):
+        gone = client.get(reverse("digest_web", args=[revoked_link]))
+        assert gone.status_code == 404
+        body = gone.content.decode()
+        assert "Page Not Found" in body  # non-vacuity: the byte-identical 404
+        assert "data-install-card" not in body and reverse("get_the_app") not in body
+
+    # ...and the same member, on a page that IS a place, still gets it: the assertions above
+    # are about those two answers, not about this reader having been disqualified.
+    assert "data-install-card" in signed_in.get(reverse("feed")).content.decode()
 
 
 def test_an_error_page_carries_no_install_surface_even_for_a_member() -> None:

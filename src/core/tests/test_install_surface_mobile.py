@@ -565,14 +565,25 @@ def test_the_post_menu_outranks_the_card(live_server: Any, playwright: Playwrigh
         chromium.close()
 
 
-def test_focus_never_lands_behind_the_card(live_server: Any, playwright: Playwright) -> None:
-    """WCAG 2.2 SC 2.4.11. `padding-bottom` on the body only adds room at the END of the
-    document; focusing a control scrolls it to the bottom EDGE of the scrollport, which is
-    exactly where the card is fixed. `scroll-padding-bottom` on the scrollport is what a
-    fixed bar owes the page.
+def test_the_scrollport_reserves_the_card_and_focus_lands_clear_of_it(
+    live_server: Any, playwright: Playwright
+) -> None:
+    """WCAG 2.2 SC 2.4.11, asserted as the MECHANISM and then as the outcome.
 
-    Driven through the keyboard's own path — `element.focus()` performs the same scroll a
-    Tab does — on a feed long enough that the composer is far above the fold."""
+    THE MECHANISM is `scroll-padding-bottom` on the scrollport, which is the ROOT element —
+    what any fixed bottom bar owes the page, the same way the body's padding is what it
+    owes the footer. It is declared while the card is open and gone when it is closed, and
+    it is read here off the computed style because that is the only thing that distinguishes
+    it from a rule that never applied: a class on <body> could not reach the root at all.
+
+    THE OUTCOME is the thing a member feels: Tab down the feed, and the control that takes
+    focus is not underneath the card. Measured on this layout, the body's padding is what
+    currently carries the outcome — both engines over-scroll a focused control well clear
+    of the bottom edge, so `scroll-padding` shifts where it lands (56px, measured) without
+    being the difference between covered and not. It is declared anyway, because the
+    browsers' scroll choice is not this product's to rely on and an anchor jump makes the
+    same move. The outcome is asserted so that a change to EITHER reserve is caught here.
+    """
     cookie = _a_member_with_a_session(posts=8)
     base_url = live_server.url
     chromium = playwright.chromium.launch()
@@ -582,17 +593,49 @@ def test_focus_never_lands_behind_the_card(live_server: Any, playwright: Playwri
         card = page.locator("[data-install-card]")
         expect(card).to_be_visible()
 
-        page.evaluate("() => window.scrollTo(0, document.body.scrollHeight)")
-        post_button = page.locator(".composer-submit button")
-        page.evaluate("() => document.querySelector('.composer-submit button').focus()")
-        box = post_button.bounding_box()
+        reserve = page.evaluate(
+            "() => getComputedStyle(document.documentElement).scrollPaddingBottom"
+        )
+        height = (card.bounding_box() or {}).get("height", 0)
+        assert reserve.endswith("px"), f"the scrollport reserves nothing: {reserve!r}"
+        assert float(reserve[:-2]) >= height, (
+            f"the scrollport reserves {reserve} for a card {height}px tall, so a control "
+            "scrolled to the bottom edge still lands behind it"
+        )
+
+        which = page.evaluate(
+            """() => {
+                const all = [...document.querySelectorAll('button.love')];
+                const target = all.find(
+                    node => node.getBoundingClientRect().top > window.innerHeight
+                );
+                if (!target) { return -1; }
+                target.focus();
+                return all.indexOf(target);
+            }"""
+        )
+        assert which >= 0, "no control sits below the fold, so no Tab here can scroll downwards"
+        focused = page.locator("button.love").nth(which)
+        box = focused.bounding_box()
         rect = card.bounding_box()
         assert box is not None and rect is not None
+        assert page.evaluate("() => document.activeElement.classList.contains('love')"), (
+            "the control never took focus, so nothing scrolled"
+        )
         assert box["y"] >= 0, "the focused control scrolled off the top instead"
         assert box["y"] + box["height"] <= rect["y"], (
-            "the focused Post button is behind the card: its bottom is "
+            "the focused control is behind the card: its bottom is "
             f"{box['y'] + box['height']}, the card starts at {rect['y']}"
         )
+
+        # ...and the reserve goes with the card, so a page nobody is being offered anything
+        # on scrolls exactly as it always did.
+        page.get_by_role("button", name="Not Now", exact=True).click()
+        expect(card).to_be_hidden()
+        assert (
+            page.evaluate("() => getComputedStyle(document.documentElement).scrollPaddingBottom")
+            != reserve
+        ), "the scrollport is still reserving room for a card that is gone"
         _let_the_server_finish(page)
     finally:
         chromium.close()
